@@ -1,98 +1,99 @@
-# カスタムエラー設計
+# Custom Error Design
 
-> エラーを適切にモデリングすることは、ソフトウェアの信頼性と保守性の基盤。エラーコード体系、ドメインエラー、エラーのシリアライズ手法を解説する。
+> Properly modeling errors is the foundation of software reliability and maintainability. This guide covers error code systems, domain errors, and error serialization techniques.
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] カスタムエラーの設計原則を理解する
-- [ ] エラーコード体系の作り方を把握する
-- [ ] ドメイン駆動のエラー設計を学ぶ
-- [ ] 各言語でのカスタムエラー実装パターンを習得する
-- [ ] エラーのシリアライズとAPI設計を学ぶ
-- [ ] エラーの国際化（i18n）対応を理解する
+- [ ] Understand design principles for custom errors
+- [ ] Learn how to build an error code system
+- [ ] Study domain-driven error design
+- [ ] Master custom error implementation patterns in various languages
+- [ ] Learn error serialization and API design
+- [ ] Understand error internationalization (i18n)
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Understanding the following will help you get the most out of this guide:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [エラー境界](./02-error-boundaries.md) の内容を理解していること
-
----
-
-## 1. エラーの分類
-
-### 1.1 操作エラー vs プログラマエラー
-
-```
-操作エラー（Operational Error）:
-  → 予期される実行時エラー
-  → 例: ネットワーク切断、DB接続失敗、バリデーション失敗
-  → 対処: リトライ、フォールバック、ユーザーへ通知
-
-プログラマエラー（Programmer Error）:
-  → バグ。コードの修正が必要
-  → 例: null参照、型エラー、配列の範囲外アクセス
-  → 対処: クラッシュ → 修正 → デプロイ
-
-この区別が重要:
-  → 操作エラー: ハンドリングする（回復可能）
-  → プログラマエラー: クラッシュさせる（回復不能）
-```
-
-### 1.2 エラーの詳細な分類体系
-
-```
-エラーの分類体系:
-
-  1. クライアントエラー（4xx 系）
-     → バリデーションエラー（400）
-     → 認証エラー（401）
-     → 認可エラー（403）
-     → リソース未発見（404）
-     → 競合エラー（409）
-     → リクエスト制限（429）
-
-  2. サーバーエラー（5xx 系）
-     → 内部エラー（500）
-     → 外部サービスエラー（502）
-     → サービス利用不可（503）
-     → タイムアウト（504）
-
-  3. ビジネスロジックエラー
-     → 残高不足
-     → 注文キャンセル済み
-     → 在庫切れ
-     → 有効期限切れ
-     → ポリシー違反
-
-  4. インフラエラー
-     → データベース接続エラー
-     → メッセージキュー接続エラー
-     → ファイルシステムエラー
-     → メモリ不足
-
-  それぞれの特性:
-  ┌─────────────────┬────────┬──────────┬────────────┐
-  │ 分類            │ 回復性 │ 通知先   │ ログレベル │
-  ├─────────────────┼────────┼──────────┼────────────┤
-  │ クライアント    │ 可能   │ ユーザー │ warn       │
-  │ サーバー        │ 不可能 │ 開発者   │ error      │
-  │ ビジネスロジック│ 可能   │ ユーザー │ warn       │
-  │ インフラ        │ リトライ│ 運用     │ error      │
-  └─────────────────┴────────┴──────────┴────────────┘
-```
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Familiarity with [Error Boundaries](./02-error-boundaries.md)
 
 ---
 
-## 2. TypeScript でのカスタムエラー
+## 1. Error Classification
 
-### 2.1 基底エラークラス
+### 1.1 Operational Errors vs Programmer Errors
+
+```
+Operational Error:
+  -> Expected runtime errors
+  -> Examples: Network disconnection, DB connection failure, validation failure
+  -> Response: Retry, fallback, notify user
+
+Programmer Error:
+  -> Bugs. Code needs to be fixed
+  -> Examples: Null reference, type error, array out-of-bounds access
+  -> Response: Crash -> Fix -> Deploy
+
+This distinction is important:
+  -> Operational errors: Handle them (recoverable)
+  -> Programmer errors: Let them crash (unrecoverable)
+```
+
+### 1.2 Detailed Error Classification System
+
+```
+Error Classification System:
+
+  1. Client Errors (4xx)
+     -> Validation Error (400)
+     -> Authentication Error (401)
+     -> Authorization Error (403)
+     -> Resource Not Found (404)
+     -> Conflict Error (409)
+     -> Rate Limit (429)
+
+  2. Server Errors (5xx)
+     -> Internal Error (500)
+     -> External Service Error (502)
+     -> Service Unavailable (503)
+     -> Timeout (504)
+
+  3. Business Logic Errors
+     -> Insufficient Balance
+     -> Order Already Cancelled
+     -> Out of Stock
+     -> Expired
+     -> Policy Violation
+
+  4. Infrastructure Errors
+     -> Database Connection Error
+     -> Message Queue Connection Error
+     -> File System Error
+     -> Out of Memory
+
+  Characteristics of each:
+  +-------------------+------------+------------+-----------+
+  | Category          | Recoverabi | Notify     | Log Level |
+  |                   | lity       |            |           |
+  +-------------------+------------+------------+-----------+
+  | Client            | Possible   | User       | warn      |
+  | Server            | Impossible | Developer  | error     |
+  | Business Logic    | Possible   | User       | warn      |
+  | Infrastructure    | Retryable  | Operations | error     |
+  +-------------------+------------+------------+-----------+
+```
+
+---
+
+## 2. Custom Errors in TypeScript
+
+### 2.1 Base Error Class
 
 ```typescript
-// 基底エラークラス
+// Base error class
 abstract class AppError extends Error {
   abstract readonly code: string;
   abstract readonly statusCode: number;
@@ -119,10 +120,10 @@ abstract class AppError extends Error {
 }
 ```
 
-### 2.2 ドメインエラーの実装
+### 2.2 Domain Error Implementation
 
 ```typescript
-// ドメインエラー
+// Domain errors
 class UserNotFoundError extends AppError {
   readonly code = "USER_NOT_FOUND";
   readonly statusCode = 404;
@@ -153,7 +154,7 @@ class InsufficientBalanceError extends AppError {
   }
 }
 
-// バリデーションエラー（複数フィールド）
+// Validation error (multiple fields)
 class ValidationError extends AppError {
   readonly code = "VALIDATION_ERROR";
   readonly statusCode = 400;
@@ -177,12 +178,12 @@ class ValidationError extends AppError {
 }
 ```
 
-### 2.3 完全なエラー階層の設計例
+### 2.3 Complete Error Hierarchy Design Example
 
 ```typescript
-// ========== 実務的な完全なエラー階層 ==========
+// ========== Practical Complete Error Hierarchy ==========
 
-// 基底クラス
+// Base class
 abstract class AppError extends Error {
     abstract readonly code: string;
     abstract readonly httpStatus: number;
@@ -201,7 +202,7 @@ abstract class AppError extends Error {
         Error.captureStackTrace(this, this.constructor);
     }
 
-    // APIレスポンス用のシリアライズ
+    // Serialization for API responses
     toResponse(): ErrorResponse {
         return {
             error: {
@@ -213,7 +214,7 @@ abstract class AppError extends Error {
         };
     }
 
-    // ログ用のシリアライズ（内部情報を含む）
+    // Serialization for logging (includes internal information)
     toLog(): Record<string, unknown> {
         return {
             type: this.name,
@@ -232,11 +233,11 @@ abstract class AppError extends Error {
     }
 }
 
-// ---------- 認証系 ----------
+// ---------- Authentication ----------
 class AuthenticationError extends AppError {
     readonly code = "AUTHENTICATION_REQUIRED";
     readonly httpStatus = 401;
-    constructor(message = "認証が必要です", options?: { cause?: Error }) {
+    constructor(message = "Authentication required", options?: { cause?: Error }) {
         super(message, true, options);
     }
 }
@@ -245,7 +246,7 @@ class TokenExpiredError extends AppError {
     readonly code = "TOKEN_EXPIRED";
     readonly httpStatus = 401;
     constructor(public readonly expiredAt: Date) {
-        super(`トークンが期限切れです（${expiredAt.toISOString()}）`);
+        super(`Token expired (${expiredAt.toISOString()})`);
     }
 }
 
@@ -253,7 +254,7 @@ class InvalidTokenError extends AppError {
     readonly code = "INVALID_TOKEN";
     readonly httpStatus = 401;
     constructor(public readonly reason: string) {
-        super(`無効なトークンです: ${reason}`);
+        super(`Invalid token: ${reason}`);
     }
 }
 
@@ -264,11 +265,11 @@ class AuthorizationError extends AppError {
         public readonly requiredPermission: string,
         public readonly actualPermissions: string[] = [],
     ) {
-        super(`権限が不足しています: ${requiredPermission} が必要です`);
+        super(`Insufficient permissions: ${requiredPermission} required`);
     }
 }
 
-// ---------- リソース系 ----------
+// ---------- Resources ----------
 class NotFoundError extends AppError {
     readonly code = "NOT_FOUND";
     readonly httpStatus = 404;
@@ -276,7 +277,7 @@ class NotFoundError extends AppError {
         public readonly resourceType: string,
         public readonly resourceId: string,
     ) {
-        super(`${resourceType} が見つかりません: ${resourceId}`);
+        super(`${resourceType} not found: ${resourceId}`);
     }
 }
 
@@ -288,7 +289,7 @@ class ConflictError extends AppError {
         public readonly conflictField: string,
         public readonly conflictValue: string,
     ) {
-        super(`${resourceType} の ${conflictField} が重複しています: ${conflictValue}`);
+        super(`${resourceType} ${conflictField} already exists: ${conflictValue}`);
     }
 }
 
@@ -300,11 +301,11 @@ class GoneError extends AppError {
         public readonly resourceId: string,
         public readonly deletedAt: Date,
     ) {
-        super(`${resourceType} ${resourceId} は削除されました（${deletedAt.toISOString()}）`);
+        super(`${resourceType} ${resourceId} has been deleted (${deletedAt.toISOString()})`);
     }
 }
 
-// ---------- バリデーション系 ----------
+// ---------- Validation ----------
 interface FieldError {
     field: string;
     message: string;
@@ -317,7 +318,7 @@ class ValidationError extends AppError {
     readonly code = "VALIDATION_ERROR";
     readonly httpStatus = 400;
     constructor(public readonly fieldErrors: FieldError[]) {
-        super(`入力値が不正です: ${fieldErrors.map(e => e.field).join(", ")}`);
+        super(`Invalid input: ${fieldErrors.map(e => e.field).join(", ")}`);
     }
 
     toResponse(): ErrorResponse {
@@ -335,18 +336,18 @@ class ValidationError extends AppError {
         };
     }
 
-    // フィールド別のエラー取得
+    // Get error for a specific field
     getFieldError(field: string): FieldError | undefined {
         return this.fieldErrors.find(e => e.field === field);
     }
 
-    // エラーの追加
+    // Add errors
     static builder(): ValidationErrorBuilder {
         return new ValidationErrorBuilder();
     }
 }
 
-// バリデーションエラービルダー
+// Validation error builder
 class ValidationErrorBuilder {
     private errors: FieldError[] = [];
 
@@ -356,23 +357,23 @@ class ValidationErrorBuilder {
     }
 
     required(field: string): this {
-        return this.addError(field, `${field} は必須です`, "REQUIRED");
+        return this.addError(field, `${field} is required`, "REQUIRED");
     }
 
     invalidFormat(field: string, expectedFormat: string): this {
-        return this.addError(field, `${field} の形式が不正です（期待: ${expectedFormat}）`, "INVALID_FORMAT");
+        return this.addError(field, `${field} has an invalid format (expected: ${expectedFormat})`, "INVALID_FORMAT");
     }
 
     tooLong(field: string, maxLength: number): this {
-        return this.addError(field, `${field} は ${maxLength} 文字以内で入力してください`, "TOO_LONG");
+        return this.addError(field, `${field} must be ${maxLength} characters or fewer`, "TOO_LONG");
     }
 
     tooShort(field: string, minLength: number): this {
-        return this.addError(field, `${field} は ${minLength} 文字以上で入力してください`, "TOO_SHORT");
+        return this.addError(field, `${field} must be at least ${minLength} characters`, "TOO_SHORT");
     }
 
     outOfRange(field: string, min: number, max: number): this {
-        return this.addError(field, `${field} は ${min} から ${max} の範囲で入力してください`, "OUT_OF_RANGE");
+        return this.addError(field, `${field} must be between ${min} and ${max}`, "OUT_OF_RANGE");
     }
 
     hasErrors(): boolean {
@@ -391,12 +392,12 @@ class ValidationErrorBuilder {
     }
 }
 
-// 使用例
+// Usage example
 function validateCreateUser(data: unknown): ValidationError | null {
     const builder = ValidationError.builder();
 
     if (!data || typeof data !== "object") {
-        builder.addError("body", "リクエストボディが不正です", "INVALID_BODY");
+        builder.addError("body", "Invalid request body", "INVALID_BODY");
         return builder.build();
     }
 
@@ -420,7 +421,7 @@ function validateCreateUser(data: unknown): ValidationError | null {
     return builder.buildIfErrors();
 }
 
-// ---------- ビジネスロジック系 ----------
+// ---------- Business Logic ----------
 class InsufficientBalanceError extends AppError {
     readonly code = "INSUFFICIENT_BALANCE";
     readonly httpStatus = 400;
@@ -429,7 +430,7 @@ class InsufficientBalanceError extends AppError {
         public readonly available: number,
         public readonly currency: string = "JPY",
     ) {
-        super(`残高不足: ${required.toLocaleString()} ${currency} 必要、${available.toLocaleString()} ${currency} 利用可能`);
+        super(`Insufficient balance: ${required.toLocaleString()} ${currency} required, ${available.toLocaleString()} ${currency} available`);
     }
 }
 
@@ -440,7 +441,7 @@ class OrderAlreadyCancelledError extends AppError {
         public readonly orderId: string,
         public readonly cancelledAt: Date,
     ) {
-        super(`注文 ${orderId} は既にキャンセルされています（${cancelledAt.toISOString()}）`);
+        super(`Order ${orderId} has already been cancelled (${cancelledAt.toISOString()})`);
     }
 }
 
@@ -452,7 +453,7 @@ class StockNotAvailableError extends AppError {
         public readonly requested: number,
         public readonly available: number,
     ) {
-        super(`在庫不足: 商品 ${productId}（要求: ${requested}, 在庫: ${available}）`);
+        super(`Out of stock: product ${productId} (requested: ${requested}, available: ${available})`);
     }
 }
 
@@ -464,7 +465,7 @@ class RateLimitExceededError extends AppError {
         public readonly windowMs: number,
         public readonly retryAfterMs: number,
     ) {
-        super(`レート制限を超過しました（${limit} リクエスト / ${windowMs / 1000}秒）`);
+        super(`Rate limit exceeded (${limit} requests / ${windowMs / 1000}s)`);
     }
 
     toResponse(): ErrorResponse {
@@ -479,7 +480,7 @@ class RateLimitExceededError extends AppError {
     }
 }
 
-// ---------- 外部サービス系 ----------
+// ---------- External Services ----------
 class ExternalServiceError extends AppError {
     readonly code = "EXTERNAL_SERVICE_ERROR";
     readonly httpStatus = 502;
@@ -489,7 +490,7 @@ class ExternalServiceError extends AppError {
         options?: { cause?: Error }
     ) {
         super(
-            `外部サービス ${serviceName} でエラーが発生しました${serviceStatus ? `（HTTP ${serviceStatus}）` : ''}`,
+            `Error occurred in external service ${serviceName}${serviceStatus ? ` (HTTP ${serviceStatus})` : ''}`,
             true,
             options
         );
@@ -503,11 +504,11 @@ class ServiceTimeoutError extends AppError {
         public readonly serviceName: string,
         public readonly timeoutMs: number,
     ) {
-        super(`${serviceName} への接続がタイムアウトしました（${timeoutMs}ms）`);
+        super(`Connection to ${serviceName} timed out (${timeoutMs}ms)`);
     }
 }
 
-// ---------- 内部エラー ----------
+// ---------- Internal Errors ----------
 class InternalError extends AppError {
     readonly code = "INTERNAL_ERROR";
     readonly httpStatus = 500;
@@ -519,182 +520,182 @@ class InternalError extends AppError {
 
 ---
 
-## 3. エラーコード体系
+## 3. Error Code System
 
-### 3.1 命名規則
+### 3.1 Naming Conventions
 
 ```
-エラーコード設計:
-  → 一意の文字列識別子
-  → 機械可読（プログラムで判定可能）
-  → 人間可読（見て意味が分かる）
+Error Code Design:
+  -> Unique string identifier
+  -> Machine-readable (can be evaluated programmatically)
+  -> Human-readable (understandable at a glance)
 
-命名規則:
+Naming Convention:
   {DOMAIN}_{ENTITY}_{ACTION}
 
-  AUTH_TOKEN_EXPIRED         — 認証トークン期限切れ
-  AUTH_CREDENTIALS_INVALID   — 認証情報不正
-  USER_NOT_FOUND            — ユーザー未発見
-  USER_EMAIL_DUPLICATE      — メール重複
-  ORDER_PAYMENT_FAILED      — 注文の支払い失敗
-  ORDER_ALREADY_CANCELLED   — 注文は既にキャンセル済み
-  RATE_LIMIT_EXCEEDED       — レート制限超過
-  INTERNAL_SERVER_ERROR     — サーバー内部エラー
+  AUTH_TOKEN_EXPIRED         - Authentication token expired
+  AUTH_CREDENTIALS_INVALID   - Invalid credentials
+  USER_NOT_FOUND            - User not found
+  USER_EMAIL_DUPLICATE      - Duplicate email
+  ORDER_PAYMENT_FAILED      - Order payment failed
+  ORDER_ALREADY_CANCELLED   - Order already cancelled
+  RATE_LIMIT_EXCEEDED       - Rate limit exceeded
+  INTERNAL_SERVER_ERROR     - Internal server error
 ```
 
-### 3.2 エラーコードレジストリ
+### 3.2 Error Code Registry
 
 ```typescript
-// エラーコードをenumで管理
+// Managing error codes as an enum
 const ErrorCodes = {
-  // 認証
-  AUTH_TOKEN_EXPIRED: { status: 401, message: "トークンが期限切れです" },
-  AUTH_CREDENTIALS_INVALID: { status: 401, message: "認証情報が不正です" },
-  AUTH_FORBIDDEN: { status: 403, message: "アクセスが禁止されています" },
+  // Authentication
+  AUTH_TOKEN_EXPIRED: { status: 401, message: "Token has expired" },
+  AUTH_CREDENTIALS_INVALID: { status: 401, message: "Invalid credentials" },
+  AUTH_FORBIDDEN: { status: 403, message: "Access forbidden" },
 
-  // ユーザー
-  USER_NOT_FOUND: { status: 404, message: "ユーザーが見つかりません" },
-  USER_EMAIL_DUPLICATE: { status: 409, message: "メールアドレスは既に使用されています" },
+  // User
+  USER_NOT_FOUND: { status: 404, message: "User not found" },
+  USER_EMAIL_DUPLICATE: { status: 409, message: "Email address is already in use" },
 
-  // バリデーション
-  VALIDATION_ERROR: { status: 400, message: "入力値が不正です" },
+  // Validation
+  VALIDATION_ERROR: { status: 400, message: "Invalid input" },
 
-  // サーバー
-  INTERNAL_ERROR: { status: 500, message: "サーバーエラーが発生しました" },
+  // Server
+  INTERNAL_ERROR: { status: 500, message: "Server error occurred" },
 } as const;
 
 type ErrorCode = keyof typeof ErrorCodes;
 ```
 
-### 3.3 エラーコードの階層的管理
+### 3.3 Hierarchical Error Code Management
 
 ```typescript
-// エラーコードの階層的管理
+// Hierarchical error code management
 const ERROR_REGISTRY = {
-    // ========== 認証・認可 ==========
+    // ========== Authentication & Authorization ==========
     AUTH: {
         UNAUTHENTICATED: {
             httpStatus: 401,
-            message: "認証が必要です",
+            message: "Authentication required",
             retryable: false,
-            userMessage: "ログインしてください",
+            userMessage: "Please log in",
         },
         TOKEN_EXPIRED: {
             httpStatus: 401,
-            message: "トークンが期限切れです",
+            message: "Token has expired",
             retryable: true,
-            userMessage: "セッションの有効期限が切れました。再度ログインしてください",
+            userMessage: "Your session has expired. Please log in again",
         },
         INVALID_TOKEN: {
             httpStatus: 401,
-            message: "無効なトークンです",
+            message: "Invalid token",
             retryable: false,
-            userMessage: "認証に失敗しました。再度ログインしてください",
+            userMessage: "Authentication failed. Please log in again",
         },
         FORBIDDEN: {
             httpStatus: 403,
-            message: "権限がありません",
+            message: "Permission denied",
             retryable: false,
-            userMessage: "この操作を実行する権限がありません",
+            userMessage: "You do not have permission to perform this action",
         },
     },
 
-    // ========== ユーザー ==========
+    // ========== User ==========
     USER: {
         NOT_FOUND: {
             httpStatus: 404,
-            message: "ユーザーが見つかりません",
+            message: "User not found",
             retryable: false,
-            userMessage: "指定されたユーザーは存在しません",
+            userMessage: "The specified user does not exist",
         },
         EMAIL_DUPLICATE: {
             httpStatus: 409,
-            message: "メールアドレスが重複しています",
+            message: "Duplicate email address",
             retryable: false,
-            userMessage: "このメールアドレスは既に登録されています",
+            userMessage: "This email address is already registered",
         },
         PROFILE_INCOMPLETE: {
             httpStatus: 400,
-            message: "プロフィールが不完全です",
+            message: "Incomplete profile",
             retryable: false,
-            userMessage: "必要な情報を入力してください",
+            userMessage: "Please fill in the required information",
         },
     },
 
-    // ========== 注文 ==========
+    // ========== Order ==========
     ORDER: {
         NOT_FOUND: {
             httpStatus: 404,
-            message: "注文が見つかりません",
+            message: "Order not found",
             retryable: false,
-            userMessage: "指定された注文は存在しません",
+            userMessage: "The specified order does not exist",
         },
         PAYMENT_FAILED: {
             httpStatus: 400,
-            message: "支払いに失敗しました",
+            message: "Payment failed",
             retryable: true,
-            userMessage: "お支払いを処理できませんでした。別の支払い方法をお試しください",
+            userMessage: "We could not process your payment. Please try a different payment method",
         },
         ALREADY_CANCELLED: {
             httpStatus: 400,
-            message: "注文は既にキャンセルされています",
+            message: "Order already cancelled",
             retryable: false,
-            userMessage: "この注文は既にキャンセルされています",
+            userMessage: "This order has already been cancelled",
         },
         STOCK_UNAVAILABLE: {
             httpStatus: 400,
-            message: "在庫がありません",
+            message: "Out of stock",
             retryable: false,
-            userMessage: "申し訳ありませんが、この商品は現在在庫切れです",
+            userMessage: "Sorry, this item is currently out of stock",
         },
     },
 
-    // ========== システム ==========
+    // ========== System ==========
     SYSTEM: {
         INTERNAL_ERROR: {
             httpStatus: 500,
-            message: "内部エラーが発生しました",
+            message: "Internal error occurred",
             retryable: true,
-            userMessage: "サーバーエラーが発生しました。しばらく待ってから再試行してください",
+            userMessage: "A server error occurred. Please wait and try again",
         },
         SERVICE_UNAVAILABLE: {
             httpStatus: 503,
-            message: "サービスが一時的に利用できません",
+            message: "Service temporarily unavailable",
             retryable: true,
-            userMessage: "現在メンテナンス中です。しばらくお待ちください",
+            userMessage: "Currently under maintenance. Please try again later",
         },
         RATE_LIMITED: {
             httpStatus: 429,
-            message: "リクエストが多すぎます",
+            message: "Too many requests",
             retryable: true,
-            userMessage: "リクエストの頻度が高すぎます。しばらく待ってから再試行してください",
+            userMessage: "Request frequency is too high. Please wait and try again",
         },
     },
 
-    // ========== バリデーション ==========
+    // ========== Validation ==========
     VALIDATION: {
         INVALID_INPUT: {
             httpStatus: 400,
-            message: "入力値が不正です",
+            message: "Invalid input",
             retryable: false,
-            userMessage: "入力内容に誤りがあります。確認して再入力してください",
+            userMessage: "There are errors in your input. Please check and re-enter",
         },
         MISSING_FIELD: {
             httpStatus: 400,
-            message: "必須フィールドが欠落しています",
+            message: "Required field is missing",
             retryable: false,
-            userMessage: "必須項目を入力してください",
+            userMessage: "Please fill in the required fields",
         },
         INVALID_FORMAT: {
             httpStatus: 400,
-            message: "フォーマットが不正です",
+            message: "Invalid format",
             retryable: false,
-            userMessage: "正しい形式で入力してください",
+            userMessage: "Please enter in the correct format",
         },
     },
 } as const;
 
-// 型安全なエラーコードの取得
+// Type-safe error code retrieval
 type ErrorDomain = keyof typeof ERROR_REGISTRY;
 type ErrorCodeOf<D extends ErrorDomain> = keyof typeof ERROR_REGISTRY[D];
 
@@ -705,21 +706,21 @@ function getErrorInfo<D extends ErrorDomain>(
     return ERROR_REGISTRY[domain][code];
 }
 
-// 使用例
+// Usage example
 const info = getErrorInfo('AUTH', 'TOKEN_EXPIRED');
 // info.httpStatus === 401
-// info.message === "トークンが期限切れです"
+// info.message === "Token has expired"
 // info.retryable === true
 ```
 
 ---
 
-## 4. Rust でのエラー設計
+## 4. Error Design in Rust
 
-### 4.1 thiserror を使ったカスタムエラー
+### 4.1 Custom Errors with thiserror
 
 ```rust
-// Rust: thiserror クレートでカスタムエラー
+// Rust: Custom errors with the thiserror crate
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -757,13 +758,13 @@ impl AppError {
 }
 ```
 
-### 4.2 エラーの階層化
+### 4.2 Error Hierarchy
 
 ```rust
-// ドメインごとにエラー型を分ける
+// Separate error types per domain
 use thiserror::Error;
 
-// ユーザードメインのエラー
+// User domain errors
 #[derive(Error, Debug)]
 pub enum UserError {
     #[error("User not found: {0}")]
@@ -779,7 +780,7 @@ pub enum UserError {
     Deactivated(String),
 }
 
-// 注文ドメインのエラー
+// Order domain errors
 #[derive(Error, Debug)]
 pub enum OrderError {
     #[error("Order not found: {0}")]
@@ -799,7 +800,7 @@ pub enum OrderError {
     },
 }
 
-// アプリケーション全体のエラー（各ドメインエラーを集約）
+// Application-wide error (aggregating domain errors)
 #[derive(Error, Debug)]
 pub enum AppError {
     #[error(transparent)]
@@ -818,7 +819,7 @@ pub enum AppError {
     Internal(String),
 }
 
-// Actix-web でのレスポンス変換
+// Response conversion for Actix-web
 impl actix_web::ResponseError for AppError {
     fn error_response(&self) -> actix_web::HttpResponse {
         let status = self.status_code();
@@ -867,19 +868,19 @@ impl AppError {
 
 ---
 
-## 5. Python でのカスタムエラー
+## 5. Custom Errors in Python
 
-### 5.1 エラー階層の設計
+### 5.1 Error Hierarchy Design
 
 ```python
-# Python: カスタム例外階層
+# Python: Custom exception hierarchy
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Optional
 import traceback
 
 class AppError(Exception):
-    """アプリケーションエラーの基底クラス"""
+    """Base class for application errors"""
     code: str = "INTERNAL_ERROR"
     http_status: int = 500
     is_operational: bool = True
@@ -904,7 +905,7 @@ class AppError(Exception):
             self.__cause__ = cause
 
     def to_dict(self) -> dict:
-        """APIレスポンス用のdict変換"""
+        """Convert to dict for API response"""
         result = {
             "error": {
                 "code": self.code,
@@ -915,7 +916,7 @@ class AppError(Exception):
         return result
 
     def to_log(self) -> dict:
-        """ログ用のdict変換（内部情報を含む）"""
+        """Convert to dict for logging (includes internal information)"""
         return {
             "type": type(self).__name__,
             "code": self.code,
@@ -929,12 +930,12 @@ class AppError(Exception):
         }
 
 
-# ========== 認証系 ==========
+# ========== Authentication ==========
 class AuthenticationError(AppError):
     code = "AUTHENTICATION_REQUIRED"
     http_status = 401
 
-    def __init__(self, message: str = "認証が必要です", **kwargs):
+    def __init__(self, message: str = "Authentication required", **kwargs):
         super().__init__(message, **kwargs)
 
 
@@ -943,7 +944,7 @@ class TokenExpiredError(AuthenticationError):
 
     def __init__(self, expired_at: datetime, **kwargs):
         self.expired_at = expired_at
-        super().__init__(f"トークンが期限切れです（{expired_at.isoformat()}）", **kwargs)
+        super().__init__(f"Token expired ({expired_at.isoformat()})", **kwargs)
 
 
 class AuthorizationError(AppError):
@@ -959,12 +960,12 @@ class AuthorizationError(AppError):
         self.required_permission = required_permission
         self.actual_permissions = actual_permissions or []
         super().__init__(
-            f"権限が不足しています: {required_permission} が必要です",
+            f"Insufficient permissions: {required_permission} required",
             **kwargs,
         )
 
 
-# ========== リソース系 ==========
+# ========== Resources ==========
 class NotFoundError(AppError):
     code = "NOT_FOUND"
     http_status = 404
@@ -973,7 +974,7 @@ class NotFoundError(AppError):
         self.resource_type = resource_type
         self.resource_id = resource_id
         super().__init__(
-            f"{resource_type} が見つかりません: {resource_id}",
+            f"{resource_type} not found: {resource_id}",
             **kwargs,
         )
 
@@ -987,12 +988,12 @@ class ConflictError(AppError):
         self.conflict_field = conflict_field
         self.conflict_value = conflict_value
         super().__init__(
-            f"{resource_type} の {conflict_field} が重複しています: {conflict_value}",
+            f"{resource_type} {conflict_field} already exists: {conflict_value}",
             **kwargs,
         )
 
 
-# ========== バリデーション系 ==========
+# ========== Validation ==========
 @dataclass
 class FieldError:
     field: str
@@ -1008,7 +1009,7 @@ class ValidationError(AppError):
     def __init__(self, field_errors: list[FieldError], **kwargs):
         self.field_errors = field_errors
         fields = ", ".join(e.field for e in field_errors)
-        super().__init__(f"入力値が不正です: {fields}", **kwargs)
+        super().__init__(f"Invalid input: {fields}", **kwargs)
 
     def to_dict(self) -> dict:
         result = super().to_dict()
@@ -1019,7 +1020,7 @@ class ValidationError(AppError):
         return result
 
 
-# ========== ビジネスロジック系 ==========
+# ========== Business Logic ==========
 class InsufficientBalanceError(AppError):
     code = "INSUFFICIENT_BALANCE"
     http_status = 400
@@ -1029,12 +1030,12 @@ class InsufficientBalanceError(AppError):
         self.available = available
         self.currency = currency
         super().__init__(
-            f"残高不足: {required:,.0f} {currency} 必要、{available:,.0f} {currency} 利用可能",
+            f"Insufficient balance: {required:,.0f} {currency} required, {available:,.0f} {currency} available",
             **kwargs,
         )
 
 
-# ========== 使用例 ==========
+# ========== Usage Examples ==========
 def get_user(user_id: str) -> User:
     user = user_repository.find_by_id(user_id)
     if user is None:
@@ -1043,19 +1044,19 @@ def get_user(user_id: str) -> User:
 
 
 def create_user(data: dict) -> User:
-    # バリデーション
+    # Validation
     errors = []
     if not data.get("name"):
-        errors.append(FieldError(field="name", message="名前は必須です", code="REQUIRED"))
+        errors.append(FieldError(field="name", message="Name is required", code="REQUIRED"))
     if not data.get("email"):
-        errors.append(FieldError(field="email", message="メールは必須です", code="REQUIRED"))
+        errors.append(FieldError(field="email", message="Email is required", code="REQUIRED"))
     elif not is_valid_email(data["email"]):
-        errors.append(FieldError(field="email", message="メールの形式が不正です", code="INVALID_FORMAT"))
+        errors.append(FieldError(field="email", message="Invalid email format", code="INVALID_FORMAT"))
 
     if errors:
         raise ValidationError(errors)
 
-    # 重複チェック
+    # Duplicate check
     existing = user_repository.find_by_email(data["email"])
     if existing:
         raise ConflictError("User", "email", data["email"])
@@ -1065,12 +1066,12 @@ def create_user(data: dict) -> User:
 
 ---
 
-## 6. Go でのカスタムエラー
+## 6. Custom Errors in Go
 
-### 6.1 構造化エラー
+### 6.1 Structured Errors
 
 ```go
-// Go: 構造化カスタムエラー
+// Go: Structured custom errors
 package apperror
 
 import (
@@ -1079,14 +1080,14 @@ import (
     "time"
 )
 
-// AppError: アプリケーションエラーの基底
+// AppError: Base application error
 type AppError struct {
     Code       string         `json:"code"`
     Message    string         `json:"message"`
     HTTPStatus int            `json:"-"`
     Timestamp  time.Time      `json:"timestamp"`
     Details    map[string]any `json:"details,omitempty"`
-    Err        error          `json:"-"`  // 内部エラー（外部に公開しない）
+    Err        error          `json:"-"`  // Internal error (not exposed externally)
 }
 
 func (e *AppError) Error() string {
@@ -1100,7 +1101,7 @@ func (e *AppError) Unwrap() error {
     return e.Err
 }
 
-// ファクトリ関数
+// Factory functions
 func NewNotFound(resourceType, resourceID string) *AppError {
     return &AppError{
         Code:       "NOT_FOUND",
@@ -1117,7 +1118,7 @@ func NewNotFound(resourceType, resourceID string) *AppError {
 func NewValidationError(fields map[string]string) *AppError {
     return &AppError{
         Code:       "VALIDATION_ERROR",
-        Message:    "入力値が不正です",
+        Message:    "Invalid input",
         HTTPStatus: http.StatusBadRequest,
         Timestamp:  time.Now(),
         Details: map[string]any{
@@ -1129,7 +1130,7 @@ func NewValidationError(fields map[string]string) *AppError {
 func NewConflict(resourceType, field, value string) *AppError {
     return &AppError{
         Code:       "CONFLICT",
-        Message:    fmt.Sprintf("%s の %s が重複しています: %s", resourceType, field, value),
+        Message:    fmt.Sprintf("%s %s already exists: %s", resourceType, field, value),
         HTTPStatus: http.StatusConflict,
         Timestamp:  time.Now(),
     }
@@ -1147,7 +1148,7 @@ func NewInternalError(message string, cause error) *AppError {
 
 func NewUnauthorized(message string) *AppError {
     if message == "" {
-        message = "認証が必要です"
+        message = "Authentication required"
     }
     return &AppError{
         Code:       "UNAUTHORIZED",
@@ -1160,7 +1161,7 @@ func NewUnauthorized(message string) *AppError {
 func NewForbidden(requiredPermission string) *AppError {
     return &AppError{
         Code:       "FORBIDDEN",
-        Message:    fmt.Sprintf("権限が不足しています: %s が必要です", requiredPermission),
+        Message:    fmt.Sprintf("Insufficient permissions: %s required", requiredPermission),
         HTTPStatus: http.StatusForbidden,
         Timestamp:  time.Now(),
         Details: map[string]any{
@@ -1169,7 +1170,7 @@ func NewForbidden(requiredPermission string) *AppError {
     }
 }
 
-// エラーの判定
+// Error checking
 func IsNotFound(err error) bool {
     var appErr *AppError
     if errors.As(err, &appErr) {
@@ -1186,7 +1187,7 @@ func IsValidationError(err error) bool {
     return false
 }
 
-// HTTPレスポンスへの変換
+// Convert to HTTP response
 func (e *AppError) ToResponse() map[string]any {
     response := map[string]any{
         "error": map[string]any{
@@ -1204,75 +1205,75 @@ func (e *AppError) ToResponse() map[string]any {
 
 ---
 
-## 7. エラー設計の原則
+## 7. Error Design Principles
 
-### 7.1 基本原則
-
-```
-1. エラーは具体的に
-   ❌ throw new Error("Error occurred")
-   ✅ throw new UserNotFoundError(userId)
-
-2. エラーにコンテキストを含める
-   ❌ "Not found"
-   ✅ "User not found: user-123"
-   ✅ { code: "USER_NOT_FOUND", userId: "user-123" }
-
-3. ユーザー向けと開発者向けを分離
-   ユーザー: "ログインに失敗しました"
-   開発者: "Auth0 returned 429: rate limit exceeded for IP 192.168.1.1"
-
-4. エラーの原因チェーン
-   → 根本原因を追跡可能にする
-   → Error.cause (ES2022), Rust の source(), Go の %w
-
-5. エラーは不変（Immutable）
-   → 作成後に状態を変更しない
-   → 安全に渡せる、ログに記録できる
-```
-
-### 7.2 エラーメッセージの設計
+### 7.1 Fundamental Principles
 
 ```
-開発者向けメッセージのガイドライン:
+1. Be specific with errors
+   x throw new Error("Error occurred")
+   o throw new UserNotFoundError(userId)
 
-  1. What（何が起きたか）
-     → "Database connection refused"
-     → "JSON parse error at position 42"
+2. Include context in errors
+   x "Not found"
+   o "User not found: user-123"
+   o { code: "USER_NOT_FOUND", userId: "user-123" }
 
-  2. Where（どこで起きたか）
-     → "in UserService.createUser"
-     → "while processing order ORD-123"
+3. Separate user-facing and developer-facing messages
+   User: "Login failed"
+   Developer: "Auth0 returned 429: rate limit exceeded for IP 192.168.1.1"
 
-  3. Why（なぜ起きたか、推定される原因）
-     → "connection pool exhausted (max: 10, active: 10)"
-     → "unexpected field 'naem' (did you mean 'name'?)"
+4. Error cause chains
+   -> Make root causes traceable
+   -> Error.cause (ES2022), Rust's source(), Go's %w
 
-  4. How（どう対処すべきか）
-     → "retry after 5 seconds"
-     → "check database connection settings"
-     → "contact support with error code ERR-123"
-
-ユーザー向けメッセージのガイドライン:
-
-  1. 何が起きたかを簡潔に
-     → "ログインに失敗しました"
-     → "注文を処理できませんでした"
-
-  2. 何をすべきかを具体的に
-     → "パスワードを確認して再試行してください"
-     → "別の支払い方法をお試しください"
-
-  3. 技術用語を避ける
-     ❌ "NullPointerException が発生しました"
-     ✅ "予期しないエラーが発生しました"
-
-  4. ユーザーを責めない
-     ❌ "不正なメールアドレスです"
-     ✅ "メールアドレスの形式を確認してください"
+5. Errors should be immutable
+   -> Do not modify state after creation
+   -> Safe to pass around, safe to log
 ```
 
-### 7.3 エラーの原因チェーン
+### 7.2 Error Message Design
+
+```
+Guidelines for developer-facing messages:
+
+  1. What (what happened)
+     -> "Database connection refused"
+     -> "JSON parse error at position 42"
+
+  2. Where (where it happened)
+     -> "in UserService.createUser"
+     -> "while processing order ORD-123"
+
+  3. Why (why it happened, suspected cause)
+     -> "connection pool exhausted (max: 10, active: 10)"
+     -> "unexpected field 'naem' (did you mean 'name'?)"
+
+  4. How (how to resolve it)
+     -> "retry after 5 seconds"
+     -> "check database connection settings"
+     -> "contact support with error code ERR-123"
+
+Guidelines for user-facing messages:
+
+  1. State what happened concisely
+     -> "Login failed"
+     -> "Could not process your order"
+
+  2. Be specific about what to do
+     -> "Please check your password and try again"
+     -> "Please try a different payment method"
+
+  3. Avoid technical jargon
+     x "A NullPointerException occurred"
+     o "An unexpected error occurred"
+
+  4. Do not blame the user
+     x "Invalid email address"
+     o "Please check the email address format"
+```
+
+### 7.3 Error Cause Chains
 
 ```typescript
 // ES2022: Error.cause
@@ -1282,7 +1283,7 @@ class ServiceError extends Error {
     }
 }
 
-// 原因チェーンの構築
+// Building a cause chain
 async function processOrder(orderId: string): Promise<Order> {
     try {
         const order = await orderRepository.findById(orderId);
@@ -1293,15 +1294,15 @@ async function processOrder(orderId: string): Promise<Order> {
     } catch (error) {
         if (error instanceof NotFoundError) throw error;
 
-        // 原因チェーンを構築
+        // Build the cause chain
         throw new ServiceError(
-            `注文 ${orderId} の処理に失敗しました`,
+            `Failed to process order ${orderId}`,
             { cause: error as Error }
         );
     }
 }
 
-// 原因チェーンの走査
+// Traversing the cause chain
 function getAllCauses(error: Error): Error[] {
     const causes: Error[] = [error];
     let current: unknown = error.cause;
@@ -1312,7 +1313,7 @@ function getAllCauses(error: Error): Error[] {
     return causes;
 }
 
-// ログ出力時に全原因を出力
+// Output all causes when logging
 function logErrorChain(error: Error): void {
     const causes = getAllCauses(error);
     logger.error({
@@ -1328,24 +1329,24 @@ function logErrorChain(error: Error): void {
 
 ---
 
-## 8. エラーのシリアライズと API 設計
+## 8. Error Serialization and API Design
 
-### 8.1 APIエラーレスポンスの標準化
+### 8.1 Standardizing API Error Responses
 
 ```typescript
-// RFC 7807 準拠のエラーレスポンス
+// RFC 7807 compliant error response
 interface ApiErrorResponse {
-    type: string;        // エラータイプのURI
-    title: string;       // 人間可読な概要
-    status: number;      // HTTPステータスコード
-    detail?: string;     // 詳細な説明
-    instance?: string;   // エラーが発生したリソースのURI
-    errors?: FieldError[];  // バリデーションエラー詳細
-    retryAfter?: number;    // リトライまでの秒数
-    requestId?: string;     // リクエストID
+    type: string;        // Error type URI
+    title: string;       // Human-readable summary
+    status: number;      // HTTP status code
+    detail?: string;     // Detailed description
+    instance?: string;   // URI of the resource where the error occurred
+    errors?: FieldError[];  // Validation error details
+    retryAfter?: number;    // Seconds until retry
+    requestId?: string;     // Request ID
 }
 
-// エラーレスポンスの生成
+// Generating error responses
 function createApiErrorResponse(
     error: AppError,
     requestId: string,
@@ -1377,13 +1378,13 @@ function createApiErrorResponse(
 }
 ```
 
-### 8.2 GraphQL でのエラー設計
+### 8.2 Error Design in GraphQL
 
 ```typescript
-// GraphQL: エラーの設計
-// GraphQL では HTTP ステータスコードに頼らず、レスポンスボディでエラーを表現
+// GraphQL: Error design
+// In GraphQL, errors are expressed in the response body rather than relying on HTTP status codes
 
-// スキーマ定義
+// Schema definition
 const typeDefs = `
   type Query {
     user(id: ID!): UserResult!
@@ -1402,10 +1403,10 @@ const typeDefs = `
     message: String!
   }
 
-  # または extensions を使ったアプローチ
+  # Or an approach using extensions
 `;
 
-// リゾルバ
+// Resolvers
 const resolvers = {
     Query: {
         user: async (_: any, { id }: { id: string }) => {
@@ -1420,18 +1421,18 @@ const resolvers = {
                         message: error.message,
                     };
                 }
-                throw error;  // 予期しないエラーは GraphQL のエラーとして伝播
+                throw error;  // Unexpected errors propagate as GraphQL errors
             }
         },
     },
 };
 
-// formatError: GraphQL エラーのフォーマット
+// formatError: Formatting GraphQL errors
 const server = new ApolloServer({
     typeDefs,
     resolvers,
     formatError: (formattedError, error) => {
-        // 内部エラーの情報を隠す
+        // Hide internal error information
         if (error instanceof GraphQLError) {
             const originalError = error.extensions?.originalError;
             if (originalError instanceof AppError) {
@@ -1444,7 +1445,7 @@ const server = new ApolloServer({
             }
         }
 
-        // 予期しないエラー
+        // Unexpected errors
         return {
             message: 'Internal server error',
             extensions: {
@@ -1457,32 +1458,32 @@ const server = new ApolloServer({
 
 ---
 
-## 9. エラーの国際化（i18n）
+## 9. Error Internationalization (i18n)
 
-### 9.1 多言語対応のエラーメッセージ
+### 9.1 Multilingual Error Messages
 
 ```typescript
-// エラーメッセージの国際化
+// Error message internationalization
 const ERROR_MESSAGES: Record<string, Record<string, string>> = {
     "USER_NOT_FOUND": {
         en: "User not found: {userId}",
-        ja: "ユーザーが見つかりません: {userId}",
-        zh: "未找到用户: {userId}",
+        ja: "User not found: {userId}",
+        zh: "User not found: {userId}",
     },
     "EMAIL_ALREADY_EXISTS": {
         en: "Email already registered: {email}",
-        ja: "メールアドレスは既に登録されています: {email}",
-        zh: "邮箱已注册: {email}",
+        ja: "Email already registered: {email}",
+        zh: "Email already registered: {email}",
     },
     "VALIDATION_REQUIRED": {
         en: "{field} is required",
-        ja: "{field} は必須です",
-        zh: "{field} 是必填项",
+        ja: "{field} is required",
+        zh: "{field} is required",
     },
     "VALIDATION_TOO_LONG": {
         en: "{field} must be {maxLength} characters or less",
-        ja: "{field} は {maxLength} 文字以内で入力してください",
-        zh: "{field} 不能超过 {maxLength} 个字符",
+        ja: "{field} must be {maxLength} characters or less",
+        zh: "{field} must be {maxLength} characters or less",
     },
 };
 
@@ -1501,31 +1502,31 @@ function getLocalizedMessage(
     });
 }
 
-// 使用例
+// Usage example
 const message = getLocalizedMessage(
     "USER_NOT_FOUND",
     "ja",
     { userId: "user-123" }
 );
-// "ユーザーが見つかりません: user-123"
+// "User not found: user-123"
 
-// API ミドルウェアでの locale 取得
+// Locale retrieval in API middleware
 function getLocale(req: Request): string {
-    // 1. クエリパラメータ
+    // 1. Query parameter
     if (req.query.locale) return req.query.locale as string;
 
-    // 2. Accept-Language ヘッダー
+    // 2. Accept-Language header
     const acceptLanguage = req.headers['accept-language'];
     if (acceptLanguage) {
         const preferred = acceptLanguage.split(',')[0].split('-')[0].trim();
         if (['en', 'ja', 'zh'].includes(preferred)) return preferred;
     }
 
-    // 3. デフォルト
+    // 3. Default
     return 'en';
 }
 
-// エラーレスポンスへの統合
+// Integration into error responses
 function createLocalizedErrorResponse(
     error: AppError,
     locale: string
@@ -1542,28 +1543,28 @@ function createLocalizedErrorResponse(
 
 ---
 
-## 10. テストパターン
+## 10. Testing Patterns
 
-### 10.1 カスタムエラーのテスト
+### 10.1 Testing Custom Errors
 
 ```typescript
-// カスタムエラーのユニットテスト
+// Unit tests for custom errors
 describe("NotFoundError", () => {
-    it("正しいプロパティが設定される", () => {
+    it("sets the correct properties", () => {
         const error = new NotFoundError("User", "user-123");
 
         expect(error).toBeInstanceOf(AppError);
         expect(error).toBeInstanceOf(NotFoundError);
         expect(error.code).toBe("NOT_FOUND");
         expect(error.httpStatus).toBe(404);
-        expect(error.message).toBe("User が見つかりません: user-123");
+        expect(error.message).toBe("User not found: user-123");
         expect(error.resourceType).toBe("User");
         expect(error.resourceId).toBe("user-123");
         expect(error.isOperational).toBe(true);
         expect(error.timestamp).toBeDefined();
     });
 
-    it("toResponse() が正しいフォーマットを返す", () => {
+    it("toResponse() returns the correct format", () => {
         const error = new NotFoundError("User", "user-123");
         const response = error.toResponse();
 
@@ -1576,7 +1577,7 @@ describe("NotFoundError", () => {
         });
     });
 
-    it("スタックトレースが含まれる", () => {
+    it("includes a stack trace", () => {
         const error = new NotFoundError("User", "user-123");
         expect(error.stack).toBeDefined();
         expect(error.stack).toContain("NotFoundError");
@@ -1584,7 +1585,7 @@ describe("NotFoundError", () => {
 });
 
 describe("ValidationError", () => {
-    it("ビルダーパターンで構築できる", () => {
+    it("can be built using the builder pattern", () => {
         const error = ValidationError.builder()
             .required("name")
             .invalidFormat("email", "user@example.com")
@@ -1597,7 +1598,7 @@ describe("ValidationError", () => {
         expect(error.fieldErrors[2].field).toBe("password");
     });
 
-    it("エラーがない場合 buildIfErrors() は null を返す", () => {
+    it("buildIfErrors() returns null when there are no errors", () => {
         const error = ValidationError.builder().buildIfErrors();
         expect(error).toBeNull();
     });
@@ -1609,39 +1610,39 @@ describe("ValidationError", () => {
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when studying this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory but by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in professional practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-| 原則 | ポイント |
-|------|---------|
-| 分類 | 操作エラー vs プログラマエラー |
-| コード | DOMAIN_ENTITY_ACTION 命名 |
-| コンテキスト | エラーに十分な情報を含める |
-| 分離 | ユーザー向け / 開発者向け |
-| チェーン | 根本原因を追跡可能に |
-| 国際化 | エラーコード + メッセージテンプレート |
-| テスト | プロパティ、シリアライズ、ビルダーのテスト |
+Knowledge of this topic is frequently used in day-to-day development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Principle | Key Point |
+|-----------|-----------|
+| Classification | Operational errors vs programmer errors |
+| Codes | DOMAIN_ENTITY_ACTION naming convention |
+| Context | Include sufficient information in errors |
+| Separation | User-facing vs developer-facing messages |
+| Chaining | Make root causes traceable |
+| Internationalization | Error codes + message templates |
+| Testing | Test properties, serialization, and builders |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
+
+---
+
+## References
 1. Goldberg, J. "Error Handling in Node.js." joyent.com, 2014.
 2. RFC 7807. "Problem Details for HTTP APIs."
 3. thiserror crate. Rust Documentation.

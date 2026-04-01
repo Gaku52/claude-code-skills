@@ -1,69 +1,69 @@
-# リトライ戦略
+# Retry Strategies
 
-> 一時的な障害は避けられない。指数バックオフ、ジッター、サーキットブレーカーなど、信頼性の高いリトライ戦略を設計する。
+> Transient failures are inevitable. Design reliable retry strategies using exponential backoff, jitter, circuit breakers, and more.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] リトライすべきエラーとすべきでないエラーを区別する
-- [ ] 指数バックオフとジッターの仕組みを理解する
-- [ ] サーキットブレーカーパターンを把握する
-- [ ] リトライ戦略のテスト手法を習得する
-- [ ] 分散システムにおけるリトライの設計を理解する
-- [ ] バルクヘッドパターンとの組み合わせを学ぶ
+- [ ] Distinguish between errors that should and should not be retried
+- [ ] Understand how exponential backoff and jitter work
+- [ ] Grasp the circuit breaker pattern
+- [ ] Master testing techniques for retry strategies
+- [ ] Understand retry design in distributed systems
+- [ ] Learn how to combine retry with the bulkhead pattern
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [キャンセル処理](./01-cancellation.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Familiarity with the content in [Cancellation Handling](./01-cancellation.md)
 
 ---
 
-## 1. リトライの基本
+## 1. Retry Fundamentals
 
-### 1.1 リトライすべきエラーの分類
+### 1.1 Classifying Errors for Retry
 
 ```
-リトライすべきエラー（一時的）:
-  ✓ HTTP 429（Too Many Requests）
-  ✓ HTTP 503（Service Unavailable）
-  ✓ HTTP 502（Bad Gateway）
-  ✓ HTTP 504（Gateway Timeout）
-  ✓ ネットワークタイムアウト
-  ✓ DBコネクションプール枯渇
-  ✓ DNS一時障害
-  ✓ TCP接続リセット（ECONNRESET）
-  ✓ ソケット切断（EPIPE）
-  ✓ 一時的なSSL/TLSハンドシェイク失敗
-  ✓ AWS/GCP/Azure の一時的なAPIエラー
+Errors that should be retried (transient):
+  ✓ HTTP 429 (Too Many Requests)
+  ✓ HTTP 503 (Service Unavailable)
+  ✓ HTTP 502 (Bad Gateway)
+  ✓ HTTP 504 (Gateway Timeout)
+  ✓ Network timeouts
+  ✓ DB connection pool exhaustion
+  ✓ Temporary DNS failures
+  ✓ TCP connection reset (ECONNRESET)
+  ✓ Socket disconnection (EPIPE)
+  ✓ Temporary SSL/TLS handshake failures
+  ✓ Transient AWS/GCP/Azure API errors
 
-リトライすべきでないエラー（恒久的）:
-  ✗ HTTP 400（Bad Request）— リクエストが間違い
-  ✗ HTTP 401（Unauthorized）— 認証エラー
-  ✗ HTTP 403（Forbidden）— 認可エラー
-  ✗ HTTP 404（Not Found）— リソースが存在しない
-  ✗ HTTP 405（Method Not Allowed）— メソッドが不正
-  ✗ HTTP 409（Conflict）— 冪等でない操作の競合
-  ✗ HTTP 413（Payload Too Large）— ペイロード過大
-  ✗ HTTP 422（Unprocessable Entity）— バリデーションエラー
-  ✗ ビジネスロジックエラー
-  ✗ データ不整合エラー
+Errors that should NOT be retried (permanent):
+  ✗ HTTP 400 (Bad Request) — Invalid request
+  ✗ HTTP 401 (Unauthorized) — Authentication error
+  ✗ HTTP 403 (Forbidden) — Authorization error
+  ✗ HTTP 404 (Not Found) — Resource does not exist
+  ✗ HTTP 405 (Method Not Allowed) — Invalid method
+  ✗ HTTP 409 (Conflict) — Conflict on non-idempotent operation
+  ✗ HTTP 413 (Payload Too Large) — Payload too large
+  ✗ HTTP 422 (Unprocessable Entity) — Validation error
+  ✗ Business logic errors
+  ✗ Data inconsistency errors
 ```
 
-### 1.2 リトライ判定の実装
+### 1.2 Implementing Retry Decision Logic
 
 ```typescript
-// リトライ可能なエラーかどうかを判定するヘルパー
+// Helper to determine whether an error is retryable
 class RetryPolicy {
-  // HTTPステータスコードによる判定
+  // Determine by HTTP status code
   static isRetryableStatus(status: number): boolean {
     const retryableStatuses = new Set([
       408, // Request Timeout
       429, // Too Many Requests
-      500, // Internal Server Error（場合による）
+      500, // Internal Server Error (depends on context)
       502, // Bad Gateway
       503, // Service Unavailable
       504, // Gateway Timeout
@@ -71,7 +71,7 @@ class RetryPolicy {
     return retryableStatuses.has(status);
   }
 
-  // ネットワークエラーによる判定
+  // Determine by network error
   static isRetryableNetworkError(error: Error): boolean {
     const retryableCodes = new Set([
       'ECONNRESET',
@@ -89,7 +89,7 @@ class RetryPolicy {
       return true;
     }
 
-    // AbortError（タイムアウト）もリトライ可能
+    // AbortError (timeout) is also retryable
     if (error.name === 'AbortError') {
       return true;
     }
@@ -97,7 +97,7 @@ class RetryPolicy {
     return false;
   }
 
-  // 総合判定
+  // Combined determination
   static isRetryable(error: unknown): boolean {
     if (error instanceof HttpError) {
       return RetryPolicy.isRetryableStatus(error.statusCode);
@@ -110,29 +110,29 @@ class RetryPolicy {
 }
 ```
 
-### 1.3 冪等性とリトライの関係
+### 1.3 Idempotency and Its Relationship to Retry
 
 ```
-リトライ安全性の判断基準:
+Criteria for retry safety:
 
-  冪等な操作（リトライ安全）:
-    ✓ GET  — 読み取り（何度実行しても同じ結果）
-    ✓ PUT  — 全体更新（同じ状態に上書き）
-    ✓ DELETE — 削除（既に削除済みでも結果は同じ）
-    ✓ HEAD — ヘッダー取得
+  Idempotent operations (safe to retry):
+    ✓ GET  — Read (same result no matter how many times executed)
+    ✓ PUT  — Full update (overwrites to the same state)
+    ✓ DELETE — Delete (result is the same even if already deleted)
+    ✓ HEAD — Header retrieval
 
-  冪等でない操作（リトライ注意）:
-    ⚠ POST — 作成（重複作成のリスク）
-    ⚠ PATCH — 部分更新（相対値の場合、二重適用リスク）
+  Non-idempotent operations (retry with caution):
+    ⚠ POST — Create (risk of duplicate creation)
+    ⚠ PATCH — Partial update (risk of double application with relative values)
 
-  POST/PATCH をリトライ安全にする方法:
-    → 冪等キー（Idempotency Key）の使用
-    → クライアントがリクエストごとに一意のキーを生成
-    → サーバーは同じキーのリクエストを二重処理しない
+  How to make POST/PATCH retry-safe:
+    → Use an Idempotency Key
+    → Client generates a unique key for each request
+    → Server does not process the same key twice
 ```
 
 ```typescript
-// 冪等キーを使ったリトライ安全なPOST
+// Retry-safe POST using idempotency keys
 class IdempotentClient {
   async createOrder(orderData: OrderData): Promise<Order> {
     const idempotencyKey = crypto.randomUUID();
@@ -143,7 +143,7 @@ class IdempotentClient {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Idempotency-Key': idempotencyKey, // 同じキーを使い回す
+            'Idempotency-Key': idempotencyKey, // Reuse the same key
           },
           body: JSON.stringify(orderData),
         });
@@ -158,7 +158,7 @@ class IdempotentClient {
         maxRetries: 3,
         shouldRetry: (error) => {
           if (error instanceof HttpError) {
-            // 409はすでに処理済みなので成功とみなしてもよい
+            // 409 means already processed, so it can be treated as success
             return RetryPolicy.isRetryableStatus(error.statusCode);
           }
           return true;
@@ -168,7 +168,7 @@ class IdempotentClient {
   }
 }
 
-// サーバー側の冪等キー処理
+// Server-side idempotency key handling
 class IdempotencyMiddleware {
   private store = new Map<string, { response: any; timestamp: number }>();
 
@@ -178,17 +178,17 @@ class IdempotencyMiddleware {
       return next();
     }
 
-    // 既に処理済みのリクエスト
+    // Already processed request
     const cached = this.store.get(key);
     if (cached) {
       res.json(cached.response);
       return;
     }
 
-    // 処理中フラグ（他のリクエストをブロック）
+    // In-progress flag (blocks other requests)
     this.store.set(key, { response: null, timestamp: Date.now() });
 
-    // 元のレスポンスを傍受
+    // Intercept the original response
     const originalJson = res.json.bind(res);
     res.json = (body: any) => {
       this.store.set(key, { response: body, timestamp: Date.now() });
@@ -202,46 +202,46 @@ class IdempotencyMiddleware {
 
 ---
 
-## 2. 指数バックオフ + ジッター
+## 2. Exponential Backoff + Jitter
 
-### 2.1 基本概念
+### 2.1 Core Concepts
 
 ```
-指数バックオフ（Exponential Backoff）:
-  リトライ1: 1秒後
-  リトライ2: 2秒後
-  リトライ3: 4秒後
-  リトライ4: 8秒後
-  リトライ5: 16秒後
+Exponential Backoff:
+  Retry 1: after 1 second
+  Retry 2: after 2 seconds
+  Retry 3: after 4 seconds
+  Retry 4: after 8 seconds
+  Retry 5: after 16 seconds
   → wait = base × 2^(attempt - 1)
-  → 上限（cap）を設けて無限に増えるのを防ぐ
+  → Set a cap to prevent unbounded growth
 
-ジッター（Jitter）:
-  → ランダムな遅延を追加
-  → 複数クライアントの同時リトライを避ける（thundering herd）
+Jitter:
+  → Add random delay
+  → Avoid simultaneous retries from multiple clients (thundering herd)
 
-  ジッターなし: 全クライアントが同時にリトライ → サーバー再過負荷
-  ジッターあり: リトライがばらける → サーバー負荷が分散
+  Without jitter: All clients retry at the same time → Server overloaded again
+  With jitter: Retries are spread out → Server load is distributed
 
-ジッターの種類:
-  1. フルジッター（Full Jitter）:
+Types of jitter:
+  1. Full Jitter:
      → wait = random(0, min(cap, base × 2^attempt))
-     → 最も分散効果が高い
+     → Highest distribution effect
 
-  2. 等価ジッター（Equal Jitter）:
+  2. Equal Jitter:
      → temp = min(cap, base × 2^attempt)
      → wait = temp/2 + random(0, temp/2)
-     → 最低待機時間を保証
+     → Guarantees a minimum wait time
 
-  3. 相関ジッター（Decorrelated Jitter）:
+  3. Decorrelated Jitter:
      → wait = min(cap, random(base, prev_wait × 3))
-     → 前回の待機時間に基づく
+     → Based on the previous wait time
 ```
 
-### 2.2 TypeScript 実装
+### 2.2 TypeScript Implementation
 
 ```typescript
-// 指数バックオフ + ジッター（フル実装）
+// Exponential backoff + jitter (full implementation)
 interface RetryOptions {
   maxRetries: number;
   baseDelayMs: number;
@@ -259,7 +259,7 @@ const DEFAULT_RETRY_OPTIONS: RetryOptions = {
   shouldRetry: () => true,
 };
 
-// ジッター計算
+// Jitter calculation
 function calculateDelay(
   attempt: number,
   options: RetryOptions,
@@ -271,15 +271,15 @@ function calculateDelay(
 
   switch (jitterStrategy) {
     case 'full':
-      // フルジッター: [0, cappedDelay]
+      // Full jitter: [0, cappedDelay]
       return Math.random() * cappedDelay;
 
     case 'equal':
-      // 等価ジッター: [cappedDelay/2, cappedDelay]
+      // Equal jitter: [cappedDelay/2, cappedDelay]
       return cappedDelay / 2 + Math.random() * (cappedDelay / 2);
 
     case 'decorrelated':
-      // 相関ジッター: [baseDelayMs, previousDelay * 3]
+      // Decorrelated jitter: [baseDelayMs, previousDelay * 3]
       const prev = previousDelay ?? baseDelayMs;
       return Math.min(
         maxDelayMs,
@@ -291,7 +291,7 @@ function calculateDelay(
   }
 }
 
-// リトライ関数
+// Retry function
 async function retryWithBackoff<T>(
   fn: () => Promise<T>,
   options: Partial<RetryOptions> = {},
@@ -323,7 +323,7 @@ async function retryWithBackoff<T>(
 }
 ```
 
-### 2.3 Python 実装
+### 2.3 Python Implementation
 
 ```python
 import asyncio
@@ -337,7 +337,7 @@ logger = logging.getLogger(__name__)
 
 
 class RetryError(Exception):
-    """全てのリトライが失敗した場合に送出"""
+    """Raised when all retries have failed"""
     def __init__(self, message: str, attempts: int, last_error: Exception):
         super().__init__(message)
         self.attempts = attempts
@@ -355,7 +355,7 @@ async def retry_with_backoff(
     on_retry: Optional[Callable[[Exception, int, float], None]] = None,
     **kwargs,
 ) -> T:
-    """指数バックオフ + ジッター付きリトライ"""
+    """Retry with exponential backoff + jitter"""
     last_error: Optional[Exception] = None
     prev_delay = base_delay
 
@@ -371,7 +371,7 @@ async def retry_with_backoff(
             if should_retry and not should_retry(e):
                 raise
 
-            # ジッター計算
+            # Jitter calculation
             exp_delay = base_delay * (2 ** attempt)
             capped = min(exp_delay, max_delay)
 
@@ -401,14 +401,14 @@ async def retry_with_backoff(
     )
 
 
-# デコレータ版
+# Decorator version
 def with_retry(
     max_retries: int = 3,
     base_delay: float = 1.0,
     max_delay: float = 30.0,
     should_retry: Optional[Callable[[Exception], bool]] = None,
 ):
-    """リトライデコレータ"""
+    """Retry decorator"""
     def decorator(fn: Callable[..., Awaitable[T]]) -> Callable[..., Awaitable[T]]:
         @wraps(fn)
         async def wrapper(*args, **kwargs) -> T:
@@ -424,10 +424,10 @@ def with_retry(
     return decorator
 
 
-# 使用例
+# Usage example
 @with_retry(max_retries=3, should_retry=lambda e: isinstance(e, (ConnectionError, TimeoutError)))
 async def fetch_user_data(user_id: str) -> dict:
-    """ユーザーデータを取得（リトライ付き）"""
+    """Fetch user data (with retry)"""
     async with aiohttp.ClientSession() as session:
         async with session.get(f"https://api.example.com/users/{user_id}") as resp:
             if resp.status >= 500:
@@ -438,7 +438,7 @@ async def fetch_user_data(user_id: str) -> dict:
             return await resp.json()
 ```
 
-### 2.4 Go 実装
+### 2.4 Go Implementation
 
 ```go
 package retry
@@ -451,7 +451,7 @@ import (
 	"time"
 )
 
-// Config はリトライの設定
+// Config holds the retry configuration
 type Config struct {
 	MaxRetries   int
 	BaseDelay    time.Duration
@@ -469,7 +469,7 @@ const (
 	DecorrelatedJitter
 )
 
-// DefaultConfig はデフォルト設定
+// DefaultConfig provides default settings
 var DefaultConfig = Config{
 	MaxRetries:  3,
 	BaseDelay:   1 * time.Second,
@@ -478,13 +478,13 @@ var DefaultConfig = Config{
 	ShouldRetry: func(err error) bool { return true },
 }
 
-// Do はリトライ付きで関数を実行する
+// Do executes a function with retry
 func Do(ctx context.Context, fn func(ctx context.Context) error, cfg Config) error {
 	var lastErr error
 	prevDelay := cfg.BaseDelay
 
 	for attempt := 0; attempt <= cfg.MaxRetries; attempt++ {
-		// コンテキストのキャンセルチェック
+		// Check for context cancellation
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -552,10 +552,10 @@ func calculateDelay(attempt int, cfg Config, prevDelay time.Duration) time.Durat
 }
 ```
 
-### 2.5 使用例とベンチマーク
+### 2.5 Usage Examples and Benchmarks
 
 ```typescript
-// 各ジッター戦略の比較
+// Comparison of each jitter strategy
 function benchmarkJitter(): void {
   const strategies: Array<'full' | 'equal' | 'decorrelated'> = [
     'full', 'equal', 'decorrelated',
@@ -583,7 +583,7 @@ function benchmarkJitter(): void {
   }
 }
 
-// 出力例:
+// Example output:
 // full attempt=0: avg=497ms, min=2ms, max=999ms
 // full attempt=1: avg=1003ms, min=3ms, max=1999ms
 // full attempt=2: avg=1987ms, min=5ms, max=3998ms
@@ -594,72 +594,72 @@ function benchmarkJitter(): void {
 
 ---
 
-## 3. サーキットブレーカー
+## 3. Circuit Breaker
 
-### 3.1 パターンの概要
+### 3.1 Pattern Overview
 
 ```
-サーキットブレーカーパターン:
-  → 連続的な障害を検出して、リクエストを遮断する
-  → 障害が回復するまで「即座に失敗」を返す
-  → マイクロサービスの連鎖障害を防ぐ
+Circuit Breaker Pattern:
+  → Detects continuous failures and blocks requests
+  → Returns "fail fast" until the failure recovers
+  → Prevents cascading failures in microservices
 
-  3つの状態:
-  ┌────────┐  成功   ┌────────┐  連続失敗  ┌────────┐
-  │ Closed │───────→│ Closed │──────────→│  Open  │
-  │ (正常) │        │ (正常) │           │ (遮断) │
-  └────────┘        └────────┘           └────┬───┘
-                                              │ 一定時間経過
-                                         ┌────▼─────┐
-                                         │Half-Open │
-                                         │ (試行)   │
-                                         └────┬─────┘
-                                      成功 ↙     ↘ 失敗
-                                  ┌────────┐   ┌────────┐
-                                  │ Closed │   │  Open  │
-                                  └────────┘   └────────┘
+  Three states:
+  ┌────────┐  Success  ┌────────┐  Consecutive  ┌────────┐
+  │ Closed │─────────→│ Closed │  failures    →│  Open  │
+  │(Normal)│          │(Normal)│              │(Blocked)│
+  └────────┘          └────────┘              └────┬───┘
+                                                   │ After a set period
+                                              ┌────▼─────┐
+                                              │Half-Open │
+                                              │ (Trial)  │
+                                              └────┬─────┘
+                                           Success ↙     ↘ Failure
+                                       ┌────────┐   ┌────────┐
+                                       │ Closed │   │  Open  │
+                                       └────────┘   └────────┘
 
-設計上の考慮事項:
-  1. 閾値の設定
-     → 失敗回数ベース vs エラー率ベース
-     → ウィンドウサイズ（直近N秒 or 直近Nリクエスト）
+Design considerations:
+  1. Threshold settings
+     → Failure count-based vs. error rate-based
+     → Window size (last N seconds or last N requests)
 
-  2. リセット時間
-     → Open → Half-Open までの待機時間
-     → 短すぎると無意味、長すぎると回復が遅い
+  2. Reset time
+     → Wait time from Open → Half-Open
+     → Too short is meaningless, too long delays recovery
 
-  3. Half-Open での挙動
-     → 1リクエストだけ通す vs 限定的に通す
-     → 成功率の閾値を設ける
+  3. Half-Open behavior
+     → Allow only 1 request vs. allow a limited number
+     → Set a success rate threshold
 
-  4. フォールバック
-     → キャッシュから返す
-     → デフォルト値を返す
-     → 代替サービスを使う
+  4. Fallback
+     → Return from cache
+     → Return default values
+     → Use an alternative service
 ```
 
-### 3.2 TypeScript フル実装
+### 3.2 Full TypeScript Implementation
 
 ```typescript
-// サーキットブレーカーの状態
+// Circuit breaker states
 type CircuitState = 'closed' | 'open' | 'half-open';
 
-// イベント
+// Events
 type CircuitEvent =
   | { type: 'state_change'; from: CircuitState; to: CircuitState }
   | { type: 'success'; duration: number }
   | { type: 'failure'; error: Error; duration: number }
   | { type: 'rejected' };
 
-// 設定
+// Configuration
 interface CircuitBreakerConfig {
-  failureThreshold: number;      // Open に遷移する失敗回数
-  successThreshold: number;      // Half-Open → Closed に戻る成功回数
-  resetTimeoutMs: number;        // Open → Half-Open までの時間
-  halfOpenMaxConcurrent: number; // Half-Open 時に通すリクエスト数
-  monitorWindowMs: number;       // 失敗カウントのウィンドウ
-  errorRateThreshold?: number;   // エラー率閾値（0-1）
-  minimumRequests?: number;      // エラー率を計算する最小リクエスト数
+  failureThreshold: number;      // Number of failures to transition to Open
+  successThreshold: number;      // Number of successes to transition Half-Open → Closed
+  resetTimeoutMs: number;        // Time from Open → Half-Open
+  halfOpenMaxConcurrent: number; // Number of requests allowed in Half-Open
+  monitorWindowMs: number;       // Window for failure counting
+  errorRateThreshold?: number;   // Error rate threshold (0-1)
+  minimumRequests?: number;      // Minimum requests to calculate error rate
   onStateChange?: (from: CircuitState, to: CircuitState) => void;
   onEvent?: (event: CircuitEvent) => void;
 }
@@ -733,7 +733,7 @@ class CircuitBreaker {
     }
   }
 
-  // 手動でリセット
+  // Manual reset
   reset(): void {
     this.transitionTo('closed');
     this.failureCount = 0;
@@ -776,7 +776,7 @@ class CircuitBreaker {
         break;
 
       case 'closed':
-        // 成功時は失敗カウントをリセット（設計による）
+        // Reset failure count on success (design choice)
         this.failureCount = 0;
         break;
     }
@@ -796,7 +796,7 @@ class CircuitBreaker {
         break;
 
       case 'half-open':
-        // Half-Open で1回でも失敗したら再度 Open
+        // Any failure in Half-Open transitions back to Open
         this.transitionTo('open');
         this.successCount = 0;
         break;
@@ -804,12 +804,12 @@ class CircuitBreaker {
   }
 
   private shouldOpen(): boolean {
-    // 失敗回数ベース
+    // Failure count-based
     if (this.failureCount >= this.config.failureThreshold) {
       return true;
     }
 
-    // エラー率ベース（オプション）
+    // Error rate-based (optional)
     if (this.config.errorRateThreshold !== undefined) {
       const minReqs = this.config.minimumRequests ?? 10;
       const recentRequests = this.getRecentRequests();
@@ -829,7 +829,7 @@ class CircuitBreaker {
     const now = Date.now();
     this.requestLog.push({ timestamp: now, success });
 
-    // ウィンドウ外の古いログを削除
+    // Remove old logs outside the window
     const windowStart = now - this.config.monitorWindowMs;
     this.requestLog = this.requestLog.filter(r => r.timestamp >= windowStart);
   }
@@ -861,7 +861,7 @@ class CircuitBreaker {
 }
 ```
 
-### 3.3 Python 実装
+### 3.3 Python Implementation
 
 ```python
 import asyncio
@@ -881,7 +881,7 @@ class CircuitState(Enum):
 
 
 class CircuitOpenError(Exception):
-    """サーキットブレーカーが Open 状態のときに送出"""
+    """Raised when the circuit breaker is in the Open state"""
     pass
 
 
@@ -903,7 +903,7 @@ class RequestRecord:
 
 
 class AsyncCircuitBreaker:
-    """非同期サーキットブレーカー"""
+    """Asynchronous circuit breaker"""
 
     def __init__(self, config: CircuitBreakerConfig = CircuitBreakerConfig()):
         self._config = config
@@ -1011,7 +1011,7 @@ class AsyncCircuitBreaker:
         self._success_count = 0
 
 
-# 使用例
+# Usage example
 async def main():
     breaker = AsyncCircuitBreaker(CircuitBreakerConfig(
         failure_threshold=3,
@@ -1040,33 +1040,33 @@ async def main():
 
 ---
 
-## 4. バルクヘッドパターン
+## 4. Bulkhead Pattern
 
-### 4.1 概念
+### 4.1 Concept
 
 ```
-バルクヘッド（Bulkhead）パターン:
-  → 船の隔壁に由来するパターン
-  → リソースを区画に分離して、1つの障害が全体に波及しないようにする
-  → サーキットブレーカーと組み合わせて使うことが多い
+Bulkhead Pattern:
+  → A pattern derived from ship compartment walls (bulkheads)
+  → Isolates resources into compartments so that a failure in one does not spread to the whole
+  → Often used in combination with circuit breakers
 
-  例:
-    サービスA用: 最大10接続
-    サービスB用: 最大20接続
-    サービスC用: 最大5接続
+  Example:
+    Service A: max 10 connections
+    Service B: max 20 connections
+    Service C: max 5 connections
 
-    → サービスAが遅延しても、サービスB・Cの接続には影響しない
+    → Even if Service A experiences delays, connections to Services B and C are unaffected
 
-  バルクヘッドの種類:
-    1. スレッドプール隔離 — サービスごとに専用スレッドプールを割り当て
-    2. セマフォ隔離 — 同時実行数を制限
-    3. キュー隔離 — サービスごとに専用キューを割り当て
+  Types of bulkheads:
+    1. Thread pool isolation — Dedicated thread pool per service
+    2. Semaphore isolation — Limit concurrent execution count
+    3. Queue isolation — Dedicated queue per service
 ```
 
-### 4.2 実装
+### 4.2 Implementation
 
 ```typescript
-// セマフォベースのバルクヘッド
+// Semaphore-based bulkhead
 class Bulkhead {
   private currentConcurrency = 0;
   private queue: Array<{
@@ -1135,7 +1135,7 @@ class Bulkhead {
   }
 }
 
-// サービスごとにバルクヘッドを分離
+// Isolate bulkheads per service
 class BulkheadRegistry {
   private bulkheads = new Map<string, Bulkhead>();
 
@@ -1162,12 +1162,12 @@ class BulkheadRegistry {
 
 ---
 
-## 5. 実践: HTTPクライアント
+## 5. Practical Example: HTTP Client
 
-### 5.1 レジリエントHTTPクライアント
+### 5.1 Resilient HTTP Client
 
 ```typescript
-// リトライ + サーキットブレーカー + バルクヘッド + タイムアウトを組み合わせ
+// Combining retry + circuit breaker + bulkhead + timeout
 interface ResilientClientConfig {
   timeout: number;
   maxRetries: number;
@@ -1191,11 +1191,11 @@ class ResilientHttpClient {
   }
 
   async request(url: string, options?: RequestInit): Promise<Response> {
-    // 外側: バルクヘッド（同時実行制限）
+    // Outer layer: Bulkhead (concurrency limiting)
     return this.bulkhead.execute(() =>
-      // 中間: サーキットブレーカー（障害遮断）
+      // Middle layer: Circuit breaker (failure blocking)
       this.breaker.execute(() =>
-        // 内側: リトライ + タイムアウト
+        // Inner layer: Retry + timeout
         retryWithBackoff(
           () => this.fetchWithTimeout(url, options),
           {
@@ -1208,7 +1208,7 @@ class ResilientHttpClient {
             },
           },
         ),
-        // フォールバック
+        // Fallback
         async () => {
           console.warn(`[${url}] Circuit open, returning cached response`);
           return this.getCachedResponse(url);
@@ -1244,11 +1244,11 @@ class ResilientHttpClient {
   }
 
   private async getCachedResponse(url: string): Promise<Response> {
-    // 実装省略: キャッシュからレスポンスを返す
+    // Implementation omitted: return response from cache
     throw new Error('No cached response available');
   }
 
-  // 統計情報
+  // Statistics
   get stats() {
     return {
       circuitBreaker: this.breaker.stats,
@@ -1257,7 +1257,7 @@ class ResilientHttpClient {
   }
 }
 
-// 使用例
+// Usage example
 const client = new ResilientHttpClient({
   timeout: 5000,
   maxRetries: 3,
@@ -1270,7 +1270,7 @@ const client = new ResilientHttpClient({
     onStateChange: (from, to) => {
       console.log(`Circuit breaker: ${from} -> ${to}`);
       if (to === 'open') {
-        // アラート送信
+        // Send alert
         alertService.send('Circuit breaker opened', { service: 'payment' });
       }
     },
@@ -1281,7 +1281,7 @@ const client = new ResilientHttpClient({
   },
 });
 
-// API呼び出し
+// API call
 const response = await client.request('https://api.payment.example.com/charge', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
@@ -1289,10 +1289,10 @@ const response = await client.request('https://api.payment.example.com/charge', 
 });
 ```
 
-### 5.2 Retry-After ヘッダーの処理
+### 5.2 Handling the Retry-After Header
 
 ```typescript
-// Retry-After ヘッダーを考慮したリトライ
+// Retry that respects the Retry-After header
 async function retryWithRetryAfter<T>(
   fn: () => Promise<Response>,
   maxRetries: number = 3,
@@ -1309,7 +1309,7 @@ async function retryWithRetryAfter<T>(
       let delayMs: number;
 
       if (retryAfter) {
-        // Retry-After は秒数または日付文字列
+        // Retry-After can be seconds or a date string
         const seconds = parseInt(retryAfter, 10);
         if (!isNaN(seconds)) {
           delayMs = seconds * 1000;
@@ -1318,7 +1318,7 @@ async function retryWithRetryAfter<T>(
           delayMs = Math.max(0, date.getTime() - Date.now());
         }
       } else {
-        // Retry-After がない場合は指数バックオフ
+        // Exponential backoff when Retry-After is not present
         delayMs = Math.min(1000 * Math.pow(2, attempt), 30000);
       }
 
@@ -1336,36 +1336,36 @@ async function retryWithRetryAfter<T>(
 
 ---
 
-## 6. 分散システムにおけるリトライ
+## 6. Retry in Distributed Systems
 
-### 6.1 リトライストームの防止
+### 6.1 Preventing Retry Storms
 
 ```
-リトライストーム（Retry Storm）:
-  → サービスAがサービスBを呼び、BがCを呼ぶ
-  → Cが障害 → Bがリトライ × Aがリトライ
-  → リトライの掛け算でCへのリクエストが爆発
-  → A(3回) × B(3回) = Cに9回のリクエスト
+Retry Storm:
+  → Service A calls Service B, which calls C
+  → C fails → B retries × A retries
+  → Retries multiply, causing an explosion of requests to C
+  → A(3 retries) × B(3 retries) = 9 requests to C
 
-  対策:
-  1. リトライバジェット（Retry Budget）
-     → 全体のリトライ率を制限（例: 直近のリクエストの10%まで）
+  Countermeasures:
+  1. Retry Budget
+     → Limit the overall retry rate (e.g., up to 10% of recent requests)
 
-  2. レイヤーごとのリトライ制限
-     → エッジ（API Gateway）でのみリトライ
-     → 内部サービス間ではリトライしない
+  2. Per-layer retry limits
+     → Retry only at the edge (API Gateway)
+     → No retries between internal services
 
-  3. サーキットブレーカーの配置
-     → 各サービス間にサーキットブレーカーを配置
-     → 下流の障害を素早く遮断
+  3. Circuit breaker placement
+     → Place circuit breakers between each service
+     → Quickly block downstream failures
 
-  4. デッドラインの伝播
-     → リクエストにデッドラインを付与
-     → 残り時間が少なければリトライしない
+  4. Deadline propagation
+     → Attach a deadline to each request
+     → Do not retry if remaining time is insufficient
 ```
 
 ```typescript
-// リトライバジェット
+// Retry budget
 class RetryBudget {
   private requestCount = 0;
   private retryCount = 0;
@@ -1373,21 +1373,21 @@ class RetryBudget {
 
   constructor(
     private readonly maxRetryRatio: number = 0.1, // 10%
-    private readonly windowMs: number = 10000,    // 10秒
-    private readonly minRetriesPerSecond: number = 10, // 最低保証
+    private readonly windowMs: number = 10000,    // 10 seconds
+    private readonly minRetriesPerSecond: number = 10, // Minimum guarantee
   ) {}
 
   canRetry(): boolean {
     this.maybeResetWindow();
 
-    // 最低保証以下ならOK
+    // OK if below the minimum guarantee
     const windowSeconds = (Date.now() - this.windowStart) / 1000;
     const minRetries = this.minRetriesPerSecond * windowSeconds;
     if (this.retryCount < minRetries) {
       return true;
     }
 
-    // リトライ率チェック
+    // Check retry ratio
     if (this.requestCount === 0) return true;
     return this.retryCount / this.requestCount < this.maxRetryRatio;
   }
@@ -1411,7 +1411,7 @@ class RetryBudget {
   }
 }
 
-// デッドラインの伝播
+// Deadline propagation
 class DeadlineContext {
   private deadline: number;
 
@@ -1427,7 +1427,7 @@ class DeadlineContext {
     return this.remaining <= 0;
   }
 
-  // 子リクエスト用のサブデッドラインを作成
+  // Create a sub-deadline for child requests
   child(marginMs: number = 100): DeadlineContext {
     const remaining = this.remaining - marginMs;
     if (remaining <= 0) {
@@ -1443,7 +1443,7 @@ class DeadlineContext {
   }
 }
 
-// 使用例: デッドライン付きリトライ
+// Usage example: Retry with deadline
 async function retryWithDeadline<T>(
   fn: () => Promise<T>,
   deadline: DeadlineContext,
@@ -1483,23 +1483,23 @@ async function retryWithDeadline<T>(
 }
 ```
 
-### 6.2 gRPC のリトライ戦略
+### 6.2 gRPC Retry Strategy
 
 ```
-gRPC リトライポリシー:
-  → gRPC ではリトライポリシーをサービス設定で宣言的に定義可能
+gRPC Retry Policy:
+  → gRPC allows retry policies to be declaratively defined in service configuration
 
-  リトライ可能なステータスコード:
-    UNAVAILABLE  — サービスが利用不可（一時的）
-    DEADLINE_EXCEEDED — デッドライン超過
-    RESOURCE_EXHAUSTED — リソース枯渇
-    ABORTED — トランザクション競合
+  Retryable status codes:
+    UNAVAILABLE  — Service unavailable (transient)
+    DEADLINE_EXCEEDED — Deadline exceeded
+    RESOURCE_EXHAUSTED — Resource exhaustion
+    ABORTED — Transaction conflict
 
-  リトライ不可:
-    INVALID_ARGUMENT — 不正な引数
-    NOT_FOUND — リソースが存在しない
-    PERMISSION_DENIED — 権限なし
-    UNAUTHENTICATED — 認証なし
+  Non-retryable:
+    INVALID_ARGUMENT — Invalid argument
+    NOT_FOUND — Resource does not exist
+    PERMISSION_DENIED — No permission
+    UNAUTHENTICATED — Not authenticated
 ```
 
 ```json
@@ -1519,9 +1519,9 @@ gRPC リトライポリシー:
 
 ---
 
-## 7. リトライ戦略のテスト
+## 7. Testing Retry Strategies
 
-### 7.1 ユニットテスト
+### 7.1 Unit Tests
 
 ```typescript
 describe('retryWithBackoff', () => {
@@ -1533,7 +1533,7 @@ describe('retryWithBackoff', () => {
     jest.useRealTimers();
   });
 
-  test('成功した場合はリトライしない', async () => {
+  test('does not retry on success', async () => {
     const fn = jest.fn().mockResolvedValue('success');
 
     const result = await retryWithBackoff(fn, { maxRetries: 3 });
@@ -1542,7 +1542,7 @@ describe('retryWithBackoff', () => {
     expect(fn).toHaveBeenCalledTimes(1);
   });
 
-  test('一時的な障害後に成功する', async () => {
+  test('succeeds after transient failures', async () => {
     const fn = jest.fn()
       .mockRejectedValueOnce(new Error('transient'))
       .mockRejectedValueOnce(new Error('transient'))
@@ -1551,12 +1551,12 @@ describe('retryWithBackoff', () => {
     const promise = retryWithBackoff(fn, {
       maxRetries: 3,
       baseDelayMs: 100,
-      jitterStrategy: 'equal', // テストで予測しやすいジッター
+      jitterStrategy: 'equal', // Jitter that is more predictable for testing
     });
 
-    // 1回目のリトライ待ち
+    // Wait for first retry
     await jest.advanceTimersByTimeAsync(200);
-    // 2回目のリトライ待ち
+    // Wait for second retry
     await jest.advanceTimersByTimeAsync(400);
 
     const result = await promise;
@@ -1564,7 +1564,7 @@ describe('retryWithBackoff', () => {
     expect(fn).toHaveBeenCalledTimes(3);
   });
 
-  test('最大リトライ回数を超えたらエラーを投げる', async () => {
+  test('throws error after exceeding max retries', async () => {
     const error = new Error('persistent failure');
     const fn = jest.fn().mockRejectedValue(error);
 
@@ -1574,10 +1574,10 @@ describe('retryWithBackoff', () => {
     await jest.advanceTimersByTimeAsync(200);
 
     await expect(promise).rejects.toThrow('persistent failure');
-    expect(fn).toHaveBeenCalledTimes(3); // 初回 + 2回リトライ
+    expect(fn).toHaveBeenCalledTimes(3); // Initial + 2 retries
   });
 
-  test('shouldRetry が false を返したらリトライしない', async () => {
+  test('does not retry when shouldRetry returns false', async () => {
     const fn = jest.fn().mockRejectedValue(new HttpError(404));
 
     await expect(
@@ -1590,7 +1590,7 @@ describe('retryWithBackoff', () => {
     expect(fn).toHaveBeenCalledTimes(1);
   });
 
-  test('onRetry コールバックが正しく呼ばれる', async () => {
+  test('onRetry callback is called correctly', async () => {
     const onRetry = jest.fn();
     const fn = jest.fn()
       .mockRejectedValueOnce(new Error('fail1'))
@@ -1615,7 +1615,7 @@ describe('retryWithBackoff', () => {
 });
 
 describe('CircuitBreaker', () => {
-  test('閾値に達したら Open になる', async () => {
+  test('transitions to Open when threshold is reached', async () => {
     const breaker = new CircuitBreaker({
       failureThreshold: 3,
       successThreshold: 1,
@@ -1626,17 +1626,17 @@ describe('CircuitBreaker', () => {
 
     const failingFn = () => Promise.reject(new Error('fail'));
 
-    // 3回失敗
+    // 3 failures
     for (let i = 0; i < 3; i++) {
       await expect(breaker.execute(failingFn)).rejects.toThrow();
     }
 
-    // 4回目は CircuitOpenError
+    // 4th call gets CircuitOpenError
     await expect(breaker.execute(failingFn)).rejects.toThrow(CircuitOpenError);
     expect(breaker.currentState).toBe('open');
   });
 
-  test('リセット時間後に Half-Open になる', async () => {
+  test('transitions to Half-Open after reset time', async () => {
     jest.useFakeTimers();
 
     const breaker = new CircuitBreaker({
@@ -1649,15 +1649,15 @@ describe('CircuitBreaker', () => {
 
     const failingFn = () => Promise.reject(new Error('fail'));
 
-    // Open にする
+    // Transition to Open
     await expect(breaker.execute(failingFn)).rejects.toThrow();
     await expect(breaker.execute(failingFn)).rejects.toThrow();
     expect(breaker.currentState).toBe('open');
 
-    // 5秒待つ
+    // Wait 5 seconds
     jest.advanceTimersByTime(5001);
 
-    // 次のリクエストで Half-Open になる
+    // Next request transitions to Half-Open
     const successFn = () => Promise.resolve('ok');
     const result = await breaker.execute(successFn);
     expect(result).toBe('ok');
@@ -1668,10 +1668,10 @@ describe('CircuitBreaker', () => {
 });
 ```
 
-### 7.2 統合テスト
+### 7.2 Integration Tests
 
 ```typescript
-// Nock を使った統合テスト
+// Integration tests using Nock
 import nock from 'nock';
 
 describe('ResilientHttpClient Integration', () => {
@@ -1679,7 +1679,7 @@ describe('ResilientHttpClient Integration', () => {
     nock.cleanAll();
   });
 
-  test('一時的な503エラー後にリトライで成功する', async () => {
+  test('succeeds after transient 503 errors via retry', async () => {
     nock('https://api.example.com')
       .get('/data')
       .reply(503, 'Service Unavailable')
@@ -1706,7 +1706,7 @@ describe('ResilientHttpClient Integration', () => {
     expect(data.result).toBe('success');
   });
 
-  test('Retry-After ヘッダーを尊重する', async () => {
+  test('respects the Retry-After header', async () => {
     const start = Date.now();
 
     nock('https://api.example.com')
@@ -1729,43 +1729,43 @@ describe('ResilientHttpClient Integration', () => {
 
 ---
 
-## 8. 主要ライブラリ・フレームワーク
+## 8. Major Libraries and Frameworks
 
-### 8.1 各言語のリトライライブラリ
+### 8.1 Retry Libraries by Language
 
 ```
 TypeScript/JavaScript:
-  - p-retry: Promise ベースのリトライ
-  - cockatiel: サーキットブレーカー + リトライ + バルクヘッド
-  - axios-retry: Axios 用リトライプラグイン
-  - got: HTTP クライアント（リトライ内蔵）
+  - p-retry: Promise-based retry
+  - cockatiel: Circuit breaker + retry + bulkhead
+  - axios-retry: Retry plugin for Axios
+  - got: HTTP client (retry built-in)
 
 Python:
-  - tenacity: 汎用リトライライブラリ
-  - aiohttp-retry: aiohttp 用リトライ
-  - stamina: 最新のリトライライブラリ
-  - pybreaker: サーキットブレーカー
+  - tenacity: General-purpose retry library
+  - aiohttp-retry: Retry for aiohttp
+  - stamina: Modern retry library
+  - pybreaker: Circuit breaker
 
 Go:
-  - cenkalti/backoff: 指数バックオフ
-  - sony/gobreaker: サーキットブレーカー
-  - avast/retry-go: リトライライブラリ
-  - hashicorp/go-retryablehttp: HTTPクライアント
+  - cenkalti/backoff: Exponential backoff
+  - sony/gobreaker: Circuit breaker
+  - avast/retry-go: Retry library
+  - hashicorp/go-retryablehttp: HTTP client
 
 Java/Kotlin:
-  - resilience4j: サーキットブレーカー + リトライ + バルクヘッド
-  - Spring Retry: Springフレームワーク用
-  - Failsafe: リトライ + サーキットブレーカー
+  - resilience4j: Circuit breaker + retry + bulkhead
+  - Spring Retry: For the Spring framework
+  - Failsafe: Retry + circuit breaker
 
 Rust:
-  - backon: 非同期リトライ
-  - reqwest-retry: reqwest用リトライミドルウェア
+  - backon: Async retry
+  - reqwest-retry: Retry middleware for reqwest
 ```
 
-### 8.2 ライブラリ使用例
+### 8.2 Library Usage Examples
 
 ```typescript
-// cockatiel の使用例
+// cockatiel usage example
 import {
   retry,
   handleAll,
@@ -1776,7 +1776,7 @@ import {
   bulkhead,
 } from 'cockatiel';
 
-// リトライポリシー
+// Retry policy
 const retryPolicy = retry(handleAll, {
   maxAttempts: 3,
   backoff: new ExponentialBackoff({
@@ -1785,24 +1785,24 @@ const retryPolicy = retry(handleAll, {
   }),
 });
 
-// サーキットブレーカーポリシー
+// Circuit breaker policy
 const circuitBreakerPolicy = new CircuitBreakerPolicy(handleAll, {
   halfOpenAfter: 30000,
   breaker: new ConsecutiveBreaker(5),
 });
 
-// バルクヘッドポリシー
+// Bulkhead policy
 const bulkheadPolicy = bulkhead(10, 50);
 
-// ポリシーを組み合わせ
+// Combine policies
 const policy = wrap(bulkheadPolicy, circuitBreakerPolicy, retryPolicy);
 
-// 使用
+// Usage
 const result = await policy.execute(() => fetch('https://api.example.com/data'));
 ```
 
 ```python
-# tenacity の使用例
+# tenacity usage example
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -1830,7 +1830,7 @@ async def fetch_data(url: str) -> dict:
             return await resp.json()
 
 
-# カスタムリトライ条件
+# Custom retry condition
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=2, max=60),
@@ -1841,7 +1841,7 @@ async def create_order(order_data: dict) -> dict:
 ```
 
 ```go
-// go-retryablehttp の使用例
+// go-retryablehttp usage example
 package main
 
 import (
@@ -1859,10 +1859,10 @@ func main() {
 	client.RetryWaitMax = 30 * time.Second
 	client.Logger = log.Default()
 
-	// カスタムリトライ条件
+	// Custom retry condition
 	client.CheckRetry = func(ctx context.Context, resp *http.Response, err error) (bool, error) {
 		if err != nil {
-			return true, nil // ネットワークエラーはリトライ
+			return true, nil // Retry on network errors
 		}
 		if resp.StatusCode == 429 || resp.StatusCode >= 500 {
 			return true, nil
@@ -1880,35 +1880,35 @@ func main() {
 
 ---
 
-## 9. 運用のベストプラクティス
+## 9. Operational Best Practices
 
-### 9.1 メトリクスと監視
+### 9.1 Metrics and Monitoring
 
 ```
-リトライに関する重要メトリクス:
-  1. リトライ率（retry rate）
-     → 全リクエストに対するリトライの割合
-     → 高い場合は下流サービスに問題がある
+Important metrics for retry:
+  1. Retry rate
+     → Ratio of retries to total requests
+     → If high, there may be issues with a downstream service
 
-  2. リトライ成功率（retry success rate）
-     → リトライにより最終的に成功した割合
-     → 低い場合はリトライが無駄に負荷をかけている
+  2. Retry success rate
+     → Percentage that ultimately succeeded via retry
+     → If low, retries are adding unnecessary load
 
-  3. サーキットブレーカーの状態遷移回数
-     → Open になる頻度
-     → Half-Open → Open に戻る頻度
+  3. Circuit breaker state transition count
+     → Frequency of transitioning to Open
+     → Frequency of transitioning from Half-Open back to Open
 
-  4. 平均リトライ回数
-     → 成功するまでの平均リトライ回数
-     → 増加傾向なら問題の悪化を示す
+  4. Average retry count
+     → Average number of retries before success
+     → An increasing trend indicates a worsening problem
 
-  5. デッドレターキューのサイズ
-     → リトライが全て失敗したジョブの数
-     → 増加している場合はアラート
+  5. Dead letter queue size
+     → Number of jobs where all retries failed
+     → Alert if increasing
 ```
 
 ```typescript
-// Prometheus メトリクスの収集例
+// Prometheus metrics collection example
 import { Counter, Histogram, Gauge } from 'prom-client';
 
 const retryCounter = new Counter({
@@ -1930,7 +1930,7 @@ const circuitBreakerState = new Gauge({
   labelNames: ['service'],
 });
 
-// メトリクス付きリトライ
+// Retry with metrics
 async function retryWithMetrics<T>(
   serviceName: string,
   fn: () => Promise<T>,
@@ -1960,42 +1960,42 @@ async function retryWithMetrics<T>(
 }
 ```
 
-### 9.2 設定のチューニング
+### 9.2 Configuration Tuning
 
 ```
-リトライ設定のガイドライン:
+Retry configuration guidelines:
 
-  外部 API コール:
+  External API calls:
     maxRetries: 3
     baseDelay: 1000ms
     maxDelay: 30000ms
     jitter: full
 
-  データベース接続:
+  Database connections:
     maxRetries: 5
     baseDelay: 500ms
     maxDelay: 10000ms
     jitter: equal
 
-  メッセージキュー:
+  Message queues:
     maxRetries: 10
     baseDelay: 1000ms
     maxDelay: 60000ms
     jitter: decorrelated
 
-  サーキットブレーカー:
+  Circuit breaker:
     failureThreshold: 5-10
-    resetTimeout: 15-60秒
+    resetTimeout: 15-60 seconds
     halfOpenMaxConcurrent: 1-3
 
-  バルクヘッド:
-    maxConcurrent: サービスのキャパシティに応じて
-    maxQueue: maxConcurrent の 2-5 倍
+  Bulkhead:
+    maxConcurrent: Adjust according to service capacity
+    maxQueue: 2-5 times maxConcurrent
 
-  注意:
-    → リトライ回数 × バックオフ時間 < リクエストタイムアウト
-    → 上流のタイムアウトを考慮（デッドラインの伝播）
-    → 負荷テストでチューニングを検証
+  Notes:
+    → Retry count × backoff time < request timeout
+    → Consider upstream timeouts (deadline propagation)
+    → Validate tuning with load tests
 ```
 
 ---
@@ -2003,40 +2003,40 @@ async function retryWithMetrics<T>(
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important takeaway when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining hands-on experience is the most important thing. Understanding deepens not just through theory, but by actually writing and running code.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What common mistakes do beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this knowledge applied in real-world work?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-| 戦略 | 目的 | 適用場面 |
-|------|------|---------|
-| 固定間隔リトライ | 単純な再試行 | 軽微な一時障害 |
-| 指数バックオフ | 負荷を段階的に下げる | API制限、サーバー障害 |
-| ジッター | 同時リトライを分散 | 多クライアント環境 |
-| サーキットブレーカー | 連鎖障害の防止 | マイクロサービス |
-| バルクヘッド | リソース隔離 | マルチサービス依存 |
-| リトライバジェット | リトライストーム防止 | 分散システム |
-| デッドライン伝播 | タイムアウト連鎖の制御 | 多段呼び出し |
-| 冪等キー | 安全なリトライ | POST/PATCH操作 |
+The knowledge covered in this topic is frequently used in day-to-day development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Strategy | Purpose | Use Case |
+|----------|---------|----------|
+| Fixed interval retry | Simple retry | Minor transient failures |
+| Exponential backoff | Gradually reduce load | API limits, server failures |
+| Jitter | Distribute simultaneous retries | Multi-client environments |
+| Circuit breaker | Prevent cascading failures | Microservices |
+| Bulkhead | Resource isolation | Multi-service dependencies |
+| Retry budget | Prevent retry storms | Distributed systems |
+| Deadline propagation | Control timeout chains | Multi-hop calls |
+| Idempotency key | Safe retry | POST/PATCH operations |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
+
+---
+
+## References
 1. AWS Architecture Blog. "Exponential Backoff and Jitter." 2015.
 2. Nygard, M. "Release It!" Pragmatic Bookshelf, 2018.
 3. Google SRE Book. "Handling Overload." O'Reilly, 2016.

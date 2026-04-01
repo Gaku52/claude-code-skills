@@ -1,127 +1,127 @@
-# キャンセル処理
+# Cancellation
 
-> 非同期処理のキャンセルは見落とされがちだが、UXとリソース管理に直結する重要な技術。AbortController、タイムアウト、キャンセルトークンの実装を解説。
+> Cancellation of asynchronous operations is often overlooked, but it is a critical technique that directly impacts UX and resource management. This guide covers AbortController, timeouts, and cancellation token implementations.
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] 非同期処理のキャンセルが必要な場面を理解する
-- [ ] AbortController の使い方を把握する
-- [ ] タイムアウトパターンの実装を学ぶ
-- [ ] 各言語のキャンセルメカニズムを比較する
-- [ ] プロダクションレベルのキャンセル設計を習得する
-- [ ] テスト可能なキャンセル処理の実装を学ぶ
+- [ ] Understand scenarios where cancellation of async operations is necessary
+- [ ] Learn how to use AbortController
+- [ ] Learn timeout pattern implementations
+- [ ] Compare cancellation mechanisms across languages
+- [ ] Master production-level cancellation design
+- [ ] Learn how to implement testable cancellation logic
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Understanding the following will help you get the most out of this guide:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [イベントループ](./00-event-loop.md) の内容を理解していること
-
----
-
-## 1. なぜキャンセルが必要か
-
-```
-キャンセルが必要な場面:
-  1. ユーザーがページ遷移した → 前のページのAPIリクエストを中止
-  2. 検索ボックスの入力 → 前の検索リクエストを中止
-  3. タイムアウト → 一定時間内に応答がない場合に中止
-  4. コンポーネントのアンマウント → 進行中の処理を中止
-  5. ユーザーが「キャンセル」ボタンを押した
-  6. サーバーシャットダウン時の進行中処理のクリーンアップ
-  7. リソース制限に達した場合の処理中止
-  8. 競合する処理の一方を中止（レースパターン）
-
-キャンセルしないと:
-  → 不要なネットワークリクエストが残る
-  → メモリリーク（コンポーネント破棄後にsetState）
-  → レースコンディション（古い結果が新しい結果を上書き）
-  → サーバーリソースの無駄遣い
-  → ユーザー体験の悪化（古いデータの表示）
-  → DBコネクションの枯渇
-```
-
-### 1.1 キャンセルの分類
-
-```
-キャンセルの種類:
-
-1. ユーザー起因のキャンセル
-   → キャンセルボタン押下
-   → ページ遷移
-   → コンポーネントのアンマウント
-   → ブラウザのタブを閉じる
-
-2. システム起因のキャンセル
-   → タイムアウト
-   → サーバーシャットダウン
-   → リソース制限到達
-   → 親タスクのキャンセル伝搬
-
-3. ロジック起因のキャンセル
-   → 新しいリクエストによる前のリクエストの中止
-   → 最初の結果が得られた時点で他を中止
-   → 条件が変わった場合の処理中止
-
-キャンセルのレベル:
-  ┌────────────────────────────────────────┐
-  │ アプリケーションレベル                   │
-  │  → UIイベント、ルーティング             │
-  │                                        │
-  │  ┌────────────────────────────────────┐ │
-  │  │ サービスレベル                      │ │
-  │  │  → API呼び出し、バッチ処理          │ │
-  │  │                                    │ │
-  │  │  ┌────────────────────────────────┐ │ │
-  │  │  │ リソースレベル                  │ │ │
-  │  │  │  → DB接続、ファイルハンドル     │ │ │
-  │  │  └────────────────────────────────┘ │ │
-  │  └────────────────────────────────────┘ │
-  └────────────────────────────────────────┘
-```
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Familiarity with [Event Loop](./00-event-loop.md)
 
 ---
 
-## 2. AbortController（Web標準）
+## 1. Why Cancellation Is Necessary
 
-### 2.1 基本的な使い方
+```
+Scenarios where cancellation is needed:
+  1. User navigates to a different page -> Cancel the previous page's API request
+  2. Search box input -> Cancel the previous search request
+  3. Timeout -> Cancel if no response within a certain time
+  4. Component unmount -> Cancel ongoing operations
+  5. User clicks the "Cancel" button
+  6. Cleanup of in-progress operations during server shutdown
+  7. Cancel operations when resource limits are reached
+  8. Cancel one of competing operations (race pattern)
+
+Without cancellation:
+  -> Unnecessary network requests remain
+  -> Memory leaks (setState after component destruction)
+  -> Race conditions (old results overwrite new results)
+  -> Wasted server resources
+  -> Degraded user experience (displaying stale data)
+  -> DB connection pool exhaustion
+```
+
+### 1.1 Types of Cancellation
+
+```
+Types of cancellation:
+
+1. User-initiated cancellation
+   -> Cancel button press
+   -> Page navigation
+   -> Component unmount
+   -> Closing a browser tab
+
+2. System-initiated cancellation
+   -> Timeout
+   -> Server shutdown
+   -> Resource limit reached
+   -> Cancellation propagation from parent task
+
+3. Logic-initiated cancellation
+   -> New request cancels the previous request
+   -> Cancel others once the first result is obtained
+   -> Cancel processing when conditions change
+
+Cancellation levels:
+  +----------------------------------------+
+  | Application level                      |
+  |  -> UI events, routing                 |
+  |                                        |
+  |  +------------------------------------+|
+  |  | Service level                      ||
+  |  |  -> API calls, batch processing    ||
+  |  |                                    ||
+  |  |  +--------------------------------+||
+  |  |  | Resource level                 |||
+  |  |  |  -> DB connections, file handles|||
+  |  |  +--------------------------------+||
+  |  +------------------------------------+|
+  +----------------------------------------+
+```
+
+---
+
+## 2. AbortController (Web Standard)
+
+### 2.1 Basic Usage
 
 ```typescript
-// fetch のキャンセル
+// Cancelling a fetch request
 const controller = new AbortController();
 const { signal } = controller;
 
-// リクエスト開始
+// Start request
 const promise = fetch('/api/data', { signal })
   .then(res => res.json())
   .catch(err => {
     if (err.name === 'AbortError') {
-      console.log('リクエストがキャンセルされました');
+      console.log('Request was cancelled');
     } else {
       throw err;
     }
   });
 
-// 3秒後にキャンセル
+// Cancel after 3 seconds
 setTimeout(() => controller.abort(), 3000);
 
-// AbortSignal.reason でキャンセル理由を指定（2022年以降の仕様）
+// Specify cancellation reason with AbortSignal.reason (2022+ spec)
 controller.abort(new Error('User navigated away'));
-controller.abort('timeout'); // 文字列も可
+controller.abort('timeout'); // Strings are also valid
 
-// signal.reason でキャンセル理由を取得
+// Get cancellation reason with signal.reason
 signal.addEventListener('abort', () => {
   console.log('Abort reason:', signal.reason);
 });
 ```
 
-### 2.2 React での使用パターン
+### 2.2 Usage Pattern in React
 
 ```typescript
-// React での使用
+// Usage in React
 function SearchResults({ query }: { query: string }) {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -146,10 +146,10 @@ function SearchResults({ query }: { query: string }) {
           setError(err.message);
           setLoading(false);
         }
-        // AbortError は無視（コンポーネント破棄 or query変更時）
+        // Ignore AbortError (component destroyed or query changed)
       });
 
-    // クリーンアップ: コンポーネント破棄時 or query変更時にキャンセル
+    // Cleanup: Cancel on component destruction or query change
     return () => controller.abort();
   }, [query]);
 
@@ -163,15 +163,15 @@ function SearchResults({ query }: { query: string }) {
 }
 ```
 
-### 2.3 AbortSignal の高度な使い方
+### 2.3 Advanced AbortSignal Usage
 
 ```typescript
-// AbortSignal.timeout(): タイムアウト付き signal
+// AbortSignal.timeout(): Signal with timeout
 const response = await fetch('/api/data', {
-  signal: AbortSignal.timeout(5000), // 5秒でタイムアウト
+  signal: AbortSignal.timeout(5000), // 5-second timeout
 });
 
-// AbortSignal.any(): 複数の signal を結合（2023年以降）
+// AbortSignal.any(): Combine multiple signals (2023+)
 const userCancel = new AbortController();
 const timeoutSignal = AbortSignal.timeout(30000);
 const shutdownSignal = getShutdownSignal();
@@ -183,9 +183,9 @@ const combinedSignal = AbortSignal.any([
 ]);
 
 fetch('/api/data', { signal: combinedSignal });
-// → ユーザーキャンセル、タイムアウト、シャットダウンの いずれかで中止
+// -> Cancelled by user cancellation, timeout, or shutdown — whichever comes first
 
-// AbortSignal をカスタムAPIに渡す
+// Passing AbortSignal to custom APIs
 class DataFetcher {
   async fetchWithRetry(
     url: string,
@@ -194,7 +194,7 @@ class DataFetcher {
     const { signal, maxRetries = 3 } = options;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      // キャンセルチェック
+      // Check for cancellation
       signal?.throwIfAborted();
 
       try {
@@ -202,7 +202,7 @@ class DataFetcher {
         if (response.ok) return response;
 
         if (response.status >= 500 && attempt < maxRetries) {
-          // サーバーエラーはリトライ
+          // Retry on server errors
           await this.delay(Math.pow(2, attempt) * 1000, signal);
           continue;
         }
@@ -235,7 +235,7 @@ class DataFetcher {
 }
 ```
 
-### 2.4 Node.js での AbortController
+### 2.4 AbortController in Node.js
 
 ```typescript
 import { readFile, writeFile } from 'fs/promises';
@@ -243,11 +243,11 @@ import { createReadStream } from 'fs';
 import { pipeline } from 'stream/promises';
 import { setTimeout as sleep } from 'timers/promises';
 
-// fs/promises のキャンセル
+// Cancelling fs/promises operations
 const controller = new AbortController();
 const { signal } = controller;
 
-// ファイル読み込みのキャンセル
+// Cancel file reading
 try {
   const data = await readFile('large-file.txt', { signal });
 } catch (err) {
@@ -256,14 +256,14 @@ try {
   }
 }
 
-// timers/promises のキャンセル
+// Cancelling timers/promises
 try {
-  await sleep(60000, null, { signal }); // 60秒待ち
+  await sleep(60000, null, { signal }); // 60-second wait
 } catch (err) {
-  // signal が abort されたら即座に解決
+  // Resolves immediately when signal is aborted
 }
 
-// Stream のキャンセル
+// Cancelling streams
 const readStream = createReadStream('data.csv', { signal });
 const writeStream = createWriteStream('output.csv', { signal });
 
@@ -275,23 +275,23 @@ try {
   }
 }
 
-// EventEmitter のキャンセル
+// Cancelling EventEmitter
 import { once } from 'events';
 
 const controller2 = new AbortController();
 try {
   const [data] = await once(emitter, 'data', { signal: controller2.signal });
 } catch (err) {
-  // signal が abort されたら待機をキャンセル
+  // Wait is cancelled when signal is aborted
 }
 
-// HTTP サーバーでのリクエストキャンセル検出
+// Detecting request cancellation in HTTP server
 import http from 'http';
 
 const server = http.createServer(async (req, res) => {
   const controller = new AbortController();
 
-  // クライアントが接続を切断した場合にキャンセル
+  // Cancel when client disconnects
   req.on('close', () => {
     if (!res.writableEnded) {
       controller.abort();
@@ -304,7 +304,7 @@ const server = http.createServer(async (req, res) => {
     res.end(JSON.stringify(data));
   } catch (err) {
     if ((err as Error).name === 'AbortError') {
-      // クライアントが切断、レスポンス不要
+      // Client disconnected, no response needed
       return;
     }
     res.writeHead(500);
@@ -315,12 +315,12 @@ const server = http.createServer(async (req, res) => {
 
 ---
 
-## 3. タイムアウトパターン
+## 3. Timeout Patterns
 
-### 3.1 基本的なタイムアウト
+### 3.1 Basic Timeout
 
 ```typescript
-// タイムアウト付き fetch
+// Fetch with timeout
 async function fetchWithTimeout(
   url: string,
   options: RequestInit & { timeoutMs?: number } = {},
@@ -346,7 +346,7 @@ async function fetchWithTimeout(
   }
 }
 
-// カスタムエラークラス
+// Custom error class
 class TimeoutError extends Error {
   constructor(message: string) {
     super(message);
@@ -355,10 +355,10 @@ class TimeoutError extends Error {
 }
 ```
 
-### 3.2 Promise のタイムアウトラッパー
+### 3.2 Promise Timeout Wrapper
 
 ```typescript
-// Promise のタイムアウトラッパー
+// Promise timeout wrapper
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   const timeout = new Promise<never>((_, reject) => {
     setTimeout(() => reject(new TimeoutError(`Timeout after ${ms}ms`)), ms);
@@ -366,10 +366,10 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return Promise.race([promise, timeout]);
 }
 
-// 使用
+// Usage
 const data = await withTimeout(fetchData(), 5000);
 
-// キャンセル可能なタイムアウト（リソースリークを防ぐ）
+// Cancellable timeout (prevents resource leaks)
 function withCancellableTimeout<T>(
   promise: Promise<T>,
   ms: number,
@@ -389,7 +389,7 @@ function withCancellableTimeout<T>(
       clearTimeout(timeoutId);
     };
 
-    // AbortSignal のキャンセル
+    // AbortSignal cancellation
     signal?.addEventListener('abort', () => {
       if (!settled) {
         settled = true;
@@ -418,10 +418,10 @@ function withCancellableTimeout<T>(
 }
 ```
 
-### 3.3 段階的タイムアウト
+### 3.3 Gradual Timeout
 
 ```typescript
-// 段階的タイムアウト: 警告 → タイムアウト → 強制終了
+// Gradual timeout: Warning -> Timeout -> Force terminate
 class GradualTimeout {
   private timers: NodeJS.Timeout[] = [];
 
@@ -441,7 +441,7 @@ class GradualTimeout {
   ): Promise<T> {
     const controller = new AbortController();
 
-    // 段階1: 警告
+    // Stage 1: Warning
     this.timers.push(
       setTimeout(() => {
         callbacks.onWarning?.();
@@ -449,7 +449,7 @@ class GradualTimeout {
       }, this.warningMs),
     );
 
-    // 段階2: タイムアウト（協調的キャンセル）
+    // Stage 2: Timeout (cooperative cancellation)
     this.timers.push(
       setTimeout(() => {
         callbacks.onTimeout?.();
@@ -457,12 +457,12 @@ class GradualTimeout {
       }, this.timeoutMs),
     );
 
-    // 段階3: 強制終了
+    // Stage 3: Force terminate
     this.timers.push(
       setTimeout(() => {
         callbacks.onForce?.();
         console.error('Force terminating operation');
-        // 強制終了のロジック
+        // Force termination logic
       }, this.forceMs),
     );
 
@@ -475,7 +475,7 @@ class GradualTimeout {
   }
 }
 
-// 使用例
+// Usage example
 const gradual = new GradualTimeout(5000, 10000, 30000);
 
 const result = await gradual.execute(
@@ -492,9 +492,9 @@ const result = await gradual.execute(
 
 ---
 
-## 4. 各言語のキャンセルメカニズム
+## 4. Cancellation Mechanisms Across Languages
 
-### 4.1 Python のキャンセル
+### 4.1 Python Cancellation
 
 ```python
 import asyncio
@@ -506,59 +506,59 @@ async def cancellable_task():
             process(data)
             await asyncio.sleep(1)
     except asyncio.CancelledError:
-        # クリーンアップ処理
-        print("タスクがキャンセルされました")
+        # Cleanup processing
+        print("Task was cancelled")
         await cleanup_resources()
-        raise  # 再送出（キャンセルを伝播）
+        raise  # Re-raise (propagate the cancellation)
 
 async def main():
     task = asyncio.create_task(cancellable_task())
 
     await asyncio.sleep(5)
-    task.cancel()  # キャンセル
+    task.cancel()  # Cancel
 
     try:
         await task
     except asyncio.CancelledError:
-        print("タスクが正常にキャンセルされました")
+        print("Task was successfully cancelled")
 
-# タイムアウト
+# Timeout
 async def with_timeout():
     try:
         result = await asyncio.wait_for(slow_operation(), timeout=5.0)
     except asyncio.TimeoutError:
-        print("タイムアウト")
+        print("Timeout")
 
-# TaskGroup（Python 3.11+）
+# TaskGroup (Python 3.11+)
 async def parallel_with_cancellation():
     async with asyncio.TaskGroup() as tg:
         task1 = tg.create_task(operation_a())
         task2 = tg.create_task(operation_b())
-        # 1つがエラーになると、他の全タスクがキャンセルされる
+        # If one raises an error, all other tasks are cancelled
 
-# シールド（キャンセル伝搬の防止）
+# Shield (prevent cancellation propagation)
 async def critical_operation():
-    # shield() で囲むと、外部からのキャンセルが伝搬しない
+    # Wrapping with shield() prevents external cancellation from propagating
     result = await asyncio.shield(important_db_write())
     return result
 
-# 構造化並行処理（Python 3.12+、anyio）
+# Structured concurrency (Python 3.12+, anyio)
 import anyio
 
 async def structured_cancellation():
     async with anyio.create_task_group() as tg:
         tg.start_soon(worker, "task1")
         tg.start_soon(worker, "task2")
-        # スコープを抜けるとすべてのタスクがキャンセルされる
+        # All tasks are cancelled when leaving the scope
 
-    # cancel_scope でタイムアウト
+    # cancel_scope for timeout
     with anyio.move_on_after(5.0) as scope:
         await slow_operation()
     if scope.cancelled_caught:
-        print("タイムアウトしました")
+        print("Timed out")
 ```
 
-### 4.2 Go のキャンセル（Context）
+### 4.2 Go Cancellation (Context)
 
 ```go
 package main
@@ -570,26 +570,26 @@ import (
     "time"
 )
 
-// context.WithCancel: 手動キャンセル
+// context.WithCancel: Manual cancellation
 func manualCancel() {
     ctx, cancel := context.WithCancel(context.Background())
-    defer cancel() // 必ず呼ぶ（リソースリーク防止）
+    defer cancel() // Always call (prevents resource leaks)
 
     go func() {
         select {
         case <-ctx.Done():
-            fmt.Println("キャンセルされました:", ctx.Err())
+            fmt.Println("Cancelled:", ctx.Err())
             return
         case result := <-doWork():
-            fmt.Println("結果:", result)
+            fmt.Println("Result:", result)
         }
     }()
 
     time.Sleep(2 * time.Second)
-    cancel() // キャンセル
+    cancel() // Cancel
 }
 
-// context.WithTimeout: タイムアウト
+// context.WithTimeout: Timeout
 func withTimeout() {
     ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
     defer cancel()
@@ -598,50 +598,50 @@ func withTimeout() {
     resp, err := http.DefaultClient.Do(req)
     if err != nil {
         if ctx.Err() == context.DeadlineExceeded {
-            fmt.Println("タイムアウト")
+            fmt.Println("Timeout")
         }
         return
     }
     defer resp.Body.Close()
 }
 
-// context.WithDeadline: 期限
+// context.WithDeadline: Deadline
 func withDeadline() {
     deadline := time.Now().Add(10 * time.Second)
     ctx, cancel := context.WithDeadline(context.Background(), deadline)
     defer cancel()
 
-    // DBクエリにコンテキストを伝搬
+    // Propagate context to DB query
     rows, err := db.QueryContext(ctx, "SELECT * FROM users")
     // ...
 }
 
-// context.WithCancelCause（Go 1.20+）: キャンセル理由
+// context.WithCancelCause (Go 1.20+): Cancellation reason
 func withCancelCause() {
     ctx, cancel := context.WithCancelCause(context.Background())
 
     go func() {
-        // エラーの原因を付与してキャンセル
-        cancel(fmt.Errorf("ユーザーが中断しました"))
+        // Cancel with a cause error attached
+        cancel(fmt.Errorf("user interrupted"))
     }()
 
     <-ctx.Done()
-    fmt.Println("理由:", context.Cause(ctx))
+    fmt.Println("Reason:", context.Cause(ctx))
 }
 
-// HTTPハンドラでのコンテキスト伝搬
+// Context propagation in HTTP handlers
 func handler(w http.ResponseWriter, r *http.Request) {
-    ctx := r.Context() // クライアント切断で自動キャンセル
+    ctx := r.Context() // Automatically cancelled on client disconnect
 
-    // 子のコンテキストにタイムアウトを追加
+    // Add timeout to child context
     ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
     defer cancel()
 
-    // 全ての下流呼び出しにコンテキストを渡す
+    // Pass context to all downstream calls
     data, err := fetchData(ctx)
     if err != nil {
         if ctx.Err() == context.Canceled {
-            // クライアントが切断
+            // Client disconnected
             return
         }
         http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -651,7 +651,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
     json.NewEncoder(w).Encode(data)
 }
 
-// goroutine でのキャンセル対応
+// Cancellation handling in goroutines
 func worker(ctx context.Context, jobs <-chan Job) error {
     for {
         select {
@@ -659,7 +659,7 @@ func worker(ctx context.Context, jobs <-chan Job) error {
             return ctx.Err()
         case job, ok := <-jobs:
             if !ok {
-                return nil // チャネルが閉じられた
+                return nil // Channel was closed
             }
             if err := processJob(ctx, job); err != nil {
                 return fmt.Errorf("job %s failed: %w", job.ID, err)
@@ -669,19 +669,19 @@ func worker(ctx context.Context, jobs <-chan Job) error {
 }
 ```
 
-### 4.3 C# のキャンセル（CancellationToken）
+### 4.3 C# Cancellation (CancellationToken)
 
 ```csharp
 using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-// CancellationTokenSource でトークンを作成
+// Create a token with CancellationTokenSource
 public class DataService
 {
     public async Task<Data> FetchDataAsync(CancellationToken cancellationToken = default)
     {
-        // 定期的にキャンセルをチェック
+        // Periodically check for cancellation
         cancellationToken.ThrowIfCancellationRequested();
 
         using var httpClient = new HttpClient();
@@ -696,15 +696,15 @@ public class DataService
     }
 }
 
-// 使用例
+// Usage example
 public async Task Main()
 {
-    // 手動キャンセル
+    // Manual cancellation
     using var cts = new CancellationTokenSource();
 
     var task = service.FetchDataAsync(cts.Token);
 
-    // 5秒後にキャンセル
+    // Cancel after 5 seconds
     cts.CancelAfter(TimeSpan.FromSeconds(5));
 
     try
@@ -713,10 +713,10 @@ public async Task Main()
     }
     catch (OperationCanceledException)
     {
-        Console.WriteLine("操作がキャンセルされました");
+        Console.WriteLine("Operation was cancelled");
     }
 
-    // LinkedToken: 複数のキャンセルソースを結合
+    // LinkedToken: Combine multiple cancellation sources
     using var userCts = new CancellationTokenSource();
     using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
     using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
@@ -728,7 +728,7 @@ public async Task Main()
 }
 ```
 
-### 4.4 Rust のキャンセル
+### 4.4 Rust Cancellation
 
 ```rust
 use tokio::select;
@@ -736,7 +736,7 @@ use tokio::sync::oneshot;
 use tokio::time::{timeout, Duration};
 use tokio_util::sync::CancellationToken;
 
-// tokio::select! でキャンセル
+// Cancellation with tokio::select!
 async fn cancellable_operation(cancel_rx: oneshot::Receiver<()>) -> Result<Data, Error> {
     select! {
         result = fetch_data() => result,
@@ -747,12 +747,12 @@ async fn cancellable_operation(cancel_rx: oneshot::Receiver<()>) -> Result<Data,
     }
 }
 
-// CancellationToken（tokio-util）
+// CancellationToken (tokio-util)
 async fn with_cancellation_token() {
     let token = CancellationToken::new();
     let child_token = token.child_token();
 
-    // ワーカータスク
+    // Worker task
     let handle = tokio::spawn(async move {
         loop {
             select! {
@@ -765,14 +765,14 @@ async fn with_cancellation_token() {
         }
     });
 
-    // 5秒後にキャンセル
+    // Cancel after 5 seconds
     tokio::time::sleep(Duration::from_secs(5)).await;
     token.cancel();
 
     handle.await.unwrap();
 }
 
-// Drop trait による自動キャンセル
+// Automatic cancellation via Drop trait
 struct AutoCancelGuard {
     token: CancellationToken,
 }
@@ -780,11 +780,11 @@ struct AutoCancelGuard {
 impl Drop for AutoCancelGuard {
     fn drop(&mut self) {
         self.token.cancel();
-        // スコープを抜けるときに自動的にキャンセル
+        // Automatically cancels when leaving scope
     }
 }
 
-// タイムアウト
+// Timeout
 async fn with_timeout() -> Result<Data, Error> {
     match timeout(Duration::from_secs(5), fetch_data()).await {
         Ok(result) => result,
@@ -795,42 +795,42 @@ async fn with_timeout() -> Result<Data, Error> {
 
 ---
 
-## 5. キャンセルの設計原則
+## 5. Cancellation Design Principles
 
 ```
-1. キャンセルは協調的
-   → 処理を強制停止するのではなく、
-     「キャンセルが要求された」ことを通知
-   → 処理側がクリーンアップしてから停止
+1. Cancellation is cooperative
+   -> Rather than forcibly stopping a process,
+     it notifies that "cancellation has been requested"
+   -> The process cleans up before stopping
 
-2. クリーンアップを保証
-   → finally でリソース解放
-   → DBトランザクションのロールバック
-   → テンポラリファイルの削除
-   → ロックの解放
+2. Guarantee cleanup
+   -> Release resources in finally blocks
+   -> Roll back DB transactions
+   -> Delete temporary files
+   -> Release locks
 
-3. キャンセル可能なAPIを設計
-   → AbortSignal / CancellationToken / Context を引数に受け取る
-   → キャンセル時の振る舞いをドキュメント化
-   → 部分的な結果の扱いを明確にする
+3. Design cancellable APIs
+   -> Accept AbortSignal / CancellationToken / Context as parameters
+   -> Document behavior on cancellation
+   -> Clarify handling of partial results
 
-4. レースコンディションに注意
-   → キャンセルと完了が同時に起こる可能性
-   → 状態チェックを適切に行う
-   → 「既にキャンセル済み」の状態を処理する
+4. Watch out for race conditions
+   -> Cancellation and completion can occur simultaneously
+   -> Perform state checks appropriately
+   -> Handle the "already cancelled" state
 
-5. キャンセルの伝搬
-   → 親のキャンセルは子に伝搬すべき
-   → 子のキャンセルは親に伝搬すべきでない（通常）
-   → ツリー構造でキャンセルが伝搬する設計
+5. Cancellation propagation
+   -> Parent cancellation should propagate to children
+   -> Child cancellation should not propagate to parent (normally)
+   -> Design cancellation to propagate in a tree structure
 ```
 
-### 5.1 キャンセル可能なAPI設計
+### 5.1 Cancellable API Design
 
 ```typescript
-// === 良いAPI設計 ===
+// === Good API Design ===
 
-// 1. signal を options の一部として受け取る
+// 1. Accept signal as part of options
 interface FetchOptions {
   signal?: AbortSignal;
   timeout?: number;
@@ -840,7 +840,7 @@ interface FetchOptions {
 async function fetchData(url: string, options: FetchOptions = {}): Promise<Data> {
   const { signal, timeout = 30000, retries = 3 } = options;
 
-  // 外部の signal とタイムアウトを結合
+  // Combine external signal with timeout
   const timeoutSignal = AbortSignal.timeout(timeout);
   const combinedSignal = signal
     ? AbortSignal.any([signal, timeoutSignal])
@@ -862,7 +862,7 @@ async function fetchData(url: string, options: FetchOptions = {}): Promise<Data>
   throw new Error('Unreachable');
 }
 
-// 2. キャンセル可能なイテレータ
+// 2. Cancellable iterator
 async function* paginatedFetch<T>(
   baseUrl: string,
   signal?: AbortSignal,
@@ -883,7 +883,7 @@ async function* paginatedFetch<T>(
   }
 }
 
-// 使用例
+// Usage example
 const controller = new AbortController();
 
 for await (const items of paginatedFetch<User>('/api/users', controller.signal)) {
@@ -892,7 +892,7 @@ for await (const items of paginatedFetch<User>('/api/users', controller.signal))
   }
 }
 
-// 3. キャンセル可能なバッチ処理
+// 3. Cancellable batch processing
 class BatchProcessor<T, R> {
   async process(
     items: T[],
@@ -914,7 +914,7 @@ class BatchProcessor<T, R> {
 
       const batch = items.slice(i, i + batchSize);
 
-      // 並行数制限付きで処理
+      // Process with concurrency limit
       const batchPromises = batch.map(async (item) => {
         try {
           signal?.throwIfAborted();
@@ -937,10 +937,10 @@ class BatchProcessor<T, R> {
 }
 ```
 
-### 5.2 キャンセルトークンツリー
+### 5.2 Cancellation Token Tree
 
 ```typescript
-// キャンセルの伝搬ツリー
+// Cancellation propagation tree
 class CancellationScope {
   private controller: AbortController;
   private children: CancellationScope[] = [];
@@ -949,7 +949,7 @@ class CancellationScope {
   constructor(parentSignal?: AbortSignal) {
     this.controller = new AbortController();
 
-    // 親のキャンセルを伝搬
+    // Propagate parent's cancellation
     if (parentSignal) {
       parentSignal.addEventListener('abort', () => {
         this.cancel(parentSignal.reason);
@@ -961,28 +961,28 @@ class CancellationScope {
     return this.controller.signal;
   }
 
-  // 子スコープを作成
+  // Create a child scope
   createChild(): CancellationScope {
     const child = new CancellationScope(this.signal);
     this.children.push(child);
     return child;
   }
 
-  // クリーンアップ関数を登録
+  // Register a cleanup function
   onCancel(fn: () => void | Promise<void>): void {
     this.cleanupFns.push(fn);
   }
 
-  // キャンセル実行
+  // Execute cancellation
   async cancel(reason?: any): Promise<void> {
     if (this.controller.signal.aborted) return;
 
-    // 子スコープを先にキャンセル
+    // Cancel child scopes first
     await Promise.allSettled(
       this.children.map(child => child.cancel(reason)),
     );
 
-    // クリーンアップを実行
+    // Execute cleanup
     await Promise.allSettled(
       this.cleanupFns.map(fn => fn()),
     );
@@ -991,7 +991,7 @@ class CancellationScope {
   }
 }
 
-// 使用例
+// Usage example
 const rootScope = new CancellationScope();
 
 const dbScope = rootScope.createChild();
@@ -1006,21 +1006,21 @@ fileScope.onCancel(async () => {
   console.log('Temp file deleted');
 });
 
-// ルートをキャンセルすると全ての子もキャンセル
+// Cancelling root cancels all children
 await rootScope.cancel('User requested cancellation');
 ```
 
 ---
 
-## 6. テスト可能なキャンセル処理
+## 6. Testable Cancellation Logic
 
 ```typescript
-// === テスト ===
+// === Tests ===
 import { describe, it, expect, vi } from 'vitest';
 
 describe('fetchWithTimeout', () => {
-  it('タイムアウト時にTimeoutErrorをスローする', async () => {
-    // 遅いレスポンスをモック
+  it('throws TimeoutError on timeout', async () => {
+    // Mock a slow response
     global.fetch = vi.fn().mockImplementation(
       () => new Promise(resolve => setTimeout(resolve, 10000)),
     );
@@ -1030,10 +1030,10 @@ describe('fetchWithTimeout', () => {
     ).rejects.toThrow(TimeoutError);
   });
 
-  it('signal が abort されたらAbortErrorをスローする', async () => {
+  it('throws AbortError when signal is aborted', async () => {
     const controller = new AbortController();
 
-    // 即座にキャンセル
+    // Cancel immediately
     controller.abort();
 
     await expect(
@@ -1041,7 +1041,7 @@ describe('fetchWithTimeout', () => {
     ).rejects.toThrow('AbortError');
   });
 
-  it('正常なレスポンスを返す', async () => {
+  it('returns a normal response', async () => {
     global.fetch = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ data: 'test' }), { status: 200 }),
     );
@@ -1050,7 +1050,7 @@ describe('fetchWithTimeout', () => {
     expect(response.status).toBe(200);
   });
 
-  it('キャンセル後にクリーンアップが実行される', async () => {
+  it('executes cleanup after cancellation', async () => {
     const cleanup = vi.fn();
     const controller = new AbortController();
 
@@ -1059,30 +1059,30 @@ describe('fetchWithTimeout', () => {
 
     controller.abort();
 
-    // クリーンアップが呼ばれたことを確認
+    // Verify that cleanup was called
     await vi.waitFor(() => {
       expect(cleanup).toHaveBeenCalled();
     });
   });
 });
 
-// React コンポーネントのテスト
+// React component tests
 import { render, screen, waitFor, act } from '@testing-library/react';
 
 describe('SearchResults', () => {
-  it('query 変更時に前のリクエストをキャンセルする', async () => {
+  it('cancels the previous request when query changes', async () => {
     const abortSpy = vi.spyOn(AbortController.prototype, 'abort');
 
     const { rerender } = render(<SearchResults query="hello" />);
 
-    // query を変更
+    // Change query
     rerender(<SearchResults query="world" />);
 
-    // 前のリクエストがキャンセルされたことを確認
+    // Verify that the previous request was cancelled
     expect(abortSpy).toHaveBeenCalled();
   });
 
-  it('アンマウント時にリクエストをキャンセルする', async () => {
+  it('cancels the request on unmount', async () => {
     const abortSpy = vi.spyOn(AbortController.prototype, 'abort');
 
     const { unmount } = render(<SearchResults query="test" />);
@@ -1096,12 +1096,12 @@ describe('SearchResults', () => {
 
 ---
 
-## 7. 実践パターン集
+## 7. Practical Patterns
 
-### 7.1 デバウンス付きキャンセル
+### 7.1 Debounced Cancellation
 
 ```typescript
-// 検索入力のデバウンス + キャンセル
+// Search input debounce + cancellation
 function useDebounceSearch(delayMs: number = 300) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -1110,12 +1110,12 @@ function useDebounceSearch(delayMs: number = 300) {
   const timeoutRef = useRef<number | null>(null);
 
   const search = useCallback((searchQuery: string) => {
-    // 前のデバウンスタイマーをクリア
+    // Clear previous debounce timer
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
 
-    // 前のリクエストをキャンセル
+    // Cancel previous request
     controllerRef.current?.abort();
 
     if (!searchQuery.trim()) {
@@ -1149,7 +1149,7 @@ function useDebounceSearch(delayMs: number = 300) {
     }, delayMs);
   }, [delayMs]);
 
-  // クリーンアップ
+  // Cleanup
   useEffect(() => {
     return () => {
       controllerRef.current?.abort();
@@ -1161,10 +1161,10 @@ function useDebounceSearch(delayMs: number = 300) {
 }
 ```
 
-### 7.2 レース条件の防止
+### 7.2 Preventing Race Conditions
 
 ```typescript
-// 最後のリクエストのみ有効にするパターン
+// Pattern to only honor the latest request
 function useLatestRequest<T>(
   fetchFn: (signal: AbortSignal) => Promise<T>,
   deps: any[],
@@ -1183,7 +1183,7 @@ function useLatestRequest<T>(
 
     fetchFn(controller.signal)
       .then(result => {
-        // このリクエストが最新かチェック
+        // Check if this request is still the latest
         if (requestId === requestIdRef.current) {
           setData(result);
           setLoading(false);
@@ -1203,10 +1203,10 @@ function useLatestRequest<T>(
 }
 ```
 
-### 7.3 並行処理の最初の結果を使用
+### 7.3 Using the First Result from Concurrent Operations
 
 ```typescript
-// 複数のソースから最初の結果を使用し、他をキャンセル
+// Use the first result from multiple sources and cancel the rest
 async function raceWithCancellation<T>(
   tasks: Array<(signal: AbortSignal) => Promise<T>>,
 ): Promise<T> {
@@ -1218,11 +1218,11 @@ async function raceWithCancellation<T>(
     );
     return result;
   } finally {
-    controller.abort(); // 残りのタスクをキャンセル
+    controller.abort(); // Cancel remaining tasks
   }
 }
 
-// 使用例: 複数の API エンドポイントから最速の結果を使用
+// Usage example: Use the fastest result from multiple API endpoints
 const data = await raceWithCancellation([
   (signal) => fetch('https://api1.example.com/data', { signal }).then(r => r.json()),
   (signal) => fetch('https://api2.example.com/data', { signal }).then(r => r.json()),
@@ -1233,45 +1233,45 @@ const data = await raceWithCancellation([
 
 ---
 
-## 実践演習
+## Practical Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that meets the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate input data
+- Implement proper error handling
+- Write test code as well
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Basic implementation template
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Exercise for basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main processing logic"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Get processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1280,26 +1280,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "Should have raised an exception"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation to add the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Advanced patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Exercise for advanced patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1307,7 +1307,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1318,14 +1318,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Delete by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1333,7 +1333,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1341,44 +1341,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # Size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1387,7 +1387,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1402,47 +1402,47 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient: {slow_time:.4f}s")
+    print(f"Efficient:   {fast_time:.6f}s")
+    print(f"Speedup:     {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key Points:**
+- Be conscious of algorithm time complexity
+- Choose appropriate data structures
+- Measure the effect with benchmarks
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
-|--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Error | Cause | Solution |
+|-------|-------|----------|
+| Initialization error | Configuration file issues | Check configuration file path and format |
+| Timeout | Network latency / resource shortage | Adjust timeout values, add retry logic |
+| Out of memory | Data volume growth | Introduce batch processing, implement pagination |
+| Permission error | Insufficient access permissions | Check executing user's permissions, review settings |
+| Data inconsistency | Concurrent processing conflicts | Introduce locking mechanisms, manage transactions |
 
-### デバッグの手順
+### Debugging Steps
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check the error message**: Read the stack trace to identify where the error occurred
+2. **Establish reproduction steps**: Reproduce the error with minimal code
+3. **Form hypotheses**: List possible causes
+4. **Verify step by step**: Verify hypotheses using log output or a debugger
+5. **Fix and regression test**: After fixing, also run tests on related areas
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utility
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -1450,102 +1450,102 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs function input/output"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Call: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception: {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debug target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Issues
 
-パフォーマンス問題が発生した場合の診断手順:
+Steps for diagnosing performance issues:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify bottlenecks**: Measure with profiling tools
+2. **Check memory usage**: Check for memory leaks
+3. **Check I/O wait**: Check disk and network I/O status
+4. **Check concurrent connections**: Check connection pool status
 
-| 問題の種類 | 診断ツール | 対策 |
-|-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| Issue Type | Diagnostic Tool | Countermeasure |
+|-----------|----------------|----------------|
+| CPU load | cProfile, py-spy | Algorithm improvement, parallelization |
+| Memory leak | tracemalloc, objgraph | Proper release of references |
+| I/O bottleneck | strace, iostat | Async I/O, caching |
+| DB latency | EXPLAIN, slow query log | Indexes, query optimization |
 
 ---
 
-## 設計判断ガイド
+## Design Decision Guide
 
-### 選択基準マトリクス
+### Selection Criteria Matrix
 
-技術選択を行う際の判断基準を以下にまとめます。
+Here is a summary of criteria for making technology choices.
 
-| 判断基準 | 重視する場合 | 妥協できる場合 |
-|---------|------------|-------------|
-| パフォーマンス | リアルタイム処理、大規模データ | 管理画面、バッチ処理 |
-| 保守性 | 長期運用、チーム開発 | プロトタイプ、短期プロジェクト |
-| スケーラビリティ | 成長が見込まれるサービス | 社内ツール、固定ユーザー |
-| セキュリティ | 個人情報、金融データ | 公開データ、社内利用 |
-| 開発速度 | MVP、市場投入スピード | 品質重視、ミッションクリティカル |
+| Criterion | When to prioritize | When acceptable to compromise |
+|-----------|-------------------|------------------------------|
+| Performance | Real-time processing, large-scale data | Admin dashboards, batch processing |
+| Maintainability | Long-term operation, team development | Prototypes, short-term projects |
+| Scalability | Growing services | Internal tools, fixed user base |
+| Security | Personal data, financial data | Public data, internal use |
+| Development speed | MVP, time-to-market | Quality-focused, mission-critical |
 
-### アーキテクチャパターンの選択
+### Architecture Pattern Selection
 
 ```
-┌─────────────────────────────────────────────────┐
-│              アーキテクチャ選択フロー              │
-├─────────────────────────────────────────────────┤
-│                                                 │
-│  ① チーム規模は？                                │
-│    ├─ 小規模（1-5人）→ モノリス                   │
-│    └─ 大規模（10人+）→ ②へ                       │
-│                                                 │
-│  ② デプロイ頻度は？                               │
-│    ├─ 週1回以下 → モノリス + モジュール分割         │
-│    └─ 毎日/複数回 → ③へ                          │
-│                                                 │
-│  ③ チーム間の独立性は？                            │
-│    ├─ 高い → マイクロサービス                      │
-│    └─ 中程度 → モジュラーモノリス                   │
-│                                                 │
-└─────────────────────────────────────────────────┘
++--------------------------------------------------+
+|          Architecture Selection Flow              |
++--------------------------------------------------+
+|                                                   |
+|  (1) Team size?                                   |
+|    +-- Small (1-5 people) -> Monolith             |
+|    +-- Large (10+ people) -> Go to (2)            |
+|                                                   |
+|  (2) Deploy frequency?                            |
+|    +-- Weekly or less -> Monolith + module split   |
+|    +-- Daily/multiple -> Go to (3)                |
+|                                                   |
+|  (3) Team independence?                           |
+|    +-- High -> Microservices                      |
+|    +-- Medium -> Modular monolith                 |
+|                                                   |
++--------------------------------------------------+
 ```
 
-### トレードオフの分析
+### Trade-off Analysis
 
-技術的な判断には必ずトレードオフが伴います。以下の観点で分析を行いましょう:
+Technical decisions always involve trade-offs. Analyze from the following perspectives:
 
-**1. 短期 vs 長期のコスト**
-- 短期的に速い方法が長期的には技術的負債になることがある
-- 逆に、過剰な設計は短期的なコストが高く、プロジェクトの遅延を招く
+**1. Short-term vs Long-term Cost**
+- A faster approach in the short term can become technical debt in the long term
+- Conversely, over-engineering incurs high short-term costs and can delay projects
 
-**2. 一貫性 vs 柔軟性**
-- 統一された技術スタックは学習コストが低い
-- 多様な技術の採用は適材適所が可能だが、運用コストが増加
+**2. Consistency vs Flexibility**
+- A unified technology stack has lower learning costs
+- Adopting diverse technologies enables best-fit choices but increases operational costs
 
-**3. 抽象化のレベル**
-- 高い抽象化は再利用性が高いが、デバッグが困難になる場合がある
-- 低い抽象化は直感的だが、コードの重複が発生しやすい
+**3. Level of Abstraction**
+- Higher abstraction provides greater reusability but can make debugging more difficult
+- Lower abstraction is more intuitive but more prone to code duplication
 
 ```python
-# 設計判断の記録テンプレート
+# Design decision recording template
 class ArchitectureDecisionRecord:
-    """ADR (Architecture Decision Record) の作成"""
+    """Create an ADR (Architecture Decision Record)"""
 
     def __init__(self, title: str):
         self.title = title
@@ -1555,17 +1555,17 @@ class ArchitectureDecisionRecord:
         self.alternatives = []
 
     def set_context(self, context: str):
-        """背景と課題の記述"""
+        """Describe the background and challenges"""
         self.context = context
         return self
 
     def set_decision(self, decision: str):
-        """決定内容の記述"""
+        """Describe the decision"""
         self.decision = decision
         return self
 
     def add_consequence(self, consequence: str, positive: bool = True):
-        """結果の追加"""
+        """Add a consequence"""
         self.consequences.append({
             'description': consequence,
             'type': 'positive' if positive else 'negative'
@@ -1573,7 +1573,7 @@ class ArchitectureDecisionRecord:
         return self
 
     def add_alternative(self, name: str, reason_rejected: str):
-        """却下した代替案の追加"""
+        """Add a rejected alternative"""
         self.alternatives.append({
             'name': name,
             'reason_rejected': reason_rejected
@@ -1581,15 +1581,15 @@ class ArchitectureDecisionRecord:
         return self
 
     def to_markdown(self) -> str:
-        """Markdown形式で出力"""
+        """Output in Markdown format"""
         md = f"# ADR: {self.title}\n\n"
-        md += f"## 背景\n{self.context}\n\n"
-        md += f"## 決定\n{self.decision}\n\n"
-        md += "## 結果\n"
+        md += f"## Context\n{self.context}\n\n"
+        md += f"## Decision\n{self.decision}\n\n"
+        md += "## Consequences\n"
         for c in self.consequences:
-            icon = "✅" if c['type'] == 'positive' else "⚠️"
-            md += f"- {icon} {c['description']}\n"
-        md += "\n## 却下した代替案\n"
+            icon = "+" if c['type'] == 'positive' else "!"
+            md += f"- [{icon}] {c['description']}\n"
+        md += "\n## Rejected Alternatives\n"
         for a in self.alternatives:
             md += f"- **{a['name']}**: {a['reason_rejected']}\n"
         return md
@@ -1599,75 +1599,75 @@ class ArchitectureDecisionRecord:
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when studying this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory but by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in professional practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently used in day-to-day development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## まとめ
+## Summary
 
-| 手法 | 言語/環境 | 用途 |
-|------|----------|------|
-| AbortController | JS/TS | fetch, イベント, ストリーム |
-| AbortSignal.timeout() | JS/TS | タイムアウト |
-| AbortSignal.any() | JS/TS | 複数条件の結合 |
-| asyncio.cancel() | Python | asyncio タスク |
-| asyncio.TaskGroup | Python | 構造化並行処理 |
-| Context.cancel() | Go | goroutine, HTTP, DB |
-| context.WithTimeout | Go | タイムアウト |
-| CancellationToken | C# | Task |
-| CancellationTokenSource | C# | トークン作成 |
-| tokio::select! | Rust | 非同期分岐 |
-| CancellationToken | Rust (tokio-util) | トークンベースキャンセル |
-| Drop trait | Rust | スコープ終了時自動キャンセル |
+| Technique | Language/Environment | Use Case |
+|-----------|---------------------|----------|
+| AbortController | JS/TS | fetch, events, streams |
+| AbortSignal.timeout() | JS/TS | Timeouts |
+| AbortSignal.any() | JS/TS | Combining multiple conditions |
+| asyncio.cancel() | Python | asyncio tasks |
+| asyncio.TaskGroup | Python | Structured concurrency |
+| Context.cancel() | Go | goroutines, HTTP, DB |
+| context.WithTimeout | Go | Timeouts |
+| CancellationToken | C# | Tasks |
+| CancellationTokenSource | C# | Token creation |
+| tokio::select! | Rust | Async branching |
+| CancellationToken | Rust (tokio-util) | Token-based cancellation |
+| Drop trait | Rust | Automatic cancellation on scope exit |
 
-| 設計原則 | 説明 |
-|---------|------|
-| 協調的キャンセル | 強制停止ではなく、通知→クリーンアップ→停止 |
-| クリーンアップ保証 | finally / defer / Drop でリソース解放 |
-| キャンセル伝搬 | 親→子への伝搬、ツリー構造 |
-| レース対策 | キャンセルと完了の同時発生を考慮 |
-| テスタビリティ | signal を外部から注入可能にする |
+| Design Principle | Description |
+|-----------------|-------------|
+| Cooperative cancellation | Notify -> Cleanup -> Stop, not force stop |
+| Guarantee cleanup | Release resources with finally / defer / Drop |
+| Cancellation propagation | Parent -> child propagation, tree structure |
+| Race condition handling | Account for simultaneous cancellation and completion |
+| Testability | Make signal injectable from outside |
 
 ---
 
 ## 8. FAQ
 
-### Q1: AbortController は再利用できるか？
+### Q1: Can AbortController be reused?
 
-いいえ。一度 `abort()` が呼ばれた AbortController は元に戻せない。新しいリクエストごとに新しい AbortController を作成する。signal の `aborted` プロパティは一度 `true` になると変更不可。
+No. Once `abort()` has been called on an AbortController, it cannot be restored. Create a new AbortController for each new request. The signal's `aborted` property cannot be changed once it becomes `true`.
 
-### Q2: キャンセルされた処理の部分的な結果はどう扱うか？
+### Q2: How should partial results from cancelled operations be handled?
 
-設計時に明確にすべき。選択肢は3つ: (1) 部分結果を捨てて最初からやり直す、(2) 部分結果を保存して再開可能にする（チェックポイントパターン）、(3) 部分結果をそのまま返す。バッチ処理では (2) が一般的で、ファイルアップロードではチャンク単位のチェックポイントが有効。
+This should be clarified at design time. There are three options: (1) discard partial results and start over, (2) save partial results and make them resumable (checkpoint pattern), (3) return partial results as-is. For batch processing, (2) is common, and for file uploads, chunk-level checkpoints are effective.
 
-### Q3: キャンセル処理のテストで注意すべき点は？
+### Q3: What should you be careful about when testing cancellation?
 
-タイミング依存のテストは不安定になりやすい。`AbortController.abort()` を即座に呼んでキャンセルパスをテストする、`vi.useFakeTimers()` でタイマーを制御する、`signal` をモックとして注入する、といった手法を使う。非決定的なタイミングに依存しないテスト設計が重要。
+Tests that depend on timing tend to be flaky. Use techniques such as calling `AbortController.abort()` immediately to test the cancellation path, controlling timers with `vi.useFakeTimers()`, and injecting `signal` as a mock. Designing tests that don't depend on non-deterministic timing is important.
 
-### Q4: fetch 以外でAbortSignalを使えるAPIは？
+### Q4: What APIs besides fetch support AbortSignal?
 
-Node.js では `fs/promises`（readFile, writeFile等）、`timers/promises`（setTimeout）、`events.once()`、`stream.pipeline()`、`child_process.exec()` 等がサポートしている。ブラウザでは `addEventListener` のオプションとして signal を渡せるほか、`ReadableStream`、`WritableStream`、`Blob.text()` 等もサポートしている。カスタムAPIにも `signal?.throwIfAborted()` と `signal?.addEventListener('abort', ...)` で対応可能。
+In Node.js, `fs/promises` (readFile, writeFile, etc.), `timers/promises` (setTimeout), `events.once()`, `stream.pipeline()`, `child_process.exec()`, and more support it. In browsers, you can pass signal as an option to `addEventListener`, and `ReadableStream`, `WritableStream`, `Blob.text()`, etc. also support it. You can add support to custom APIs using `signal?.throwIfAborted()` and `signal?.addEventListener('abort', ...)`.
 
-### Q5: Go の context.Context と JavaScript の AbortSignal の違いは？
+### Q5: What are the differences between Go's context.Context and JavaScript's AbortSignal?
 
-Go の Context はキャンセルに加えてタイムアウト（WithTimeout/WithDeadline）と値の伝搬（WithValue）を統合的に扱う。JavaScript の AbortSignal はキャンセル専用で、タイムアウトは `AbortSignal.timeout()` で実現する。Go は Context を第一引数として渡す規約があり、全てのブロッキング操作がContext対応している。JavaScript はまだ AbortSignal の普及途上で、対応していないAPIも存在する。
+Go's Context provides unified handling of cancellation plus timeout (WithTimeout/WithDeadline) and value propagation (WithValue). JavaScript's AbortSignal is cancellation-only, with timeouts achieved through `AbortSignal.timeout()`. Go has a convention of passing Context as the first argument, and all blocking operations support Context. JavaScript's AbortSignal adoption is still ongoing, and some APIs don't support it yet.
 
-### Q6: キャンセルとエラーハンドリングの統合方法は？
+### Q6: How do you integrate cancellation with error handling?
 
-キャンセルはエラーの一種として扱うのが一般的。TypeScript では `err.name === 'AbortError'` で判別し、Go では `errors.Is(err, context.Canceled)` で判別する。キャンセルエラーはユーザーに表示する必要がないことが多いため、エラーハンドリング層で特別扱いする。ログレベルも通常のエラーより低く設定することが推奨される。
+Cancellation is commonly treated as a type of error. In TypeScript, you distinguish it with `err.name === 'AbortError'`, and in Go with `errors.Is(err, context.Canceled)`. Since cancellation errors usually don't need to be displayed to the user, they receive special treatment in the error handling layer. It is also recommended to set the log level lower than that of regular errors.
 
 ```typescript
-// エラーハンドリングとキャンセルの統合例
+// Example of integrating error handling and cancellation
 class AppError extends Error {
   constructor(
     message: string,
@@ -1693,7 +1693,7 @@ class AppError extends Error {
   }
 }
 
-// ミドルウェアでの統合ハンドリング
+// Integrated handling in middleware
 async function errorHandler(ctx: Context, next: () => Promise<void>) {
   try {
     await next();
@@ -1701,12 +1701,12 @@ async function errorHandler(ctx: Context, next: () => Promise<void>) {
     const appError = AppError.fromError(err);
 
     if (appError.isCancellation) {
-      // キャンセルはdebugレベルでログ
+      // Log cancellation at debug level
       logger.debug('Request cancelled', { path: ctx.path });
-      return; // レスポンスは不要
+      return; // No response needed
     }
 
-    // 通常のエラーはerrorレベルでログ
+    // Log regular errors at error level
     logger.error('Request failed', {
       path: ctx.path,
       code: appError.code,
@@ -1721,11 +1721,11 @@ async function errorHandler(ctx: Context, next: () => Promise<void>) {
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
 ---
 
-## 参考文献
+## References
 1. MDN Web Docs. "AbortController."
 2. Node.js Documentation. "AbortController."
 3. Go Documentation. "context package."

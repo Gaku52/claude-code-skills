@@ -1,24 +1,24 @@
 # Reactive Streams
 
-> Reactive Streams は「非同期データストリーム」を宣言的に処理するパターン。RxJS の Observable、バックプレッシャー、イベント駆動アーキテクチャの基盤を理解する。
+> Reactive Streams is a pattern for declaratively processing "asynchronous data streams." Understand the foundations of RxJS Observables, backpressure, and event-driven architecture.
 
-## この章で学ぶこと
+## What You Will Learn
 
-- [ ] Observable パターンの仕組みを理解する
-- [ ] RxJS のオペレータとパイプラインを把握する
-- [ ] バックプレッシャーの概念を学ぶ
-- [ ] Subject の種類と使い分けを理解する
-- [ ] Angular・React でのリアクティブパターンを習得する
-- [ ] テスト・デバッグの手法を身につける
+- [ ] Understand how the Observable pattern works
+- [ ] Grasp RxJS operators and pipelines
+- [ ] Learn the concept of backpressure
+- [ ] Understand the types and use cases of Subjects
+- [ ] Master reactive patterns in Angular and React
+- [ ] Acquire testing and debugging techniques
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [async/await](./02-async-await.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Familiarity with the content of [async/await](./02-async-await.md)
 
 ---
 
@@ -26,83 +26,83 @@
 
 ```
 Promise:
-  → 単一の値（1回だけ解決）
-  → 作成時に実行開始（eager）
-  → キャンセル不可
+  -> Single value (resolves only once)
+  -> Execution starts upon creation (eager)
+  -> Cannot be cancelled
 
 Observable:
-  → 複数の値（時間をかけて流れるストリーム）
-  → 購読時に実行開始（lazy）
-  → キャンセル可能（unsubscribe）
+  -> Multiple values (a stream that flows over time)
+  -> Execution starts upon subscription (lazy)
+  -> Can be cancelled (unsubscribe)
 
-  Promise:    ──────●              （1つの値）
-  Observable: ──●──●──●──●──│     （複数の値、完了あり）
-              ──●──●──✗              （エラーで終了）
+  Promise:    ──────●              (single value)
+  Observable: ──●──●──●──●──│     (multiple values, with completion)
+              ──●──●──✗              (terminated by error)
 
-用途:
-  Promise: API呼び出し、DBクエリ（1回の結果）
-  Observable: WebSocket、ユーザー入力、タイマー（連続的なイベント）
+Use cases:
+  Promise: API calls, DB queries (single result)
+  Observable: WebSocket, user input, timers (continuous events)
 ```
 
-### 1.1 Observable のライフサイクル
+### 1.1 Observable Lifecycle
 
 ```
-Observable のライフサイクル:
+Observable Lifecycle:
 
-  作成 (Creation)
+  Creation
     │
     ▼
-  購読 (Subscription)  ← subscribe() の呼び出し
+  Subscription  ← subscribe() call
     │
     ▼
-  値の発行 (Emission)
-    │  next(value)  ──→ Observer の next コールバック
-    │  next(value)  ──→ Observer の next コールバック
+  Emission
+    │  next(value)  ──→ Observer's next callback
+    │  next(value)  ──→ Observer's next callback
     │  ...
     │
-    ├── complete()  ──→ Observer の complete コールバック ──→ 終了
+    ├── complete()  ──→ Observer's complete callback ──→ End
     │
-    └── error(err)  ──→ Observer の error コールバック ──→ 終了
+    └── error(err)  ──→ Observer's error callback ──→ End
 
-  購読解除 (Unsubscription)  ← unsubscribe() の呼び出し
+  Unsubscription  ← unsubscribe() call
     │
     ▼
-  リソース解放 (Teardown)  ← teardown ロジックの実行
+  Teardown  ← Execution of teardown logic
 ```
 
 ### 1.2 Hot Observable vs Cold Observable
 
 ```
 Cold Observable:
-  → 購読するたびに新しいデータストリームが作成される
-  → 各購読者が独立したストリームを受け取る
-  → 例: HTTPリクエスト、ファイル読み取り
+  -> A new data stream is created each time it is subscribed to
+  -> Each subscriber receives an independent stream
+  -> Examples: HTTP requests, file reads
 
   Subscriber A: ──1──2──3──4──│
-  Subscriber B:    ──1──2──3──4──│  (独立したストリーム)
+  Subscriber B:    ──1──2──3──4──│  (independent stream)
 
 Hot Observable:
-  → データソースが購読に関係なく値を発行し続ける
-  → 途中から購読すると、過去の値は受け取れない
-  → 例: WebSocket、マウスイベント、株価フィード
+  -> The data source continues emitting values regardless of subscriptions
+  -> Subscribing mid-stream means past values are not received
+  -> Examples: WebSocket, mouse events, stock price feeds
 
   Source:       ──1──2──3──4──5──6──│
-  Subscriber A: ──1──2──3──4──5──6──│  (最初から購読)
-  Subscriber B:       ──3──4──5──6──│  (途中から購読)
+  Subscriber A: ──1──2──3──4──5──6──│  (subscribed from the start)
+  Subscriber B:       ──3──4──5──6──│  (subscribed mid-stream)
 ```
 
 ```typescript
-// Cold Observable の例
+// Cold Observable example
 const cold$ = new Observable(subscriber => {
-  // 購読するたびに新しいランダム値
+  // New random value each time it is subscribed to
   subscriber.next(Math.random());
   subscriber.complete();
 });
 
 cold$.subscribe(v => console.log('A:', v)); // A: 0.123...
-cold$.subscribe(v => console.log('B:', v)); // B: 0.456... (異なる値)
+cold$.subscribe(v => console.log('B:', v)); // B: 0.456... (different value)
 
-// Hot Observable の例（Subject を使用）
+// Hot Observable example (using Subject)
 const hot$ = new Subject<number>();
 
 hot$.subscribe(v => console.log('A:', v));
@@ -110,42 +110,42 @@ hot$.next(1); // A: 1
 hot$.next(2); // A: 2
 
 hot$.subscribe(v => console.log('B:', v));
-hot$.next(3); // A: 3, B: 3 (Bは3からしか受け取れない)
+hot$.next(3); // A: 3, B: 3 (B only receives values from 3 onward)
 ```
 
 ---
 
-## 2. RxJS の基本
+## 2. RxJS Basics
 
 ```typescript
 import { Observable, of, from, interval, fromEvent } from 'rxjs';
 import { map, filter, take, debounceTime, switchMap } from 'rxjs/operators';
 
-// Observable の作成
+// Creating Observables
 const numbers$ = of(1, 2, 3, 4, 5);
 const array$ = from([10, 20, 30]);
-const timer$ = interval(1000); // 1秒ごとに 0, 1, 2, ...
+const timer$ = interval(1000); // 0, 1, 2, ... every second
 
-// パイプライン（オペレータチェーン）
+// Pipeline (operator chain)
 numbers$.pipe(
-  filter(n => n % 2 === 0),  // 偶数のみ
-  map(n => n * 10),          // 10倍
+  filter(n => n % 2 === 0),  // Even numbers only
+  map(n => n * 10),          // Multiply by 10
 ).subscribe(value => console.log(value)); // 20, 40
 
-// 検索ボックスの実践例
+// Practical search box example
 const searchInput = document.getElementById('search');
 fromEvent(searchInput, 'input').pipe(
-  debounceTime(300),                           // 300ms 入力停止を待つ
+  debounceTime(300),                           // Wait for 300ms of inactivity
   map(event => (event.target as HTMLInputElement).value),
-  filter(query => query.length >= 2),          // 2文字以上
+  filter(query => query.length >= 2),          // At least 2 characters
   switchMap(query => fetch(`/api/search?q=${query}`).then(r => r.json())),
-  // switchMap: 新しい値が来たら前のリクエストをキャンセル
+  // switchMap: cancels the previous request when a new value arrives
 ).subscribe(results => {
   renderSearchResults(results);
 });
 ```
 
-### 2.1 Observable の作成方法
+### 2.1 Ways to Create Observables
 
 ```typescript
 import {
@@ -155,7 +155,7 @@ import {
 } from 'rxjs';
 import { ajax } from 'rxjs/ajax';
 
-// 1. カスタム Observable
+// 1. Custom Observable
 const custom$ = new Observable<number>(subscriber => {
   subscriber.next(1);
   subscriber.next(2);
@@ -165,24 +165,24 @@ const custom$ = new Observable<number>(subscriber => {
     subscriber.complete();
   }, 1000);
 
-  // teardown ロジック（購読解除時に実行）
+  // Teardown logic (executed on unsubscription)
   return () => {
-    console.log('クリーンアップ処理');
+    console.log('Cleanup processing');
   };
 });
 
-// 2. 静的生成関数
-const values$ = of('a', 'b', 'c');                    // 同期的に3つの値を発行
-const arr$ = from([1, 2, 3]);                          // 配列からObservable
-const promise$ = from(fetch('/api/data'));              // PromiseからObservable
-const iter$ = from(new Map([['a', 1], ['b', 2]]));    // IterableからObservable
+// 2. Static creation functions
+const values$ = of('a', 'b', 'c');                    // Synchronously emits 3 values
+const arr$ = from([1, 2, 3]);                          // Observable from array
+const promise$ = from(fetch('/api/data'));              // Observable from Promise
+const iter$ = from(new Map([['a', 1], ['b', 2]]));    // Observable from Iterable
 
-// 3. タイマー系
-const interval$ = interval(1000);                       // 0, 1, 2, ... (1秒間隔)
-const timerOnce$ = timer(3000);                         // 3秒後に0を発行
-const timerRepeat$ = timer(0, 1000);                    // 即座に開始、1秒間隔
+// 3. Timer-based
+const interval$ = interval(1000);                       // 0, 1, 2, ... (1-second intervals)
+const timerOnce$ = timer(3000);                         // Emits 0 after 3 seconds
+const timerRepeat$ = timer(0, 1000);                    // Starts immediately, 1-second intervals
 
-// 4. イベント系
+// 4. Event-based
 const clicks$ = fromEvent(document, 'click');
 const resize$ = fromEvent(window, 'resize');
 const keydown$ = fromEvent<KeyboardEvent>(document, 'keydown');
@@ -196,66 +196,66 @@ const post$ = ajax({
   body: { name: 'Tanaka', email: 'tanaka@example.com' },
 });
 
-// 6. 条件分岐
+// 6. Conditional branching
 const source$ = iif(
   () => Math.random() > 0.5,
   of('heads'),
   of('tails'),
 );
 
-// 7. 遅延生成（購読時に初めてObservableを作成）
+// 7. Deferred creation (Observable is created only at subscription time)
 const deferred$ = defer(() => {
   const timestamp = Date.now();
   return of(timestamp);
 });
 
-// 8. ジェネレータ風
+// 8. Generator-style
 const fib$ = generate(
-  [0, 1],                           // 初期値
-  ([a, b]) => a < 100,              // 条件
-  ([a, b]) => [b, a + b] as [number, number],  // 更新
-  ([a, b]) => a,                     // 結果の選択
+  [0, 1],                           // Initial value
+  ([a, b]) => a < 100,              // Condition
+  ([a, b]) => [b, a + b] as [number, number],  // Update
+  ([a, b]) => a,                     // Result selector
 );
-// → 0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89
+// -> 0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89
 ```
 
-### 2.2 Observer パターンの詳細
+### 2.2 Observer Pattern Details
 
 ```typescript
-// Observer インターフェース
+// Observer interface
 interface Observer<T> {
   next: (value: T) => void;
   error: (err: any) => void;
   complete: () => void;
 }
 
-// 完全な Observer を渡す
+// Passing a complete Observer
 const subscription = numbers$.subscribe({
-  next: value => console.log('値:', value),
-  error: err => console.error('エラー:', err),
-  complete: () => console.log('完了'),
+  next: value => console.log('Value:', value),
+  error: err => console.error('Error:', err),
+  complete: () => console.log('Complete'),
 });
 
-// 部分的な Observer（省略可能）
+// Partial Observer (optional callbacks)
 numbers$.subscribe(
-  value => console.log(value),          // next のみ
+  value => console.log(value),          // next only
 );
 
 numbers$.subscribe({
   next: value => console.log(value),
-  error: err => console.error(err),     // complete 省略
+  error: err => console.error(err),     // complete omitted
 });
 
-// Subscription の管理
+// Subscription management
 const sub = interval(1000).subscribe(v => console.log(v));
 
-// 5秒後に購読解除
+// Unsubscribe after 5 seconds
 setTimeout(() => {
-  sub.unsubscribe(); // リソース解放
-  console.log('購読解除しました');
+  sub.unsubscribe(); // Release resources
+  console.log('Unsubscribed');
 }, 5000);
 
-// 複数の Subscription をまとめて管理
+// Managing multiple Subscriptions together
 import { Subscription } from 'rxjs';
 
 const parentSub = new Subscription();
@@ -264,62 +264,62 @@ parentSub.add(interval(1000).subscribe(v => console.log('A:', v)));
 parentSub.add(interval(2000).subscribe(v => console.log('B:', v)));
 parentSub.add(interval(3000).subscribe(v => console.log('C:', v)));
 
-// まとめて購読解除
+// Unsubscribe all at once
 setTimeout(() => parentSub.unsubscribe(), 10000);
 ```
 
 ---
 
-## 3. 主要オペレータ
+## 3. Key Operators
 
 ```
-変換:
-  map       — 値を変換
-  switchMap — 新しい Observable に切り替え（前をキャンセル）
-  mergeMap  — 並行して Observable を実行
-  concatMap — 直列に Observable を実行
-  exhaustMap — 現在の Observable が完了するまで新しいものを無視
-  scan      — 累積値を計算（reduce のストリーム版）
-  pluck     — オブジェクトの特定プロパティを抽出
-  pairwise  — 直前の値と現在の値をペアにする
+Transformation:
+  map       — Transform values
+  switchMap — Switch to a new Observable (cancels previous)
+  mergeMap  — Execute Observables concurrently
+  concatMap — Execute Observables sequentially
+  exhaustMap — Ignore new Observables until the current one completes
+  scan      — Calculate accumulated values (streaming version of reduce)
+  pluck     — Extract a specific property from objects
+  pairwise  — Pair the previous value with the current value
 
-フィルタリング:
-  filter       — 条件に合う値のみ通す
-  take         — 最初のN個だけ取得
-  takeUntil    — 別のObservableが発行するまで取得
-  takeWhile    — 条件がtrueの間取得
-  skip         — 最初のN個をスキップ
-  debounceTime — 一定時間入力がなかったら通す
-  throttleTime — 一定時間に1つだけ通す
-  distinctUntilChanged — 値が変わった時だけ通す
-  first        — 最初の値（条件付き可）
-  last         — 最後の値（条件付き可）
-  elementAt    — N番目の値
+Filtering:
+  filter       — Pass only values that match a condition
+  take         — Take only the first N items
+  takeUntil    — Take until another Observable emits
+  takeWhile    — Take while the condition is true
+  skip         — Skip the first N items
+  debounceTime — Pass through after a period of inactivity
+  throttleTime — Pass only one value per time interval
+  distinctUntilChanged — Pass only when the value changes
+  first        — First value (with optional condition)
+  last         — Last value (with optional condition)
+  elementAt    — Nth value
 
-結合:
-  merge       — 複数の Observable を合流
-  combineLatest — 各 Observable の最新値を組み合わせ
-  zip         — 各 Observable の値を1対1で組み合わせ
-  forkJoin    — 全ての Observable の最後の値を取得（Promise.allに近い）
-  concat      — 直列に結合（前が完了してから次）
-  race        — 最も早く値を発行した Observable を採用
-  withLatestFrom — メインストリームの発行時に他の最新値を付加
+Combination:
+  merge       — Merge multiple Observables
+  combineLatest — Combine the latest values from each Observable
+  zip         — Combine values from each Observable one-to-one
+  forkJoin    — Get the last value from all Observables (similar to Promise.all)
+  concat      — Concatenate sequentially (next starts after previous completes)
+  race        — Adopt the Observable that emits first
+  withLatestFrom — Attach the latest value from other streams when the main stream emits
 
-エラー:
-  catchError  — エラーをハンドリングして回復
-  retry       — エラー時にリトライ
-  retryWhen   — 条件付きリトライ（RxJS 7 で非推奨、retry に統合）
+Error:
+  catchError  — Handle and recover from errors
+  retry       — Retry on error
+  retryWhen   — Conditional retry (deprecated in RxJS 7, merged into retry)
 
-ユーティリティ:
-  tap         — 副作用（デバッグ、ログ）
-  delay       — 値の発行を遅延
-  timeout     — 一定時間値が来なければエラー
-  finalize    — 完了/エラー/購読解除時のクリーンアップ
-  share       — Cold を Hot に変換（マルチキャスト）
-  shareReplay — 最新N個の値をリプレイ
+Utility:
+  tap         — Side effects (debugging, logging)
+  delay       — Delay value emission
+  timeout     — Error if no value arrives within a specified time
+  finalize    — Cleanup on completion/error/unsubscription
+  share       — Convert Cold to Hot (multicast)
+  shareReplay — Replay the latest N values
 ```
 
-### 3.1 変換オペレータの詳細
+### 3.1 Transformation Operator Details
 
 ```typescript
 import {
@@ -330,42 +330,42 @@ import {
   scan, pairwise, bufferTime, groupBy, toArray
 } from 'rxjs/operators';
 
-// === switchMap: 最新のリクエストのみ（検索、オートコンプリート） ===
+// === switchMap: Latest request only (search, autocomplete) ===
 const search$ = fromEvent<Event>(searchInput, 'input').pipe(
   debounceTime(300),
   map(e => (e.target as HTMLInputElement).value),
   switchMap(query =>
-    // 新しい入力が来ると前のリクエストをキャンセル
+    // Cancels the previous request when new input arrives
     fetch(`/api/search?q=${query}`).then(r => r.json())
   ),
 );
 
-// === mergeMap: 並行実行（メール一括送信、ファイル並行ダウンロード） ===
+// === mergeMap: Concurrent execution (bulk email sending, parallel file downloads) ===
 const sendEmails$ = from(emailList).pipe(
   mergeMap(
     email => sendEmail(email),
-    5,  // 最大並行数を5に制限
+    5,  // Limit max concurrency to 5
   ),
 );
 
-// === concatMap: 直列実行（順序保証が必要な場合） ===
+// === concatMap: Sequential execution (when order guarantee is required) ===
 const uploadFiles$ = from(files).pipe(
   concatMap(file =>
-    // 1つずつ順番にアップロード（前が完了してから次）
+    // Upload one at a time in order (next starts after previous completes)
     uploadFile(file)
   ),
 );
 
-// === exhaustMap: 二重送信防止（フォーム送信ボタン） ===
+// === exhaustMap: Preventing double submission (form submit button) ===
 const submitForm$ = fromEvent(submitBtn, 'click').pipe(
   exhaustMap(() =>
-    // 前のリクエストが進行中なら新しいクリックを無視
+    // Ignore new clicks while a request is in progress
     fetch('/api/submit', { method: 'POST', body: formData })
       .then(r => r.json())
   ),
 );
 
-// === scan: 累積計算（状態管理） ===
+// === scan: Accumulated computation (state management) ===
 const actions$ = new Subject<{ type: string; payload: any }>();
 const state$ = actions$.pipe(
   scan((state, action) => {
@@ -382,7 +382,7 @@ const state$ = actions$.pipe(
   }, { count: 0, name: '' }),
 );
 
-// === pairwise: 直前の値と比較 ===
+// === pairwise: Compare with the previous value ===
 const scrollPosition$ = fromEvent(window, 'scroll').pipe(
   map(() => window.scrollY),
   pairwise(),
@@ -392,9 +392,9 @@ const scrollPosition$ = fromEvent(window, 'scroll').pipe(
   })),
 );
 
-// === bufferTime: 一定時間ごとにバッチ処理 ===
+// === bufferTime: Batch processing at regular intervals ===
 const events$ = fromEvent(document, 'mousemove').pipe(
-  bufferTime(1000),  // 1秒ごとにイベントの配列として発行
+  bufferTime(1000),  // Emit as an array of events every second
   filter(events => events.length > 0),
   map(events => ({
     count: events.length,
@@ -402,7 +402,7 @@ const events$ = fromEvent(document, 'mousemove').pipe(
   })),
 );
 
-// === groupBy: ストリームをグループ分け ===
+// === groupBy: Group a stream ===
 interface LogEntry {
   level: 'info' | 'warn' | 'error';
   message: string;
@@ -429,52 +429,52 @@ logs$.pipe(
 });
 ```
 
-### 3.2 flattening オペレータの比較
+### 3.2 Flattening Operator Comparison
 
 ```
 switchMap vs mergeMap vs concatMap vs exhaustMap:
 
-入力:    ──A─────B─────C──│
+Input:    ──A─────B─────C──│
 
-switchMap（最新のみ）:
-  A: ──a1──a2──(キャンセル)
-  B:       ──b1──b2──(キャンセル)
+switchMap (latest only):
+  A: ──a1──a2──(cancelled)
+  B:       ──b1──b2──(cancelled)
   C:             ──c1──c2──c3──│
-  出力: ──a1──a2──b1──b2──c1──c2──c3──│
+  Output: ──a1──a2──b1──b2──c1──c2──c3──│
 
-mergeMap（並行）:
+mergeMap (concurrent):
   A: ──a1──a2──a3──│
   B:       ──b1──b2──b3──│
   C:             ──c1──c2──c3──│
-  出力: ──a1──a2──b1──a3──b2──c1──b3──c2──c3──│
+  Output: ──a1──a2──b1──a3──b2──c1──b3──c2──c3──│
 
-concatMap（直列）:
+concatMap (sequential):
   A: ──a1──a2──a3──│
   B:               ──b1──b2──b3──│
   C:                             ──c1──c2──c3──│
-  出力: ──a1──a2──a3──b1──b2──b3──c1──c2──c3──│
+  Output: ──a1──a2──a3──b1──b2──b3──c1──c2──c3──│
 
-exhaustMap（進行中は無視）:
+exhaustMap (ignore while in progress):
   A: ──a1──a2──a3──│
-  B:  (無視)
+  B:  (ignored)
   C:             ──c1──c2──c3──│
-  出力: ──a1──a2──a3──c1──c2──c3──│
+  Output: ──a1──a2──a3──c1──c2──c3──│
 
-使い分け:
-  switchMap  → 検索、オートコンプリート（最新のみ必要）
-  mergeMap   → 並行ダウンロード（全結果必要、順序不問）
-  concatMap  → ファイル順序処理（順序保証必要）
-  exhaustMap → フォーム送信（二重送信防止）
+When to use:
+  switchMap  -> Search, autocomplete (only the latest is needed)
+  mergeMap   -> Parallel downloads (all results needed, order doesn't matter)
+  concatMap  -> Sequential file processing (order guarantee required)
+  exhaustMap -> Form submission (prevent double submission)
 ```
 
-### 3.3 結合オペレータの詳細
+### 3.3 Combination Operator Details
 
 ```typescript
 import {
   merge, combineLatest, zip, forkJoin, concat, race, withLatestFrom
 } from 'rxjs';
 
-// === merge: 複数ストリームの合流 ===
+// === merge: Merging multiple streams ===
 const keyboard$ = fromEvent(document, 'keydown');
 const mouse$ = fromEvent(document, 'click');
 const touch$ = fromEvent(document, 'touchstart');
@@ -484,7 +484,7 @@ const userActivity$ = merge(keyboard$, mouse$, touch$).pipe(
   tap(() => resetIdleTimer()),
 );
 
-// === combineLatest: 各ストリームの最新値を組み合わせ ===
+// === combineLatest: Combine the latest values from each stream ===
 const selectedCategory$ = new BehaviorSubject<string>('all');
 const searchQuery$ = new BehaviorSubject<string>('');
 const sortOrder$ = new BehaviorSubject<string>('newest');
@@ -501,7 +501,7 @@ const filteredProducts$ = combineLatest([
   ),
 );
 
-// === zip: 1対1で組み合わせ ===
+// === zip: Combine one-to-one ===
 const names$ = of('Alice', 'Bob', 'Charlie');
 const ages$ = of(25, 30, 35);
 const cities$ = of('Tokyo', 'Osaka', 'Kyoto');
@@ -513,7 +513,7 @@ zip(names$, ages$, cities$).pipe(
 // { name: 'Bob', age: 30, city: 'Osaka' }
 // { name: 'Charlie', age: 35, city: 'Kyoto' }
 
-// === forkJoin: 全完了後に最後の値（Promise.all 相当） ===
+// === forkJoin: Get the last value after all complete (equivalent to Promise.all) ===
 const dashboardData$ = forkJoin({
   users: ajax.getJSON('/api/users'),
   orders: ajax.getJSON('/api/orders'),
@@ -521,18 +521,18 @@ const dashboardData$ = forkJoin({
   notifications: ajax.getJSON('/api/notifications'),
 }).pipe(
   catchError(err => {
-    console.error('ダッシュボードデータ取得失敗:', err);
+    console.error('Failed to fetch dashboard data:', err);
     return of({ users: [], orders: [], stats: null, notifications: [] });
   }),
 );
 
-// === race: 最速のストリームを採用 ===
+// === race: Adopt the fastest stream ===
 const primary$ = ajax.getJSON('https://primary-api.com/data');
 const fallback$ = ajax.getJSON('https://fallback-api.com/data');
 
-const data$ = race(primary$, fallback$); // 先に応答したほうを使用
+const data$ = race(primary$, fallback$); // Use whichever responds first
 
-// === withLatestFrom: メインストリーム発行時に他の最新値を付加 ===
+// === withLatestFrom: Attach the latest value from other streams when the main stream emits ===
 const saveButton$ = fromEvent(saveBtn, 'click');
 const formValue$ = new BehaviorSubject(getFormValues());
 
@@ -546,40 +546,40 @@ saveButton$.pipe(
 
 ---
 
-## 4. Subject の種類
+## 4. Types of Subjects
 
 ```
-Subject の種類と特徴:
+Types and Characteristics of Subjects:
 
-Subject (基本):
-  購読前の値は受け取れない
-  A subscribes → next(1) → next(2) → B subscribes → next(3)
+Subject (basic):
+  Cannot receive values emitted before subscription
+  A subscribes -> next(1) -> next(2) -> B subscribes -> next(3)
   A: 1, 2, 3
   B:       3
 
-BehaviorSubject (最新値を保持):
-  購読時に最新値を即座に受け取る。初期値が必要
-  A subscribes(初期値0) → next(1) → next(2) → B subscribes → next(3)
+BehaviorSubject (retains the latest value):
+  Immediately receives the latest value upon subscription. Requires an initial value
+  A subscribes(initial value 0) -> next(1) -> next(2) -> B subscribes -> next(3)
   A: 0, 1, 2, 3
   B:          2, 3
 
-ReplaySubject (N個の過去値をリプレイ):
-  指定した数だけ過去の値をバッファして新しい購読者に送る
-  A subscribes → next(1) → next(2) → next(3) → B subscribes(replay=2)
+ReplaySubject (replays N past values):
+  Buffers a specified number of past values and sends them to new subscribers
+  A subscribes -> next(1) -> next(2) -> next(3) -> B subscribes(replay=2)
   A: 1, 2, 3
-  B:          2, 3  (最新2個がリプレイされる)
+  B:          2, 3  (latest 2 values are replayed)
 
-AsyncSubject (最後の値のみ):
-  complete() 時に最後の値だけを発行
-  next(1) → next(2) → next(3) → complete()
+AsyncSubject (last value only):
+  Emits only the last value at complete()
+  next(1) -> next(2) -> next(3) -> complete()
   A: 3
-  B: 3 (complete 後に購読しても最後の値を受け取る)
+  B: 3 (receives the last value even if subscribed after complete)
 ```
 
 ```typescript
 import { Subject, BehaviorSubject, ReplaySubject, AsyncSubject } from 'rxjs';
 
-// === BehaviorSubject: 現在の状態管理に最適 ===
+// === BehaviorSubject: Ideal for current state management ===
 interface AppState {
   user: User | null;
   theme: 'light' | 'dark';
@@ -593,12 +593,12 @@ class StateService {
     language: 'ja',
   });
 
-  // 現在の状態を取得（同期的）
+  // Get the current state (synchronous)
   get currentState(): AppState {
     return this.state$.getValue();
   }
 
-  // 状態のストリームを取得
+  // Get a stream of state
   select<K extends keyof AppState>(key: K): Observable<AppState[K]> {
     return this.state$.pipe(
       map(state => state[key]),
@@ -606,7 +606,7 @@ class StateService {
     );
   }
 
-  // 状態を更新
+  // Update state
   update(partial: Partial<AppState>): void {
     this.state$.next({
       ...this.currentState,
@@ -617,21 +617,21 @@ class StateService {
 
 const stateService = new StateService();
 
-// テーマの変更を監視
+// Watch for theme changes
 stateService.select('theme').subscribe(theme => {
   document.body.className = `theme-${theme}`;
 });
 
-// ユーザー情報の変更を監視
+// Watch for user information changes
 stateService.select('user').subscribe(user => {
   if (user) {
     console.log(`Welcome, ${user.name}`);
   }
 });
 
-// === ReplaySubject: イベントの履歴を保持 ===
+// === ReplaySubject: Retaining event history ===
 class EventBus {
-  private events$ = new ReplaySubject<AppEvent>(10); // 最新10件を保持
+  private events$ = new ReplaySubject<AppEvent>(10); // Retain the latest 10 events
 
   emit(event: AppEvent): void {
     this.events$.next(event);
@@ -643,13 +643,13 @@ class EventBus {
     );
   }
 
-  // 過去のイベントも含めて取得
+  // Get events including past ones
   history(): Observable<AppEvent> {
     return this.events$.asObservable();
   }
 }
 
-// === AsyncSubject: 完了時の最終結果 ===
+// === AsyncSubject: Final result upon completion ===
 class ConfigLoader {
   private config$ = new AsyncSubject<Config>();
 
@@ -657,7 +657,7 @@ class ConfigLoader {
     try {
       const config = await fetch('/api/config').then(r => r.json());
       this.config$.next(config);
-      this.config$.complete(); // complete() で最後の値が発行される
+      this.config$.complete(); // The last value is emitted upon complete()
     } catch (err) {
       this.config$.error(err);
     }
@@ -671,7 +671,7 @@ class ConfigLoader {
 
 ---
 
-## 5. 実践例: リアルタイムダッシュボード
+## 5. Practical Example: Real-time Dashboard
 
 ```typescript
 import { combineLatest, timer, Subject, BehaviorSubject } from 'rxjs';
@@ -680,12 +680,12 @@ import {
   distinctUntilChanged, tap, takeUntil, startWith, scan
 } from 'rxjs/operators';
 
-// === ダッシュボードサービス ===
+// === Dashboard Service ===
 class DashboardService {
   private destroy$ = new Subject<void>();
   private refreshTrigger$ = new BehaviorSubject<void>(undefined);
 
-  // 統計情報（5秒ごと + 手動リフレッシュ）
+  // Stats (every 5 seconds + manual refresh)
   readonly stats$ = this.refreshTrigger$.pipe(
     switchMap(() => timer(0, 5000)),
     switchMap(() =>
@@ -695,11 +695,11 @@ class DashboardService {
     ),
     retry({ count: 3, delay: 2000 }),
     catchError(() => of({ error: true, data: null })),
-    share(), // マルチキャスト（複数の購読者で共有）
+    share(), // Multicast (shared among multiple subscribers)
     takeUntil(this.destroy$),
   );
 
-  // アラート（10秒ごと）
+  // Alerts (every 10 seconds)
   readonly alerts$ = timer(0, 10000).pipe(
     switchMap(() =>
       fetch('/api/alerts')
@@ -711,7 +711,7 @@ class DashboardService {
     takeUntil(this.destroy$),
   );
 
-  // WebSocket でリアルタイム更新
+  // Real-time updates via WebSocket
   readonly liveEvents$ = new Observable<ServerEvent>(subscriber => {
     const ws = new WebSocket('wss://api.example.com/events');
 
@@ -734,7 +734,7 @@ class DashboardService {
     takeUntil(this.destroy$),
   );
 
-  // ダッシュボードの統合状態
+  // Integrated dashboard state
   readonly dashboardState$ = combineLatest([
     this.stats$.pipe(startWith(null)),
     this.alerts$.pipe(startWith([])),
@@ -767,34 +767,34 @@ class DashboardService {
 
 ---
 
-## 6. バックプレッシャー
+## 6. Backpressure
 
 ```
-バックプレッシャー（Backpressure）:
-  → 生産者（Producer）が消費者（Consumer）より速い場合の制御
+Backpressure:
+  -> Control when the Producer is faster than the Consumer
 
-  生産者: ──●●●●●●●●●●──→ 速い
-  消費者: ──●───●───●───→ 遅い
-                         → メモリ溢れ / 遅延蓄積
+  Producer: ──●●●●●●●●●●──→ Fast
+  Consumer: ──●───●───●───→ Slow
+                         -> Memory overflow / latency accumulation
 
-対策:
-  1. バッファリング: 一時的にキューに溜める（メモリ限界あり）
-  2. ドロップ: 古い値を捨てる（最新のみ保持）
-  3. サンプリング: 一定間隔で最新値を取得
-  4. スロットリング: 一定時間に1つだけ通す
-  5. ウィンドウイング: 時間やカウントでグループ化
+Strategies:
+  1. Buffering: Temporarily queue values (limited by memory)
+  2. Dropping: Discard old values (keep only the latest)
+  3. Sampling: Get the latest value at regular intervals
+  4. Throttling: Pass only one value per time interval
+  5. Windowing: Group by time or count
 
-RxJS でのバックプレッシャー:
-  → bufferTime: 時間ごとにバッチ処理
-  → bufferCount: 個数ごとにバッチ処理
-  → throttleTime: 一定間隔で値を通す
-  → sampleTime: 一定間隔で最新値を取得
-  → auditTime: 値が来てから一定時間後に最新値を通す
-  → debounceTime: 値が来てから一定時間待ってから最新値を通す
-  → window/windowTime: 時間窓でグループ化
+Backpressure in RxJS:
+  -> bufferTime: Batch processing at time intervals
+  -> bufferCount: Batch processing by count
+  -> throttleTime: Pass values at regular intervals
+  -> sampleTime: Get the latest value at regular intervals
+  -> auditTime: Pass the latest value after a specified time from when a value arrives
+  -> debounceTime: Pass the latest value after waiting a specified time from when a value arrives
+  -> window/windowTime: Group by time windows
 ```
 
-### 6.1 バックプレッシャーの実践例
+### 6.1 Practical Backpressure Examples
 
 ```typescript
 import {
@@ -806,32 +806,32 @@ import {
   tap, filter, map, scan
 } from 'rxjs/operators';
 
-// === マウス移動の間引き ===
+// === Throttling mouse movement ===
 const mouseMove$ = fromEvent<MouseEvent>(document, 'mousemove');
 
-// throttleTime: 最初の値を通し、指定時間は無視
+// throttleTime: Pass the first value, ignore for the specified duration
 mouseMove$.pipe(
   throttleTime(16), // ~60fps
   map(e => ({ x: e.clientX, y: e.clientY })),
 ).subscribe(pos => updateCursor(pos));
 
-// sampleTime: 一定間隔で最新値を取得
+// sampleTime: Get the latest value at regular intervals
 mouseMove$.pipe(
-  sampleTime(100), // 100msごとに最新の位置
+  sampleTime(100), // Latest position every 100ms
   map(e => ({ x: e.clientX, y: e.clientY })),
 ).subscribe(pos => sendAnalytics(pos));
 
-// auditTime: 値が来てから一定時間後に最新値を通す
+// auditTime: Pass the latest value after a specified time from when a value arrives
 mouseMove$.pipe(
   auditTime(200),
 ).subscribe(e => updateTooltip(e));
 
-// === ログの一括送信 ===
+// === Batch log sending ===
 const logStream$ = new Subject<LogEntry>();
 
-// 100件ごと、または5秒ごとにバッチ送信
+// Batch send every 100 entries or every 5 seconds
 logStream$.pipe(
-  bufferTime(5000, undefined, 100), // 5秒 or 100件
+  bufferTime(5000, undefined, 100), // 5 seconds or 100 entries
   filter(batch => batch.length > 0),
 ).subscribe(async batch => {
   await fetch('/api/logs', {
@@ -840,11 +840,11 @@ logStream$.pipe(
   });
 });
 
-// === ウィンドウでのメトリクス集計 ===
+// === Metrics aggregation with windows ===
 const requestStream$ = new Subject<{ endpoint: string; duration: number }>();
 
 requestStream$.pipe(
-  windowTime(60000), // 1分間のウィンドウ
+  windowTime(60000), // 1-minute window
   mergeAll(),
   scan((acc, req) => ({
     count: acc.count + 1,
@@ -857,32 +857,32 @@ requestStream$.pipe(
   console.log(`Max duration: ${metrics.maxDuration}ms`);
 });
 
-// === debounceTime vs throttleTime の違い ===
+// === Difference between debounceTime and throttleTime ===
 //
 // debounceTime(300):
-//   入力: ──a─b─c───────d─e──────│
-//   出力: ──────────c─────────e──│
-//   → 入力が落ち着いてから発行（検索に最適）
+//   Input:  ──a─b─c───────d─e──────│
+//   Output: ──────────c─────────e──│
+//   -> Emits after input settles down (ideal for search)
 //
 // throttleTime(300):
-//   入力: ──a─b─c───────d─e──────│
-//   出力: ──a───────────d────────│
-//   → 最初の値をすぐ通し、指定時間待つ（スクロールに最適）
+//   Input:  ──a─b─c───────d─e──────│
+//   Output: ──a───────────d────────│
+//   -> Passes the first value immediately, then waits (ideal for scroll)
 //
 // auditTime(300):
-//   入力: ──a─b─c───────d─e──────│
-//   出力: ──────c───────────e────│
-//   → 値が来てから指定時間後に最新値を通す
+//   Input:  ──a─b─c───────d─e──────│
+//   Output: ──────c───────────e────│
+//   -> Passes the latest value after a specified time from when a value arrives
 //
 // sampleTime(300):
-//   入力: ──a─b─c───────d─e──────│
-//   出力: ──b─────c──────e───────│
-//   → 一定間隔で最新値をサンプリング
+//   Input:  ──a─b─c───────d─e──────│
+//   Output: ──b─────c──────e───────│
+//   -> Samples the latest value at regular intervals
 ```
 
 ---
 
-## 7. エラーハンドリング
+## 7. Error Handling
 
 ```typescript
 import { of, throwError, timer, EMPTY, Observable } from 'rxjs';
@@ -891,60 +891,60 @@ import {
   tap, finalize, timeout, switchMap
 } from 'rxjs/operators';
 
-// === 基本的なエラーハンドリング ===
+// === Basic error handling ===
 const data$ = ajax.getJSON('/api/data').pipe(
   catchError(err => {
     console.error('API error:', err);
-    return of({ fallback: true, data: [] }); // フォールバック値
+    return of({ fallback: true, data: [] }); // Fallback value
   }),
 );
 
-// === リトライ戦略 ===
-// 単純なリトライ
+// === Retry strategies ===
+// Simple retry
 const withRetry$ = ajax.getJSON('/api/unstable').pipe(
-  retry(3), // 3回リトライ（合計4回試行）
+  retry(3), // Retry 3 times (4 total attempts)
   catchError(err => {
-    console.error('全リトライ失敗:', err);
+    console.error('All retries failed:', err);
     return EMPTY;
   }),
 );
 
-// 指数バックオフ付きリトライ（RxJS 7+）
+// Retry with exponential backoff (RxJS 7+)
 const withBackoff$ = ajax.getJSON('/api/unstable').pipe(
   retry({
     count: 5,
     delay: (error, retryCount) => {
       const delayMs = Math.min(1000 * Math.pow(2, retryCount - 1), 30000);
-      console.log(`リトライ ${retryCount}: ${delayMs}ms後`);
+      console.log(`Retry ${retryCount}: after ${delayMs}ms`);
       return timer(delayMs);
     },
     resetOnSuccess: true,
   }),
   catchError(err => {
-    notifyUser('サービスに接続できません');
+    notifyUser('Unable to connect to the service');
     return EMPTY;
   }),
 );
 
-// === 条件付きリトライ ===
+// === Conditional retry ===
 const smartRetry$ = ajax('/api/data').pipe(
   retry({
     count: 3,
     delay: (error, retryCount) => {
-      // 4xx エラーはリトライしない
+      // Do not retry 4xx errors
       if (error.status >= 400 && error.status < 500) {
         return throwError(() => error);
       }
-      // 5xx エラーのみリトライ
+      // Retry only 5xx errors
       return timer(1000 * retryCount);
     },
   }),
 );
 
-// === タイムアウト ===
+// === Timeout ===
 const withTimeout$ = ajax.getJSON('/api/slow-endpoint').pipe(
   timeout({
-    each: 5000, // 各値の発行間隔が5秒を超えたらエラー
+    each: 5000, // Error if the interval between emitted values exceeds 5 seconds
     with: () => throwError(() => new Error('Request timeout')),
   }),
   catchError(err => {
@@ -955,7 +955,7 @@ const withTimeout$ = ajax.getJSON('/api/slow-endpoint').pipe(
   }),
 );
 
-// === finalize: クリーンアップ ===
+// === finalize: Cleanup ===
 function loadData(): Observable<Data> {
   showLoadingSpinner();
 
@@ -966,12 +966,12 @@ function loadData(): Observable<Data> {
       return EMPTY;
     }),
     finalize(() => {
-      hideLoadingSpinner(); // 成功/失敗/購読解除に関わらず実行
+      hideLoadingSpinner(); // Executed regardless of success/failure/unsubscription
     }),
   );
 }
 
-// === エラーの分類と処理 ===
+// === Error classification and handling ===
 class ApiService {
   request<T>(url: string): Observable<T> {
     return ajax.getJSON<T>(url).pipe(
@@ -985,7 +985,7 @@ class ApiService {
           case 404:
             return throwError(() => new NotFoundError(url));
           case 429:
-            // レート制限: Retry-After ヘッダーを尊重
+            // Rate limit: respect the Retry-After header
             const retryAfter = parseInt(err.response?.headers?.get('Retry-After') || '5');
             return timer(retryAfter * 1000).pipe(
               switchMap(() => this.request<T>(url)),
@@ -1001,16 +1001,16 @@ class ApiService {
 
 ---
 
-## 8. Angular でのリアクティブパターン
+## 8. Reactive Patterns in Angular
 
 ```typescript
-// === Angular コンポーネントでの使用 ===
+// === Usage in Angular components ===
 @Component({
   selector: 'app-user-list',
   template: `
-    <input [formControl]="searchControl" placeholder="検索...">
+    <input [formControl]="searchControl" placeholder="Search...">
 
-    <div *ngIf="loading$ | async" class="spinner">読み込み中...</div>
+    <div *ngIf="loading$ | async" class="spinner">Loading...</div>
 
     <ul>
       <li *ngFor="let user of users$ | async; trackBy: trackById">
@@ -1066,7 +1066,7 @@ export class UserListComponent implements OnInit, OnDestroy {
   }
 }
 
-// === Angular サービスでのキャッシュ ===
+// === Caching in Angular services ===
 @Injectable({ providedIn: 'root' })
 export class UserService {
   private cache$ = new Map<string, Observable<User>>();
@@ -1078,7 +1078,7 @@ export class UserService {
       this.cache$.set(id,
         this.http.get<User>(`/api/users/${id}`).pipe(
           shareReplay({ bufferSize: 1, refCount: true }),
-          // refCount: true → 購読者が0になったらキャッシュを破棄
+          // refCount: true -> Discard the cache when subscriber count reaches 0
         )
       );
     }
@@ -1091,7 +1091,7 @@ export class UserService {
     });
   }
 
-  // リアクティブなCRUD
+  // Reactive CRUD
   private refresh$ = new Subject<void>();
 
   users$ = this.refresh$.pipe(
@@ -1102,7 +1102,7 @@ export class UserService {
 
   createUser(user: CreateUserDto): Observable<User> {
     return this.http.post<User>('/api/users', user).pipe(
-      tap(() => this.refresh$.next()), // 作成後にリフレッシュ
+      tap(() => this.refresh$.next()), // Refresh after creation
     );
   }
 }
@@ -1110,14 +1110,14 @@ export class UserService {
 
 ---
 
-## 9. React でのリアクティブパターン
+## 9. Reactive Patterns in React
 
 ```typescript
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { Subject, BehaviorSubject, Observable, Subscription } from 'rxjs';
 import { debounceTime, distinctUntilChanged, switchMap, catchError } from 'rxjs/operators';
 
-// === カスタムフック: useObservable ===
+// === Custom hook: useObservable ===
 function useObservable<T>(observable$: Observable<T>, initialValue: T): T {
   const [value, setValue] = useState<T>(initialValue);
 
@@ -1132,7 +1132,7 @@ function useObservable<T>(observable$: Observable<T>, initialValue: T): T {
   return value;
 }
 
-// === カスタムフック: useSubject ===
+// === Custom hook: useSubject ===
 function useSubject<T>(): [Subject<T>, (value: T) => void] {
   const subjectRef = useRef<Subject<T>>();
   if (!subjectRef.current) {
@@ -1151,7 +1151,7 @@ function useSubject<T>(): [Subject<T>, (value: T) => void] {
   return [subjectRef.current, emit];
 }
 
-// === 検索コンポーネント ===
+// === Search component ===
 function SearchComponent() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -1185,9 +1185,9 @@ function SearchComponent() {
       <input
         type="text"
         onChange={e => searchSubject.current.next(e.target.value)}
-        placeholder="検索..."
+        placeholder="Search..."
       />
-      {loading && <div className="spinner">検索中...</div>}
+      {loading && <div className="spinner">Searching...</div>}
       {error && <div className="error">{error}</div>}
       <ul>
         {results.map(r => (
@@ -1198,7 +1198,7 @@ function SearchComponent() {
   );
 }
 
-// === WebSocket フック ===
+// === WebSocket hook ===
 function useWebSocket<T>(url: string): {
   messages$: Observable<T>;
   send: (data: any) => void;
@@ -1240,14 +1240,14 @@ function useWebSocket<T>(url: string): {
 
 ---
 
-## 10. テストとデバッグ
+## 10. Testing and Debugging
 
 ```typescript
 import { TestScheduler } from 'rxjs/testing';
 import { map, filter, delay, debounceTime, switchMap } from 'rxjs/operators';
 
 // === Marble Testing ===
-describe('RxJS オペレータのテスト', () => {
+describe('RxJS operator tests', () => {
   let scheduler: TestScheduler;
 
   beforeEach(() => {
@@ -1256,8 +1256,8 @@ describe('RxJS オペレータのテスト', () => {
     });
   });
 
-  // map オペレータのテスト
-  it('values を 10 倍にする', () => {
+  // Testing the map operator
+  it('multiplies values by 10', () => {
     scheduler.run(({ cold, expectObservable }) => {
       const source$ = cold(' -a-b-c-|', { a: 1, b: 2, c: 3 });
       const expected = '     -a-b-c-|';
@@ -1267,8 +1267,8 @@ describe('RxJS オペレータのテスト', () => {
     });
   });
 
-  // filter オペレータのテスト
-  it('偶数のみ通す', () => {
+  // Testing the filter operator
+  it('passes only even numbers', () => {
     scheduler.run(({ cold, expectObservable }) => {
       const source$ = cold(' -a-b-c-d-|', { a: 1, b: 2, c: 3, d: 4 });
       const expected = '     ---b---d-|';
@@ -1278,20 +1278,20 @@ describe('RxJS オペレータのテスト', () => {
     });
   });
 
-  // debounceTime のテスト
-  it('300ms のデバウンスが正しく機能する', () => {
+  // Testing debounceTime
+  it('300ms debounce works correctly', () => {
     scheduler.run(({ cold, expectObservable }) => {
       const source$ = cold(' -a--b-----c--|');
       const expected = '     ---- 300ms b 196ms c--|';
-      // bはaの後300ms経過で発行、cはbの後300ms以上経過で発行
+      // b is emitted 300ms after a, c is emitted after 300ms+ since b
 
       const result$ = source$.pipe(debounceTime(300));
       expectObservable(result$).toBe(expected);
     });
   });
 
-  // エラーのテスト
-  it('エラーをキャッチしてフォールバック値を返す', () => {
+  // Testing errors
+  it('catches errors and returns a fallback value', () => {
     scheduler.run(({ cold, expectObservable }) => {
       const source$ = cold(' -a-b-#', { a: 1, b: 2 }, new Error('fail'));
       const expected = '     -a-b-(c|)';
@@ -1305,16 +1305,16 @@ describe('RxJS オペレータのテスト', () => {
   });
 });
 
-// === Marble Syntax 一覧 ===
-// -  : 1フレーム（10ms in virtual time）
-// a  : 値の発行（値はオブジェクトリテラルで定義）
+// === Marble Syntax Reference ===
+// -  : 1 frame (10ms in virtual time)
+// a  : Value emission (values are defined in object literals)
 // |  : complete
 // #  : error
-// ^  : subscribe ポイント（hot observableで使用）
-// !  : unsubscribe ポイント
-// () : 同期グループ（同じフレームで複数の値を発行）
+// ^  : subscribe point (used in hot observables)
+// !  : unsubscribe point
+// () : Synchronous group (emitting multiple values in the same frame)
 
-// === tap でデバッグ ===
+// === Debugging with tap ===
 const debuggedStream$ = source$.pipe(
   tap({
     next: val => console.log('[DEBUG] next:', val),
@@ -1331,10 +1331,10 @@ const debuggedStream$ = source$.pipe(
 
 ---
 
-## 11. Reactive Streams Specification（Java/Kotlin）
+## 11. Reactive Streams Specification (Java/Kotlin)
 
 ```
-Reactive Streams 仕様（JVM）:
+Reactive Streams Specification (JVM):
 
   Publisher<T>
     └── subscribe(Subscriber<T>)
@@ -1346,24 +1346,24 @@ Reactive Streams 仕様（JVM）:
     └── onComplete()
 
   Subscription
-    ├── request(long n)    ← バックプレッシャーの核心
+    ├── request(long n)    ← The core of backpressure
     └── cancel()
 
   Processor<T, R>
     └── Publisher<R> + Subscriber<T>
 
-実装ライブラリ:
-  → Project Reactor (Spring WebFlux)
-  → RxJava 3
-  → Akka Streams
-  → Kotlin Coroutines Flow
+Implementation libraries:
+  -> Project Reactor (Spring WebFlux)
+  -> RxJava 3
+  -> Akka Streams
+  -> Kotlin Coroutines Flow
 ```
 
 ```kotlin
-// Kotlin Flow の例（Reactive Streams の軽量版）
+// Kotlin Flow example (lightweight version of Reactive Streams)
 import kotlinx.coroutines.flow.*
 
-// Flow の作成
+// Creating a Flow
 fun fibonacci(): Flow<Long> = flow {
     var a = 0L
     var b = 1L
@@ -1375,7 +1375,7 @@ fun fibonacci(): Flow<Long> = flow {
     }
 }
 
-// 使用
+// Usage
 suspend fun main() {
     fibonacci()
         .take(10)
@@ -1384,7 +1384,7 @@ suspend fun main() {
         .collect { println(it) }
 }
 
-// StateFlow（BehaviorSubject 相当）
+// StateFlow (equivalent to BehaviorSubject)
 class UserViewModel : ViewModel() {
     private val _state = MutableStateFlow(UserState())
     val state: StateFlow<UserState> = _state.asStateFlow()
@@ -1402,7 +1402,7 @@ class UserViewModel : ViewModel() {
     }
 }
 
-// SharedFlow（Subject 相当）
+// SharedFlow (equivalent to Subject)
 class EventBus {
     private val _events = MutableSharedFlow<AppEvent>(
         replay = 0,
@@ -1419,34 +1419,34 @@ class EventBus {
 
 ---
 
-## 12. パフォーマンス最適化
+## 12. Performance Optimization
 
 ```typescript
-// === share / shareReplay でマルチキャストを活用 ===
+// === Leverage multicasting with share / shareReplay ===
 
-// NG: 各 subscribe が独立した HTTP リクエストを発行
+// BAD: Each subscribe triggers an independent HTTP request
 const user$ = ajax.getJSON('/api/user/1');
-user$.subscribe(u => updateHeader(u));   // リクエスト1
-user$.subscribe(u => updateSidebar(u));  // リクエスト2（無駄）
+user$.subscribe(u => updateHeader(u));   // Request 1
+user$.subscribe(u => updateSidebar(u));  // Request 2 (wasteful)
 
-// OK: shareReplay で結果を共有
+// GOOD: Share results with shareReplay
 const user$ = ajax.getJSON('/api/user/1').pipe(
   shareReplay({ bufferSize: 1, refCount: true }),
 );
-user$.subscribe(u => updateHeader(u));   // リクエスト1
-user$.subscribe(u => updateSidebar(u));  // キャッシュから取得（リクエストなし）
+user$.subscribe(u => updateHeader(u));   // Request 1
+user$.subscribe(u => updateSidebar(u));  // Retrieved from cache (no request)
 
-// === メモリリーク防止 ===
+// === Preventing memory leaks ===
 
-// NG: takeUntil なしで購読
+// BAD: Subscribing without takeUntil
 class MyComponent {
   ngOnInit() {
     interval(1000).subscribe(v => this.update(v));
-    // コンポーネント破棄後もメモリリーク
+    // Memory leak after component is destroyed
   }
 }
 
-// OK: takeUntil で自動解除
+// GOOD: Auto-unsubscribe with takeUntil
 class MyComponent implements OnDestroy {
   private destroy$ = new Subject<void>();
 
@@ -1462,100 +1462,100 @@ class MyComponent implements OnDestroy {
   }
 }
 
-// === 不要な再計算を避ける ===
+// === Avoid unnecessary recomputation ===
 const expensive$ = source$.pipe(
-  distinctUntilChanged(), // 値が変わった時だけ
+  distinctUntilChanged(), // Only when the value changes
   map(computeExpensiveResult),
-  shareReplay(1),         // 結果を共有
+  shareReplay(1),         // Share results
 );
 
-// === observeOn / subscribeOn でスケジューリング ===
+// === Scheduling with observeOn / subscribeOn ===
 import { asyncScheduler, asapScheduler, animationFrameScheduler } from 'rxjs';
 import { observeOn, subscribeOn } from 'rxjs/operators';
 
-// アニメーションフレームで描画
+// Render on animation frame
 source$.pipe(
-  observeOn(animationFrameScheduler), // requestAnimationFrame に同期
+  observeOn(animationFrameScheduler), // Synchronize with requestAnimationFrame
 ).subscribe(value => {
-  updateUI(value); // 60fps でスムーズな描画
+  updateUI(value); // Smooth rendering at 60fps
 });
 ```
 
 ---
 
-## 13. いつ使うか
+## 13. When to Use
 
 ```
-Observable が適切:
-  ✓ WebSocket のメッセージストリーム
-  ✓ ユーザー入力（検索、スクロール、リサイズ）
-  ✓ リアルタイムデータ（株価、チャット）
-  ✓ 複数のイベントソースの結合
-  ✓ Angular の HttpClient / Forms
-  ✓ 複雑な非同期オーケストレーション
-  ✓ バックプレッシャー制御が必要な場面
+Observable is appropriate:
+  ✓ WebSocket message streams
+  ✓ User input (search, scroll, resize)
+  ✓ Real-time data (stock prices, chat)
+  ✓ Combining multiple event sources
+  ✓ Angular HttpClient / Forms
+  ✓ Complex async orchestration
+  ✓ Scenarios requiring backpressure control
 
-Promise/async-await が適切:
-  ✓ 単発のAPI呼び出し
-  ✓ DBクエリ
-  ✓ ファイル操作
-  ✓ シンプルな非同期処理
-  ✓ Node.js のサーバーサイド処理
+Promise/async-await is appropriate:
+  ✓ One-off API calls
+  ✓ DB queries
+  ✓ File operations
+  ✓ Simple async processing
+  ✓ Node.js server-side processing
 
-Signals（Angular/Solid/Preact）が適切:
-  ✓ UI の状態管理
-  ✓ 派生値の計算
-  ✓ 同期的なリアクティビティ
+Signals (Angular/Solid/Preact) are appropriate:
+  ✓ UI state management
+  ✓ Derived value computation
+  ✓ Synchronous reactivity
 
-原則:
-  → 単発 → Promise
-  → ストリーム → Observable
-  → UI状態 → Signals (利用可能なら)
-  → 迷ったら Promise（シンプルさ優先）
+Guidelines:
+  -> One-off -> Promise
+  -> Stream -> Observable
+  -> UI state -> Signals (if available)
+  -> When in doubt -> Promise (simplicity first)
 ```
 
 
 ---
 
-## 実践演習
+## Practical Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that satisfies the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Perform input data validation
+- Implement proper error handling
+- Also create test code
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Basic implementation template
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Exercise for basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main data processing logic"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Get processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1564,26 +1564,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "An exception should have been raised"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation and add the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Advanced patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Exercise for advanced patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1591,7 +1591,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1602,14 +1602,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Delete by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1617,7 +1617,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1625,44 +1625,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # Size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1671,7 +1671,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1686,69 +1686,69 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient version: {slow_time:.4f}s")
+    print(f"Efficient version:   {fast_time:.6f}s")
+    print(f"Speedup factor: {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key points:**
+- Be mindful of algorithmic complexity
+- Choose appropriate data structures
+- Measure the effect with benchmarks
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying how it works.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping straight to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-| 概念 | Promise | Observable |
-|------|---------|-----------|
-| 値の数 | 1つ | 0〜無限 |
-| 実行 | eager | lazy |
-| キャンセル | 不可 | 可能 |
-| オペレータ | 限定的 | 豊富 |
-| 用途 | 単発のI/O | ストリーム |
-| バックプレッシャー | なし | あり |
-| マルチキャスト | N/A | share / Subject |
-
-| Subject | 特徴 | 初期値 | リプレイ |
-|---------|------|--------|---------|
-| Subject | 基本 | なし | なし |
-| BehaviorSubject | 最新値保持 | 必要 | 1個 |
-| ReplaySubject | N個リプレイ | なし | N個 |
-| AsyncSubject | 最後の値 | なし | complete時 |
-
-| オペレータ | 用途 | キャンセル | 順序保証 |
-|-----------|------|-----------|---------|
-| switchMap | 検索 | する | 最新のみ |
-| mergeMap | 並行処理 | しない | 不定 |
-| concatMap | 順序処理 | しない | 保証 |
-| exhaustMap | 二重送信防止 | 無視 | 最初のみ |
+Knowledge of this topic is frequently applied in day-to-day development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Concept | Promise | Observable |
+|---------|---------|-----------|
+| Number of values | 1 | 0 to infinite |
+| Execution | Eager | Lazy |
+| Cancellation | Not possible | Possible |
+| Operators | Limited | Rich |
+| Use case | One-off I/O | Streams |
+| Backpressure | None | Supported |
+| Multicast | N/A | share / Subject |
+
+| Subject | Characteristic | Initial Value | Replay |
+|---------|---------------|---------------|--------|
+| Subject | Basic | None | None |
+| BehaviorSubject | Retains latest value | Required | 1 |
+| ReplaySubject | Replays N values | None | N |
+| AsyncSubject | Last value only | None | On complete |
+
+| Operator | Use Case | Cancellation | Order Guarantee |
+|----------|----------|-------------|-----------------|
+| switchMap | Search | Yes | Latest only |
+| mergeMap | Concurrent processing | No | Unspecified |
+| concatMap | Sequential processing | No | Guaranteed |
+| exhaustMap | Prevent double submission | Ignored | First only |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
+
+---
+
+## References
 1. RxJS Documentation. rxjs.dev.
 2. Reactive Streams Specification. reactive-streams.org.
 3. Ben Lesh. "RxJS: Observable, Observer, and Subscription." rxjs.dev.

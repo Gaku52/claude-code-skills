@@ -1,95 +1,95 @@
 # Promise
 
-> Promise は「将来の値」を表すオブジェクト。コールバック地獄を解消し、非同期処理をチェーン可能にする。Promise.all, Promise.race, Promise.allSettled の使い分けをマスターする。
+> A Promise is an object representing a "future value." It resolves callback hell and makes asynchronous processing chainable. Master the usage of Promise.all, Promise.race, and Promise.allSettled.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] Promise の3つの状態と動作原理を理解する
-- [ ] Promise チェーンとエラー伝播を把握する
-- [ ] Promise の並行実行パターンを学ぶ
-- [ ] 各言語の Promise 相当機能を比較する
-- [ ] 実務での Promise パターンとアンチパターンを習得する
+- [ ] Understand the three states and operational principles of a Promise
+- [ ] Grasp Promise chaining and error propagation
+- [ ] Learn concurrent execution patterns with Promises
+- [ ] Compare Promise equivalents across different languages
+- [ ] Master Promise patterns and anti-patterns used in production
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [コールバック](./00-callbacks.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related fundamental concepts
+- Understanding of the content in [Callbacks](./00-callbacks.md)
 
 ---
 
-## 1. Promise の基本
+## 1. Promise Basics
 
-### 1.1 Promise の3つの状態
+### 1.1 The Three States of a Promise
 
 ```
-Promise の3つの状態:
-  pending  → fulfilled（成功）→ 値を持つ
-           → rejected（失敗） → エラーを持つ
+The three states of a Promise:
+  pending  -> fulfilled (success) -> holds a value
+           -> rejected (failure)  -> holds an error
 
-  ┌─────────┐
-  │ pending │
-  └────┬────┘
-  ┌────┴────┐
-  ▼         ▼
-┌──────────┐ ┌──────────┐
-│fulfilled │ │ rejected │
-│ (値)     │ │ (エラー) │
-└──────────┘ └──────────┘
+  +---------+
+  | pending |
+  +----+----+
+  +----+----+
+  v         v
++----------+ +----------+
+|fulfilled | | rejected |
+| (value)  | | (error)  |
++----------+ +----------+
 
-  一度 fulfilled/rejected になると変更不可（不変）
-  → これを「settled」（決定済み）と呼ぶ
+  Once fulfilled/rejected, it cannot change (immutable)
+  -> This is called "settled"
 
-状態遷移のルール:
-  1. pending → fulfilled（resolve で遷移）
-  2. pending → rejected（reject で遷移）
-  3. fulfilled → 変更不可
-  4. rejected → 変更不可
-  5. pending → pending（そのまま）
+State transition rules:
+  1. pending -> fulfilled (transitions via resolve)
+  2. pending -> rejected (transitions via reject)
+  3. fulfilled -> cannot change
+  4. rejected -> cannot change
+  5. pending -> pending (stays as is)
 ```
 
-### 1.2 Promise の作成と消費
+### 1.2 Creating and Consuming a Promise
 
 ```javascript
-// Promise の作成
+// Creating a Promise
 const promise = new Promise((resolve, reject) => {
-  // 非同期処理
+  // Asynchronous processing
   setTimeout(() => {
     const success = Math.random() > 0.5;
     if (success) {
-      resolve("成功！");    // fulfilled 状態に移行
+      resolve("Success!");         // Transitions to fulfilled state
     } else {
-      reject(new Error("失敗")); // rejected 状態に移行
+      reject(new Error("Failed")); // Transitions to rejected state
     }
   }, 1000);
 });
 
-// Promise の消費
+// Consuming a Promise
 promise
-  .then(value => console.log(value))   // fulfilled 時
-  .catch(error => console.error(error)) // rejected 時
-  .finally(() => console.log("完了"));  // どちらでも
+  .then(value => console.log(value))   // On fulfilled
+  .catch(error => console.error(error)) // On rejected
+  .finally(() => console.log("Done"));  // Either way
 ```
 
-### 1.3 即座に解決される Promise
+### 1.3 Immediately Resolved Promises
 
 ```typescript
-// 即座に fulfilled になる Promise
+// Promise that immediately becomes fulfilled
 const resolved = Promise.resolve(42);
-const resolvedObj = Promise.resolve({ name: "太郎" });
+const resolvedObj = Promise.resolve({ name: "Taro" });
 
-// 即座に rejected になる Promise
-const rejected = Promise.reject(new Error("エラー"));
+// Promise that immediately becomes rejected
+const rejected = Promise.reject(new Error("Error"));
 
-// 値が Promise の場合はそのまま返す（ラップしない）
+// If the value is a Promise, it is returned as-is (not wrapped)
 const original = Promise.resolve(42);
 const same = Promise.resolve(original);
 console.log(original === same); // true
 
-// thenableオブジェクト（then メソッドを持つオブジェクト）
+// Thenable objects (objects with a then method)
 const thenable = {
   then(resolve) {
     resolve(42);
@@ -99,78 +99,78 @@ const fromThenable = Promise.resolve(thenable);
 fromThenable.then(value => console.log(value)); // 42
 ```
 
-### 1.4 Promise の実行タイミング
+### 1.4 Promise Execution Timing
 
 ```typescript
-// Promise のコールバック（executor）は同期的に実行される
+// The Promise callback (executor) is executed synchronously
 console.log('1. before');
 
 const p = new Promise((resolve) => {
-  console.log('2. executor (同期実行)');
+  console.log('2. executor (synchronous execution)');
   resolve('value');
 });
 
 console.log('3. after');
 
 p.then((value) => {
-  console.log('4. then (非同期実行、マイクロタスク)');
+  console.log('4. then (asynchronous execution, microtask)');
 });
 
 console.log('5. end');
 
-// 出力順序:
+// Output order:
 // 1. before
-// 2. executor (同期実行)
+// 2. executor (synchronous execution)
 // 3. after
 // 5. end
-// 4. then (非同期実行、マイクロタスク)
+// 4. then (asynchronous execution, microtask)
 ```
 
 ---
 
-## 2. Promise チェーン
+## 2. Promise Chaining
 
-### 2.1 基本的なチェーン
+### 2.1 Basic Chaining
 
 ```javascript
-// then() は新しい Promise を返す → チェーン可能
+// then() returns a new Promise -> chainable
 fetchUser(userId)
-  .then(user => fetchOrders(user.id))         // Promise を返す
-  .then(orders => orders.filter(o => o.active)) // 値を返す → Promise.resolve() でラップ
+  .then(user => fetchOrders(user.id))         // Returns a Promise
+  .then(orders => orders.filter(o => o.active)) // Returns a value -> wrapped with Promise.resolve()
   .then(activeOrders => {
-    console.log(`${activeOrders.length} 件の有効な注文`);
+    console.log(`${activeOrders.length} active orders`);
     return activeOrders;
   })
   .catch(error => {
-    // チェーン内のどこで発生したエラーもここでキャッチ
-    console.error("エラー:", error.message);
+    // Catches errors from anywhere in the chain
+    console.error("Error:", error.message);
   });
 
-// エラーの伝播
-//  then → then → then → catch
-//    ↓ エラー発生        ↑
-//    └──────────────────┘
-//    スキップされる
+// Error propagation
+//  then -> then -> then -> catch
+//    | error occurs          ^
+//    +----------------------+
+//    skipped
 ```
 
-### 2.2 チェーンの動作原理
+### 2.2 How Chaining Works
 
 ```typescript
-// then() が返す Promise の値は、コールバックの戻り値で決まる
+// The value of the Promise returned by then() is determined by the callback's return value
 
-// ケース1: 値を返す → Promise.resolve(値)
+// Case 1: Return a value -> Promise.resolve(value)
 Promise.resolve(1)
   .then(x => x + 1)  // Promise.resolve(2)
   .then(x => x * 3)  // Promise.resolve(6)
   .then(x => console.log(x)); // 6
 
-// ケース2: Promise を返す → その Promise が使われる
+// Case 2: Return a Promise -> that Promise is used
 Promise.resolve(1)
   .then(x => Promise.resolve(x + 1))  // Promise<2>
-  .then(x => fetch(`/api/${x}`))       // fetch の Promise
+  .then(x => fetch(`/api/${x}`))       // fetch's Promise
   .then(response => response.json());
 
-// ケース3: エラーをスロー → Promise.reject(エラー)
+// Case 3: Throw an error -> Promise.reject(error)
 Promise.resolve(1)
   .then(x => {
     if (x < 10) throw new Error('Too small');
@@ -178,57 +178,57 @@ Promise.resolve(1)
   })
   .catch(err => console.error(err.message)); // "Too small"
 
-// ケース4: 何も返さない → Promise.resolve(undefined)
+// Case 4: Return nothing -> Promise.resolve(undefined)
 Promise.resolve(1)
   .then(x => { console.log(x); }) // undefined
   .then(x => console.log(x));     // undefined
 ```
 
-### 2.3 エラーハンドリングの詳細
+### 2.3 Error Handling in Detail
 
 ```typescript
-// catch は then(undefined, onRejected) のショートカット
+// catch is a shortcut for then(undefined, onRejected)
 promise.catch(fn);
-// ≡ promise.then(undefined, fn);
+// is equivalent to promise.then(undefined, fn);
 
-// ただし動作に微妙な違いがある
+// However, there is a subtle difference in behavior
 promise
   .then(
-    value => { throw new Error('then内のエラー'); },
-    error => console.log('rejected:', error) // ← then内のエラーはキャッチしない
+    value => { throw new Error('Error inside then'); },
+    error => console.log('rejected:', error) // <- Does NOT catch errors inside then
   );
 
 promise
-  .then(value => { throw new Error('then内のエラー'); })
-  .catch(error => console.log('caught:', error)); // ← then内のエラーもキャッチする
+  .then(value => { throw new Error('Error inside then'); })
+  .catch(error => console.log('caught:', error)); // <- Catches errors inside then too
 
-// チェーン途中でのエラーリカバリー
+// Error recovery mid-chain
 fetchUser(userId)
   .then(user => fetchAvatar(user.avatarId))
   .catch(error => {
     console.warn('Avatar fetch failed, using default');
-    return '/images/default-avatar.png'; // リカバリー値
+    return '/images/default-avatar.png'; // Recovery value
   })
   .then(avatarUrl => {
-    // エラーがあってもここに到達（リカバリー値で）
+    // Reaches here even after an error (with recovery value)
     displayAvatar(avatarUrl);
   });
 
-// 複数の catch でセグメント化
+// Segmented error handling with multiple catches
 fetchUser(userId)
   .then(user => {
     return fetchOrders(user.id);
   })
   .catch(error => {
-    // fetchUser または fetchOrders のエラー
+    // Error from fetchUser or fetchOrders
     console.error('Data fetch error:', error);
-    return []; // 空配列でリカバリー
+    return []; // Recovery with empty array
   })
   .then(orders => {
     return calculateTotal(orders);
   })
   .catch(error => {
-    // calculateTotal のエラーのみ
+    // Error from calculateTotal only
     console.error('Calculation error:', error);
     return 0;
   })
@@ -237,11 +237,11 @@ fetchUser(userId)
   });
 ```
 
-### 2.4 finally の使い方
+### 2.4 Using finally
 
 ```typescript
-// finally: 成功・失敗に関わらず実行される
-// 値を変更しない（透過的）
+// finally: Executes regardless of success or failure
+// Does not alter the value (transparent)
 
 async function fetchData(url: string): Promise<Data> {
   showLoadingSpinner();
@@ -249,20 +249,20 @@ async function fetchData(url: string): Promise<Data> {
   return fetch(url)
     .then(response => response.json())
     .finally(() => {
-      // スピナーを隠す（成功でも失敗でも）
+      // Hide spinner (whether success or failure)
       hideLoadingSpinner();
     });
 }
 
-// finally は値を渡す（変更しない）
+// finally passes the value through (does not change it)
 Promise.resolve(42)
   .finally(() => {
     console.log('cleanup');
-    return 100; // 無視される
+    return 100; // Ignored
   })
-  .then(value => console.log(value)); // 42（100ではない）
+  .then(value => console.log(value)); // 42 (not 100)
 
-// ただし finally 内で throw するとエラーが伝播する
+// However, throwing inside finally propagates the error
 Promise.resolve(42)
   .finally(() => {
     throw new Error('cleanup failed');
@@ -272,20 +272,20 @@ Promise.resolve(42)
 
 ---
 
-## 3. 並行実行パターン
+## 3. Concurrent Execution Patterns
 
 ### 3.1 Promise.all
 
 ```typescript
-// Promise.all: 全て成功したら成功。1つでも失敗したら失敗
+// Promise.all: Succeeds if all succeed. Fails if even one fails
 const [users, orders, products] = await Promise.all([
   fetchUsers(),      // 100ms
   fetchOrders(),     // 200ms
   fetchProducts(),   // 150ms
 ]);
-// 合計: max(100, 200, 150) = 200ms
+// Total: max(100, 200, 150) = 200ms
 
-// 型安全な使い方（TypeScript）
+// Type-safe usage (TypeScript)
 interface DashboardData {
   users: User[];
   orders: Order[];
@@ -302,22 +302,22 @@ async function getDashboard(): Promise<DashboardData> {
   return { users, orders, stats };
 }
 
-// 動的な配列
+// Dynamic arrays
 async function fetchAllUserData(userIds: string[]): Promise<User[]> {
   return Promise.all(
     userIds.map(id => fetchUser(id))
   );
 }
 
-// 注意: 1つでも失敗すると全体が失敗
+// Note: If even one fails, the entire operation fails
 try {
   const results = await Promise.all([
-    fetchFromAPI1(), // 成功
-    fetchFromAPI2(), // 失敗 → 全体が失敗
-    fetchFromAPI3(), // 成功だが結果は破棄される
+    fetchFromAPI1(), // Succeeds
+    fetchFromAPI2(), // Fails -> entire operation fails
+    fetchFromAPI3(), // Succeeds but result is discarded
   ]);
 } catch (error) {
-  // fetchFromAPI2 のエラーのみ
+  // Only the error from fetchFromAPI2
   console.error('One of the requests failed:', error);
 }
 ```
@@ -325,12 +325,12 @@ try {
 ### 3.2 Promise.allSettled
 
 ```typescript
-// Promise.allSettled: 全ての結果を取得（成功も失敗も）
-// ES2020 で追加
+// Promise.allSettled: Gets all results (both successes and failures)
+// Added in ES2020
 const results = await Promise.allSettled([
-  fetchFromAPI1(),   // 成功
-  fetchFromAPI2(),   // 失敗
-  fetchFromAPI3(),   // 成功
+  fetchFromAPI1(),   // Succeeds
+  fetchFromAPI2(),   // Fails
+  fetchFromAPI3(),   // Succeeds
 ]);
 // results = [
 //   { status: "fulfilled", value: data1 },
@@ -338,7 +338,7 @@ const results = await Promise.allSettled([
 //   { status: "fulfilled", value: data3 },
 // ]
 
-// 実用例: 部分的な成功を許容
+// Practical example: Tolerating partial failure
 async function fetchMultipleAPIs(urls: string[]): Promise<{
   succeeded: { url: string; data: any }[];
   failed: { url: string; error: Error }[];
@@ -364,7 +364,7 @@ async function fetchMultipleAPIs(urls: string[]): Promise<{
   return { succeeded, failed };
 }
 
-// 使用
+// Usage
 const { succeeded, failed } = await fetchMultipleAPIs([
   'https://api1.example.com/data',
   'https://api2.example.com/data',
@@ -377,14 +377,14 @@ console.log(`${succeeded.length} succeeded, ${failed.length} failed`);
 ### 3.3 Promise.race
 
 ```typescript
-// Promise.race: 最初に完了したものを返す
+// Promise.race: Returns the first to complete
 const fastest = await Promise.race([
   fetchFromServer1(), // 100ms
-  fetchFromServer2(), // 50ms  ← これが勝つ
+  fetchFromServer2(), // 50ms  <- This wins
   fetchFromServer3(), // 200ms
 ]);
 
-// 実用例1: タイムアウト実装
+// Practical example 1: Timeout implementation
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   const timeout = new Promise<never>((_, reject) => {
     setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms);
@@ -393,7 +393,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return Promise.race([promise, timeout]);
 }
 
-// 使用
+// Usage
 try {
   const data = await withTimeout(fetchData(), 5000);
 } catch (error) {
@@ -402,7 +402,7 @@ try {
   }
 }
 
-// 実用例2: キャンセル可能なPromise
+// Practical example 2: Cancellable Promise
 function cancellable<T>(promise: Promise<T>): {
   promise: Promise<T>;
   cancel: () => void;
@@ -420,22 +420,22 @@ function cancellable<T>(promise: Promise<T>): {
 }
 
 const { promise, cancel } = cancellable(fetchLargeData());
-// 5秒後にキャンセル
+// Cancel after 5 seconds
 setTimeout(cancel, 5000);
 ```
 
 ### 3.4 Promise.any
 
 ```typescript
-// Promise.any: 最初に成功したものを返す（ES2021）
+// Promise.any: Returns the first to succeed (ES2021)
 const firstSuccess = await Promise.any([
-  fetchFromServer1(), // 失敗
-  fetchFromServer2(), // 成功 ← これを返す
-  fetchFromServer3(), // 成功
+  fetchFromServer1(), // Fails
+  fetchFromServer2(), // Succeeds <- This is returned
+  fetchFromServer3(), // Succeeds
 ]);
-// 全て失敗した場合のみ AggregateError
+// Only throws AggregateError if all fail
 
-// 実用例: フォールバックサーバー
+// Practical example: Fallback servers
 async function fetchWithFallback(urls: string[]): Promise<Response> {
   try {
     return await Promise.any(
@@ -453,14 +453,14 @@ async function fetchWithFallback(urls: string[]): Promise<Response> {
   }
 }
 
-// 使用
+// Usage
 const response = await fetchWithFallback([
   'https://primary.example.com/api/data',
   'https://secondary.example.com/api/data',
   'https://tertiary.example.com/api/data',
 ]);
 
-// 実用例: 最速のDNS解決
+// Practical example: Fastest DNS resolution
 async function resolveFastest(hostname: string): Promise<string> {
   return Promise.any([
     resolveViaDoH('https://dns.google/resolve', hostname),
@@ -470,47 +470,52 @@ async function resolveFastest(hostname: string): Promise<string> {
 }
 ```
 
-### 3.5 4つの並行メソッド比較
+### 3.5 Comparison of the Four Concurrent Methods
 
 ```
-┌──────────────────┬─────────────┬─────────────┬──────────────┐
-│ メソッド          │ 成功条件     │ 失敗条件     │ ユースケース  │
-├──────────────────┼─────────────┼─────────────┼──────────────┤
-│ Promise.all      │ 全て成功     │ 1つでも失敗  │ 全データ必要  │
-├──────────────────┼─────────────┼─────────────┼──────────────┤
-│ Promise.allSettled│ 常に成功     │ なし         │ 部分的失敗OK │
-├──────────────────┼─────────────┼─────────────┼──────────────┤
-│ Promise.race     │ 最初の結果   │ 最初の結果   │ タイムアウト  │
-├──────────────────┼─────────────┼─────────────┼──────────────┤
-│ Promise.any      │ 最初の成功   │ 全て失敗     │ フォールバック│
-└──────────────────┴─────────────┴─────────────┴──────────────┘
++------------------+-------------+-------------+--------------+
+| Method           | Success     | Failure     | Use Case     |
+|                  | Condition   | Condition   |              |
++------------------+-------------+-------------+--------------+
+| Promise.all      | All succeed | Any one     | All data     |
+|                  |             | fails       | required     |
++------------------+-------------+-------------+--------------+
+| Promise.         | Always      | Never       | Partial      |
+| allSettled       | succeeds    |             | failure OK   |
++------------------+-------------+-------------+--------------+
+| Promise.race     | First       | First       | Timeout      |
+|                  | result      | result      |              |
++------------------+-------------+-------------+--------------+
+| Promise.any      | First       | All fail    | Fallback     |
+|                  | success     |             |              |
++------------------+-------------+-------------+--------------+
 ```
 
 ---
 
-## 4. よくある間違いとアンチパターン
+## 4. Common Mistakes and Anti-Patterns
 
-### 4.1 Promise を返し忘れ
+### 4.1 Forgetting to Return a Promise
 
 ```typescript
-// ❌ Promise を返し忘れ
+// Bad: Forgetting to return a Promise
 async function bad() {
-  fetchData(); // await も return もない → 結果を待たない
+  fetchData(); // No await or return -> does not wait for result
 }
 
-// ✅ 修正
+// Good: Fixed
 async function good() {
-  return fetchData(); // または await fetchData();
+  return fetchData(); // or await fetchData();
 }
 
-// ❌ map 内で Promise を返し忘れ
+// Bad: Forgetting to return Promises in map
 async function badMap(items: Item[]) {
   items.map(async item => {
-    await processItem(item); // 返されない → 完了を待てない
+    await processItem(item); // Not returned -> cannot wait for completion
   });
 }
 
-// ✅ 修正: Promise.all で待つ
+// Good: Wait with Promise.all
 async function goodMap(items: Item[]) {
   await Promise.all(
     items.map(async item => {
@@ -520,56 +525,56 @@ async function goodMap(items: Item[]) {
 }
 ```
 
-### 4.2 不要な Promise ラッパー
+### 4.2 Unnecessary Promise Wrappers
 
 ```typescript
-// ❌ 不要な Promise ラッパー
+// Bad: Unnecessary Promise wrapper
 async function unnecessary() {
   return new Promise((resolve) => {
-    resolve(fetchData()); // fetchData() は既に Promise を返す
+    resolve(fetchData()); // fetchData() already returns a Promise
   });
 }
-// ✅ そのまま返す
+// Good: Return directly
 async function correct() {
   return fetchData();
 }
 
-// ❌ 不要な async
+// Bad: Unnecessary async
 async function alsoUnnecessary() {
-  return 42; // async 不要（同期値を返すだけ）
+  return 42; // async is unnecessary (just returning a synchronous value)
 }
-// ✅ 修正（async が不要なら外す）
+// Good: Remove async if unnecessary
 function simple(): number {
   return 42;
 }
 
-// ただし、エラーを Promise.reject にしたい場合は async が有用
+// However, async is useful when you want errors to become Promise.reject
 async function withErrorHandling(): Promise<number> {
-  const value = validate(input); // validate が throw する可能性
-  return value; // async 関数なので throw は自動的に reject に変換
+  const value = validate(input); // validate may throw
+  return value; // Since it's an async function, throw is automatically converted to reject
 }
 ```
 
-### 4.3 forEach で async
+### 4.3 async with forEach
 
 ```typescript
-// ❌ forEach で async（並行制御不能）
+// Bad: async with forEach (uncontrollable concurrency)
 items.forEach(async (item) => {
-  await processItem(item); // 全て同時に開始、完了を待てない
+  await processItem(item); // All start simultaneously, cannot wait for completion
 });
-console.log('done'); // ← processItem の完了前に実行される！
+console.log('done'); // <- Executes BEFORE processItem completes!
 
-// ✅ for...of で逐次実行
+// Good: Sequential execution with for...of
 for (const item of items) {
-  await processItem(item); // 1つずつ順番に処理
+  await processItem(item); // Processes one at a time in order
 }
-console.log('done'); // 全件完了後に実行
+console.log('done'); // Executes after all items are complete
 
-// ✅ Promise.all で並行実行
+// Good: Concurrent execution with Promise.all
 await Promise.all(items.map(item => processItem(item)));
-console.log('done'); // 全件完了後に実行
+console.log('done'); // Executes after all items are complete
 
-// ✅ for...of + バッチで制御された並行実行
+// Good: Controlled concurrency with for...of + batching
 async function processBatch<T>(
   items: T[],
   fn: (item: T) => Promise<void>,
@@ -581,20 +586,20 @@ async function processBatch<T>(
   }
 }
 
-await processBatch(items, processItem, 5); // 5並列でバッチ処理
+await processBatch(items, processItem, 5); // Batch processing with 5 concurrent
 ```
 
-### 4.4 catch なしの Promise
+### 4.4 Promise Without catch
 
 ```typescript
-// ❌ catch なしの Promise
+// Bad: Promise without catch
 fetchData().then(data => use(data));
-// → rejected 時に UnhandledPromiseRejection
+// -> UnhandledPromiseRejection on rejection
 
-// ✅ 修正
+// Good: Fixed
 fetchData().then(data => use(data)).catch(handleError);
 
-// ✅ async/await で try-catch
+// Good: try-catch with async/await
 async function handler() {
   try {
     const data = await fetchData();
@@ -604,33 +609,33 @@ async function handler() {
   }
 }
 
-// グローバルなハンドラーも設定しておく
+// Also set up a global handler
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  // ログ記録、アラート送信等
+  // Log recording, alert sending, etc.
 });
 ```
 
-### 4.5 then チェーンのネスト
+### 4.5 Nesting then Chains
 
 ```typescript
-// ❌ then の中で then（コールバック地獄の再来）
+// Bad: then inside then (callback hell returns)
 fetchUser(userId).then(user => {
   fetchOrders(user.id).then(orders => {
     fetchOrderDetails(orders[0].id).then(details => {
-      console.log(details); // ネストが深い
+      console.log(details); // Deep nesting
     });
   });
 });
 
-// ✅ チェーンでフラット化
+// Good: Flatten with chaining
 fetchUser(userId)
   .then(user => fetchOrders(user.id))
   .then(orders => fetchOrderDetails(orders[0].id))
   .then(details => console.log(details))
   .catch(error => console.error(error));
 
-// ✅ async/await でさらにシンプル
+// Better: Even simpler with async/await
 async function getDetails(userId: string) {
   const user = await fetchUser(userId);
   const orders = await fetchOrders(user.id);
@@ -641,12 +646,12 @@ async function getDetails(userId: string) {
 
 ---
 
-## 5. 並行数制限
+## 5. Concurrency Limiting
 
-### 5.1 Promise プール
+### 5.1 Promise Pool
 
 ```typescript
-// 同時実行数を制限する Promise プール
+// Promise pool that limits concurrent execution
 async function promisePool<T>(
   tasks: (() => Promise<T>)[],
   concurrency: number,
@@ -671,7 +676,7 @@ async function promisePool<T>(
   return results;
 }
 
-// 使用: 1000件のURLを同時5並列でフェッチ
+// Usage: Fetch 1000 URLs with 5 concurrent
 const urls = Array.from({ length: 1000 }, (_, i) =>
   `https://api.example.com/item/${i}`
 );
@@ -679,7 +684,7 @@ const tasks = urls.map(url => () => fetch(url).then(r => r.json()));
 const results = await promisePool(tasks, 5);
 ```
 
-### 5.2 セマフォベースの並行制限
+### 5.2 Semaphore-Based Concurrency Limiting
 
 ```typescript
 class AsyncSemaphore {
@@ -719,8 +724,8 @@ class AsyncSemaphore {
   }
 }
 
-// 使用
-const semaphore = new AsyncSemaphore(3); // 最大3並列
+// Usage
+const semaphore = new AsyncSemaphore(3); // Max 3 concurrent
 
 const results = await Promise.all(
   urls.map(url =>
@@ -729,7 +734,7 @@ const results = await Promise.all(
 );
 ```
 
-### 5.3 キューベースの並行制限
+### 5.3 Queue-Based Concurrency Limiting
 
 ```typescript
 class AsyncQueue<T> {
@@ -780,7 +785,7 @@ class AsyncQueue<T> {
   }
 }
 
-// 使用
+// Usage
 const queue = new AsyncQueue<Response>(5);
 
 const results = await Promise.all(
@@ -792,9 +797,9 @@ const results = await Promise.all(
 
 ---
 
-## 6. 実践パターン
+## 6. Practical Patterns
 
-### 6.1 リトライパターン
+### 6.1 Retry Pattern
 
 ```typescript
 async function retryPromise<T>(
@@ -841,7 +846,7 @@ async function retryPromise<T>(
   throw lastError;
 }
 
-// 使用
+// Usage
 const data = await retryPromise(
   () => fetch('https://api.example.com/data').then(r => {
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -863,10 +868,10 @@ const data = await retryPromise(
 );
 ```
 
-### 6.2 キャッシュパターン
+### 6.2 Cache Pattern
 
 ```typescript
-// Promise のキャッシュ（重複リクエスト防止）
+// Promise caching (preventing duplicate requests)
 class PromiseCache<K, V> {
   private cache = new Map<K, Promise<V>>();
   private ttl: number;
@@ -880,11 +885,11 @@ class PromiseCache<K, V> {
     if (existing) return existing;
 
     const promise = factory().then(value => {
-      // TTL後にキャッシュ削除
+      // Delete cache after TTL
       setTimeout(() => this.cache.delete(key), this.ttl);
       return value;
     }).catch(error => {
-      // エラー時は即座にキャッシュ削除（次回リトライ可能に）
+      // Delete cache immediately on error (allow retry next time)
       this.cache.delete(key);
       throw error;
     });
@@ -902,8 +907,8 @@ class PromiseCache<K, V> {
   }
 }
 
-// 使用
-const userCache = new PromiseCache<string, User>(30000); // 30秒TTL
+// Usage
+const userCache = new PromiseCache<string, User>(30000); // 30-second TTL
 
 async function getUser(userId: string): Promise<User> {
   return userCache.get(userId, () =>
@@ -911,17 +916,17 @@ async function getUser(userId: string): Promise<User> {
   );
 }
 
-// 同時に同じユーザーをリクエストしても、APIは1回だけ呼ばれる
+// Even if the same user is requested simultaneously, the API is called only once
 const [user1, user2] = await Promise.all([
   getUser('user-123'),
-  getUser('user-123'), // キャッシュヒット（同じPromise）
+  getUser('user-123'), // Cache hit (same Promise)
 ]);
 ```
 
-### 6.3 デバウンスパターン
+### 6.3 Debounce Pattern
 
 ```typescript
-// Promiseベースのデバウンス
+// Promise-based debounce
 function debouncePromise<T extends (...args: any[]) => Promise<any>>(
   fn: T,
   delay: number,
@@ -932,7 +937,7 @@ function debouncePromise<T extends (...args: any[]) => Promise<any>>(
 
   return ((...args: Parameters<T>): Promise<ReturnType<T>> => {
     return new Promise((resolve, reject) => {
-      // 前のPendingをキャンセル
+      // Cancel the previous pending
       if (pendingReject) {
         pendingReject(new Error('Debounced'));
       }
@@ -955,13 +960,13 @@ function debouncePromise<T extends (...args: any[]) => Promise<any>>(
   }) as T;
 }
 
-// 使用: 検索API
+// Usage: Search API
 const debouncedSearch = debouncePromise(
   (query: string) => fetch(`/api/search?q=${query}`).then(r => r.json()),
   300,
 );
 
-// 300ms以内に複数回呼んでも最後の1回だけ実行
+// Even if called multiple times within 300ms, only the last call executes
 input.addEventListener('input', async (e) => {
   try {
     const results = await debouncedSearch(e.target.value);
@@ -974,10 +979,10 @@ input.addEventListener('input', async (e) => {
 });
 ```
 
-### 6.4 パイプラインパターン
+### 6.4 Pipeline Pattern
 
 ```typescript
-// Promise パイプライン: 処理を段階的に組み立て
+// Promise pipeline: Build processing step by step
 type AsyncPipe<T, R> = (input: T) => Promise<R>;
 
 function pipeline<T>(...fns: AsyncPipe<any, any>[]): AsyncPipe<T, any> {
@@ -990,14 +995,14 @@ function pipeline<T>(...fns: AsyncPipe<any, any>[]): AsyncPipe<T, any> {
   };
 }
 
-// 使用
+// Usage
 const processOrder = pipeline<OrderInput>(
-  validateOrder,        // OrderInput → ValidatedOrder
-  calculatePricing,     // ValidatedOrder → PricedOrder
-  applyDiscounts,       // PricedOrder → DiscountedOrder
-  processPayment,       // DiscountedOrder → PaidOrder
-  createShipment,       // PaidOrder → ShippedOrder
-  sendConfirmation,     // ShippedOrder → ConfirmedOrder
+  validateOrder,        // OrderInput -> ValidatedOrder
+  calculatePricing,     // ValidatedOrder -> PricedOrder
+  applyDiscounts,       // PricedOrder -> DiscountedOrder
+  processPayment,       // DiscountedOrder -> PaidOrder
+  createShipment,       // PaidOrder -> ShippedOrder
+  sendConfirmation,     // ShippedOrder -> ConfirmedOrder
 );
 
 const order = await processOrder({
@@ -1008,18 +1013,18 @@ const order = await processOrder({
 
 ---
 
-## 7. 他言語の Promise 相当
+## 7. Promise Equivalents in Other Languages
 
 ### 7.1 Python: asyncio.Future / coroutine
 
 ```python
 import asyncio
 
-# Python の coroutine は JavaScript の async 関数に相当
+# Python's coroutine is equivalent to JavaScript's async function
 async def fetch_user(user_id: str) -> dict:
-    # await で他の coroutine を待つ
-    await asyncio.sleep(0.1)  # I/Oシミュレート
-    return {"id": user_id, "name": "太郎"}
+    # Use await to wait for another coroutine
+    await asyncio.sleep(0.1)  # Simulate I/O
+    return {"id": user_id, "name": "Taro"}
 
 # asyncio.gather = Promise.all
 async def fetch_all():
@@ -1030,7 +1035,7 @@ async def fetch_all():
     )
     return {"users": users, "orders": orders, "stats": stats}
 
-# asyncio.wait = より細かい制御
+# asyncio.wait = More fine-grained control
 async def fetch_with_timeout():
     tasks = [
         asyncio.create_task(fetch_user("u-1")),
@@ -1044,17 +1049,17 @@ async def fetch_with_timeout():
     )
 
     for task in pending:
-        task.cancel()  # タイムアウトしたタスクをキャンセル
+        task.cancel()  # Cancel timed-out tasks
 
     return [task.result() for task in done]
 
-# asyncio.TaskGroup (Python 3.11+) = 構造化並行性
+# asyncio.TaskGroup (Python 3.11+) = Structured concurrency
 async def structured_fetch():
     async with asyncio.TaskGroup() as tg:
         user_task = tg.create_task(fetch_user("u-1"))
         orders_task = tg.create_task(fetch_orders("u-1"))
 
-    # TaskGroupを抜けた時点で全タスク完了
+    # All tasks are complete by the time you exit the TaskGroup
     return user_task.result(), orders_task.result()
 ```
 
@@ -1064,11 +1069,11 @@ async def structured_fetch():
 use tokio;
 use futures::future;
 
-// Rust の Future = JavaScript の Promise
-// ただし lazy: .await するまで実行されない
+// Rust's Future = JavaScript's Promise
+// However, it's lazy: it does not execute until .await
 
 async fn fetch_user(user_id: &str) -> Result<User, AppError> {
-    // async関数は Future<Output = Result<User, AppError>> を返す
+    // An async function returns Future<Output = Result<User, AppError>>
     let url = format!("https://api.example.com/users/{}", user_id);
     let user: User = reqwest::get(&url).await?.json().await?;
     Ok(user)
@@ -1099,7 +1104,7 @@ async fn fetch_with_timeout(user_id: &str) -> Result<User, AppError> {
     }
 }
 
-// futures::future::join_all = Promise.all（動的な数）
+// futures::future::join_all = Promise.all (for dynamic count)
 async fn fetch_all_users(user_ids: Vec<String>) -> Vec<Result<User, AppError>> {
     let futures: Vec<_> = user_ids.iter()
         .map(|id| fetch_user(id))
@@ -1114,32 +1119,32 @@ async fn fetch_all_users(user_ids: Vec<String>) -> Vec<Result<User, AppError>> {
 ```java
 import java.util.concurrent.*;
 
-// Java の CompletableFuture = JavaScript の Promise
+// Java's CompletableFuture = JavaScript's Promise
 
 public class CompletableFutureExamples {
 
-    // 基本的な作成
+    // Basic creation
     CompletableFuture<User> fetchUser(String userId) {
         return CompletableFuture.supplyAsync(() -> {
-            // バックグラウンドスレッドで実行
+            // Runs on a background thread
             return userRepo.findById(userId);
         });
     }
 
-    // チェーン（then相当）
+    // Chaining (equivalent to then)
     CompletableFuture<String> getUserName(String userId) {
         return fetchUser(userId)
             .thenApply(user -> user.getName())        // map
             .thenApply(name -> name.toUpperCase());    // map
     }
 
-    // flatMap相当
+    // Equivalent to flatMap
     CompletableFuture<List<Order>> getUserOrders(String userId) {
         return fetchUser(userId)
             .thenCompose(user -> fetchOrders(user.getId())); // flatMap
     }
 
-    // Promise.all 相当
+    // Equivalent to Promise.all
     CompletableFuture<Dashboard> getDashboard(String userId) {
         CompletableFuture<User> userF = fetchUser(userId);
         CompletableFuture<List<Order>> ordersF = fetchOrders(userId);
@@ -1153,7 +1158,7 @@ public class CompletableFutureExamples {
             ));
     }
 
-    // Promise.race 相当
+    // Equivalent to Promise.race
     CompletableFuture<User> fetchFastest(String userId) {
         return CompletableFuture.anyOf(
             fetchFromPrimary(userId),
@@ -1161,17 +1166,17 @@ public class CompletableFutureExamples {
         ).thenApply(result -> (User) result);
     }
 
-    // エラーハンドリング
+    // Error handling
     CompletableFuture<User> fetchWithFallback(String userId) {
         return fetchUser(userId)
             .exceptionally(error -> {
-                // catch 相当
+                // Equivalent to catch
                 System.err.println("Fetch failed: " + error.getMessage());
                 return User.defaultUser();
             });
     }
 
-    // タイムアウト（Java 9+）
+    // Timeout (Java 9+)
     CompletableFuture<User> fetchWithTimeout(String userId) {
         return fetchUser(userId)
             .orTimeout(5, TimeUnit.SECONDS)
@@ -1191,11 +1196,11 @@ public class CompletableFutureExamples {
 using System;
 using System.Threading.Tasks;
 
-// C# の Task = JavaScript の Promise
+// C#'s Task = JavaScript's Promise
 
 public class TaskExamples
 {
-    // 基本
+    // Basic
     async Task<User> FetchUserAsync(string userId)
     {
         var response = await httpClient.GetAsync($"/api/users/{userId}");
@@ -1230,7 +1235,7 @@ public class TaskExamples
         return await completed;
     }
 
-    // キャンセルトークン
+    // Cancellation token
     async Task<User> FetchWithCancellationAsync(
         string userId,
         CancellationToken ct)
@@ -1247,25 +1252,25 @@ public class TaskExamples
 
 ---
 
-## 8. Promise のテスト
+## 8. Testing Promises
 
-### 8.1 基本テスト
+### 8.1 Basic Tests
 
 ```typescript
 import { describe, it, expect, vi } from 'vitest';
 
-describe('Promise パターンのテスト', () => {
-  it('正常な Promise の解決をテスト', async () => {
+describe('Promise Pattern Tests', () => {
+  it('tests normal Promise resolution', async () => {
     const result = await Promise.resolve(42);
     expect(result).toBe(42);
   });
 
-  it('Promise の reject をテスト', async () => {
+  it('tests Promise rejection', async () => {
     await expect(Promise.reject(new Error('test')))
       .rejects.toThrow('test');
   });
 
-  it('Promise.all の動作をテスト', async () => {
+  it('tests Promise.all behavior', async () => {
     const results = await Promise.all([
       Promise.resolve(1),
       Promise.resolve(2),
@@ -1274,7 +1279,7 @@ describe('Promise パターンのテスト', () => {
     expect(results).toEqual([1, 2, 3]);
   });
 
-  it('Promise.all の失敗をテスト', async () => {
+  it('tests Promise.all failure', async () => {
     await expect(
       Promise.all([
         Promise.resolve(1),
@@ -1284,7 +1289,7 @@ describe('Promise パターンのテスト', () => {
     ).rejects.toThrow('fail');
   });
 
-  it('Promise.allSettled の動作をテスト', async () => {
+  it('tests Promise.allSettled behavior', async () => {
     const results = await Promise.allSettled([
       Promise.resolve('ok'),
       Promise.reject(new Error('fail')),
@@ -1296,11 +1301,11 @@ describe('Promise パターンのテスト', () => {
 });
 ```
 
-### 8.2 非同期処理のモック
+### 8.2 Mocking Asynchronous Functions
 
 ```typescript
-describe('非同期関数のモック', () => {
-  it('fetchをモックしてテスト', async () => {
+describe('Mocking Async Functions', () => {
+  it('tests with mocked fetch', async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ id: '123', name: 'Test' }),
@@ -1315,7 +1320,7 @@ describe('非同期関数のモック', () => {
     );
   });
 
-  it('リトライロジックをテスト', async () => {
+  it('tests retry logic', async () => {
     const mockFn = vi.fn()
       .mockRejectedValueOnce(new Error('fail'))
       .mockRejectedValueOnce(new Error('fail'))
@@ -1326,7 +1331,7 @@ describe('非同期関数のモック', () => {
     expect(mockFn).toHaveBeenCalledTimes(3);
   });
 
-  it('タイムアウトをテスト', async () => {
+  it('tests timeout', async () => {
     vi.useFakeTimers();
 
     const slowPromise = new Promise(resolve =>
@@ -1342,7 +1347,7 @@ describe('非同期関数のモック', () => {
     vi.useRealTimers();
   });
 
-  it('並行数制限をテスト', async () => {
+  it('tests concurrency limiting', async () => {
     let concurrent = 0;
     let maxConcurrent = 0;
 
@@ -1362,12 +1367,12 @@ describe('非同期関数のモック', () => {
 
 ---
 
-## 9. Promise の内部実装
+## 9. Promise Internals
 
-### 9.1 簡易 Promise の実装
+### 9.1 Simplified Promise Implementation
 
 ```typescript
-// Promise の内部動作を理解するための簡易実装
+// Simplified implementation to understand how Promises work internally
 class SimplePromise<T> {
   private state: 'pending' | 'fulfilled' | 'rejected' = 'pending';
   private value: T | undefined;
@@ -1500,45 +1505,45 @@ class SimplePromise<T> {
 
 ---
 
-## 実践演習
+## Hands-On Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that meets the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate input data
+- Implement proper error handling
+- Write test code as well
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Basic implementation template
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Exercise for basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main data processing logic"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Get processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1547,26 +1552,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "An exception should have been raised"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation by adding the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Advanced patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Exercise for advanced patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1574,7 +1579,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1585,14 +1590,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Delete by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1600,7 +1605,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1608,44 +1613,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # Size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1654,7 +1659,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1669,71 +1674,71 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient version: {slow_time:.4f}s")
+    print(f"Efficient version:   {fast_time:.6f}s")
+    print(f"Speedup:             {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key Points:**
+- Be aware of algorithmic complexity
+- Choose appropriate data structures
+- Measure results with benchmarks
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point to focus on when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining hands-on experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes that beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts covered in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in real-world development?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently used in everyday development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## まとめ
+## Summary
 
-| メソッド | 動作 | ユースケース |
-|---------|------|-------------|
-| Promise.all | 全成功で成功 | 独立した複数のAPIコール |
-| Promise.allSettled | 全完了を待つ | 部分的失敗を許容 |
-| Promise.race | 最速の結果 | タイムアウト実装 |
-| Promise.any | 最初の成功 | フォールバックサーバー |
+| Method | Behavior | Use Case |
+|--------|----------|----------|
+| Promise.all | Succeeds when all succeed | Independent multiple API calls |
+| Promise.allSettled | Waits for all to complete | Tolerating partial failure |
+| Promise.race | Fastest result | Timeout implementation |
+| Promise.any | First success | Fallback servers |
 
-### Promise のベストプラクティス
+### Promise Best Practices
 
 ```
-1. 常にエラーをハンドリングする
-   → .catch() または try-catch
+1. Always handle errors
+   -> .catch() or try-catch
 
-2. 不要な Promise ラッピングを避ける
-   → async 関数はすでに Promise を返す
+2. Avoid unnecessary Promise wrapping
+   -> async functions already return Promises
 
-3. 並行可能な処理は Promise.all で並行実行
-   → 逐次 await の無駄を避ける
+3. Use Promise.all for parallelizable operations
+   -> Avoid wasteful sequential awaits
 
-4. 大量の並行処理は並行数を制限する
-   → セマフォ or プールパターン
+4. Limit concurrency for large-scale parallel operations
+   -> Semaphore or pool pattern
 
-5. Promise のキャッシュでリクエスト重複を防ぐ
-   → 同じキーの同時リクエストを1つにまとめる
+5. Use Promise caching to prevent duplicate requests
+   -> Consolidate simultaneous requests for the same key into one
 ```
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
 ---
 
-## 参考文献
+## References
 1. MDN Web Docs. "Promise."
 2. Archibald, J. "JavaScript Promises: An Introduction." web.dev.
 3. Promises/A+ Specification. promisesaplus.com.

@@ -1,160 +1,159 @@
-# APIエラー設計
+# API Error Design
 
-> APIのエラーレスポンスは、クライアント開発者の体験を左右する。HTTPステータスの正しい使い方、RFC 7807 Problem Details、エラーレスポンス設計のベストプラクティスを解説。
+> API error responses directly affect the experience of client developers. This guide covers the proper use of HTTP status codes, RFC 7807 Problem Details, and best practices for error response design.
 
-## この章で学ぶこと
+## What You Will Learn
 
-- [ ] HTTPステータスコードの適切な使い分けを理解する
-- [ ] エラーレスポンスの標準フォーマットを把握する
-- [ ] 実践的なAPIエラー設計を学ぶ
-- [ ] バリデーションエラーの設計パターンを習得する
-- [ ] エラーの国際化（i18n）対応を理解する
-- [ ] GraphQL/gRPC のエラー設計との比較を把握する
+- [ ] Understand the proper use of HTTP status codes
+- [ ] Learn the standard format for error responses
+- [ ] Learn practical API error design
+- [ ] Master validation error design patterns
+- [ ] Understand error internationalization (i18n)
+- [ ] Understand error design differences in GraphQL/gRPC
 
+## Prerequisites
 
-## 前提知識
+Before reading this guide, having the following knowledge will help deepen your understanding:
 
-このガイドを読む前に、以下の知識があると理解が深まります:
-
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
+- Basic programming knowledge
+- Understanding of related fundamental concepts
 
 ---
 
-## 1. HTTPステータスコード
+## 1. HTTP Status Codes
 
-### 1.1 ステータスコードの分類
-
-```
-2xx 成功:
-  200 OK               — 汎用的な成功
-  201 Created           — リソース作成成功
-  202 Accepted          — 非同期処理の受付完了
-  204 No Content        — 成功（レスポンスボディなし）
-  206 Partial Content   — 部分的なコンテンツ（Range指定）
-
-3xx リダイレクト:
-  301 Moved Permanently  — 恒久的なリダイレクト
-  302 Found              — 一時的なリダイレクト
-  304 Not Modified       — キャッシュ有効
-
-4xx クライアントエラー:
-  400 Bad Request       — リクエストが不正（構文エラー等）
-  401 Unauthorized      — 認証が必要（未認証）
-  403 Forbidden         — 認可されていない（権限不足）
-  404 Not Found         — リソースが存在しない
-  405 Method Not Allowed — HTTPメソッドが不正
-  406 Not Acceptable    — Accept ヘッダーに対応不可
-  408 Request Timeout   — リクエストタイムアウト
-  409 Conflict          — 競合（重複登録、楽観的ロック失敗等）
-  410 Gone              — リソースが恒久的に削除済み
-  413 Payload Too Large — ペイロードサイズ超過
-  415 Unsupported Media Type — Content-Type 未対応
-  422 Unprocessable Entity — バリデーションエラー
-  429 Too Many Requests — レート制限超過
-
-5xx サーバーエラー:
-  500 Internal Server Error — サーバー内部エラー
-  501 Not Implemented       — 未実装のエンドポイント
-  502 Bad Gateway           — 上流サーバーエラー
-  503 Service Unavailable   — サービス一時停止
-  504 Gateway Timeout       — 上流サーバータイムアウト
-
-判断基準:
-  クライアントのミス → 4xx
-  サーバーの問題 → 5xx
-  リトライで解決する可能性 → 429, 503, 504
-```
-
-### 1.2 よくある間違い
+### 1.1 Status Code Categories
 
 ```
-間違い1: 全てのエラーに 200 を返す
-  ✗ Bad:
+2xx Success:
+  200 OK               - General success
+  201 Created           - Resource created successfully
+  202 Accepted          - Asynchronous processing accepted
+  204 No Content        - Success (no response body)
+  206 Partial Content   - Partial content (Range specified)
+
+3xx Redirect:
+  301 Moved Permanently  - Permanent redirect
+  302 Found              - Temporary redirect
+  304 Not Modified       - Cache is valid
+
+4xx Client Error:
+  400 Bad Request       - Invalid request (syntax error, etc.)
+  401 Unauthorized      - Authentication required (not authenticated)
+  403 Forbidden         - Not authorized (insufficient permissions)
+  404 Not Found         - Resource does not exist
+  405 Method Not Allowed - Invalid HTTP method
+  406 Not Acceptable    - Cannot satisfy Accept header
+  408 Request Timeout   - Request timeout
+  409 Conflict          - Conflict (duplicate registration, optimistic lock failure, etc.)
+  410 Gone              - Resource permanently deleted
+  413 Payload Too Large - Payload size exceeded
+  415 Unsupported Media Type - Content-Type not supported
+  422 Unprocessable Entity - Validation error
+  429 Too Many Requests - Rate limit exceeded
+
+5xx Server Error:
+  500 Internal Server Error - Internal server error
+  501 Not Implemented       - Unimplemented endpoint
+  502 Bad Gateway           - Upstream server error
+  503 Service Unavailable   - Service temporarily unavailable
+  504 Gateway Timeout       - Upstream server timeout
+
+Decision Criteria:
+  Client's mistake -> 4xx
+  Server's problem -> 5xx
+  Potentially resolved by retry -> 429, 503, 504
+```
+
+### 1.2 Common Mistakes
+
+```
+Mistake 1: Returning 200 for all errors
+  X Bad:
     HTTP 200 OK
     { "success": false, "error": "User not found" }
 
-  ✓ Good:
+  O Good:
     HTTP 404 Not Found
     { "type": "...", "title": "Not Found", "status": 404, "detail": "..." }
 
-  理由: HTTPクライアント、CDN、プロキシ、モニタリングツールは
-        ステータスコードに基づいて動作する
+  Reason: HTTP clients, CDNs, proxies, and monitoring tools
+          operate based on status codes
 
-間違い2: 401 と 403 の混同
-  401 Unauthorized = 認証されていない（ログインしていない）
-    → WWW-Authenticate ヘッダーを返す
-    → クライアントは認証情報を送り直す
+Mistake 2: Confusing 401 and 403
+  401 Unauthorized = Not authenticated (not logged in)
+    -> Return WWW-Authenticate header
+    -> Client resends authentication credentials
 
-  403 Forbidden = 認可されていない（権限がない）
-    → 再認証しても結果は変わらない
-    → 管理者に権限を依頼する
+  403 Forbidden = Not authorized (no permission)
+    -> Re-authentication will not change the result
+    -> Request permissions from an administrator
 
-間違い3: 400 と 422 の混用
-  400 Bad Request = リクエストの構文が不正
-    → JSONが壊れている、必須パラメータがない
-    → パースできないレベルの問題
+Mistake 3: Misusing 400 and 422
+  400 Bad Request = Request syntax is invalid
+    -> JSON is broken, required parameters are missing
+    -> Problems at the parsing level
 
-  422 Unprocessable Entity = 構文は正しいが意味的に不正
-    → メールアドレスのフォーマットが違う
-    → 数値が範囲外
-    → ビジネスルール違反
+  422 Unprocessable Entity = Syntax is correct but semantically invalid
+    -> Email address format is incorrect
+    -> Number is out of range
+    -> Business rule violation
 
-間違い4: 500 の乱用
-  → 500 は「予期しないエラー」のみに使う
-  → バリデーションエラーを 500 で返すのは誤り
-  → 適切な 4xx コードを選ぶ
+Mistake 4: Overusing 500
+  -> Use 500 only for "unexpected errors"
+  -> Returning validation errors as 500 is incorrect
+  -> Choose an appropriate 4xx code
 
-間違い5: 404 のセキュリティリスク
-  → リソースの存在を確認できてしまう
-  → 場合によっては 403 を返す（リソースの存在を隠す）
-  → 例: /api/admin/users → 権限がなければ 403（404 ではなく）
+Mistake 5: Security risk of 404
+  -> Can reveal the existence of a resource
+  -> In some cases, return 403 (to hide resource existence)
+  -> Example: /api/admin/users -> return 403 if no permission (not 404)
 ```
 
-### 1.3 ステータスコード選択フローチャート
+### 1.3 Status Code Selection Flowchart
 
 ```
-リクエスト受信
-  ├─ JSON パースできない? → 400 Bad Request
-  ├─ 認証トークンがない/無効? → 401 Unauthorized
-  ├─ 権限が不足? → 403 Forbidden
-  ├─ リソースが見つからない? → 404 Not Found
-  ├─ HTTPメソッドが不正? → 405 Method Not Allowed
-  ├─ レート制限超過? → 429 Too Many Requests
-  ├─ バリデーションエラー?
-  │   ├─ 必須パラメータ欠如 → 400 Bad Request
-  │   └─ 値の意味的不正 → 422 Unprocessable Entity
-  ├─ 競合（重複、楽観的ロック失敗）? → 409 Conflict
-  ├─ 処理成功?
-  │   ├─ リソース作成 → 201 Created
-  │   ├─ 非同期受付 → 202 Accepted
-  │   ├─ レスポンスボディなし → 204 No Content
-  │   └─ その他 → 200 OK
-  └─ サーバー内部エラー → 500 Internal Server Error
+Request received
+  |-- Cannot parse JSON? -> 400 Bad Request
+  |-- Auth token missing/invalid? -> 401 Unauthorized
+  |-- Insufficient permissions? -> 403 Forbidden
+  |-- Resource not found? -> 404 Not Found
+  |-- Invalid HTTP method? -> 405 Method Not Allowed
+  |-- Rate limit exceeded? -> 429 Too Many Requests
+  |-- Validation error?
+  |   |-- Missing required parameter -> 400 Bad Request
+  |   +-- Semantically invalid value -> 422 Unprocessable Entity
+  |-- Conflict (duplicate, optimistic lock failure)? -> 409 Conflict
+  |-- Processing succeeded?
+  |   |-- Resource created -> 201 Created
+  |   |-- Async accepted -> 202 Accepted
+  |   |-- No response body -> 204 No Content
+  |   +-- Other -> 200 OK
+  +-- Internal server error -> 500 Internal Server Error
 ```
 
 ---
 
-## 2. エラーレスポンスフォーマット
+## 2. Error Response Format
 
 ### 2.1 RFC 7807 Problem Details
 
 ```json
-// RFC 7807 Problem Details（推奨）
+// RFC 7807 Problem Details (recommended)
 {
   "type": "https://api.example.com/errors/validation",
   "title": "Validation Error",
   "status": 422,
-  "detail": "入力値に問題があります",
+  "detail": "There are issues with the input values",
   "instance": "/api/users",
   "errors": [
     {
       "field": "email",
-      "message": "有効なメールアドレスを入力してください"
+      "message": "Please enter a valid email address"
     },
     {
       "field": "password",
-      "message": "8文字以上で入力してください"
+      "message": "Must be at least 8 characters"
     }
   ],
   "traceId": "abc-123-def"
@@ -162,52 +161,52 @@
 ```
 
 ```
-RFC 7807 の各フィールド:
+RFC 7807 Fields:
 
-  type（必須）:
-    → エラーの種類を識別するURI
-    → ドキュメントページのURLにすると便利
-    → 例: "https://api.example.com/errors/validation"
-    → デフォルト: "about:blank"
+  type (required):
+    -> URI that identifies the error type
+    -> Useful to make it the URL of a documentation page
+    -> Example: "https://api.example.com/errors/validation"
+    -> Default: "about:blank"
 
-  title（必須）:
-    → 人間可読なエラータイトル
-    → type に対応する短い説明
-    → 例: "Validation Error"
+  title (required):
+    -> Human-readable error title
+    -> Short description corresponding to the type
+    -> Example: "Validation Error"
 
-  status（推奨）:
-    → HTTPステータスコード
-    → レスポンスヘッダーと一致させる
-    → 例: 422
+  status (recommended):
+    -> HTTP status code
+    -> Should match the response header
+    -> Example: 422
 
-  detail（推奨）:
-    → エラーの詳細な説明
-    → このリクエスト固有の情報
-    → 例: "入力値に問題があります"
+  detail (recommended):
+    -> Detailed description of the error
+    -> Information specific to this request
+    -> Example: "There are issues with the input values"
 
-  instance（オプション）:
-    → エラーが発生したリクエストのパス
-    → デバッグに有用
-    → 例: "/api/users"
+  instance (optional):
+    -> Path of the request where the error occurred
+    -> Useful for debugging
+    -> Example: "/api/users"
 
-  拡張フィールド（オプション）:
-    → RFC 7807 は拡張可能
-    → errors, traceId, timestamp 等を追加可能
+  Extension fields (optional):
+    -> RFC 7807 is extensible
+    -> Additional fields like errors, traceId, timestamp can be added
 ```
 
-### 2.2 TypeScript 型定義と実装
+### 2.2 TypeScript Type Definitions and Implementation
 
 ```typescript
-// エラーレスポンスの型定義
+// Error response type definition
 interface ApiError {
-  type: string;          // エラーの種類（URL or コード）
-  title: string;         // 人間可読なタイトル
-  status: number;        // HTTPステータス
-  detail: string;        // 詳細メッセージ
-  instance?: string;     // リクエストパス
-  traceId?: string;      // トレーシングID
-  timestamp?: string;    // 発生時刻
-  errors?: FieldError[]; // フィールドレベルのエラー
+  type: string;          // Error type (URL or code)
+  title: string;         // Human-readable title
+  status: number;        // HTTP status
+  detail: string;        // Detailed message
+  instance?: string;     // Request path
+  traceId?: string;      // Tracing ID
+  timestamp?: string;    // Occurrence time
+  errors?: FieldError[]; // Field-level errors
 }
 
 interface FieldError {
@@ -217,7 +216,7 @@ interface FieldError {
   rejectedValue?: unknown;
 }
 
-// アプリケーションエラーの基底クラス
+// Base class for application errors
 class AppError extends Error {
   constructor(
     public readonly code: string,
@@ -231,7 +230,7 @@ class AppError extends Error {
   }
 }
 
-// 具体的なエラークラス
+// Specific error classes
 class NotFoundError extends AppError {
   constructor(resource: string, id: string) {
     super('NOT_FOUND', 404, `${resource} with id '${id}' was not found`, {
@@ -244,7 +243,7 @@ class NotFoundError extends AppError {
 class ValidationError extends AppError {
   constructor(
     public readonly fields: FieldError[],
-    message: string = '入力値に問題があります',
+    message: string = 'There are issues with the input values',
   ) {
     super('VALIDATION_ERROR', 422, message);
   }
@@ -260,13 +259,13 @@ class ConflictError extends AppError {
 }
 
 class UnauthorizedError extends AppError {
-  constructor(message: string = '認証が必要です') {
+  constructor(message: string = 'Authentication required') {
     super('UNAUTHORIZED', 401, message);
   }
 }
 
 class ForbiddenError extends AppError {
-  constructor(message: string = 'この操作を行う権限がありません') {
+  constructor(message: string = 'You do not have permission to perform this action') {
     super('FORBIDDEN', 403, message);
   }
 }
@@ -274,7 +273,7 @@ class ForbiddenError extends AppError {
 class RateLimitError extends AppError {
   constructor(
     public readonly retryAfterSeconds: number,
-    message: string = 'リクエスト制限を超過しました',
+    message: string = 'Request rate limit exceeded',
   ) {
     super('RATE_LIMIT_EXCEEDED', 429, message, { retryAfterSeconds });
   }
@@ -282,7 +281,7 @@ class RateLimitError extends AppError {
 
 class InternalError extends AppError {
   constructor(
-    message: string = 'サーバーエラーが発生しました',
+    message: string = 'A server error occurred',
     public readonly cause?: Error,
   ) {
     super('INTERNAL_ERROR', 500, message);
@@ -290,10 +289,10 @@ class InternalError extends AppError {
 }
 ```
 
-### 2.3 Express エラーミドルウェア
+### 2.3 Express Error Middleware
 
 ```typescript
-// Express ミドルウェア
+// Express middleware
 function errorHandler(
   err: Error,
   req: Request,
@@ -315,17 +314,17 @@ function errorHandler(
       timestamp: new Date().toISOString(),
     };
 
-    // バリデーションエラーの場合はフィールド情報を追加
+    // Add field information for validation errors
     if (err instanceof ValidationError) {
       response.errors = err.fields;
     }
 
-    // レート制限の場合は Retry-After ヘッダーを追加
+    // Add Retry-After header for rate limit errors
     if (err instanceof RateLimitError) {
       res.setHeader('Retry-After', String(err.retryAfterSeconds));
     }
 
-    // ログ出力
+    // Log output
     if (err.statusCode >= 500) {
       logger.error({ err, traceId, path: req.originalUrl }, 'Server error');
     } else if (err.statusCode >= 400) {
@@ -334,7 +333,7 @@ function errorHandler(
 
     res.status(err.statusCode).json(response);
   } else {
-    // 予期しないエラー（内部詳細を隠す）
+    // Unexpected error (hide internal details)
     logger.error(
       { err, traceId, path: req.originalUrl, stack: err.stack },
       'Unexpected error',
@@ -344,7 +343,7 @@ function errorHandler(
       type: 'https://api.example.com/errors/internal',
       title: 'Internal Server Error',
       status: 500,
-      detail: 'サーバーエラーが発生しました',
+      detail: 'A server error occurred',
       instance: req.originalUrl,
       traceId,
       timestamp: new Date().toISOString(),
@@ -352,23 +351,23 @@ function errorHandler(
   }
 }
 
-// ミドルウェアの登録
+// Register middleware
 app.use(errorHandler);
 
-// 404 ハンドラー
+// 404 handler
 app.use((req: Request, res: Response) => {
   res.status(404).json({
     type: 'https://api.example.com/errors/not_found',
     title: 'Not Found',
     status: 404,
-    detail: `${req.method} ${req.originalUrl} は存在しません`,
+    detail: `${req.method} ${req.originalUrl} does not exist`,
     instance: req.originalUrl,
     timestamp: new Date().toISOString(),
   });
 });
 ```
 
-### 2.4 NestJS でのエラー設計
+### 2.4 Error Design in NestJS
 
 ```typescript
 // NestJS: Exception Filter
@@ -419,7 +418,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         status,
         detail: typeof exceptionResponse === 'string'
           ? exceptionResponse
-          : (exceptionResponse as any).message ?? 'エラーが発生しました',
+          : (exceptionResponse as any).message ?? 'An error occurred',
         instance: request.url,
         traceId,
         timestamp: new Date().toISOString(),
@@ -434,7 +433,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         type: 'https://api.example.com/errors/internal',
         title: 'Internal Server Error',
         status: 500,
-        detail: 'サーバーエラーが発生しました',
+        detail: 'A server error occurred',
         instance: request.url,
         traceId,
         timestamp: new Date().toISOString(),
@@ -448,26 +447,26 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
 ---
 
-## 3. バリデーションエラーの設計
+## 3. Validation Error Design
 
-### 3.1 フィールドレベルのエラー
+### 3.1 Field-Level Errors
 
 ```typescript
-// バリデーションエラーの詳細設計
+// Detailed design for validation errors
 interface DetailedFieldError {
-  field: string;         // フィールドのパス（ネストもドット記法で）
-  code: string;          // エラーコード（機械可読）
-  message: string;       // 人間可読メッセージ
-  rejectedValue?: unknown; // 拒否された値（セキュリティに注意）
-  constraints?: Record<string, unknown>; // 制約条件
+  field: string;         // Field path (dot notation for nested fields)
+  code: string;          // Error code (machine-readable)
+  message: string;       // Human-readable message
+  rejectedValue?: unknown; // Rejected value (be mindful of security)
+  constraints?: Record<string, unknown>; // Constraint conditions
 }
 
-// 例: ユーザー登録のバリデーションエラー
+// Example: Validation error for user registration
 const validationErrorExample: ApiError = {
   type: 'https://api.example.com/errors/validation',
   title: 'Validation Error',
   status: 422,
-  detail: '3件のバリデーションエラーがあります',
+  detail: 'There are 3 validation errors',
   instance: '/api/users',
   traceId: 'trace-abc-123',
   timestamp: '2025-01-15T10:30:00Z',
@@ -475,20 +474,20 @@ const validationErrorExample: ApiError = {
     {
       field: 'email',
       code: 'INVALID_FORMAT',
-      message: '有効なメールアドレスを入力してください',
+      message: 'Please enter a valid email address',
       rejectedValue: 'invalid-email',
       constraints: { pattern: '^[^@]+@[^@]+\\.[^@]+$' },
     },
     {
       field: 'password',
       code: 'TOO_SHORT',
-      message: '8文字以上で入力してください',
+      message: 'Must be at least 8 characters',
       constraints: { minLength: 8 },
     },
     {
       field: 'profile.age',
       code: 'OUT_OF_RANGE',
-      message: '0以上130以下の値を入力してください',
+      message: 'Please enter a value between 0 and 130',
       rejectedValue: -1,
       constraints: { min: 0, max: 130 },
     },
@@ -496,23 +495,23 @@ const validationErrorExample: ApiError = {
 };
 ```
 
-### 3.2 バリデーションライブラリとの統合
+### 3.2 Integration with Validation Libraries
 
 ```typescript
-// Zod との統合
+// Integration with Zod
 import { z } from 'zod';
 
 const CreateUserSchema = z.object({
-  email: z.string().email('有効なメールアドレスを入力してください'),
-  password: z.string().min(8, '8文字以上で入力してください'),
-  name: z.string().min(1, '名前を入力してください').max(100),
+  email: z.string().email('Please enter a valid email address'),
+  password: z.string().min(8, 'Must be at least 8 characters'),
+  name: z.string().min(1, 'Please enter a name').max(100),
   profile: z.object({
     age: z.number().int().min(0).max(130).optional(),
     bio: z.string().max(500).optional(),
   }).optional(),
 });
 
-// Zod エラーを API エラーに変換
+// Convert Zod errors to API errors
 function zodToFieldErrors(error: z.ZodError): FieldError[] {
   return error.errors.map((issue) => ({
     field: issue.path.join('.'),
@@ -521,7 +520,7 @@ function zodToFieldErrors(error: z.ZodError): FieldError[] {
   }));
 }
 
-// バリデーションミドルウェア
+// Validation middleware
 function validate<T>(schema: z.ZodSchema<T>) {
   return (req: Request, res: Response, next: NextFunction) => {
     const result = schema.safeParse(req.body);
@@ -533,7 +532,7 @@ function validate<T>(schema: z.ZodSchema<T>) {
   };
 }
 
-// 使用例
+// Usage example
 app.post('/api/users', validate(CreateUserSchema), async (req, res) => {
   const user = await userService.create(req.body);
   res.status(201).json(user);
@@ -541,7 +540,7 @@ app.post('/api/users', validate(CreateUserSchema), async (req, res) => {
 ```
 
 ```python
-# Python: Pydantic との統合
+# Python: Integration with Pydantic
 from pydantic import BaseModel, EmailStr, Field, validator
 from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
@@ -559,13 +558,13 @@ class CreateUserRequest(BaseModel):
     @validator('password')
     def password_strength(cls, v):
         if not any(c.isupper() for c in v):
-            raise ValueError('大文字を1文字以上含めてください')
+            raise ValueError('Must contain at least one uppercase letter')
         if not any(c.isdigit() for c in v):
-            raise ValueError('数字を1文字以上含めてください')
+            raise ValueError('Must contain at least one digit')
         return v
 
 
-# Pydantic バリデーションエラーを RFC 7807 に変換
+# Convert Pydantic validation errors to RFC 7807
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(
     request: Request,
@@ -586,7 +585,7 @@ async def validation_exception_handler(
             'type': 'https://api.example.com/errors/validation',
             'title': 'Validation Error',
             'status': 422,
-            'detail': f'{len(errors)}件のバリデーションエラーがあります',
+            'detail': f'{len(errors)} validation error(s) found',
             'instance': str(request.url.path),
             'errors': errors,
             'timestamp': datetime.utcnow().isoformat() + 'Z',
@@ -599,29 +598,29 @@ async def create_user(user: CreateUserRequest):
     return await user_service.create(user)
 ```
 
-### 3.3 ビジネスルールバリデーション
+### 3.3 Business Rule Validation
 
 ```typescript
-// ビジネスルールのバリデーション
+// Business rule validation
 class OrderValidator {
   async validate(order: CreateOrderInput): Promise<FieldError[]> {
     const errors: FieldError[] = [];
 
-    // 在庫チェック
+    // Stock check
     for (const item of order.items) {
       const stock = await this.stockService.getAvailable(item.productId);
       if (stock < item.quantity) {
         errors.push({
           field: `items[${item.productId}].quantity`,
           code: 'INSUFFICIENT_STOCK',
-          message: `在庫が不足しています（残り${stock}個）`,
+          message: `Insufficient stock (${stock} remaining)`,
           rejectedValue: item.quantity,
           constraints: { available: stock },
         });
       }
     }
 
-    // 注文金額チェック
+    // Order amount check
     const total = order.items.reduce(
       (sum, item) => sum + item.price * item.quantity, 0,
     );
@@ -629,13 +628,13 @@ class OrderValidator {
       errors.push({
         field: 'total',
         code: 'AMOUNT_EXCEEDS_LIMIT',
-        message: '1回の注文は100万円以下にしてください',
+        message: 'A single order must be 1,000,000 yen or less',
         rejectedValue: total,
         constraints: { maxAmount: 1_000_000 },
       });
     }
 
-    // 配送先チェック
+    // Shipping address check
     if (order.shippingAddress) {
       const isDeliverable = await this.shippingService.isDeliverable(
         order.shippingAddress.zipCode,
@@ -644,7 +643,7 @@ class OrderValidator {
         errors.push({
           field: 'shippingAddress.zipCode',
           code: 'UNDELIVERABLE_AREA',
-          message: 'この郵便番号への配送は対応していません',
+          message: 'Delivery to this postal code is not supported',
           rejectedValue: order.shippingAddress.zipCode,
         });
       }
@@ -654,12 +653,12 @@ class OrderValidator {
   }
 }
 
-// コントローラーでの使用
+// Usage in controller
 app.post('/api/orders', async (req, res) => {
-  // 構文バリデーション（Zod）
+  // Syntax validation (Zod)
   const input = CreateOrderSchema.parse(req.body);
 
-  // ビジネスルールバリデーション
+  // Business rule validation
   const validator = new OrderValidator();
   const errors = await validator.validate(input);
 
@@ -674,74 +673,74 @@ app.post('/api/orders', async (req, res) => {
 
 ---
 
-## 4. エラー設計のベストプラクティス
+## 4. Error Design Best Practices
 
-### 4.1 設計原則
+### 4.1 Design Principles
 
 ```
-1. 一貫性
-   → 全エンドポイントで同じエラーフォーマット
-   → ステータスコードの使い方を統一
-   → Content-Type: application/problem+json（RFC 7807）
+1. Consistency
+   -> Same error format across all endpoints
+   -> Unified use of status codes
+   -> Content-Type: application/problem+json (RFC 7807)
 
-2. セキュリティ
-   → 500エラーで内部情報を漏らさない
-   → スタックトレースは本番では非表示
-   → 「ユーザーが存在しない」vs「パスワードが違う」を区別しない
-   → SQLエラーの詳細を返さない
-   → 内部のクラス名やファイルパスを返さない
+2. Security
+   -> Do not leak internal information in 500 errors
+   -> Stack traces hidden in production
+   -> Do not differentiate between "user does not exist" and "wrong password"
+   -> Do not return SQL error details
+   -> Do not return internal class names or file paths
 
-3. 機械可読性
-   → エラーコードは文字列（enum対応）
-   → HTTPステータスとエラーコードの組み合わせ
-   → type フィールドでドキュメントへリンク
+3. Machine Readability
+   -> Error codes as strings (enum-compatible)
+   -> Combination of HTTP status and error codes
+   -> type field links to documentation
 
-4. 人間可読性
-   → detail フィールドで具体的なメッセージ
-   → フィールドレベルのバリデーションエラー
-   → エンドユーザーに表示可能なメッセージ
+4. Human Readability
+   -> Specific messages in the detail field
+   -> Field-level validation errors
+   -> Messages displayable to end users
 
-5. リトライ可能性の明示
-   → 429: Retry-After ヘッダー
-   → 503: Retry-After ヘッダー
-   → エラーコードでリトライ判定可能に
+5. Retryability Indication
+   -> 429: Retry-After header
+   -> 503: Retry-After header
+   -> Enable retry decisions based on error codes
 
-6. デバッグ容易性
-   → traceId でリクエストを追跡
-   → timestamp で時系列を追跡
-   → instance でエンドポイントを特定
+6. Debugging Ease
+   -> Track requests with traceId
+   -> Track timeline with timestamp
+   -> Identify endpoints with instance
 ```
 
-### 4.2 エラーコード体系
+### 4.2 Error Code System
 
 ```typescript
-// エラーコードの体系的な設計
+// Systematic error code design
 const ERROR_CODES = {
-  // 認証・認可
+  // Authentication & Authorization
   AUTH_TOKEN_EXPIRED: { status: 401, title: 'Token Expired' },
   AUTH_TOKEN_INVALID: { status: 401, title: 'Invalid Token' },
   AUTH_INSUFFICIENT_PERMISSIONS: { status: 403, title: 'Insufficient Permissions' },
 
-  // バリデーション
+  // Validation
   VALIDATION_FAILED: { status: 422, title: 'Validation Failed' },
   VALIDATION_REQUIRED_FIELD: { status: 422, title: 'Required Field Missing' },
   VALIDATION_INVALID_FORMAT: { status: 422, title: 'Invalid Format' },
 
-  // リソース
+  // Resources
   RESOURCE_NOT_FOUND: { status: 404, title: 'Resource Not Found' },
   RESOURCE_ALREADY_EXISTS: { status: 409, title: 'Resource Already Exists' },
   RESOURCE_CONFLICT: { status: 409, title: 'Resource Conflict' },
   RESOURCE_GONE: { status: 410, title: 'Resource Gone' },
 
-  // レート制限
+  // Rate Limiting
   RATE_LIMIT_EXCEEDED: { status: 429, title: 'Rate Limit Exceeded' },
 
-  // ビジネスロジック
+  // Business Logic
   BUSINESS_INSUFFICIENT_BALANCE: { status: 422, title: 'Insufficient Balance' },
   BUSINESS_ORDER_LIMIT_EXCEEDED: { status: 422, title: 'Order Limit Exceeded' },
   BUSINESS_ACCOUNT_SUSPENDED: { status: 403, title: 'Account Suspended' },
 
-  // サーバーエラー
+  // Server Errors
   INTERNAL_ERROR: { status: 500, title: 'Internal Server Error' },
   SERVICE_UNAVAILABLE: { status: 503, title: 'Service Unavailable' },
   UPSTREAM_ERROR: { status: 502, title: 'Upstream Service Error' },
@@ -749,7 +748,7 @@ const ERROR_CODES = {
 
 type ErrorCode = keyof typeof ERROR_CODES;
 
-// エラーコードから ApiError を構築
+// Build ApiError from error code
 function createApiError(
   code: ErrorCode,
   detail: string,
@@ -766,54 +765,54 @@ function createApiError(
 }
 ```
 
-### 4.3 セキュリティ考慮事項
+### 4.3 Security Considerations
 
 ```typescript
-// セキュリティを考慮したエラーレスポンス
+// Security-conscious error responses
 
-// 認証エラー: ユーザーの存在を漏らさない
+// Authentication error: do not reveal user existence
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
 
   const user = await userService.findByEmail(email);
 
-  // ✗ Bad: ユーザーの存在を漏らす
+  // X Bad: reveals user existence
   // if (!user) throw new NotFoundError('User', email);
   // if (!bcrypt.compareSync(password, user.password)) throw new Error('Wrong password');
 
-  // ✓ Good: 同じメッセージを返す
+  // O Good: return the same message
   if (!user || !await bcrypt.compare(password, user.passwordHash)) {
-    throw new UnauthorizedError('メールアドレスまたはパスワードが正しくありません');
+    throw new UnauthorizedError('Email address or password is incorrect');
   }
 
-  // タイミング攻撃への対策
-  // ユーザーが見つからない場合もハッシュ比較を行う
+  // Timing attack mitigation
+  // Perform hash comparison even when user is not found
   const dummyHash = '$2b$10$dummyhashfortimingattackprevention';
   if (!user) {
-    await bcrypt.compare(password, dummyHash); // 処理時間を均一化
-    throw new UnauthorizedError('メールアドレスまたはパスワードが正しくありません');
+    await bcrypt.compare(password, dummyHash); // Equalize processing time
+    throw new UnauthorizedError('Email address or password is incorrect');
   }
 });
 
-// 500エラー: 内部情報を隠す
+// 500 error: hide internal information
 function sanitizeError(err: Error, isProduction: boolean): ApiError {
   if (isProduction) {
     return {
       type: 'https://api.example.com/errors/internal',
       title: 'Internal Server Error',
       status: 500,
-      detail: 'サーバーエラーが発生しました。しばらくしてから再度お試しください。',
-      // スタックトレース、SQLクエリ、ファイルパス等は含めない
+      detail: 'A server error occurred. Please try again later.',
+      // Do not include stack traces, SQL queries, file paths, etc.
     };
   }
 
-  // 開発環境では詳細情報を返す
+  // Return detailed information in development environments
   return {
     type: 'https://api.example.com/errors/internal',
     title: 'Internal Server Error',
     status: 500,
     detail: err.message,
-    // 開発環境でのみ追加情報を含める
+    // Include additional information only in development environments
     ...(isProduction ? {} : {
       stack: err.stack,
       cause: err.cause ? String(err.cause) : undefined,
@@ -821,24 +820,24 @@ function sanitizeError(err: Error, isProduction: boolean): ApiError {
   };
 }
 
-// レート制限エラーの情報開示
-// ✗ Bad: レート制限の詳細を公開
+// Rate limit error information disclosure
+// X Bad: exposes rate limit details
 // { "detail": "100 requests per minute exceeded. Current: 105" }
 
-// ✓ Good: 必要最小限の情報
-// { "detail": "リクエスト制限を超過しました", "retryAfter": 30 }
+// O Good: minimum necessary information
+// { "detail": "Request rate limit exceeded", "retryAfter": 30 }
 ```
 
 ---
 
-## 5. エラーの国際化（i18n）
+## 5. Error Internationalization (i18n)
 
-### 5.1 多言語対応の設計
+### 5.1 Multi-Language Support Design
 
 ```typescript
-// エラーメッセージの国際化
+// Error message internationalization
 
-// メッセージカタログ
+// Message catalog
 const errorMessages: Record<string, Record<string, string>> = {
   en: {
     'VALIDATION_FAILED': 'Validation failed',
@@ -853,20 +852,20 @@ const errorMessages: Record<string, Record<string, string>> = {
     'INTERNAL_ERROR': 'An internal error occurred. Please try again later.',
   },
   ja: {
-    'VALIDATION_FAILED': '入力値に問題があります',
-    'VALIDATION_REQUIRED': '{field}は必須です',
-    'VALIDATION_TOO_SHORT': '{field}は{min}文字以上で入力してください',
-    'VALIDATION_TOO_LONG': '{field}は{max}文字以下で入力してください',
-    'VALIDATION_INVALID_EMAIL': '有効なメールアドレスを入力してください',
-    'NOT_FOUND': '{resource}が見つかりません',
-    'UNAUTHORIZED': '認証が必要です',
-    'FORBIDDEN': 'この操作を行う権限がありません',
-    'RATE_LIMIT': 'リクエスト制限を超過しました。しばらくしてから再試行してください。',
-    'INTERNAL_ERROR': 'サーバーエラーが発生しました。しばらくしてから再試行してください。',
+    'VALIDATION_FAILED': 'There are issues with the input values',
+    'VALIDATION_REQUIRED': '{field} is required',
+    'VALIDATION_TOO_SHORT': '{field} must be at least {min} characters',
+    'VALIDATION_TOO_LONG': '{field} must be at most {max} characters',
+    'VALIDATION_INVALID_EMAIL': 'Please enter a valid email address',
+    'NOT_FOUND': '{resource} not found',
+    'UNAUTHORIZED': 'Authentication required',
+    'FORBIDDEN': 'You do not have permission to perform this action',
+    'RATE_LIMIT': 'Request rate limit exceeded. Please try again later.',
+    'INTERNAL_ERROR': 'A server error occurred. Please try again later.',
   },
 };
 
-// フィールド名の翻訳
+// Field name translations
 const fieldNames: Record<string, Record<string, string>> = {
   en: {
     'email': 'Email',
@@ -875,14 +874,14 @@ const fieldNames: Record<string, Record<string, string>> = {
     'age': 'Age',
   },
   ja: {
-    'email': 'メールアドレス',
-    'password': 'パスワード',
-    'name': '名前',
-    'age': '年齢',
+    'email': 'Email address',
+    'password': 'Password',
+    'name': 'Name',
+    'age': 'Age',
   },
 };
 
-// メッセージの解決
+// Message resolution
 function resolveMessage(
   code: string,
   locale: string,
@@ -891,7 +890,7 @@ function resolveMessage(
   const messages = errorMessages[locale] ?? errorMessages['en'];
   let template = messages[code] ?? messages['INTERNAL_ERROR'];
 
-  // プレースホルダーを置換
+  // Replace placeholders
   for (const [key, value] of Object.entries(params)) {
     template = template.replace(`{${key}}`, String(value));
   }
@@ -899,17 +898,17 @@ function resolveMessage(
   return template;
 }
 
-// Accept-Language ヘッダーからロケールを決定
+// Determine locale from Accept-Language header
 function getLocale(req: Request): string {
   const acceptLanguage = req.headers['accept-language'];
   if (!acceptLanguage) return 'en';
 
-  // 簡易的なパース
+  // Simple parsing
   const preferred = acceptLanguage.split(',')[0].split(';')[0].trim().substring(0, 2);
   return errorMessages[preferred] ? preferred : 'en';
 }
 
-// i18n対応のエラーミドルウェア
+// i18n-enabled error middleware
 function i18nErrorHandler(
   err: Error,
   req: Request,
@@ -957,12 +956,12 @@ function i18nErrorHandler(
 
 ---
 
-## 6. クライアント側のエラーハンドリング
+## 6. Client-Side Error Handling
 
-### 6.1 TypeScript HTTP クライアント
+### 6.1 TypeScript HTTP Client
 
 ```typescript
-// APIクライアントのエラーハンドリング
+// API client error handling
 class ApiClient {
   private baseUrl: string;
 
@@ -998,7 +997,7 @@ class ApiClient {
         throw new ApiRequestError(response.status, errorBody);
       }
 
-      // 204 No Content の場合
+      // Handle 204 No Content
       if (response.status === 204) {
         return undefined as T;
       }
@@ -1009,16 +1008,16 @@ class ApiClient {
         throw error;
       }
 
-      // ネットワークエラー
+      // Network error
       throw new NetworkError(
-        'ネットワーク接続に問題があります',
+        'There is a problem with the network connection',
         error as Error,
       );
     }
   }
 }
 
-// APIリクエストエラー
+// API request error
 class ApiRequestError extends Error {
   constructor(
     public readonly statusCode: number,
@@ -1053,7 +1052,7 @@ class ApiRequestError extends Error {
   }
 }
 
-// React コンポーネントでの使用例
+// Usage example in a React component
 function UserRegistrationForm() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
@@ -1072,7 +1071,7 @@ function UserRegistrationForm() {
     } catch (error) {
       if (error instanceof ApiRequestError) {
         if (error.isValidationError) {
-          // フィールドレベルのエラーをフォームに表示
+          // Display field-level errors on the form
           const errors: Record<string, string> = {};
           for (const fieldError of error.fieldErrors) {
             errors[fieldError.field] = fieldError.message;
@@ -1084,9 +1083,9 @@ function UserRegistrationForm() {
           setGlobalError(error.apiError.detail);
         }
       } else if (error instanceof NetworkError) {
-        setGlobalError('ネットワーク接続を確認してください');
+        setGlobalError('Please check your network connection');
       } else {
-        setGlobalError('予期しないエラーが発生しました');
+        setGlobalError('An unexpected error occurred');
       }
     }
   }
@@ -1101,7 +1100,7 @@ function UserRegistrationForm() {
 
       {globalError && <div className="alert alert-error">{globalError}</div>}
 
-      <button type="submit">登録</button>
+      <button type="submit">Register</button>
     </form>
   );
 }
@@ -1109,35 +1108,35 @@ function UserRegistrationForm() {
 
 ---
 
-## 7. GraphQL のエラー設計
+## 7. GraphQL Error Design
 
-### 7.1 GraphQL エラーの特性
+### 7.1 Characteristics of GraphQL Errors
 
 ```
-GraphQL のエラーは REST とは異なる:
+GraphQL errors differ from REST:
 
   REST:
-    → HTTPステータスコードでエラーの種類を示す
-    → ボディにエラー詳細を含める
-    → 1リクエスト = 1レスポンス
+    -> Indicates error type via HTTP status codes
+    -> Includes error details in the body
+    -> 1 request = 1 response
 
   GraphQL:
-    → 常に HTTP 200 を返す（クエリ自体は成功）
-    → errors フィールドでエラーを返す
-    → 部分的な成功が可能（data と errors が共存）
-    → 1リクエストに複数のクエリを含められる
+    -> Always returns HTTP 200 (the query itself succeeded)
+    -> Returns errors in the errors field
+    -> Partial success is possible (data and errors coexist)
+    -> A single request can contain multiple queries
 ```
 
 ```typescript
-// GraphQL エラーレスポンスの例
+// GraphQL error response example
 const graphqlErrorResponse = {
   data: {
-    user: { id: '1', name: '田中太郎' },
-    orders: null, // エラーで取得できなかった
+    user: { id: '1', name: 'Taro Tanaka' },
+    orders: null, // Failed to retrieve due to error
   },
   errors: [
     {
-      message: '注文情報の取得に失敗しました',
+      message: 'Failed to retrieve order information',
       locations: [{ line: 3, column: 5 }],
       path: ['orders'],
       extensions: {
@@ -1149,7 +1148,7 @@ const graphqlErrorResponse = {
   ],
 };
 
-// Apollo Server でのエラー定義
+// Error definitions in Apollo Server
 import { GraphQLError } from 'graphql';
 
 class NotFoundGraphQLError extends GraphQLError {
@@ -1177,7 +1176,7 @@ class ValidationGraphQLError extends GraphQLError {
   }
 }
 
-// Resolver でのエラー使用
+// Error usage in resolvers
 const resolvers = {
   Query: {
     user: async (_, { id }) => {
@@ -1202,56 +1201,56 @@ const resolvers = {
 
 ---
 
-## 8. gRPC のエラー設計
+## 8. gRPC Error Design
 
-### 8.1 gRPC ステータスコード
+### 8.1 gRPC Status Codes
 
 ```
-gRPC ステータスコード:
-  OK (0)              — 成功
-  CANCELLED (1)       — クライアントがキャンセル
-  UNKNOWN (2)         — 不明なエラー
-  INVALID_ARGUMENT (3) — 不正な引数
-  DEADLINE_EXCEEDED (4) — デッドライン超過
-  NOT_FOUND (5)       — リソースが存在しない
-  ALREADY_EXISTS (6)   — リソースが既に存在
-  PERMISSION_DENIED (7) — 権限なし
-  RESOURCE_EXHAUSTED (8) — リソース枯渇
-  FAILED_PRECONDITION (9) — 前提条件の不一致
-  ABORTED (10)        — 操作が中断（トランザクション競合等）
-  OUT_OF_RANGE (11)    — 範囲外
-  UNIMPLEMENTED (12)   — 未実装
-  INTERNAL (13)        — 内部エラー
-  UNAVAILABLE (14)     — サービス利用不可
-  DATA_LOSS (15)       — データ損失
-  UNAUTHENTICATED (16) — 認証なし
+gRPC Status Codes:
+  OK (0)              - Success
+  CANCELLED (1)       - Cancelled by client
+  UNKNOWN (2)         - Unknown error
+  INVALID_ARGUMENT (3) - Invalid argument
+  DEADLINE_EXCEEDED (4) - Deadline exceeded
+  NOT_FOUND (5)       - Resource does not exist
+  ALREADY_EXISTS (6)   - Resource already exists
+  PERMISSION_DENIED (7) - No permission
+  RESOURCE_EXHAUSTED (8) - Resource exhausted
+  FAILED_PRECONDITION (9) - Precondition mismatch
+  ABORTED (10)        - Operation aborted (transaction conflict, etc.)
+  OUT_OF_RANGE (11)    - Out of range
+  UNIMPLEMENTED (12)   - Not implemented
+  INTERNAL (13)        - Internal error
+  UNAVAILABLE (14)     - Service unavailable
+  DATA_LOSS (15)       - Data loss
+  UNAUTHENTICATED (16) - Not authenticated
 
-HTTP ステータスとの対応:
-  INVALID_ARGUMENT   ↔ 400 Bad Request
-  UNAUTHENTICATED    ↔ 401 Unauthorized
-  PERMISSION_DENIED  ↔ 403 Forbidden
-  NOT_FOUND          ↔ 404 Not Found
-  ALREADY_EXISTS     ↔ 409 Conflict
-  RESOURCE_EXHAUSTED ↔ 429 Too Many Requests
-  INTERNAL           ↔ 500 Internal Server Error
-  UNAVAILABLE        ↔ 503 Service Unavailable
-  DEADLINE_EXCEEDED  ↔ 504 Gateway Timeout
+Mapping to HTTP Status:
+  INVALID_ARGUMENT   <-> 400 Bad Request
+  UNAUTHENTICATED    <-> 401 Unauthorized
+  PERMISSION_DENIED  <-> 403 Forbidden
+  NOT_FOUND          <-> 404 Not Found
+  ALREADY_EXISTS     <-> 409 Conflict
+  RESOURCE_EXHAUSTED <-> 429 Too Many Requests
+  INTERNAL           <-> 500 Internal Server Error
+  UNAVAILABLE        <-> 503 Service Unavailable
+  DEADLINE_EXCEEDED  <-> 504 Gateway Timeout
 ```
 
 ```protobuf
-// gRPC エラー詳細（google.rpc.Status）
+// gRPC error details (google.rpc.Status)
 syntax = "proto3";
 
 import "google/rpc/status.proto";
 import "google/rpc/error_details.proto";
 
-// エラー詳細を含むレスポンス
+// Response containing error details
 message ErrorResponse {
   google.rpc.Status status = 1;
 }
 
-// バリデーションエラーの詳細
-// google.rpc.BadRequest を使用
+// Validation error details
+// Using google.rpc.BadRequest
 message BadRequest {
   repeated FieldViolation field_violations = 1;
 
@@ -1263,7 +1262,7 @@ message BadRequest {
 ```
 
 ```go
-// Go: gRPC エラーの送信
+// Go: Sending gRPC errors
 import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -1282,7 +1281,7 @@ func (s *UserService) GetUser(ctx context.Context, req *pb.GetUserRequest) (*pb.
 }
 
 func (s *UserService) CreateUser(ctx context.Context, req *pb.CreateUserRequest) (*pb.User, error) {
-	// バリデーションエラーの詳細
+	// Validation error details
 	violations := validateCreateUser(req)
 	if len(violations) > 0 {
 		st := status.New(codes.InvalidArgument, "validation failed")
@@ -1299,12 +1298,12 @@ func (s *UserService) CreateUser(ctx context.Context, req *pb.CreateUserRequest)
 
 ---
 
-## 9. エラードキュメントの自動生成
+## 9. Automatic Error Documentation Generation
 
-### 9.1 OpenAPI でのエラー定義
+### 9.1 Error Definition in OpenAPI
 
 ```yaml
-# OpenAPI 3.0: エラーレスポンスの定義
+# OpenAPI 3.0: Error response definition
 openapi: "3.0.0"
 info:
   title: Example API
@@ -1313,7 +1312,7 @@ info:
 paths:
   /api/users:
     post:
-      summary: ユーザー作成
+      summary: Create user
       requestBody:
         required: true
         content:
@@ -1322,7 +1321,7 @@ paths:
               $ref: '#/components/schemas/CreateUserRequest'
       responses:
         '201':
-          description: ユーザー作成成功
+          description: User created successfully
           content:
             application/json:
               schema:
@@ -1345,32 +1344,32 @@ components:
         type:
           type: string
           format: uri
-          description: エラーの種類を識別するURI
+          description: URI identifying the error type
           example: "https://api.example.com/errors/validation"
         title:
           type: string
-          description: エラータイトル
+          description: Error title
           example: "Validation Error"
         status:
           type: integer
-          description: HTTPステータスコード
+          description: HTTP status code
           example: 422
         detail:
           type: string
-          description: エラーの詳細
-          example: "入力値に問題があります"
+          description: Error details
+          example: "There are issues with the input values"
         instance:
           type: string
-          description: リクエストパス
+          description: Request path
           example: "/api/users"
         traceId:
           type: string
-          description: トレーシングID
+          description: Tracing ID
           example: "abc-123-def"
         timestamp:
           type: string
           format: date-time
-          description: エラー発生時刻
+          description: Error occurrence time
         errors:
           type: array
           items:
@@ -1382,38 +1381,38 @@ components:
       properties:
         field:
           type: string
-          description: エラーのあるフィールド
+          description: Field with the error
           example: "email"
         code:
           type: string
-          description: エラーコード
+          description: Error code
           example: "INVALID_FORMAT"
         message:
           type: string
-          description: エラーメッセージ
-          example: "有効なメールアドレスを入力してください"
+          description: Error message
+          example: "Please enter a valid email address"
 
   responses:
     BadRequest:
-      description: リクエストが不正
+      description: Invalid request
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/ProblemDetail'
     ValidationError:
-      description: バリデーションエラー
+      description: Validation error
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/ProblemDetail'
     Conflict:
-      description: リソース競合
+      description: Resource conflict
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/ProblemDetail'
     InternalError:
-      description: サーバーエラー
+      description: Server error
       content:
         application/problem+json:
           schema:
@@ -1423,45 +1422,45 @@ components:
 
 ---
 
-## 実践演習
+## Practical Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that satisfies the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate input data
+- Implement proper error handling
+- Create test code as well
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Basic implementation template
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Exercise for basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main logic for data processing"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Retrieve processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1470,26 +1469,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "An exception should have been raised"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation by adding the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Advanced patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Exercise for advanced patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1497,7 +1496,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1508,14 +1507,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Remove by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1523,7 +1522,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1531,44 +1530,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # Size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1577,7 +1576,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1592,47 +1591,47 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient: {slow_time:.4f}s")
+    print(f"Efficient:   {fast_time:.6f}s")
+    print(f"Speedup:     {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key Points:**
+- Be conscious of algorithm complexity
+- Choose appropriate data structures
+- Measure the effect with benchmarks
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
-|--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Error | Cause | Solution |
+|-------|-------|----------|
+| Initialization error | Configuration file issues | Verify the path and format of configuration files |
+| Timeout | Network latency/resource shortage | Adjust timeout values, add retry logic |
+| Out of memory | Increased data volume | Introduce batch processing, implement pagination |
+| Permission error | Insufficient access permissions | Verify user permissions, review configuration |
+| Data inconsistency | Concurrent processing conflicts | Introduce locking mechanisms, transaction management |
 
-### デバッグの手順
+### Debugging Steps
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check error messages**: Read the stack trace and identify the location of occurrence
+2. **Establish reproduction steps**: Reproduce the error with minimal code
+3. **Form hypotheses**: List possible causes
+4. **Verify step by step**: Use log output or debuggers to verify hypotheses
+5. **Fix and regression test**: After fixing, run tests on related areas as well
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utility
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -1640,86 +1639,86 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs function input and output"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Call: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception: {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debug target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Issues
 
-パフォーマンス問題が発生した場合の診断手順:
+Steps for diagnosing performance issues:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify bottlenecks**: Measure with profiling tools
+2. **Check memory usage**: Check for memory leaks
+3. **Check I/O waits**: Check the status of disk and network I/O
+4. **Check concurrent connections**: Check the status of the connection pool
 
-| 問題の種類 | 診断ツール | 対策 |
-|-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| Problem Type | Diagnostic Tool | Countermeasure |
+|-------------|-----------------|----------------|
+| CPU load | cProfile, py-spy | Algorithm improvement, parallelization |
+| Memory leak | tracemalloc, objgraph | Proper reference release |
+| I/O bottleneck | strace, iostat | Async I/O, caching |
+| DB latency | EXPLAIN, slow query log | Indexing, query optimization |
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the basics and jumping to advanced topics. We recommend thoroughly understanding the fundamental concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-| 原則 | ポイント |
-|------|---------|
-| ステータスコード | 正しいコードを選ぶ（4xx vs 5xx） |
-| フォーマット | RFC 7807 Problem Details 準拠 |
-| セキュリティ | 内部情報を漏らさない |
-| 一貫性 | 全エンドポイントで統一 |
-| バリデーション | フィールドレベルの詳細エラー |
-| リトライ | Retry-After ヘッダー |
-| 国際化 | Accept-Language 対応 |
-| ドキュメント | OpenAPI でエラー定義 |
-| エラーコード | 体系的なコード設計 |
-| クライアントDX | 使いやすいエラーレスポンス |
+Knowledge of this topic is frequently applied in day-to-day development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Principle | Key Point |
+|-----------|-----------|
+| Status Codes | Choose the correct code (4xx vs 5xx) |
+| Format | Comply with RFC 7807 Problem Details |
+| Security | Do not leak internal information |
+| Consistency | Unified across all endpoints |
+| Validation | Detailed field-level errors |
+| Retry | Retry-After header |
+| Internationalization | Accept-Language support |
+| Documentation | Define errors in OpenAPI |
+| Error Codes | Systematic code design |
+| Client DX | User-friendly error responses |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
+
+---
+
+## References
 1. RFC 7807. "Problem Details for HTTP APIs." IETF, 2016.
-2. RFC 9457. "Problem Details for HTTP APIs." IETF, 2023.（RFC 7807 の後継）
+2. RFC 9457. "Problem Details for HTTP APIs." IETF, 2023. (Successor to RFC 7807)
 3. Fielding, R. "REST APIs must be hypertext-driven." 2008.
 4. Google Cloud API Design Guide. "Errors." cloud.google.com.
 5. Microsoft REST API Guidelines. "Error Handling." github.com/microsoft.

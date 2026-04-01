@@ -1,30 +1,30 @@
-# 実践パターン集
+# Real-World Pattern Collection
 
-> 実際のプロジェクトでよく使われる非同期 + エラーハンドリングのパターンを集約。キュー処理、WebSocket、ファイルアップロード、バッチ処理など。
+> A consolidated collection of async + error handling patterns commonly used in real projects. Covers queue processing, WebSocket, file uploads, batch processing, and more.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] 実践的な非同期パターンを習得する
-- [ ] エラーハンドリングの実装例を把握する
-- [ ] プロダクションレベルのコードパターンを学ぶ
-- [ ] サーキットブレーカー、レート制限の実装を理解する
-- [ ] 分散システムでの非同期パターンを把握する
+- [ ] Master practical asynchronous patterns
+- [ ] Understand error handling implementation examples
+- [ ] Learn production-level code patterns
+- [ ] Understand circuit breaker and rate limiting implementations
+- [ ] Grasp asynchronous patterns in distributed systems
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [非同期テスト](./02-testing-async.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Familiarity with the content in [Testing Async Code](./02-testing-async.md)
 
 ---
 
-## 1. ジョブキュー処理
+## 1. Job Queue Processing
 
 ```typescript
-// ジョブキュー: 信頼性の高い非同期処理
+// Job queue: Reliable asynchronous processing
 interface Job<T = unknown> {
   id: string;
   type: string;
@@ -73,7 +73,7 @@ class JobProcessor {
     } catch (error) {
       job.attempts++;
       if (job.attempts < job.maxAttempts) {
-        // リトライキューに戻す（指数バックオフ）
+        // Return to retry queue (exponential backoff)
         const delay = Math.pow(2, job.attempts) * 1000;
         await this.scheduleRetry(job, delay);
         this.metrics.failed++;
@@ -84,7 +84,7 @@ class JobProcessor {
           error: (error as Error).message,
         };
       } else {
-        // 最大リトライ超過 → デッドレターキューに移動
+        // Max retries exceeded → Move to dead letter queue
         await this.moveToDeadLetter(job, error as Error);
         this.metrics.deadLettered++;
         return {
@@ -98,7 +98,7 @@ class JobProcessor {
   }
 
   private async markCompleted(job: Job): Promise<void> {
-    // DB更新: ジョブのステータスを完了に
+    // DB update: Set job status to completed
     await db.query(
       'UPDATE jobs SET status = $1, completed_at = NOW() WHERE id = $2',
       ['completed', job.id],
@@ -127,7 +127,7 @@ class JobProcessor {
   }
 }
 
-// 登録と使用
+// Registration and usage
 const processor = new JobProcessor();
 processor.register('send-email', async (data) => {
   await emailService.send(data.to, data.subject, data.body);
@@ -141,10 +141,10 @@ processor.register('generate-report', async (data) => {
 });
 ```
 
-### 1.1 優先度付きジョブキュー
+### 1.1 Priority Job Queue
 
 ```typescript
-// 優先度付きキューの実装
+// Priority queue implementation
 class PriorityJobQueue {
   private queues: Map<number, Job[]> = new Map();
   private processing = false;
@@ -156,7 +156,7 @@ class PriorityJobQueue {
   }
 
   enqueue(job: Job): void {
-    const priority = job.priority ?? 5; // デフォルト優先度5
+    const priority = job.priority ?? 5; // Default priority 5
     if (!this.queues.has(priority)) {
       this.queues.set(priority, []);
     }
@@ -165,7 +165,7 @@ class PriorityJobQueue {
   }
 
   private getNextJob(): Job | undefined {
-    // 優先度の高い順（小さい数 = 高い優先度）
+    // Process in order of priority (lower number = higher priority)
     const sortedPriorities = [...this.queues.keys()].sort((a, b) => a - b);
 
     for (const priority of sortedPriorities) {
@@ -189,15 +189,15 @@ class PriorityJobQueue {
       await processor.process(job);
     } finally {
       this.activeJobs--;
-      this.processNext(); // 次のジョブを処理
+      this.processNext(); // Process the next job
     }
   }
 }
 
-// 使用例
+// Usage example
 const queue = new PriorityJobQueue(10);
 
-// 高優先度: 決済処理
+// High priority: Payment processing
 queue.enqueue({
   id: 'pay-001',
   type: 'process-payment',
@@ -205,10 +205,10 @@ queue.enqueue({
   attempts: 0,
   maxAttempts: 5,
   createdAt: new Date(),
-  priority: 1, // 最高優先度
+  priority: 1, // Highest priority
 });
 
-// 低優先度: レポート生成
+// Low priority: Report generation
 queue.enqueue({
   id: 'rep-001',
   type: 'generate-report',
@@ -216,16 +216,16 @@ queue.enqueue({
   attempts: 0,
   maxAttempts: 3,
   createdAt: new Date(),
-  priority: 10, // 低優先度
+  priority: 10, // Low priority
 });
 ```
 
 ---
 
-## 2. WebSocket のエラーハンドリング
+## 2. WebSocket Error Handling
 
 ```typescript
-// WebSocket: 自動再接続パターン
+// WebSocket: Auto-reconnection pattern
 interface WebSocketConfig {
   url: string;
   maxReconnectAttempts?: number;
@@ -272,7 +272,7 @@ class ResilientWebSocket {
       try {
         const data = JSON.parse(event.data);
 
-        // Pongメッセージは無視
+        // Ignore pong messages
         if (data.type === 'pong') return;
 
         this.config.onMessage(data);
@@ -305,7 +305,7 @@ class ResilientWebSocket {
 
     this.setStatus('reconnecting');
 
-    // 指数バックオフ + ジッター
+    // Exponential backoff + jitter
     const baseDelay = Math.min(
       this.reconnectBaseDelay * Math.pow(2, this.reconnectAttempts),
       30000,
@@ -350,10 +350,10 @@ class ResilientWebSocket {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(data));
     } else {
-      // 接続中はバッファに溜める
+      // Buffer messages while connecting
       this.messageBuffer.push(data);
       if (this.messageBuffer.length > 100) {
-        this.messageBuffer.shift(); // バッファオーバーフロー防止
+        this.messageBuffer.shift(); // Prevent buffer overflow
       }
     }
   }
@@ -373,7 +373,7 @@ class ResilientWebSocket {
   }
 }
 
-// 使用例
+// Usage example
 const ws = new ResilientWebSocket({
   url: 'wss://api.example.com/ws',
   maxReconnectAttempts: 20,
@@ -400,10 +400,10 @@ ws.connect();
 
 ---
 
-## 3. ファイルアップロード
+## 3. File Upload
 
 ```typescript
-// チャンクアップロード: 大きなファイルの信頼性のあるアップロード
+// Chunked upload: Reliable upload of large files
 interface UploadProgress {
   bytesUploaded: number;
   totalBytes: number;
@@ -434,7 +434,7 @@ class ChunkedUploader {
     let bytesUploaded = 0;
     const startTime = Date.now();
 
-    // チェックサム計算
+    // Calculate checksum
     const fileHash = await this.calculateHash(file);
 
     for (let i = 0; i < totalChunks; i++) {
@@ -442,14 +442,14 @@ class ChunkedUploader {
       const end = Math.min(start + this.chunkSize, file.size);
       const chunk = file.slice(start, end);
 
-      // リトライ付きでチャンクをアップロード
+      // Upload chunk with retry
       await this.uploadChunkWithRetry(
         chunk, uploadId, i, totalChunks, fileHash,
       );
 
       bytesUploaded += chunk.size;
 
-      // 進捗計算
+      // Progress calculation
       const elapsed = (Date.now() - startTime) / 1000;
       const speed = bytesUploaded / elapsed;
       const remaining = (file.size - bytesUploaded) / speed;
@@ -465,7 +465,7 @@ class ChunkedUploader {
       });
     }
 
-    // 完了通知
+    // Completion notification
     const response = await fetch('/api/upload/complete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -503,12 +503,12 @@ class ChunkedUploader {
           throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
         }
 
-        return; // 成功
+        return; // Success
       } catch (error) {
         if ((error as Error).name === 'AbortError') throw error;
         if (attempt === this.maxRetries) throw error;
 
-        // リトライ前に待機
+        // Wait before retry
         await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 1000));
       }
     }
@@ -526,7 +526,7 @@ class ChunkedUploader {
   }
 }
 
-// レジュームアップロード（中断再開）
+// Resumable upload (interrupt and resume)
 class ResumableUploader extends ChunkedUploader {
   private storageKey: string;
 
@@ -541,7 +541,7 @@ class ResumableUploader extends ChunkedUploader {
 
     const { uploadId, lastChunk } = JSON.parse(saved);
 
-    // サーバーに確認
+    // Verify with the server
     try {
       const response = await fetch(`/api/upload/status/${uploadId}`);
       const data = await response.json();
@@ -564,22 +564,22 @@ class ResumableUploader extends ChunkedUploader {
   }
 }
 
-// 使用例
+// Usage example
 const uploader = new ChunkedUploader({ chunkSize: 10 * 1024 * 1024 }); // 10MB chunks
 
 const fileUrl = await uploader.upload(selectedFile, (progress) => {
   progressBar.style.width = `${progress.percentage}%`;
   progressText.textContent = `${progress.percentage}% (${formatSpeed(progress.speed)})`;
-  etaText.textContent = `残り約${Math.ceil(progress.estimatedRemaining)}秒`;
+  etaText.textContent = `Approximately ${Math.ceil(progress.estimatedRemaining)} seconds remaining`;
 });
 ```
 
 ---
 
-## 4. バッチ処理
+## 4. Batch Processing
 
 ```typescript
-// バッチ処理: 大量データの段階的処理
+// Batch processing: Incremental processing of large datasets
 interface BatchOptions<T> {
   batchSize?: number;
   concurrency?: number;
@@ -617,7 +617,7 @@ async function processBatch<T, R>(
 
     const batch = items.slice(i, i + batchSize);
 
-    // バッチ内を並行数制限付きで処理
+    // Process within the batch with concurrency limiting
     const batchResults = await promisePool(
       batch.map(item => async () => {
         try {
@@ -667,7 +667,7 @@ async function processWithRetry<T, R>(
   throw lastError!;
 }
 
-// 並行数制限付き Promise プール
+// Concurrency-limited Promise pool
 async function promisePool<T>(
   tasks: Array<() => Promise<T>>,
   concurrency: number,
@@ -692,7 +692,7 @@ async function promisePool<T>(
   return results;
 }
 
-// 使用例
+// Usage example
 const { results, errors } = await processBatch(
   users,
   async (user) => {
@@ -710,28 +710,28 @@ const { results, errors } = await processBatch(
   },
 );
 
-console.log(`成功: ${results.length}, 失敗: ${errors.length}`);
+console.log(`Succeeded: ${results.length}, Failed: ${errors.length}`);
 ```
 
 ---
 
-## 5. サーキットブレーカー
+## 5. Circuit Breaker
 
 ```typescript
-// サーキットブレーカーパターン: 障害の連鎖を防ぐ
+// Circuit breaker pattern: Prevent cascading failures
 type CircuitState = 'closed' | 'open' | 'half-open';
 
 interface CircuitBreakerOptions {
-  failureThreshold: number;   // 失敗回数の閾値
-  recoveryTimeout: number;    // open → half-open の待ち時間(ms)
-  monitoringWindow: number;   // 失敗をカウントする時間窓(ms)
-  halfOpenMaxCalls: number;   // half-open時の最大試行回数
+  failureThreshold: number;   // Failure count threshold
+  recoveryTimeout: number;    // Wait time from open → half-open (ms)
+  monitoringWindow: number;   // Time window for counting failures (ms)
+  halfOpenMaxCalls: number;   // Max trial calls during half-open
   onStateChange?: (from: CircuitState, to: CircuitState) => void;
 }
 
 class CircuitBreaker {
   private state: CircuitState = 'closed';
-  private failures: number[] = []; // 失敗のタイムスタンプ
+  private failures: number[] = []; // Failure timestamps
   private lastOpenTime: number = 0;
   private halfOpenCalls = 0;
   private halfOpenSuccesses = 0;
@@ -771,7 +771,7 @@ class CircuitBreaker {
         this.transition('closed');
       }
     }
-    // closed状態では失敗カウンタをリセットしない（窓で管理）
+    // In closed state, failure counter is not reset (managed by window)
   }
 
   private onFailure(): void {
@@ -782,7 +782,7 @@ class CircuitBreaker {
       return;
     }
 
-    // 時間窓内の失敗をカウント
+    // Count failures within the time window
     this.failures.push(now);
     this.failures = this.failures.filter(
       t => now - t < this.options.monitoringWindow,
@@ -828,12 +828,12 @@ class CircuitOpenError extends Error {
   }
 }
 
-// 使用例
+// Usage example
 const breaker = new CircuitBreaker({
-  failureThreshold: 5,       // 5回失敗でopen
-  recoveryTimeout: 30000,    // 30秒後にhalf-open
-  monitoringWindow: 60000,   // 60秒の窓
-  halfOpenMaxCalls: 3,       // half-openで3回試行
+  failureThreshold: 5,       // Open after 5 failures
+  recoveryTimeout: 30000,    // Half-open after 30 seconds
+  monitoringWindow: 60000,   // 60-second window
+  halfOpenMaxCalls: 3,       // 3 trial calls during half-open
   onStateChange: (from, to) => {
     if (to === 'open') {
       alertOps(`External service circuit opened (from ${from})`);
@@ -841,7 +841,7 @@ const breaker = new CircuitBreaker({
   },
 });
 
-// API呼び出しをサーキットブレーカーで保護
+// Protect API calls with a circuit breaker
 async function callExternalApi(endpoint: string): Promise<any> {
   try {
     return await breaker.execute(async () => {
@@ -853,7 +853,7 @@ async function callExternalApi(endpoint: string): Promise<any> {
     });
   } catch (error) {
     if (error instanceof CircuitOpenError) {
-      // フォールバック: キャッシュから返す
+      // Fallback: Return from cache
       return getCachedData(endpoint);
     }
     throw error;
@@ -863,10 +863,10 @@ async function callExternalApi(endpoint: string): Promise<any> {
 
 ---
 
-## 6. レート制限
+## 6. Rate Limiting
 
 ```typescript
-// トークンバケット方式のレート制限
+// Token bucket rate limiter
 class RateLimiter {
   private tokens: number;
   private maxTokens: number;
@@ -902,11 +902,11 @@ class RateLimiter {
       return;
     }
 
-    // トークン不足: 待機
+    // Insufficient tokens: wait
     return new Promise((resolve, reject) => {
       this.waitQueue.push({ resolve, reject });
 
-      // 必要なトークンが補充されるまでの時間を計算
+      // Calculate time until needed tokens are replenished
       const waitMs = ((count - this.tokens) / this.refillRate) * 1000;
 
       setTimeout(() => {
@@ -925,7 +925,7 @@ class RateLimiter {
     });
   }
 
-  // デコレータとして使用
+  // Use as a decorator
   wrap<T>(fn: () => Promise<T>): () => Promise<T> {
     return async () => {
       await this.acquire();
@@ -934,7 +934,7 @@ class RateLimiter {
   }
 }
 
-// スライディングウィンドウ方式
+// Sliding window rate limiter
 class SlidingWindowRateLimiter {
   private timestamps: number[] = [];
   private maxRequests: number;
@@ -971,15 +971,15 @@ class SlidingWindowRateLimiter {
   }
 }
 
-// 使用例
+// Usage example
 const limiter = new RateLimiter({
-  maxTokens: 100,    // 最大100トークン
-  refillRate: 10,     // 毎秒10トークン回復
+  maxTokens: 100,    // Maximum 100 tokens
+  refillRate: 10,     // 10 tokens replenished per second
 });
 
-// APIクライアントにレート制限を適用
+// Apply rate limiting to an API client
 class ApiClient {
-  private limiter = new SlidingWindowRateLimiter(100, 60000); // 60秒に100リクエスト
+  private limiter = new SlidingWindowRateLimiter(100, 60000); // 100 requests per 60 seconds
 
   async request<T>(endpoint: string): Promise<T> {
     await this.limiter.waitAndProceed();
@@ -988,7 +988,7 @@ class ApiClient {
     if (response.status === 429) {
       const retryAfter = parseInt(response.headers.get('Retry-After') || '5');
       await new Promise(r => setTimeout(r, retryAfter * 1000));
-      return this.request(endpoint); // リトライ
+      return this.request(endpoint); // Retry
     }
 
     return response.json();
@@ -998,10 +998,10 @@ class ApiClient {
 
 ---
 
-## 7. グレースフルシャットダウン
+## 7. Graceful Shutdown
 
 ```typescript
-// サーバーのグレースフルシャットダウン
+// Server graceful shutdown
 import http from 'http';
 import net from 'net';
 
@@ -1022,13 +1022,13 @@ class GracefulServer {
         resolve();
       });
 
-      // 接続の追跡
+      // Track connections
       this.server.on('connection', (conn) => {
         this.connections.add(conn);
         conn.on('close', () => this.connections.delete(conn));
       });
 
-      // シグナルハンドリング
+      // Signal handling
       const shutdownHandler = (signal: string) => {
         console.log(`${signal} received`);
         this.shutdown().then(() => process.exit(0));
@@ -1056,21 +1056,21 @@ class GracefulServer {
   }
 
   private async performShutdown(): Promise<void> {
-    // 1. 新しい接続を受け付けない
+    // 1. Stop accepting new connections
     this.server.close();
 
-    // 2. Keep-Alive接続にConnection: closeヘッダーを設定
+    // 2. Set Connection: close header on Keep-Alive connections
     this.connections.forEach(conn => {
       (conn as any)._httpMessage?.setHeader?.('Connection', 'close');
     });
 
-    // 3. 進行中のリクエストの完了を待つ（最大30秒）
+    // 3. Wait for in-progress requests to complete (max 30 seconds)
     const forceTimeout = setTimeout(() => {
       console.log('Forcing shutdown: destroying remaining connections');
       this.connections.forEach(conn => conn.destroy());
     }, 30000);
 
-    // 4. リソースのクリーンアップ
+    // 4. Resource cleanup
     try {
       await Promise.allSettled([
         this.closeDatabase(),
@@ -1107,17 +1107,17 @@ class GracefulServer {
     await logger.flush();
   }
 
-  // ヘルスチェック用
+  // For health checks
   isHealthy(): boolean {
     return !this.isShuttingDown;
   }
 }
 
-// 使用例
+// Usage example
 const server = new GracefulServer(app);
 await server.start(3000);
 
-// ヘルスチェックエンドポイント
+// Health check endpoint
 app.get('/health', (req, res) => {
   if (server.isHealthy()) {
     res.status(200).json({ status: 'healthy', uptime: process.uptime() });
@@ -1129,10 +1129,10 @@ app.get('/health', (req, res) => {
 
 ---
 
-## 8. 分散ロック
+## 8. Distributed Locking
 
 ```typescript
-// Redis を使った分散ロック（Redlock アルゴリズム簡易版）
+// Distributed lock using Redis (simplified Redlock algorithm)
 class DistributedLock {
   constructor(
     private redis: Redis,
@@ -1145,7 +1145,7 @@ class DistributedLock {
     const startTime = Date.now();
 
     while (Date.now() - startTime < waitMs) {
-      // SET NX（存在しない場合のみ設定）
+      // SET NX (set only if not exists)
       const acquired = await this.redis.set(
         `lock:${this.lockKey}`,
         lockId,
@@ -1154,18 +1154,18 @@ class DistributedLock {
       );
 
       if (acquired === 'OK') {
-        return lockId; // ロック取得成功
+        return lockId; // Lock acquired successfully
       }
 
-      // 少し待ってリトライ
+      // Wait briefly and retry
       await new Promise(r => setTimeout(r, 50 + Math.random() * 50));
     }
 
-    return null; // タイムアウト
+    return null; // Timeout
   }
 
   async release(lockId: string): Promise<boolean> {
-    // Lua スクリプトでアトミックに解放（自分のロックだけ解放）
+    // Release atomically with Lua script (only release own lock)
     const script = `
       if redis.call("get", KEYS[1]) == ARGV[1] then
         return redis.call("del", KEYS[1])
@@ -1178,7 +1178,7 @@ class DistributedLock {
     return result === 1;
   }
 
-  // ロック付きで処理を実行
+  // Execute a function with the lock held
   async withLock<T>(fn: () => Promise<T>, waitMs?: number): Promise<T> {
     const lockId = await this.acquire(waitMs);
     if (!lockId) {
@@ -1193,7 +1193,7 @@ class DistributedLock {
   }
 }
 
-// 使用例: 排他的な処理
+// Usage example: Exclusive processing
 const lock = new DistributedLock(redis, 'user:123:payment');
 
 try {
@@ -1206,7 +1206,7 @@ try {
   });
 } catch (error) {
   if (error.message.includes('Failed to acquire lock')) {
-    // 別のプロセスが処理中
+    // Another process is handling it
     res.status(409).json({ error: 'Payment already in progress' });
   }
 }
@@ -1214,10 +1214,10 @@ try {
 
 ---
 
-## 9. イベント駆動パターン
+## 9. Event-Driven Pattern
 
 ```typescript
-// 型安全なイベントバス
+// Type-safe event bus
 interface EventMap {
   'user:created': { userId: string; email: string };
   'user:updated': { userId: string; changes: Partial<User> };
@@ -1240,7 +1240,7 @@ class TypedEventEmitter<TEvents extends Record<string, any>> {
     }
     this.handlers.get(key)!.add(handler);
 
-    // unsubscribe関数を返す
+    // Return an unsubscribe function
     return () => {
       this.handlers.get(key)?.delete(handler);
     };
@@ -1251,12 +1251,12 @@ class TypedEventEmitter<TEvents extends Record<string, any>> {
     const handlers = this.handlers.get(key);
     if (!handlers) return;
 
-    // 全ハンドラを並行実行（エラーは個別にキャッチ）
+    // Execute all handlers in parallel (catch errors individually)
     const results = await Promise.allSettled(
       [...handlers].map(handler => handler(data)),
     );
 
-    // エラーをログ
+    // Log errors
     results.forEach((result, index) => {
       if (result.status === 'rejected') {
         console.error(`Event handler error for ${key}:`, result.reason);
@@ -1265,10 +1265,10 @@ class TypedEventEmitter<TEvents extends Record<string, any>> {
   }
 }
 
-// 使用例
+// Usage example
 const eventBus = new TypedEventEmitter<EventMap>();
 
-// ハンドラ登録
+// Register handlers
 eventBus.on('order:placed', async ({ orderId, userId, amount }) => {
   await paymentService.processPayment(orderId, userId, amount);
 });
@@ -1287,7 +1287,7 @@ eventBus.on('payment:failed', async ({ orderId, reason }) => {
   await notificationService.sendPaymentFailure(orderId, reason);
 });
 
-// イベント発行
+// Emit event
 await eventBus.emit('order:placed', {
   orderId: 'ord-123',
   userId: 'usr-456',
@@ -1297,10 +1297,10 @@ await eventBus.emit('order:placed', {
 
 ---
 
-## 10. データストリーム処理
+## 10. Data Stream Processing
 
 ```typescript
-// Node.js Transform Stream を使ったパイプライン処理
+// Pipeline processing using Node.js Transform Streams
 import { Transform, pipeline } from 'stream';
 import { promisify } from 'util';
 import { createReadStream, createWriteStream } from 'fs';
@@ -1308,7 +1308,7 @@ import { createGzip } from 'zlib';
 
 const pipelineAsync = promisify(pipeline);
 
-// CSVを行ごとに処理するTransform
+// Transform that processes CSV line by line
 class CsvLineProcessor extends Transform {
   private buffer = '';
   private headers: string[] = [];
@@ -1323,7 +1323,7 @@ class CsvLineProcessor extends Transform {
   _transform(chunk: Buffer, encoding: string, callback: Function): void {
     this.buffer += chunk.toString();
     const lines = this.buffer.split('\n');
-    this.buffer = lines.pop()!; // 最後の不完全な行をバッファに残す
+    this.buffer = lines.pop()!; // Keep the last incomplete line in the buffer
 
     for (const line of lines) {
       if (line.trim() === '') continue;
@@ -1342,7 +1342,7 @@ class CsvLineProcessor extends Transform {
           }
         } catch (error) {
           console.error(`Error processing row ${this.lineCount}:`, error);
-          // エラー行はスキップして続行
+          // Skip error rows and continue
         }
       }
 
@@ -1354,7 +1354,7 @@ class CsvLineProcessor extends Transform {
 
   _flush(callback: Function): void {
     if (this.buffer.trim()) {
-      // 最後の行を処理
+      // Process the last line
       const values = this.buffer.split(',');
       const row: Record<string, string> = {};
       this.headers.forEach((h, i) => { row[h] = values[i]?.trim() ?? ''; });
@@ -1372,20 +1372,20 @@ class CsvLineProcessor extends Transform {
   }
 }
 
-// 使用例: 大きなCSVファイルの変換
+// Usage example: Transform a large CSV file
 async function transformLargeCsv(inputPath: string, outputPath: string): Promise<void> {
   await pipelineAsync(
     createReadStream(inputPath),
     new CsvLineProcessor((row) => {
-      // 変換ロジック
-      if (row.status === 'inactive') return null; // フィルタリング
+      // Transformation logic
+      if (row.status === 'inactive') return null; // Filtering
       return {
         ...row,
         name: row.name.toUpperCase(),
         processedAt: new Date().toISOString(),
       };
     }),
-    createGzip(), // 圧縮
+    createGzip(), // Compression
     createWriteStream(outputPath + '.gz'),
   );
 
@@ -1396,45 +1396,45 @@ async function transformLargeCsv(inputPath: string, outputPath: string): Promise
 
 ---
 
-## 実践演習
+## Hands-On Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that satisfies the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate input data
+- Implement proper error handling
+- Write test code as well
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Basic implementation template
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Exercise for basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate the input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main processing logic"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Retrieve processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1443,26 +1443,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "An exception should have been raised"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation to add the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Advanced patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Exercise for advanced patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1470,7 +1470,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1481,14 +1481,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Remove by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1496,7 +1496,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1504,44 +1504,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # Size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1550,7 +1550,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1565,60 +1565,60 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient version: {slow_time:.4f}s")
+    print(f"Efficient version:   {fast_time:.6f}s")
+    print(f"Speedup: {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key points:**
+- Be mindful of algorithmic time complexity
+- Choose appropriate data structures
+- Measure effectiveness with benchmarks
 ---
 
-## まとめ
+## Summary
 
-| パターン | 用途 | キーポイント |
-|---------|------|------------|
-| ジョブキュー | 信頼性のある非同期処理 | リトライ + デッドレター + 優先度 |
-| WebSocket | リアルタイム通信 | 自動再接続 + ハートビート + バッファ |
-| チャンクアップロード | 大ファイル | リトライ + 進捗表示 + レジューム |
-| バッチ処理 | 大量データ | 並行数制限 + エラー分離 + 進捗 |
-| サーキットブレーカー | 障害の連鎖防止 | 3状態遷移 + フォールバック |
-| レート制限 | API保護 | トークンバケット + スライディングウィンドウ |
-| グレースフルシャットダウン | サーバー停止 | 進行中処理の完了待ち + リソースクリーンアップ |
-| 分散ロック | 排他制御 | Redis + TTL + Lua Script |
-| イベント駆動 | 疎結合な処理連携 | 型安全 + エラー分離 |
-| ストリーム処理 | 大データ変換 | パイプライン + バックプレッシャー |
+| Pattern | Use Case | Key Points |
+|---------|----------|------------|
+| Job queue | Reliable async processing | Retry + dead letter + priority |
+| WebSocket | Real-time communication | Auto-reconnect + heartbeat + buffer |
+| Chunked upload | Large files | Retry + progress display + resume |
+| Batch processing | Large datasets | Concurrency limit + error isolation + progress |
+| Circuit breaker | Prevent cascading failures | 3-state transitions + fallback |
+| Rate limiting | API protection | Token bucket + sliding window |
+| Graceful shutdown | Server shutdown | Wait for in-progress requests + resource cleanup |
+| Distributed lock | Mutual exclusion | Redis + TTL + Lua script |
+| Event-driven | Loosely coupled coordination | Type safety + error isolation |
+| Stream processing | Large data transformation | Pipeline + backpressure |
 
 ---
 
 ## FAQ
 
-### Q1: サーキットブレーカーの閾値はどう決めるか？
+### Q1: How should circuit breaker thresholds be determined?
 
-失敗率の閾値（例: 50%）とウィンドウサイズ（例: 直近10リクエスト）は、サービスの特性に依存する。一般的に、高頻度のAPI呼び出しでは小さなウィンドウ（10-20件）と低めの閾値（30-50%）を設定し、素早くOpenに遷移させる。低頻度の場合はウィンドウを大きく（50-100件）し、一時的なスパイクでOpenにならないようにする。Half-Openでの試行回数は1-3回が一般的で、成功した場合にClosedに戻す。Hystrix（Netflix）やPolly（.NET）などのライブラリの設定値を参考にするとよい。
+The failure rate threshold (e.g., 50%) and window size (e.g., last 10 requests) depend on the characteristics of the service. Generally, for high-frequency API calls, set a small window (10-20 requests) and a lower threshold (30-50%) to transition to Open quickly. For low-frequency calls, use a larger window (50-100 requests) to avoid opening on temporary spikes. The number of trial calls during Half-Open is typically 1-3, transitioning back to Closed on success. Refer to the default settings of libraries like Hystrix (Netflix) or Polly (.NET) as a starting point.
 
-### Q2: 分散ロックでRedlockアルゴリズムを使うべきか？
+### Q2: Should the Redlock algorithm be used for distributed locking?
 
-単一のRedisインスタンスでは、そのインスタンスがダウンすると全てのロックが失われる。Redlockアルゴリズムは複数のRedisインスタンス（通常5台）に対してロックを取得し、過半数のインスタンスでロックが取得できた場合にのみ有効とする。ただし、Martin Kleppmann氏による批判（「How to do distributed locking」）もあり、ロックの厳密性が求められる場面ではZooKeeperやetcdのリース機能の方が安全とされる。支払いなどのクリティカルな処理では、べき等性キー（idempotency key）と組み合わせて二重処理を防ぐ設計が推奨される。
+With a single Redis instance, all locks are lost if that instance goes down. The Redlock algorithm acquires locks across multiple Redis instances (typically 5) and considers the lock valid only when a majority of instances grant it. However, there are critiques from Martin Kleppmann ("How to do distributed locking"), and for scenarios requiring strict lock semantics, lease functionality in ZooKeeper or etcd is considered safer. For critical operations like payments, combining idempotency keys with locks to prevent duplicate processing is recommended.
 
-### Q3: レート制限をクライアント側で実装する意味はあるか？
+### Q3: Is there value in implementing rate limiting on the client side?
 
-サーバー側のレート制限はAPI保護の基本だが、クライアント側でも実装する意味がある。サーバーから429レスポンスを受けてからリトライするより、事前にリクエスト頻度を制御する方が効率的でネットワーク負荷も低い。特にバッチ処理で大量のAPIコールを行う場面では、クライアント側のレート制限により安定したスループットを維持できる。`Retry-After`ヘッダーや`X-RateLimit-Remaining`ヘッダーを活用して動的にレートを調整するアダプティブ方式も有効である。
-
----
-
-
-## 次に読むべきガイド
-
-- 同カテゴリの他のガイドを参照してください
+Server-side rate limiting is fundamental for API protection, but client-side implementation also provides value. Proactively controlling request frequency is more efficient and reduces network load compared to waiting for 429 responses and then retrying. Especially in batch processing scenarios with many API calls, client-side rate limiting maintains stable throughput. An adaptive approach that dynamically adjusts rates using `Retry-After` and `X-RateLimit-Remaining` headers is also effective.
 
 ---
 
-## 参考文献
+
+## Recommended Next Guides
+
+- Refer to other guides in the same category
+
+---
+
+## References
 1. Kleppmann, M. "Designing Data-Intensive Applications." O'Reilly, 2017.
 2. Nygard, M. "Release It!" Pragmatic Bookshelf, 2018.
 3. Node.js Documentation. "Stream." nodejs.org.

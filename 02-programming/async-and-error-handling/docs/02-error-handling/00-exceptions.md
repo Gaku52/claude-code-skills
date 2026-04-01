@@ -1,92 +1,92 @@
-# 例外処理
+# Exception Handling
 
-> 例外（Exception）は「通常の制御フローでは処理できない異常事態」を表す仕組み。try/catch/finally の正しい使い方、例外階層の設計、checked vs unchecked の議論を理解する。
+> Exceptions are a mechanism for representing "abnormal situations that cannot be handled through normal control flow." Understand the proper usage of try/catch/finally, exception hierarchy design, and the checked vs unchecked debate.
 
-## この章で学ぶこと
+## What You Will Learn
 
-- [ ] 例外処理の仕組みとコールスタックの巻き戻しを理解する
-- [ ] 例外の適切な使い方と濫用の違いを把握する
-- [ ] 各言語の例外モデルの違いを学ぶ
-- [ ] try/catch/finally の正しいパターンとアンチパターンを身につける
-- [ ] 例外安全性（Exception Safety）の概念を理解する
-- [ ] パフォーマンスへの影響と最適な使い分けを学ぶ
+- [ ] Understand the mechanism of exception handling and call stack unwinding
+- [ ] Grasp the difference between proper use and abuse of exceptions
+- [ ] Learn the differences in exception models across languages
+- [ ] Master correct patterns and anti-patterns for try/catch/finally
+- [ ] Understand the concept of Exception Safety
+- [ ] Learn about performance impact and optimal usage decisions
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
+- Basic programming knowledge
+- Understanding of related foundational concepts
 
 ---
 
-## 1. 例外処理の基礎概念
+## 1. Fundamentals of Exception Handling
 
-### 1.1 例外とは何か
+### 1.1 What Are Exceptions?
 
-例外（Exception）は、プログラムの正常な実行フローでは処理できない異常事態を表現する仕組みである。例外が発生すると、通常の制御フロー（順次実行、条件分岐、ループ）を中断し、コールスタックを巻き戻しながら適切なハンドラを探す。
-
-```
-例外処理の基本的な流れ:
-
-  1. 例外の発生（throw / raise）
-     → 関数が「この状況は自分では処理できない」と宣言
-
-  2. コールスタックの巻き戻し（Stack Unwinding）
-     → catch/except が見つかるまでコールスタックを遡る
-     → 途中の関数は全てスキップされる
-
-  3. 例外の捕捉（catch / except）
-     → 適切なハンドラが例外を処理する
-
-  4. クリーンアップ（finally / defer / with）
-     → リソースの解放を保証する
-
-例外処理がない世界:
-  → 全ての関数がエラーコードを返す必要がある
-  → 呼び出し元は毎回エラーチェックが必要
-  → エラーハンドリングコードが本来のロジックを埋め尽くす
-  → C言語のerrno方式がまさにこれ
-
-例外処理がある世界:
-  → 正常系のコードと異常系のコードを分離できる
-  → エラーは自動的に伝播する（明示的な受け渡し不要）
-  → 処理できる場所で一括して対応できる
-```
-
-### 1.2 例外の歴史
+Exceptions are a mechanism for expressing abnormal situations that cannot be handled through a program's normal execution flow. When an exception occurs, normal control flow (sequential execution, conditional branching, loops) is interrupted, and the call stack is unwound while searching for an appropriate handler.
 
 ```
-例外処理の進化:
+Basic flow of exception handling:
 
-  1960年代: PL/I の ON 条件ハンドリング
-    → 最初の構造化例外処理
+  1. Exception occurrence (throw / raise)
+     -> A function declares "I cannot handle this situation"
 
-  1985年: C++ に例外が導入
-    → try/catch/throw の原型
+  2. Call stack unwinding (Stack Unwinding)
+     -> Traverses back up the call stack until a catch/except is found
+     -> All intermediate functions are skipped
 
-  1995年: Java の checked exception
-    → コンパイラによるエラー処理の強制
+  3. Exception capture (catch / except)
+     -> An appropriate handler processes the exception
 
-  2000年代: C#, Python, Ruby の unchecked exception
-    → checked exception への反省
+  4. Cleanup (finally / defer / with)
+     -> Guarantees resource release
 
-  2010年代: Go の多値返却、Rust の Result<T, E>
-    → 例外を使わないエラー処理の台頭
+A world without exception handling:
+  -> Every function must return an error code
+  -> Callers must check for errors every time
+  -> Error handling code buries the actual logic
+  -> C's errno approach is exactly this
 
-  2020年代: TypeScript の Effect, Rust の ? 演算子
-    → 型安全なエラー処理の洗練
+A world with exception handling:
+  -> Normal-path code and error-path code can be separated
+  -> Errors propagate automatically (no explicit passing needed)
+  -> They can be handled collectively where they can be addressed
+```
+
+### 1.2 History of Exceptions
+
+```
+Evolution of exception handling:
+
+  1960s: PL/I ON condition handling
+    -> The first structured exception handling
+
+  1985: Exceptions introduced in C++
+    -> The prototype of try/catch/throw
+
+  1995: Java's checked exceptions
+    -> Compiler-enforced error handling
+
+  2000s: C#, Python, Ruby unchecked exceptions
+    -> A reaction against checked exceptions
+
+  2010s: Go's multiple return values, Rust's Result<T, E>
+    -> The rise of error handling without exceptions
+
+  2020s: TypeScript's Effect, Rust's ? operator
+    -> Refinement of type-safe error handling
 ```
 
 ---
 
 ## 2. try/catch/finally
 
-### 2.1 TypeScript での基本パターン
+### 2.1 Basic Pattern in TypeScript
 
 ```typescript
-// TypeScript: 基本的な例外処理
+// TypeScript: Basic exception handling
 async function fetchUserData(userId: string): Promise<UserData> {
   try {
     const response = await fetch(`/api/users/${userId}`);
@@ -105,21 +105,21 @@ async function fetchUserData(userId: string): Promise<UserData> {
       }
       throw new ApiError(`API error: ${error.message}`);
     }
-    // ネットワークエラーなど
+    // Network errors, etc.
     throw new NetworkError("Network request failed");
 
   } finally {
-    // 成功・失敗どちらでも実行される
-    // リソースのクリーンアップに使う
+    // Executed regardless of success or failure
+    // Use for resource cleanup
     logger.log(`fetchUserData completed for ${userId}`);
   }
 }
 ```
 
-### 2.2 Python での例外処理
+### 2.2 Exception Handling in Python
 
 ```python
-# Python: 例外処理
+# Python: Exception handling
 def parse_config(path: str) -> dict:
     try:
         with open(path, 'r') as f:
@@ -135,14 +135,15 @@ def parse_config(path: str) -> dict:
         logger.info(f"Config parsing attempted for {path}")
 ```
 
-### 2.3 Python の else 節
+### 2.3 Python's else Clause
 
 ```python
-# Python 固有: try/except/else/finally
+# Python-specific: try/except/else/finally
 def process_file(path: str) -> ProcessResult:
     """
-    else節はtryブロックが例外なしに完了した場合にのみ実行される。
-    finallyとは異なり、例外発生時には実行されない。
+    The else clause is executed only when the try block completes
+    without raising an exception.
+    Unlike finally, it is not executed when an exception occurs.
     """
     file_handle = None
     try:
@@ -155,28 +156,28 @@ def process_file(path: str) -> ProcessResult:
         logger.warning(f"Permission denied: {path}")
         return ProcessResult(success=False, error="Permission denied")
     else:
-        # try が成功した場合のみ実行
-        # ここで例外が発生しても except には捕捉されない
+        # Executed only if try succeeds
+        # Exceptions raised here are NOT caught by the except blocks
         result = parse_and_validate(data)
         logger.info(f"Successfully processed: {path}")
         return ProcessResult(success=True, data=result)
     finally:
-        # 成功・失敗どちらでも実行
+        # Executed regardless of success or failure
         if file_handle:
             file_handle.close()
 
-# else 節を使う理由:
-# 1. try ブロックを最小限に保てる（意図しない例外を捕捉しない）
-# 2. 「成功時のみ」の処理を明確に分離できる
-# 3. コードの意図が明確になる
+# Reasons to use the else clause:
+# 1. Keeps the try block minimal (avoids catching unintended exceptions)
+# 2. Clearly separates "success-only" processing
+# 3. Makes the code's intent explicit
 ```
 
-### 2.4 Java の try-with-resources
+### 2.4 Java's try-with-resources
 
 ```java
-// Java: try-with-resources（AutoCloseable の自動クローズ）
+// Java: try-with-resources (auto-closing AutoCloseable)
 public List<String> readLines(String path) throws IOException {
-    // try() 内で宣言したリソースは自動的にクローズされる
+    // Resources declared in try() are automatically closed
     try (BufferedReader reader = new BufferedReader(new FileReader(path))) {
         List<String> lines = new ArrayList<>();
         String line;
@@ -185,10 +186,10 @@ public List<String> readLines(String path) throws IOException {
         }
         return lines;
     }
-    // reader.close() が自動的に呼ばれる（例外の有無にかかわらず）
+    // reader.close() is called automatically (regardless of exceptions)
 }
 
-// 複数リソースの管理
+// Managing multiple resources
 public void copyFile(String src, String dst) throws IOException {
     try (
         InputStream in = new FileInputStream(src);
@@ -200,19 +201,19 @@ public void copyFile(String src, String dst) throws IOException {
             out.write(buffer, 0, bytesRead);
         }
     }
-    // in と out の両方が自動クローズされる
-    // close() 時の例外は Suppressed Exception として保持
+    // Both in and out are automatically closed
+    // Exceptions during close() are retained as Suppressed Exceptions
 }
 
-// Suppressed Exception の取得
+// Retrieving Suppressed Exceptions
 public void demonstrateSuppressedException() {
     try {
         try (AutoCloseableResource resource = new AutoCloseableResource()) {
-            throw new RuntimeException("メインの例外");
+            throw new RuntimeException("Main exception");
         }
-        // resource.close() でも例外が発生した場合
+        // If resource.close() also throws an exception
     } catch (Exception e) {
-        System.out.println("メイン: " + e.getMessage());
+        System.out.println("Main: " + e.getMessage());
         for (Throwable suppressed : e.getSuppressed()) {
             System.out.println("Suppressed: " + suppressed.getMessage());
         }
@@ -220,19 +221,19 @@ public void demonstrateSuppressedException() {
 }
 ```
 
-### 2.5 C# の using ステートメント
+### 2.5 C# using Statement
 
 ```csharp
-// C#: using ステートメント（IDisposable の自動破棄）
+// C#: using statement (auto-disposal of IDisposable)
 public async Task<string> ReadFileAsync(string path)
 {
-    // using 宣言（C# 8.0+）: スコープ終了時に自動Dispose
+    // using declaration (C# 8.0+): auto-Dispose at end of scope
     using var stream = new FileStream(path, FileMode.Open);
     using var reader = new StreamReader(stream);
     return await reader.ReadToEndAsync();
 }
 
-// using ブロック（従来の書き方）
+// using block (traditional syntax)
 public void ProcessData(string connectionString)
 {
     using (var connection = new SqlConnection(connectionString))
@@ -247,10 +248,10 @@ public void ProcessData(string connectionString)
             }
         }
     }
-    // connection, command, reader が全て自動Dispose
+    // connection, command, reader are all auto-Disposed
 }
 
-// await using（非同期Dispose、C# 8.0+）
+// await using (async Dispose, C# 8.0+)
 public async Task ProcessStreamAsync()
 {
     await using var stream = new AsyncStream();
@@ -258,16 +259,16 @@ public async Task ProcessStreamAsync()
 }
 ```
 
-### 2.6 Go の defer
+### 2.6 Go's defer
 
 ```go
-// Go: defer によるクリーンアップ
+// Go: Cleanup with defer
 func readConfig(path string) (*Config, error) {
     file, err := os.Open(path)
     if err != nil {
         return nil, fmt.Errorf("failed to open config: %w", err)
     }
-    defer file.Close() // 関数終了時に必ず実行
+    defer file.Close() // Always executed when the function returns
 
     decoder := json.NewDecoder(file)
     var config Config
@@ -277,17 +278,17 @@ func readConfig(path string) (*Config, error) {
     return &config, nil
 }
 
-// defer は LIFO（後入れ先出し）順で実行
+// defer executes in LIFO (last in, first out) order
 func multipleDefers() {
     fmt.Println("start")
-    defer fmt.Println("first defer")  // 3番目に実行
-    defer fmt.Println("second defer") // 2番目に実行
-    defer fmt.Println("third defer")  // 1番目に実行
+    defer fmt.Println("first defer")  // Executed 3rd
+    defer fmt.Println("second defer") // Executed 2nd
+    defer fmt.Println("third defer")  // Executed 1st
     fmt.Println("end")
 }
-// 出力: start, end, third defer, second defer, first defer
+// Output: start, end, third defer, second defer, first defer
 
-// defer + recover でパニックからの回復
+// Recovering from panics with defer + recover
 func safeOperation() (result string, err error) {
     defer func() {
         if r := recover(); r != nil {
@@ -295,17 +296,17 @@ func safeOperation() (result string, err error) {
         }
     }()
 
-    // パニックが発生しても recover で捕捉
+    // Even if a panic occurs, it is captured by recover
     riskyOperation()
     return "success", nil
 }
 ```
 
-### 2.7 Rust の Drop トレイトと RAII
+### 2.7 Rust's Drop Trait and RAII
 
 ```rust
-// Rust: RAII（Resource Acquisition Is Initialization）
-// Drop トレイトで自動クリーンアップ
+// Rust: RAII (Resource Acquisition Is Initialization)
+// Auto-cleanup with the Drop trait
 struct DatabaseConnection {
     connection_string: String,
     is_open: bool,
@@ -313,7 +314,7 @@ struct DatabaseConnection {
 
 impl DatabaseConnection {
     fn new(conn_str: &str) -> Result<Self, DbError> {
-        // 接続の確立
+        // Establish connection
         Ok(DatabaseConnection {
             connection_string: conn_str.to_string(),
             is_open: true,
@@ -324,7 +325,7 @@ impl DatabaseConnection {
         if !self.is_open {
             return Err(DbError::ConnectionClosed);
         }
-        // クエリ実行
+        // Execute query
         Ok(vec![])
     }
 }
@@ -332,7 +333,7 @@ impl DatabaseConnection {
 impl Drop for DatabaseConnection {
     fn drop(&mut self) {
         if self.is_open {
-            // 接続のクローズ（自動的に呼ばれる）
+            // Close connection (called automatically)
             println!("Connection closed: {}", self.connection_string);
             self.is_open = false;
         }
@@ -342,43 +343,43 @@ impl Drop for DatabaseConnection {
 fn process_data() -> Result<(), DbError> {
     let conn = DatabaseConnection::new("postgres://localhost/mydb")?;
     let rows = conn.query("SELECT * FROM users")?;
-    // conn はスコープ終了時に自動的に drop される
-    // → Drop::drop() が呼ばれて接続がクローズされる
+    // conn is automatically dropped at the end of scope
+    // -> Drop::drop() is called and the connection is closed
     Ok(())
 }
 ```
 
 ---
 
-## 3. コールスタックの巻き戻し
+## 3. Call Stack Unwinding
 
-### 3.1 スタックアンワインドの仕組み
+### 3.1 How Stack Unwinding Works
 
 ```
-例外発生時のコールスタック:
+Call stack when an exception occurs:
 
   main()
     └── processOrder()
         └── validatePayment()
             └── chargeCard()
-                └── apiCall()  ← 例外発生！
+                └── apiCall()  ← Exception thrown!
 
-  巻き戻し（スタックアンワインド）:
-  apiCall()    → catch なし → 伝播
-  chargeCard() → catch なし → 伝播
-  validatePayment() → catch あり！ → ここで処理
-                     → または再スロー
+  Unwinding (stack unwind):
+  apiCall()    -> No catch -> Propagate
+  chargeCard() -> No catch -> Propagate
+  validatePayment() -> catch found! -> Handle here
+                     -> Or re-throw
 
-  原則:
-  → 例外は「処理できる場所」でキャッチする
-  → 処理できないなら捕まえない（上位に伝播させる）
-  → 握りつぶし（catch して無視）は厳禁
+  Principles:
+  -> Catch exceptions where they can be handled
+  -> If you can't handle it, don't catch it (let it propagate to a higher level)
+  -> Swallowing exceptions (catch and ignore) is strictly prohibited
 ```
 
-### 3.2 スタックトレースの読み方
+### 3.2 How to Read Stack Traces
 
 ```typescript
-// スタックトレースの例
+// Stack trace example
 // Error: User not found: user-123
 //     at UserService.getUser (/app/services/user.ts:45:11)
 //     at OrderService.createOrder (/app/services/order.ts:23:28)
@@ -386,52 +387,52 @@ fn process_data() -> Result<(), DbError> {
 //     at Layer.handle [as handle_request] (/app/node_modules/express/lib/router/layer.js:95:5)
 //     at next (/app/node_modules/express/lib/router/route.js:144:13)
 
-// スタックトレースの読み方:
-// 1. 最上行がエラーメッセージ
-// 2. 2行目が例外の発生元（最も重要）
-// 3. 下に行くほど呼び出し元（ルートに近い）
-// 4. node_modules 内のフレームは通常無視
+// How to read a stack trace:
+// 1. The top line is the error message
+// 2. The 2nd line is the origin of the exception (most important)
+// 3. Lines further down are closer to the caller (root)
+// 4. Frames inside node_modules are usually ignored
 
-// カスタムスタックトレース
+// Custom stack trace
 class AppError extends Error {
     constructor(message: string) {
         super(message);
         this.name = this.constructor.name;
-        // コンストラクタ自身をスタックから除外
+        // Exclude the constructor itself from the stack
         Error.captureStackTrace(this, this.constructor);
     }
 }
 
-// エラーが発生した箇所ではなく、
-// AppError のコンストラクタの呼び出し元がスタックの先頭になる
+// The top of the stack becomes the call site of the AppError constructor,
+// not the constructor itself
 ```
 
-### 3.3 非同期コードでのスタックトレース
+### 3.3 Stack Traces in Asynchronous Code
 
 ```typescript
-// 非同期コードでスタックトレースが途切れる問題
+// The problem of stack traces being broken in async code
 async function fetchUser(id: string): Promise<User> {
     const response = await fetch(`/api/users/${id}`);
     if (!response.ok) throw new Error("Fetch failed");
     return response.json();
 }
 
-// Node.js の --async-stack-traces フラグで非同期スタックトレースを有効化
-// または Error.cause で原因チェーンを構築
+// Enable async stack traces with Node.js --async-stack-traces flag
+// Or build a cause chain with Error.cause
 
 async function processUser(id: string): Promise<void> {
     try {
         const user = await fetchUser(id);
         await updateUser(user);
     } catch (error) {
-        // ES2022: Error.cause で原因チェーンを構築
+        // ES2022: Build a cause chain with Error.cause
         throw new ProcessError("User processing failed", {
-            cause: error,  // 元のエラーを原因として保持
+            cause: error,  // Retain the original error as the cause
         });
     }
 }
 
-// 原因チェーンの走査
+// Traversing the cause chain
 function getRootCause(error: Error): Error {
     let current = error;
     while (current.cause instanceof Error) {
@@ -440,108 +441,108 @@ function getRootCause(error: Error): Error {
     return current;
 }
 
-// Python の例外チェーン
+// Python exception chaining
 // try:
 //     result = parse_data(raw)
 // except ParseError as e:
 //     raise ProcessingError("Data processing failed") from e
-//     # __cause__ に元の例外が保存される
+//     # The original exception is stored in __cause__
 ```
 
-### 3.4 例外伝播のコスト
+### 3.4 Cost of Exception Propagation
 
 ```
-例外のパフォーマンスコスト:
+Performance cost of exceptions:
 
-  try ブロックに入る:
-  → ほぼゼロコスト（多くのランタイムで最適化済み）
-  → 「ゼロコスト例外」モデル（C++, Rust のパニック）
+  Entering a try block:
+  -> Nearly zero cost (optimized in most runtimes)
+  -> "Zero-cost exception" model (C++, Rust panics)
 
-  例外をスロー:
-  → 非常にコストが高い
-  → スタックトレースの構築: O(n)（nはスタック深度）
-  → スタックアンワインド: 各フレームのデストラクタ呼び出し
-  → 一般的に通常の関数リターンの100-1000倍遅い
+  Throwing an exception:
+  -> Very high cost
+  -> Stack trace construction: O(n) (n is stack depth)
+  -> Stack unwinding: calling destructors for each frame
+  -> Generally 100-1000x slower than a normal function return
 
-  ベンチマーク例（概算）:
-  ┌──────────────────┬────────────────┐
-  │ 操作             │ 相対コスト     │
-  ├──────────────────┼────────────────┤
-  │ 関数リターン     │ 1x             │
-  │ try ブロック進入  │ ~1x            │
-  │ 例外スロー       │ 100-1000x      │
-  │ スタックトレース  │ 200-2000x      │
-  └──────────────────┴────────────────┘
+  Benchmark example (approximate):
+  ┌──────────────────────┬────────────────┐
+  │ Operation            │ Relative Cost  │
+  ├──────────────────────┼────────────────┤
+  │ Function return      │ 1x             │
+  │ Entering try block   │ ~1x            │
+  │ Throwing exception   │ 100-1000x      │
+  │ Stack trace          │ 200-2000x      │
+  └──────────────────────┴────────────────┘
 
-  結論:
-  → try/catch を書くこと自体はコスト問題にならない
-  → 例外は「例外的な」状況にのみ使う
-  → ループ内で例外を使った制御フローは絶対にNG
+  Conclusion:
+  -> Writing try/catch itself is not a cost issue
+  -> Use exceptions only for "exceptional" situations
+  -> Using exceptions for control flow inside loops is absolutely unacceptable
 ```
 
 ---
 
-## 4. 例外の使い方: 適切な場面と濫用
+## 4. Using Exceptions: Appropriate Situations and Abuse
 
-### 4.1 例外を使うべき場面
+### 4.1 When to Use Exceptions
 
 ```
-例外を使うべき場面:
-  ✓ ファイルが見つからない
-  ✓ ネットワーク接続エラー
-  ✓ データベース接続失敗
-  ✓ 不正なデータ（バリデーションエラー）
-  ✓ リソース不足（メモリ、ディスク）
-  ✓ 設定ファイルの不整合
-  ✓ 外部サービスの障害
-  ✓ 認証・認可の失敗
-  ✓ データの整合性違反
-  ✓ タイムアウト
+When exceptions should be used:
+  ✓ File not found
+  ✓ Network connection error
+  ✓ Database connection failure
+  ✓ Invalid data (validation error)
+  ✓ Resource exhaustion (memory, disk)
+  ✓ Configuration file inconsistency
+  ✓ External service failure
+  ✓ Authentication/authorization failure
+  ✓ Data integrity violation
+  ✓ Timeout
 
-例外を使うべきでない場面:
-  ✗ 通常の制御フロー（if/else で判断できる）
-  ✗ 予期される状況（ユーザーの入力ミス）
-  ✗ パフォーマンスクリティカルなコード
-  ✗ コレクションが空であること
-  ✗ 検索結果が0件であること
-  ✗ ファイル末尾への到達
+When exceptions should NOT be used:
+  ✗ Normal control flow (can be decided with if/else)
+  ✗ Expected situations (user input mistakes)
+  ✗ Performance-critical code
+  ✗ A collection being empty
+  ✗ Search results returning 0 items
+  ✗ Reaching the end of a file
 ```
 
-### 4.2 アンチパターン: 例外で制御フロー
+### 4.2 Anti-pattern: Control Flow via Exceptions
 
 ```typescript
-// ❌ 例外で制御フロー（アンチパターン）
+// BAD: Control flow via exceptions (anti-pattern)
 function findUserByEmail(email: string): User | null {
     try {
         const user = db.query("SELECT * FROM users WHERE email = ?", [email]);
         if (!user) throw new Error("Not found");
         return user;
     } catch (e) {
-        return null;  // 「見つからない」は例外ではない
+        return null;  // "Not found" is not an exception
     }
 }
 
-// ✅ 戻り値で制御フロー
+// GOOD: Control flow via return values
 function findUserByEmail(email: string): User | null {
     const user = db.query("SELECT * FROM users WHERE email = ?", [email]);
-    return user ?? null;  // null を返す（正常な制御フロー）
+    return user ?? null;  // Return null (normal control flow)
 }
 
-// ❌ ループ内で例外を使った制御（最悪のパターン）
+// BAD: Using exceptions for control flow inside a loop (worst pattern)
 function parseNumbers(inputs: string[]): number[] {
     const results: number[] = [];
     for (const input of inputs) {
         try {
             results.push(parseInt(input));
         } catch (e) {
-            // パースできない = 通常のこと
+            // Failing to parse = normal occurrence
             continue;
         }
     }
     return results;
 }
 
-// ✅ 事前チェック
+// GOOD: Pre-validation
 function parseNumbers(inputs: string[]): number[] {
     return inputs
         .filter(input => /^\d+$/.test(input))
@@ -549,10 +550,10 @@ function parseNumbers(inputs: string[]): number[] {
 }
 ```
 
-### 4.3 アンチパターン: Pokemon Exception Handling
+### 4.3 Anti-pattern: Pokemon Exception Handling
 
 ```typescript
-// ❌ 全てをキャッチ（Pokemon: "Gotta Catch 'Em All"）
+// BAD: Catch everything (Pokemon: "Gotta Catch 'Em All")
 async function processOrder(orderId: string): Promise<void> {
     try {
         const order = await getOrder(orderId);
@@ -560,12 +561,12 @@ async function processOrder(orderId: string): Promise<void> {
         await chargePayment(order);
         await sendConfirmation(order);
     } catch (error) {
-        // 全ての例外を握りつぶし！
+        // Swallowing all exceptions!
         console.log("Something went wrong");
     }
 }
 
-// ✅ 適切な例外処理
+// GOOD: Proper exception handling
 async function processOrder(orderId: string): Promise<void> {
     try {
         const order = await getOrder(orderId);
@@ -574,40 +575,40 @@ async function processOrder(orderId: string): Promise<void> {
         await sendConfirmation(order);
     } catch (error) {
         if (error instanceof ValidationError) {
-            // バリデーションエラーは具体的に処理
+            // Handle validation errors specifically
             await notifyUser(orderId, error.message);
             return;
         }
         if (error instanceof PaymentError) {
-            // 支払いエラーはリトライ可能かもしれない
+            // Payment errors may be retryable
             await queueForRetry(orderId);
             return;
         }
-        // 予期しないエラーは上位に伝播
+        // Propagate unexpected errors to upper levels
         throw error;
     }
 }
 ```
 
-### 4.4 アンチパターン: 例外の握りつぶし
+### 4.4 Anti-pattern: Swallowing Exceptions
 
 ```python
-# ❌ 握りつぶし（Swallowing Exception）
+# BAD: Swallowing Exception
 def save_user(user):
     try:
         db.save(user)
     except Exception:
-        pass  # 何もしない！データが保存されていないのに成功したように見える
+        pass  # Do nothing! Data is not saved but appears to have succeeded
 
-# ❌ ログだけ出して握りつぶし
+# BAD: Log only and swallow
 def save_user(user):
     try:
         db.save(user)
     except Exception as e:
         logger.error(f"Failed to save user: {e}")
-        # 呼び出し元は成功したと思っている
+        # The caller thinks it succeeded
 
-# ✅ 適切な処理
+# GOOD: Proper handling
 def save_user(user) -> bool:
     try:
         db.save(user)
@@ -620,24 +621,24 @@ def save_user(user) -> bool:
         raise ServiceUnavailableError("Database unavailable") from e
 ```
 
-### 4.5 アンチパターン: 例外の再スローミス
+### 4.5 Anti-pattern: Incorrect Re-throwing
 
 ```typescript
-// ❌ 情報を失う再スロー
+// BAD: Re-throw that loses information
 try {
     await processPayment(order);
 } catch (error) {
-    throw new Error("Payment failed");  // 元のエラー情報が全て消える
+    throw new Error("Payment failed");  // All original error info is lost
 }
 
-// ❌ スタックトレースを壊す再スロー
+// BAD: Re-throw that corrupts the stack trace
 try {
     await processPayment(order);
 } catch (error) {
-    throw error;  // OK だが、コンテキスト情報を追加する機会を逃している
+    throw error;  // OK, but misses the opportunity to add context information
 }
 
-// ✅ 原因チェーンを保持した再スロー
+// GOOD: Re-throw that preserves the cause chain
 try {
     await processPayment(order);
 } catch (error) {
@@ -648,7 +649,7 @@ try {
     });
 }
 
-// ✅ Python の例外チェーン
+// GOOD: Python exception chaining
 # try:
 #     process_payment(order)
 # except StripeError as e:
@@ -659,66 +660,66 @@ try {
 
 ## 5. Java: checked vs unchecked
 
-### 5.1 Java の例外階層
+### 5.1 Java Exception Hierarchy
 
 ```java
-// Java の例外階層
+// Java exception hierarchy
 // Throwable
-// ├── Error（回復不能: OutOfMemoryError, StackOverflowError）
+// ├── Error (unrecoverable: OutOfMemoryError, StackOverflowError)
 // └── Exception
-//     ├── IOException（checked: コンパイラが強制）
-//     ├── SQLException（checked）
-//     └── RuntimeException（unchecked: コンパイラ強制なし）
+//     ├── IOException (checked: enforced by compiler)
+//     ├── SQLException (checked)
+//     └── RuntimeException (unchecked: no compiler enforcement)
 //         ├── NullPointerException
 //         ├── IllegalArgumentException
 //         └── IndexOutOfBoundsException
 
-// checked exception: catchまたはthrows宣言が必須
+// checked exception: catch or throws declaration is mandatory
 public String readFile(String path) throws IOException {
     return Files.readString(Path.of(path));
-    // IOException を catch しないなら throws で宣言必須
+    // Must declare throws if IOException is not caught
 }
 
-// unchecked exception: 宣言不要
+// unchecked exception: no declaration needed
 public void validateAge(int age) {
     if (age < 0) throw new IllegalArgumentException("Age must be >= 0");
-    // throws 宣言不要
+    // No throws declaration needed
 }
 ```
 
-### 5.2 checked exception の議論
+### 5.2 The Checked Exception Debate
 
 ```
-checked exception の議論:
+The checked exception debate:
 
-  賛成派:
-  → エラー処理を忘れない
-  → APIの契約が明確
-  → コンパイル時にエラー処理の漏れを検出
+  Proponents:
+  -> Prevents forgetting error handling
+  -> Makes the API contract explicit
+  -> Detects missing error handling at compile time
 
-  反対派（多数派）:
-  → ボイラープレートが多い
-  → 握りつぶしの原因（catch して無視）
-  → Kotlin, C#, Python, TS は全て unchecked のみ
-  → 例外仕様の変更が連鎖的に波及（throws の伝播）
-  → ラムダ式と相性が悪い
+  Opponents (majority):
+  -> Too much boilerplate
+  -> Causes swallowing (catch and ignore)
+  -> Kotlin, C#, Python, TS all use unchecked only
+  -> Changes to exception specifications cascade through (throws propagation)
+  -> Poor compatibility with lambda expressions
 
-  現代の主流:
-  → unchecked exception + 型でエラーを表現（Result型）
+  Modern mainstream:
+  -> unchecked exceptions + expressing errors with types (Result type)
 ```
 
-### 5.3 checked exception の問題点（具体例）
+### 5.3 Problems with Checked Exceptions (Concrete Examples)
 
 ```java
-// checked exception の問題1: ボイラープレート
-// ラムダ式で checked exception を使えない
+// Checked exception problem 1: Boilerplate
+// Cannot use checked exceptions in lambda expressions
 public List<String> readAllFiles(List<String> paths) throws IOException {
-    // ❌ コンパイルエラー: ラムダ内の checked exception
+    // BAD: Compile error: checked exception in lambda
     // return paths.stream()
     //     .map(path -> Files.readString(Path.of(path))) // IOException!
     //     .collect(Collectors.toList());
 
-    // ✅ 回避策1: try/catch をラムダ内に書く（冗長）
+    // GOOD: Workaround 1: Write try/catch inside the lambda (verbose)
     return paths.stream()
         .map(path -> {
             try {
@@ -730,44 +731,44 @@ public List<String> readAllFiles(List<String> paths) throws IOException {
         .collect(Collectors.toList());
 }
 
-// checked exception の問題2: throws の連鎖
-// 低レベルの実装詳細が上位のインターフェースに漏洩する
+// Checked exception problem 2: Cascading throws
+// Low-level implementation details leak into upper-level interfaces
 public interface UserRepository {
-    // ❌ 実装詳細（SQL）がインターフェースに漏洩
+    // BAD: Implementation detail (SQL) leaks into the interface
     User findById(String id) throws SQLException;
 
-    // ✅ 抽象化されたエラー
+    // GOOD: Abstracted error
     User findById(String id) throws RepositoryException;
 }
 
-// checked exception の問題3: 握りつぶしの誘発
+// Checked exception problem 3: Encouraging swallowing
 public void processData(String data) {
     try {
         riskyOperation(data);
     } catch (CheckedException e) {
-        // 面倒なので握りつぶし（最悪のパターン）
-        // コンパイラを黙らせるためだけのcatch
+        // Swallowed because it's tedious (worst pattern)
+        // catch block exists solely to silence the compiler
     }
 }
 ```
 
-### 5.4 Kotlin のアプローチ
+### 5.4 Kotlin's Approach
 
 ```kotlin
-// Kotlin: checked exception を廃止
-// Java の checked exception を呼び出しても catch 不要
+// Kotlin: Abolished checked exceptions
+// No catch required even when calling Java's checked exceptions
 fun readFile(path: String): String {
-    return File(path).readText()  // IOException は unchecked として扱われる
+    return File(path).readText()  // IOException is treated as unchecked
 }
 
-// try は式（expression）として使える
+// try can be used as an expression
 val result: Int = try {
     input.toInt()
 } catch (e: NumberFormatException) {
-    0  // デフォルト値
+    0  // Default value
 }
 
-// runCatching（Result型ライクな使い方）
+// runCatching (Result type-like usage)
 val result: Result<Int> = runCatching {
     input.toInt()
 }
@@ -782,47 +783,47 @@ val valueOrNull: Int? = result.getOrNull()
 
 ---
 
-## 6. 各言語の例外モデル比較
+## 6. Exception Model Comparison Across Languages
 
 ### 6.1 TypeScript/JavaScript
 
 ```typescript
-// TypeScript: 全て unchecked
-// 型システムでは例外の型を表現できない（throw する型の注釈なし）
+// TypeScript: All unchecked
+// The type system cannot express exception types (no type annotation for thrown types)
 
-// any 型で catch される問題（TypeScript 4.0 以前）
+// Problem of catching as any type (before TypeScript 4.0)
 try {
     throw new Error("test");
 } catch (error) {
-    // error は unknown 型（TypeScript 4.4+ の useUnknownInCatchVariables）
-    // 型を絞り込む必要がある
+    // error is unknown type (TypeScript 4.4+ useUnknownInCatchVariables)
+    // Need to narrow the type
     if (error instanceof Error) {
         console.log(error.message);
     }
 }
 
-// Error の種類
-// Error: 汎用エラー
-// TypeError: 型エラー
-// ReferenceError: 未定義変数の参照
-// RangeError: 範囲外の値
-// SyntaxError: 構文エラー
-// URIError: URI のエンコード/デコードエラー
+// Error types
+// Error: Generic error
+// TypeError: Type error
+// ReferenceError: Reference to undefined variable
+// RangeError: Out-of-range value
+// SyntaxError: Syntax error
+// URIError: URI encoding/decoding error
 
-// 非 Error オブジェクトの throw（非推奨）
-throw "エラーです";        // ❌ string
-throw 42;                  // ❌ number
-throw { code: "ERR" };     // ❌ object
-throw new Error("エラー");  // ✅ Error オブジェクト
-// 非 Error オブジェクトはスタックトレースが取得できない
+// Throwing non-Error objects (not recommended)
+throw "An error occurred";    // BAD: string
+throw 42;                     // BAD: number
+throw { code: "ERR" };        // BAD: object
+throw new Error("An error");  // GOOD: Error object
+// Non-Error objects cannot provide stack traces
 ```
 
 ### 6.2 Python
 
 ```python
-# Python: 全て unchecked + 豊富な組み込み例外
+# Python: All unchecked + rich built-in exceptions
 
-# 例外階層
+# Exception hierarchy
 # BaseException
 # ├── KeyboardInterrupt
 # ├── SystemExit
@@ -842,7 +843,7 @@ throw new Error("エラー");  // ✅ Error オブジェクト
 #     ├── TypeError
 #     └── RuntimeError
 
-# 複数例外の同時キャッチ
+# Catching multiple exceptions simultaneously
 try:
     result = process(data)
 except (ValueError, TypeError) as e:
@@ -851,9 +852,9 @@ except OSError as e:
     logger.error(f"System error: {e}")
 except Exception as e:
     logger.error(f"Unexpected: {e}")
-    raise  # 再送出
+    raise  # Re-raise
 
-# コンテキストマネージャ（with文）
+# Context manager (with statement)
 class DatabaseConnection:
     def __enter__(self):
         self.conn = create_connection()
@@ -866,43 +867,43 @@ class DatabaseConnection:
         else:
             self.conn.commit()
         self.conn.close()
-        return False  # True にすると例外を握りつぶす
+        return False  # Returning True would swallow the exception
 
-# 使い方
+# Usage
 with DatabaseConnection() as conn:
     conn.execute("INSERT INTO users ...")
     conn.execute("UPDATE accounts ...")
-    # 例外が発生 → rollback + close
-    # 正常完了 → commit + close
+    # If an exception occurs -> rollback + close
+    # If completes normally -> commit + close
 
-# Python 3.11+: ExceptionGroup（複数例外の同時発生）
+# Python 3.11+: ExceptionGroup (multiple simultaneous exceptions)
 async def fetch_all(urls: list[str]) -> list[str]:
     async with asyncio.TaskGroup() as tg:
         tasks = [tg.create_task(fetch(url)) for url in urls]
-    # 複数のタスクが同時に失敗した場合
-    # ExceptionGroup が発生する
+    # If multiple tasks fail simultaneously
+    # an ExceptionGroup is raised
 
 try:
     await fetch_all(urls)
 except* ValueError as eg:
-    # ExceptionGroup 内の ValueError のみをハンドル
+    # Handle only ValueError within the ExceptionGroup
     for exc in eg.exceptions:
         logger.error(f"Value error: {exc}")
 except* OSError as eg:
-    # ExceptionGroup 内の OSError のみをハンドル
+    # Handle only OSError within the ExceptionGroup
     for exc in eg.exceptions:
         logger.error(f"OS error: {exc}")
 ```
 
-### 6.3 C++ の例外
+### 6.3 C++ Exceptions
 
 ```cpp
-// C++: 例外は使えるが、パフォーマンスコストが議論される
+// C++: Exceptions are available but performance cost is debated
 
 #include <stdexcept>
 #include <string>
 
-// 標準例外階層
+// Standard exception hierarchy
 // std::exception
 // ├── std::logic_error
 // │   ├── std::invalid_argument
@@ -913,7 +914,7 @@ except* OSError as eg:
 //     ├── std::underflow_error
 //     └── std::range_error
 
-// 基本的な例外処理
+// Basic exception handling
 void processFile(const std::string& path) {
     try {
         auto data = readFile(path);
@@ -924,22 +925,22 @@ void processFile(const std::string& path) {
     } catch (const std::runtime_error& e) {
         std::cerr << "Runtime error: " << e.what() << std::endl;
     } catch (...) {
-        // 全てのキャッチ（C++ 固有）
+        // Catch-all (C++ specific)
         std::cerr << "Unknown error" << std::endl;
-        throw;  // 再スロー
+        throw;  // Re-throw
     }
 }
 
-// noexcept 指定（C++11）
-// この関数は例外を投げないことを宣言
+// noexcept specifier (C++11)
+// Declares that this function does not throw exceptions
 void swap(int& a, int& b) noexcept {
     int temp = a;
     a = b;
     b = temp;
 }
-// noexcept 関数で例外が投げられると std::terminate() が呼ばれる
+// If an exception is thrown in a noexcept function, std::terminate() is called
 
-// RAII パターン（Resource Acquisition Is Initialization）
+// RAII pattern (Resource Acquisition Is Initialization)
 class FileHandle {
     FILE* file_;
 public:
@@ -947,19 +948,19 @@ public:
         if (!file_) throw std::runtime_error("Failed to open file");
     }
     ~FileHandle() {
-        if (file_) fclose(file_);  // デストラクタで自動クリーンアップ
+        if (file_) fclose(file_);  // Auto-cleanup in destructor
     }
-    // コピー禁止
+    // Copy prohibited
     FileHandle(const FileHandle&) = delete;
     FileHandle& operator=(const FileHandle&) = delete;
 };
 ```
 
-### 6.4 Go のエラー処理（例外なし）
+### 6.4 Go Error Handling (No Exceptions)
 
 ```go
-// Go: 例外の代わりに多値返却
-// 例外機構がない（panic/recover はあるが、通常使わない）
+// Go: Multiple return values instead of exceptions
+// No exception mechanism (panic/recover exist but are rarely used)
 
 func readConfig(path string) (*Config, error) {
     data, err := os.ReadFile(path)
@@ -975,11 +976,11 @@ func readConfig(path string) (*Config, error) {
     return &config, nil
 }
 
-// エラーのラッピングとアンラッピング
+// Error wrapping and unwrapping
 func processOrder(orderID string) error {
     order, err := getOrder(orderID)
     if err != nil {
-        // %w でラッピング（Go 1.13+）
+        // Wrapping with %w (Go 1.13+)
         return fmt.Errorf("processOrder: get order: %w", err)
     }
 
@@ -990,28 +991,28 @@ func processOrder(orderID string) error {
     return nil
 }
 
-// errors.Is: エラーの同一性チェック
+// errors.Is: Error identity check
 if errors.Is(err, os.ErrNotExist) {
     fmt.Println("File does not exist")
 }
 
-// errors.As: エラーの型チェック
+// errors.As: Error type check
 var pathErr *os.PathError
 if errors.As(err, &pathErr) {
     fmt.Printf("Path error: %s, Op: %s\n", pathErr.Path, pathErr.Op)
 }
 
-// Go のエラー処理の議論:
-// 賛成: シンプル、明示的、見落としにくい
-// 反対: if err != nil の繰り返し、ボイラープレート
+// Go error handling debate:
+// Proponents: Simple, explicit, hard to overlook
+// Opponents: Repetitive if err != nil, boilerplate
 ```
 
-### 6.5 Swift のエラー処理
+### 6.5 Swift Error Handling
 
 ```swift
-// Swift: do/try/catch + 型安全なエラー
+// Swift: do/try/catch + type-safe errors
 
-// Error プロトコルに準拠した列挙型
+// Enum conforming to the Error protocol
 enum NetworkError: Error {
     case invalidURL(String)
     case timeout(seconds: Int)
@@ -1019,7 +1020,7 @@ enum NetworkError: Error {
     case noConnection
 }
 
-// エラーを投げる関数（throws キーワード）
+// Function that throws errors (throws keyword)
 func fetchData(from urlString: String) throws -> Data {
     guard let url = URL(string: urlString) else {
         throw NetworkError.invalidURL(urlString)
@@ -1038,7 +1039,7 @@ func fetchData(from urlString: String) throws -> Data {
     return data
 }
 
-// 呼び出し方法（3パターン）
+// Calling methods (3 patterns)
 // 1. do/try/catch
 do {
     let data = try fetchData(from: "https://api.example.com")
@@ -1051,21 +1052,21 @@ do {
     print("Unknown error: \(error)")
 }
 
-// 2. try?（失敗時は nil）
+// 2. try? (nil on failure)
 let data = try? fetchData(from: "https://api.example.com")
 
-// 3. try!（失敗時はクラッシュ）
-let data = try! fetchData(from: "https://api.example.com")  // 危険
+// 3. try! (crash on failure)
+let data = try! fetchData(from: "https://api.example.com")  // Dangerous
 ```
 
 ---
 
-## 7. エラー階層の設計
+## 7. Designing Error Hierarchies
 
-### 7.1 TypeScript でのエラー階層
+### 7.1 Error Hierarchy in TypeScript
 
 ```typescript
-// カスタムエラー階層
+// Custom error hierarchy
 class AppError extends Error {
   constructor(
     message: string,
@@ -1078,28 +1079,28 @@ class AppError extends Error {
   }
 }
 
-// 認証エラー
+// Authentication error
 class AuthenticationError extends AppError {
-  constructor(message: string = "認証が必要です") {
+  constructor(message: string = "Authentication required") {
     super(message, "AUTH_REQUIRED", 401);
   }
 }
 
-// 認可エラー
+// Authorization error
 class AuthorizationError extends AppError {
-  constructor(message: string = "権限がありません") {
+  constructor(message: string = "Permission denied") {
     super(message, "FORBIDDEN", 403);
   }
 }
 
-// リソース未発見
+// Resource not found
 class NotFoundError extends AppError {
   constructor(resource: string, id: string) {
     super(`${resource} not found: ${id}`, "NOT_FOUND", 404);
   }
 }
 
-// バリデーションエラー
+// Validation error
 class ValidationError extends AppError {
   constructor(
     message: string,
@@ -1109,7 +1110,7 @@ class ValidationError extends AppError {
   }
 }
 
-// 使い分け
+// Usage
 function getUser(id: string): User {
   const user = db.findById(id);
   if (!user) throw new NotFoundError("User", id);
@@ -1117,10 +1118,10 @@ function getUser(id: string): User {
 }
 ```
 
-### 7.2 エラー階層設計のベストプラクティス
+### 7.2 Error Hierarchy Design Best Practices
 
 ```typescript
-// 実務的なエラー階層の全体像
+// Complete practical error hierarchy
 abstract class AppError extends Error {
     abstract readonly code: string;
     abstract readonly httpStatus: number;
@@ -1151,11 +1152,11 @@ abstract class AppError extends Error {
     }
 }
 
-// ======== 認証・認可 ========
+// ======== Authentication & Authorization ========
 class AuthenticationError extends AppError {
     readonly code = "AUTHENTICATION_REQUIRED";
     readonly httpStatus = 401;
-    constructor(message = "認証が必要です", options?: { cause?: Error }) {
+    constructor(message = "Authentication required", options?: { cause?: Error }) {
         super(message, true, options);
     }
 }
@@ -1163,14 +1164,14 @@ class AuthenticationError extends AppError {
 class TokenExpiredError extends AuthenticationError {
     readonly code = "TOKEN_EXPIRED";
     constructor() {
-        super("トークンが期限切れです");
+        super("Token has expired");
     }
 }
 
 class InvalidCredentialsError extends AuthenticationError {
     readonly code = "INVALID_CREDENTIALS";
     constructor() {
-        super("認証情報が無効です");
+        super("Invalid credentials");
     }
 }
 
@@ -1181,11 +1182,11 @@ class AuthorizationError extends AppError {
         public readonly requiredRole: string,
         public readonly actualRole: string,
     ) {
-        super(`権限が不足しています: ${requiredRole} が必要です（現在: ${actualRole}）`);
+        super(`Insufficient permissions: ${requiredRole} required (current: ${actualRole})`);
     }
 }
 
-// ======== リソース ========
+// ======== Resources ========
 class NotFoundError extends AppError {
     readonly code = "NOT_FOUND";
     readonly httpStatus = 404;
@@ -1193,7 +1194,7 @@ class NotFoundError extends AppError {
         public readonly resourceType: string,
         public readonly resourceId: string,
     ) {
-        super(`${resourceType} が見つかりません: ${resourceId}`);
+        super(`${resourceType} not found: ${resourceId}`);
     }
 }
 
@@ -1205,7 +1206,7 @@ class ConflictError extends AppError {
     }
 }
 
-// ======== バリデーション ========
+// ======== Validation ========
 interface FieldError {
     field: string;
     message: string;
@@ -1216,7 +1217,7 @@ class ValidationError extends AppError {
     readonly code = "VALIDATION_ERROR";
     readonly httpStatus = 400;
     constructor(public readonly fieldErrors: FieldError[]) {
-        super(`入力値が不正です: ${fieldErrors.map(e => e.field).join(", ")}`);
+        super(`Invalid input: ${fieldErrors.map(e => e.field).join(", ")}`);
     }
 
     toJSON() {
@@ -1231,7 +1232,7 @@ class ValidationError extends AppError {
     }
 }
 
-// ======== 外部サービス ========
+// ======== External Services ========
 class ExternalServiceError extends AppError {
     readonly code = "EXTERNAL_SERVICE_ERROR";
     readonly httpStatus = 502;
@@ -1250,11 +1251,11 @@ class RateLimitError extends AppError {
     constructor(
         public readonly retryAfterMs: number,
     ) {
-        super(`レート制限に達しました。${retryAfterMs}ms 後に再試行してください`);
+        super(`Rate limit exceeded. Please retry after ${retryAfterMs}ms`);
     }
 }
 
-// ======== 内部エラー ========
+// ======== Internal Errors ========
 class InternalError extends AppError {
     readonly code = "INTERNAL_ERROR";
     readonly httpStatus = 500;
@@ -1264,21 +1265,21 @@ class InternalError extends AppError {
 }
 ```
 
-### 7.3 エラー階層を使ったミドルウェア
+### 7.3 Middleware Using Error Hierarchy
 
 ```typescript
-// Express ミドルウェアでのエラーハンドリング
+// Express middleware for error handling
 function errorHandler(
     error: Error,
     req: Request,
     res: Response,
     next: NextFunction
 ): void {
-    // リクエストIDの付与
+    // Assign request ID
     const requestId = req.headers['x-request-id'] as string || generateId();
 
     if (error instanceof AppError) {
-        // 操作エラー: 適切なレスポンスを返す
+        // Operational error: return appropriate response
         logger.warn({
             code: error.code,
             message: error.message,
@@ -1295,7 +1296,7 @@ function errorHandler(
             }
         });
     } else {
-        // プログラマエラー: 内部情報を隠す
+        // Programmer error: hide internal information
         logger.error({
             message: error.message,
             stack: error.stack,
@@ -1304,7 +1305,7 @@ function errorHandler(
             method: req.method,
         });
 
-        // Sentry等に送信
+        // Send to Sentry, etc.
         Sentry.captureException(error, {
             tags: { requestId },
             extra: { path: req.path },
@@ -1313,7 +1314,7 @@ function errorHandler(
         res.status(500).json({
             error: {
                 code: "INTERNAL_ERROR",
-                message: "サーバーエラーが発生しました",
+                message: "A server error occurred",
                 requestId,
             }
         });
@@ -1323,50 +1324,50 @@ function errorHandler(
 
 ---
 
-## 8. 例外安全性（Exception Safety）
+## 8. Exception Safety
 
-### 8.1 例外安全性のレベル
+### 8.1 Levels of Exception Safety
 
 ```
-例外安全性の4レベル（C++ 由来だが概念は言語共通）:
+4 levels of exception safety (originated in C++ but the concepts are language-agnostic):
 
-  Level 0: 例外安全でない（No guarantee）
-  → 例外が発生するとリソースリーク、データ破損の可能性
-  → 避けるべき
+  Level 0: Not exception-safe (No guarantee)
+  -> Resource leaks and data corruption possible if an exception occurs
+  -> Must be avoided
 
-  Level 1: 基本保証（Basic guarantee）
-  → 例外が発生してもリソースリークしない
-  → オブジェクトは有効だが、内容は不定
-  → 最低限これを目指す
+  Level 1: Basic guarantee
+  -> No resource leaks if an exception occurs
+  -> Object is valid but its content is indeterminate
+  -> This is the minimum to aim for
 
-  Level 2: 強い保証（Strong guarantee）
-  → 例外が発生すると操作前の状態に完全に戻る
-  → トランザクションのロールバックに相当
-  → コストが高いが、安全
+  Level 2: Strong guarantee
+  -> State is fully restored to pre-operation state if an exception occurs
+  -> Equivalent to transaction rollback
+  -> Costly but safe
 
-  Level 3: 例外なし保証（No-throw guarantee）
-  → 例外が絶対に発生しない
-  → デストラクタ、スワップ操作に求められる
+  Level 3: No-throw guarantee
+  -> Exceptions never occur
+  -> Required for destructors and swap operations
 ```
 
-### 8.2 例外安全なコードの実例
+### 8.2 Exception-safe Code Examples
 
 ```typescript
-// ❌ 例外安全でないコード（Level 0）
+// BAD: Not exception-safe code (Level 0)
 class UserService {
     async transferBalance(fromId: string, toId: string, amount: number): Promise<void> {
         const from = await this.getUser(fromId);
         from.balance -= amount;
-        await this.saveUser(from);  // ← ここで例外が起きたら?
+        await this.saveUser(from);  // <- What if an exception occurs here?
 
         const to = await this.getUser(toId);
         to.balance += amount;
-        await this.saveUser(to);  // ← from は減額済み、to は未加算
-        // データ不整合が発生!
+        await this.saveUser(to);  // <- from is debited, but to is not credited
+        // Data inconsistency!
     }
 }
 
-// ✅ 強い保証のコード（Level 2）: トランザクション使用
+// GOOD: Strong guarantee code (Level 2): Using transactions
 class UserService {
     async transferBalance(fromId: string, toId: string, amount: number): Promise<void> {
         await this.db.transaction(async (tx) => {
@@ -1382,21 +1383,21 @@ class UserService {
 
             await tx.saveUser(from);
             await tx.saveUser(to);
-            // tx.commit() はトランザクション終了時に自動実行
-            // 例外発生時は tx.rollback() が自動実行
+            // tx.commit() is automatically executed at transaction end
+            // tx.rollback() is automatically executed on exception
         });
     }
 }
 
-// ✅ 強い保証のコード（Level 2）: Copy-and-Swap イディオム
+// GOOD: Strong guarantee code (Level 2): Copy-and-Swap idiom
 class Configuration {
     private data: Map<string, string>;
 
     updateMultiple(updates: Record<string, string>): void {
-        // 1. コピーを作成
+        // 1. Create a copy
         const newData = new Map(this.data);
 
-        // 2. コピーに対して変更（ここで例外が起きても元データは無傷）
+        // 2. Modify the copy (original data is untouched if an exception occurs here)
         for (const [key, value] of Object.entries(updates)) {
             if (!this.isValidKey(key)) {
                 throw new ValidationError(`Invalid key: ${key}`);
@@ -1404,57 +1405,57 @@ class Configuration {
             newData.set(key, value);
         }
 
-        // 3. アトミックにスワップ（例外なし保証の操作）
+        // 3. Atomic swap (no-throw guarantee operation)
         this.data = newData;
     }
 }
 ```
 
-### 8.3 finally の正しい使い方
+### 8.3 Proper Use of finally
 
 ```typescript
-// finally のベストプラクティス
+// finally best practices
 
-// ✅ リソース解放
+// GOOD: Resource release
 async function processWithLock(key: string): Promise<void> {
     const lock = await acquireLock(key);
     try {
         await doWork();
     } finally {
-        await lock.release();  // 成功でも失敗でも必ずロック解放
+        await lock.release();  // Always release lock regardless of success or failure
     }
 }
 
-// ✅ 一時ファイルの削除
+// GOOD: Temporary file deletion
 async function processWithTempFile(): Promise<void> {
     const tempPath = await createTempFile();
     try {
         await writeToFile(tempPath, data);
         await processFile(tempPath);
     } finally {
-        await fs.unlink(tempPath).catch(() => {});  // ベストエフォートで削除
+        await fs.unlink(tempPath).catch(() => {});  // Best-effort deletion
     }
 }
 
-// ❌ finally 内で return してはいけない
+// BAD: Never return in finally
 function badFinally(): number {
     try {
         throw new Error("error");
     } finally {
-        return 42;  // ❌ 例外が握りつぶされて 42 が返る！
+        return 42;  // BAD: The exception is swallowed and 42 is returned!
     }
 }
 
-// ❌ finally 内で throw してはいけない（元の例外を上書き）
+// BAD: Never throw in finally (overwrites the original exception)
 async function badFinallyThrow(): Promise<void> {
     try {
         throw new Error("original error");
     } finally {
-        throw new Error("cleanup error");  // ❌ original error が消える
+        throw new Error("cleanup error");  // BAD: original error is lost
     }
 }
 
-// ✅ finally 内のエラーは安全に処理
+// GOOD: Handle errors in finally safely
 async function safeFinally(): Promise<void> {
     let resource: Resource | null = null;
     try {
@@ -1466,7 +1467,7 @@ async function safeFinally(): Promise<void> {
                 await resource.release();
             } catch (cleanupError) {
                 logger.warn("Cleanup failed:", cleanupError);
-                // 元の例外を保持するため、ここでは throw しない
+                // Don't throw here to preserve the original exception
             }
         }
     }
@@ -1475,18 +1476,18 @@ async function safeFinally(): Promise<void> {
 
 ---
 
-## 9. 非同期例外処理
+## 9. Asynchronous Exception Handling
 
-### 9.1 Promise と例外
+### 9.1 Promises and Exceptions
 
 ```typescript
-// Promise チェーンでの例外処理
+// Exception handling in Promise chains
 fetchUser(userId)
     .then(user => fetchOrders(user.id))
     .then(orders => calculateTotal(orders))
     .then(total => updateDashboard(total))
     .catch(error => {
-        // チェーン内のどこかで発生した例外をキャッチ
+        // Catches exceptions thrown anywhere in the chain
         if (error instanceof UserNotFoundError) {
             showEmptyState();
         } else if (error instanceof NetworkError) {
@@ -1496,7 +1497,7 @@ fetchUser(userId)
         }
     });
 
-// async/await での例外処理（推奨）
+// Exception handling with async/await (recommended)
 async function loadDashboard(userId: string): Promise<void> {
     try {
         const user = await fetchUser(userId);
@@ -1508,20 +1509,20 @@ async function loadDashboard(userId: string): Promise<void> {
     }
 }
 
-// Promise.all での例外
+// Exceptions with Promise.all
 async function fetchMultiple(ids: string[]): Promise<User[]> {
     try {
-        // 1つでも失敗すると全体が失敗
+        // If even one fails, the entire operation fails
         return await Promise.all(ids.map(id => fetchUser(id)));
     } catch (error) {
-        // 最初に失敗した Promise の例外
+        // The exception from the first failed Promise
         throw new BatchFetchError("Some users could not be fetched", {
             cause: error,
         });
     }
 }
 
-// Promise.allSettled で個別のエラーを処理
+// Handle individual errors with Promise.allSettled
 async function fetchMultipleSafe(ids: string[]): Promise<{
     users: User[];
     errors: Array<{ id: string; error: Error }>;
@@ -1538,7 +1539,7 @@ async function fetchMultipleSafe(ids: string[]): Promise<{
             users.push(result.value.user);
         } else {
             errors.push({
-                id: "unknown",  // allSettled では元のidが分からない場合
+                id: "unknown",  // Original id may not be available with allSettled
                 error: result.reason,
             });
         }
@@ -1548,45 +1549,45 @@ async function fetchMultipleSafe(ids: string[]): Promise<{
 }
 ```
 
-### 9.2 未処理の Promise rejection
+### 9.2 Unhandled Promise Rejections
 
 ```typescript
-// ❌ 未処理の rejection（UnhandledPromiseRejection）
+// BAD: Unhandled rejection (UnhandledPromiseRejection)
 async function dangerousCode(): Promise<void> {
-    fetchUser("123");  // await を忘れている！
-    // fetchUser が reject しても誰もキャッチしない
+    fetchUser("123");  // Forgot await!
+    // If fetchUser rejects, nobody catches it
 }
 
-// ❌ catch を忘れた Promise チェーン
+// BAD: Promise chain missing catch
 someAsyncFunction().then(data => {
     process(data);
-    // .catch() がない → rejection が未処理になる
+    // No .catch() -> rejection goes unhandled
 });
 
-// ✅ 必ず await または .catch() を付ける
+// GOOD: Always attach await or .catch()
 await someAsyncFunction().catch(error => {
     logger.error("Failed:", error);
 });
 
-// グローバルハンドラ（最後の砦）
+// Global handlers (last resort)
 // Node.js
 process.on('unhandledRejection', (reason, promise) => {
     logger.error('Unhandled Rejection:', reason);
     Sentry.captureException(reason);
-    // Node.js 15+ ではプロセスが終了する
+    // In Node.js 15+, the process terminates
 });
 
-// ブラウザ
+// Browser
 window.addEventListener('unhandledrejection', (event) => {
     logger.error('Unhandled Rejection:', event.reason);
-    event.preventDefault();  // ブラウザのデフォルトエラー表示を抑制
+    event.preventDefault();  // Suppress browser's default error display
 });
 ```
 
-### 9.3 並行処理での例外処理パターン
+### 9.3 Exception Handling Patterns in Concurrent Processing
 
 ```typescript
-// パターン1: fail-fast（1つ失敗したら全て中止）
+// Pattern 1: fail-fast (abort all if one fails)
 async function failFast(tasks: Array<() => Promise<void>>): Promise<void> {
     const controller = new AbortController();
 
@@ -1597,7 +1598,7 @@ async function failFast(tasks: Array<() => Promise<void>>): Promise<void> {
                 try {
                     await task();
                 } catch (error) {
-                    controller.abort();  // 他のタスクにキャンセルを通知
+                    controller.abort();  // Notify other tasks of cancellation
                     throw error;
                 }
             })
@@ -1607,7 +1608,7 @@ async function failFast(tasks: Array<() => Promise<void>>): Promise<void> {
     }
 }
 
-// パターン2: best-effort（できるだけ多くを完了させる）
+// Pattern 2: best-effort (complete as many as possible)
 async function bestEffort<T>(
     tasks: Array<() => Promise<T>>
 ): Promise<{ results: T[]; errors: Error[] }> {
@@ -1629,7 +1630,7 @@ async function bestEffort<T>(
     return { results, errors };
 }
 
-// パターン3: retry-on-failure（失敗時にリトライ）
+// Pattern 3: retry-on-failure
 async function withRetry<T>(
     fn: () => Promise<T>,
     maxRetries: number = 3,
@@ -1644,7 +1645,7 @@ async function withRetry<T>(
             lastError = error instanceof Error ? error : new Error(String(error));
 
             if (attempt < maxRetries) {
-                const delay = delayMs * Math.pow(2, attempt - 1);  // 指数バックオフ
+                const delay = delayMs * Math.pow(2, attempt - 1);  // Exponential backoff
                 logger.warn(`Attempt ${attempt} failed, retrying in ${delay}ms...`);
                 await new Promise(resolve => setTimeout(resolve, delay));
             }
@@ -1660,24 +1661,24 @@ async function withRetry<T>(
 
 ---
 
-## 10. テストにおける例外処理
+## 10. Exception Handling in Testing
 
-### 10.1 例外のテスト
+### 10.1 Testing Exceptions
 
 ```typescript
-// Jest での例外テスト
+// Testing exceptions with Jest
 describe("UserService", () => {
     describe("getUser", () => {
-        it("存在しないユーザーで NotFoundError をスローする", async () => {
+        it("throws NotFoundError for a non-existent user", async () => {
             await expect(
                 userService.getUser("nonexistent-id")
             ).rejects.toThrow(NotFoundError);
         });
 
-        it("NotFoundError に正しいプロパティが設定される", async () => {
+        it("NotFoundError has correct properties set", async () => {
             try {
                 await userService.getUser("user-999");
-                fail("例外がスローされるべき");
+                fail("An exception should have been thrown");
             } catch (error) {
                 expect(error).toBeInstanceOf(NotFoundError);
                 expect((error as NotFoundError).code).toBe("NOT_FOUND");
@@ -1686,8 +1687,8 @@ describe("UserService", () => {
             }
         });
 
-        it("データベースエラーは InternalError にラップされる", async () => {
-            // DB障害をモック
+        it("database errors are wrapped in InternalError", async () => {
+            // Mock DB failure
             jest.spyOn(db, "findById").mockRejectedValue(
                 new Error("Connection refused")
             );
@@ -1699,7 +1700,7 @@ describe("UserService", () => {
     });
 });
 
-// Python: pytest での例外テスト
+// Python: Testing exceptions with pytest
 # def test_get_user_not_found():
 #     with pytest.raises(NotFoundError) as exc_info:
 #         user_service.get_user("nonexistent")
@@ -1712,19 +1713,19 @@ describe("UserService", () => {
 #         user_service.get_user("nonexistent")
 ```
 
-### 10.2 例外パスのテスト戦略
+### 10.2 Exception Path Testing Strategy
 
 ```typescript
-// テストピラミッドにおける例外テスト
+// Exception testing in the test pyramid
 
-// 1. ユニットテスト: 個別のエラーケースを網羅
+// 1. Unit tests: Cover individual error cases thoroughly
 describe("validateEmail", () => {
     it.each([
-        ["", "メールアドレスは必須です"],
-        ["invalid", "メールアドレスの形式が不正です"],
-        ["a@b", "メールアドレスの形式が不正です"],
-        ["@example.com", "メールアドレスの形式が不正です"],
-    ])("'%s' で ValidationError をスロー: %s", (email, expectedMessage) => {
+        ["", "Email address is required"],
+        ["invalid", "Invalid email address format"],
+        ["a@b", "Invalid email address format"],
+        ["@example.com", "Invalid email address format"],
+    ])("throws ValidationError for '%s': %s", (email, expectedMessage) => {
         expect(() => validateEmail(email)).toThrow(ValidationError);
         try {
             validateEmail(email);
@@ -1734,10 +1735,10 @@ describe("validateEmail", () => {
     });
 });
 
-// 2. 統合テスト: エラーの伝播を確認
+// 2. Integration tests: Verify error propagation
 describe("POST /api/users", () => {
-    it("重複メールで 409 Conflict を返す", async () => {
-        // 既存ユーザーを作成
+    it("returns 409 Conflict for duplicate email", async () => {
+        // Create an existing user
         await createUser({ email: "test@example.com" });
 
         const response = await request(app)
@@ -1748,10 +1749,10 @@ describe("POST /api/users", () => {
         expect(response.body.error.code).toBe("EMAIL_ALREADY_EXISTS");
     });
 
-    it("バリデーションエラーで 400 と詳細を返す", async () => {
+    it("returns 400 with details for validation errors", async () => {
         const response = await request(app)
             .post("/api/users")
-            .send({});  // 空のボディ
+            .send({});  // Empty body
 
         expect(response.status).toBe(400);
         expect(response.body.error.code).toBe("VALIDATION_ERROR");
@@ -1767,12 +1768,12 @@ describe("POST /api/users", () => {
 
 ---
 
-## 11. 実務でのベストプラクティス
+## 11. Best Practices in Practice
 
-### 11.1 ロギングとモニタリング
+### 11.1 Logging and Monitoring
 
 ```typescript
-// エラーログの構造化
+// Structured error logging
 interface ErrorLog {
     level: "warn" | "error" | "fatal";
     code: string;
@@ -1796,7 +1797,7 @@ function logError(error: Error, context: Partial<ErrorLog> = {}): void {
     };
 
     if (log.level === "error") {
-        // 非操作エラーは即座にアラート
+        // Immediately alert for non-operational errors
         logger.error(log);
         Sentry.captureException(error, { extra: context });
         metrics.increment("app.errors.unexpected");
@@ -1806,7 +1807,7 @@ function logError(error: Error, context: Partial<ErrorLog> = {}): void {
     }
 }
 
-// エラー率のモニタリング
+// Error rate monitoring
 class ErrorRateMonitor {
     private errors: Map<string, number[]> = new Map();
 
@@ -1814,7 +1815,7 @@ class ErrorRateMonitor {
         const now = Date.now();
         const timestamps = this.errors.get(code) ?? [];
         timestamps.push(now);
-        // 5分以上前のエントリを削除
+        // Remove entries older than 5 minutes
         const fiveMinAgo = now - 5 * 60 * 1000;
         this.errors.set(code, timestamps.filter(t => t > fiveMinAgo));
     }
@@ -1831,125 +1832,125 @@ class ErrorRateMonitor {
 }
 ```
 
-### 11.2 エラーメッセージのガイドライン
+### 11.2 Error Message Guidelines
 
 ```
-エラーメッセージのベストプラクティス:
+Error message best practices:
 
-  1. 何が起きたかを明確に述べる
-     ❌ "Error"
-     ❌ "Something went wrong"
-     ✅ "ユーザー user-123 が見つかりません"
-     ✅ "メールアドレスの形式が不正です: missing @"
+  1. Clearly state what happened
+     BAD: "Error"
+     BAD: "Something went wrong"
+     GOOD: "User user-123 not found"
+     GOOD: "Invalid email address format: missing @"
 
-  2. 何をすべきかを示す（ユーザー向け）
-     ❌ "Internal Server Error"
-     ✅ "サーバーが一時的に利用できません。しばらく待ってから再試行してください"
-     ✅ "セッションが期限切れです。再度ログインしてください"
+  2. Indicate what should be done (for users)
+     BAD: "Internal Server Error"
+     GOOD: "The server is temporarily unavailable. Please wait and try again later"
+     GOOD: "Your session has expired. Please log in again"
 
-  3. コンテキスト情報を含める（開発者向け）
-     ❌ "Database error"
-     ✅ "Failed to insert user (email: test@example.com): unique constraint violation on 'users_email_key'"
+  3. Include context information (for developers)
+     BAD: "Database error"
+     GOOD: "Failed to insert user (email: test@example.com): unique constraint violation on 'users_email_key'"
 
-  4. セキュリティに配慮する
-     ❌ "SQL syntax error: SELECT * FROM users WHERE password = '...'"
-     ❌ "Authentication failed for admin@company.com"
-     ✅ "認証に失敗しました"（ユーザー向け）
-     ✅ "Auth failed: invalid password for user_id=123"（ログ向け）
+  4. Be security-conscious
+     BAD: "SQL syntax error: SELECT * FROM users WHERE password = '...'"
+     BAD: "Authentication failed for admin@company.com"
+     GOOD: "Authentication failed" (for users)
+     GOOD: "Auth failed: invalid password for user_id=123" (for logs)
 
-  5. 国際化を考慮する
-     → エラーコード（機械可読）+ メッセージテンプレート
-     → i18n キーとして利用可能な設計
+  5. Consider internationalization
+     -> Error code (machine-readable) + message template
+     -> Design to be usable as i18n keys
 ```
 
-### 11.3 エラー処理のチェックリスト
+### 11.3 Error Handling Checklist
 
 ```
-プロジェクト開始時のエラー処理チェックリスト:
+Error handling checklist at project start:
 
-  □ エラー階層の設計
-    → AppError 基底クラス
-    → ドメインエラーのサブクラス
-    → エラーコード体系
+  [] Error hierarchy design
+    -> AppError base class
+    -> Domain error subclasses
+    -> Error code system
 
-  □ グローバルエラーハンドラ
-    → Express/Fastify ミドルウェア
-    → React Error Boundary
-    → uncaughtException / unhandledRejection
+  [] Global error handler
+    -> Express/Fastify middleware
+    -> React Error Boundary
+    -> uncaughtException / unhandledRejection
 
-  □ ログとモニタリング
-    → 構造化ログ（JSON）
-    → エラートラッキング（Sentry）
-    → アラート設定（PagerDuty）
+  [] Logging and monitoring
+    -> Structured logs (JSON)
+    -> Error tracking (Sentry)
+    -> Alert configuration (PagerDuty)
 
-  □ APIエラーレスポンス
-    → 統一フォーマット（RFC 7807 準拠推奨）
-    → HTTPステータスコードの正しい使い分け
-    → エラーコードの文書化
+  [] API error responses
+    -> Unified format (RFC 7807 compliant recommended)
+    -> Proper HTTP status code usage
+    -> Error code documentation
 
-  □ テスト
-    → 正常系と異常系の両方
-    → エラーの伝播パスのテスト
-    → エッジケースのテスト
+  [] Testing
+    -> Both normal and error paths
+    -> Error propagation path tests
+    -> Edge case tests
 
-  □ ドキュメント
-    → エラーコード一覧
-    → トラブルシューティングガイド
-    → エラーレスポンスの例
+  [] Documentation
+    -> Error code reference
+    -> Troubleshooting guide
+    -> Error response examples
 ```
 
 ---
 
-## 12. パフォーマンスとトレードオフ
+## 12. Performance and Trade-offs
 
-### 12.1 例外 vs Result型 のパフォーマンス
+### 12.1 Exceptions vs Result Type Performance
 
 ```typescript
-// パフォーマンス比較: 例外 vs Result型
+// Performance comparison: Exceptions vs Result type
 
-// ❌ 例外をパフォーマンスクリティカルなコードで使う
+// BAD: Using exceptions in performance-critical code
 function parseIntWithException(s: string): number {
     const n = Number(s);
     if (isNaN(n)) throw new Error(`Invalid number: ${s}`);
     return n;
 }
 
-// 10万回呼び出し（50%失敗）: ~500ms
-// → 例外スローのスタックトレース構築が重い
+// 100,000 calls (50% failure): ~500ms
+// -> Stack trace construction on exception throw is expensive
 
-// ✅ Result型でパフォーマンスクリティカルなコードを処理
+// GOOD: Using Result type for performance-critical code
 function parseIntWithResult(s: string): { ok: true; value: number } | { ok: false; error: string } {
     const n = Number(s);
     if (isNaN(n)) return { ok: false, error: `Invalid number: ${s}` };
     return { ok: true, value: n };
 }
 
-// 10万回呼び出し（50%失敗）: ~5ms
-// → 通常の関数リターンと同じコスト
+// 100,000 calls (50% failure): ~5ms
+// -> Same cost as a normal function return
 
-// 結論:
-// → 頻繁に失敗する操作（バリデーション、パース）は Result型
-// → 稀に失敗する操作（I/O、ネットワーク）は例外でOK
-// → 例外のコストは「発生時」のみ。try ブロック自体は無料
+// Conclusion:
+// -> Operations that frequently fail (validation, parsing) -> Result type
+// -> Operations that rarely fail (I/O, network) -> Exceptions are fine
+// -> The cost of exceptions is only at "throw time". try blocks themselves are free
 ```
 
-### 12.2 スタックトレースの制御
+### 12.2 Stack Trace Control
 
 ```typescript
-// スタックトレースの省略（パフォーマンス最適化）
+// Omitting stack traces (performance optimization)
 class LightweightError extends Error {
     constructor(message: string, public readonly code: string) {
         super(message);
         this.name = this.constructor.name;
-        // スタックトレースを省略（パフォーマンス向上）
-        // ただし、デバッグが困難になるため慎重に判断
+        // Omit stack trace (improves performance)
+        // However, use with caution as it makes debugging difficult
     }
 }
 
-// V8: Error.stackTraceLimit でスタックの深さを制限
-Error.stackTraceLimit = 10;  // デフォルトは10（Node.js）
+// V8: Limit stack depth with Error.stackTraceLimit
+Error.stackTraceLimit = 10;  // Default is 10 (Node.js)
 
-// 条件付きスタックトレース
+// Conditional stack trace
 class ConfigurableError extends Error {
     constructor(message: string, options?: { includeStack?: boolean }) {
         super(message);
@@ -1965,42 +1966,42 @@ class ConfigurableError extends Error {
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying how it works.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping straight to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-| 概念 | ポイント |
-|------|---------|
-| try/catch | 例外をキャッチして処理 |
-| finally | 必ず実行されるクリーンアップ |
-| 伝播 | 処理できる場所でキャッチ |
-| checked vs unchecked | 現代は unchecked + Result型 |
-| カスタムエラー | 階層を設計してコード化 |
-| 例外安全性 | 基本保証を最低限、強い保証を推奨 |
-| 非同期例外 | Promise rejection の処理を忘れない |
-| パフォーマンス | try は無料、throw は高コスト |
-| テスト | 正常系と異常系の両方を網羅 |
-| ログ | 構造化ログ + エラートラッキング |
+Knowledge of this topic is frequently applied in day-to-day development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Concept | Key Point |
+|---------|-----------|
+| try/catch | Catch and handle exceptions |
+| finally | Cleanup that always executes |
+| Propagation | Catch where you can handle it |
+| checked vs unchecked | Modern approach: unchecked + Result type |
+| Custom errors | Design a hierarchy and codify |
+| Exception safety | Basic guarantee as minimum, strong guarantee recommended |
+| Async exceptions | Don't forget to handle Promise rejections |
+| Performance | try is free, throw is expensive |
+| Testing | Cover both normal and error paths |
+| Logging | Structured logs + error tracking |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
+
+---
+
+## References
 1. Bloch, J. "Effective Java." Items 69-77, 2018.
 2. Sutter, H. "When and How to Use Exceptions." 2004.
 3. Abramov, D. "Error Handling in React 16." React Blog, 2017.

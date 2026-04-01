@@ -1,115 +1,115 @@
-# コールバック
+# Callbacks
 
-> コールバックは非同期処理の最も原始的なパターン。Node.jsのerror-firstコールバック、コールバック地獄の問題、そしてPromiseへの進化を理解する。
+> Callbacks are the most primitive pattern for asynchronous processing. Understand Node.js error-first callbacks, the callback hell problem, and the evolution toward Promises.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] コールバックの仕組みと使い方を理解する
-- [ ] コールバック地獄の問題と原因を把握する
-- [ ] error-first パターンの意味を学ぶ
-- [ ] 各言語におけるコールバックの実装を比較する
-- [ ] コールバックから Promise への移行パターンを習得する
+- [ ] Understand how callbacks work and how to use them
+- [ ] Identify the problems and causes of callback hell
+- [ ] Learn the meaning of the error-first pattern
+- [ ] Compare callback implementations across different languages
+- [ ] Master the migration pattern from callbacks to Promises
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
+- Basic programming knowledge
+- Understanding of related fundamental concepts
 
 ---
 
-## 1. コールバックの基本
+## 1. Callback Basics
 
-### 1.1 コールバックとは
+### 1.1 What Is a Callback?
 
 ```
-コールバック = 「処理が完了したら呼んでね」と渡す関数
+Callback = A function passed with the message "call me when processing is complete"
 
-  同期:
+  Synchronous:
     const result = readFile("data.txt");
     console.log(result);
 
-  非同期（コールバック）:
+  Asynchronous (callback):
     readFile("data.txt", (error, result) => {
       console.log(result);
     });
-    // readFile は即座に戻る。結果は後でコールバックに届く
+    // readFile returns immediately. The result arrives later via the callback
 
-コールバックの分類:
-  1. 同期コールバック: map, filter, sort など（即座に実行される）
-  2. 非同期コールバック: I/O完了後に呼ばれる（setTimeout, fs.readFileなど）
+Types of callbacks:
+  1. Synchronous callbacks: map, filter, sort, etc. (executed immediately)
+  2. Asynchronous callbacks: Called after I/O completion (setTimeout, fs.readFile, etc.)
 ```
 
-### 1.2 同期コールバック vs 非同期コールバック
+### 1.2 Synchronous Callbacks vs Asynchronous Callbacks
 
 ```javascript
-// === 同期コールバック ===
-// 関数の引数として渡され、その場で即座に実行される
+// === Synchronous Callbacks ===
+// Passed as function arguments and executed immediately on the spot
 
-// Array.map: 各要素に対してコールバックを適用
+// Array.map: Apply a callback to each element
 const numbers = [1, 2, 3, 4, 5];
 const doubled = numbers.map((n) => n * 2);  // [2, 4, 6, 8, 10]
 
-// Array.filter: コールバックがtrueを返す要素だけ残す
+// Array.filter: Keep only elements for which the callback returns true
 const evens = numbers.filter((n) => n % 2 === 0);  // [2, 4]
 
-// Array.reduce: 累積値を計算
+// Array.reduce: Calculate an accumulated value
 const sum = numbers.reduce((acc, n) => acc + n, 0);  // 15
 
-// Array.sort: コールバックで比較ロジックを注入
+// Array.sort: Inject comparison logic via a callback
 const users = [
-  { name: "田中", age: 30 },
-  { name: "山田", age: 25 },
-  { name: "鈴木", age: 35 },
+  { name: "Tanaka", age: 30 },
+  { name: "Yamada", age: 25 },
+  { name: "Suzuki", age: 35 },
 ];
 users.sort((a, b) => a.age - b.age);
-// [{ name: "山田", age: 25 }, { name: "田中", age: 30 }, { name: "鈴木", age: 35 }]
+// [{ name: "Yamada", age: 25 }, { name: "Tanaka", age: 30 }, { name: "Suzuki", age: 35 }]
 
-// Array.forEach: 各要素に副作用を実行
+// Array.forEach: Execute side effects for each element
 numbers.forEach((n) => {
   console.log(n);
 });
 
-// Array.find: 条件に合う最初の要素を返す
+// Array.find: Return the first element matching the condition
 const firstEven = numbers.find((n) => n % 2 === 0);  // 2
 
-// これらは全て「同期コールバック」
-// → 関数が返る時点で全ての処理が完了している
+// All of these are "synchronous callbacks"
+// -> All processing is complete by the time the function returns
 ```
 
 ```javascript
-// === 非同期コールバック ===
-// 関数に渡され、I/O完了後や一定時間後に実行される
+// === Asynchronous Callbacks ===
+// Passed to a function and executed after I/O completion or after a set time
 
 const fs = require('fs');
 
-// Node.js ファイル読み込み
-console.log('1. 読み込み開始');
+// Node.js file reading
+console.log('1. Starting read');
 
 fs.readFile('/path/to/file', 'utf8', (err, data) => {
-  // この関数は「後で」呼ばれる（ファイル読み込み完了時）
-  console.log('3. ファイル読み込み完了:', data);
+  // This function is called "later" (when file reading is complete)
+  console.log('3. File read complete:', data);
 });
 
-console.log('2. 読み込み命令発行後（まだ完了していない）');
+console.log('2. After issuing read command (not yet complete)');
 
-// 出力順序:
-// 1. 読み込み開始
-// 2. 読み込み命令発行後（まだ完了していない）
-// 3. ファイル読み込み完了: （ファイルの内容）
+// Output order:
+// 1. Starting read
+// 2. After issuing read command (not yet complete)
+// 3. File read complete: (file contents)
 ```
 
-### 1.3 イベントリスナーとしてのコールバック
+### 1.3 Callbacks as Event Listeners
 
 ```javascript
-// ブラウザ: イベントリスナー
+// Browser: Event listeners
 document.getElementById('btn').addEventListener('click', (event) => {
   console.log('Clicked!', event.target);
 });
 
-// 複数のイベントを登録
+// Registering multiple events
 const button = document.getElementById('submit');
 
 button.addEventListener('click', handleClick);
@@ -129,36 +129,36 @@ function handleLeave(event) {
   event.target.style.backgroundColor = '';
 }
 
-// イベントリスナーの解除
+// Removing an event listener
 button.removeEventListener('click', handleClick);
 ```
 
-### 1.4 タイマーコールバック
+### 1.4 Timer Callbacks
 
 ```javascript
-// setTimeout: 指定時間後に1回実行
+// setTimeout: Execute once after a specified time
 setTimeout(() => {
-  console.log('3秒後に実行');
+  console.log('Executed after 3 seconds');
 }, 3000);
 
-// setInterval: 指定間隔で繰り返し実行
+// setInterval: Execute repeatedly at a specified interval
 const intervalId = setInterval(() => {
-  console.log('1秒ごとに実行');
+  console.log('Executed every 1 second');
 }, 1000);
 
-// 停止
+// Stop
 setTimeout(() => {
   clearInterval(intervalId);
-  console.log('タイマー停止');
+  console.log('Timer stopped');
 }, 5000);
 
-// requestAnimationFrame: 描画フレームごとに実行（ブラウザ）
+// requestAnimationFrame: Execute on each paint frame (browser)
 function animate(timestamp) {
-  // アニメーション処理
+  // Animation processing
   updatePosition(timestamp);
   render();
 
-  // 次のフレームを要求
+  // Request the next frame
   requestAnimationFrame(animate);
 }
 requestAnimationFrame(animate);
@@ -166,31 +166,31 @@ requestAnimationFrame(animate);
 
 ---
 
-## 2. Node.js の error-first コールバック
+## 2. Node.js Error-First Callbacks
 
-### 2.1 基本パターン
+### 2.1 Basic Pattern
 
 ```
-Node.js の規約（error-first callback）:
+Node.js convention (error-first callback):
   callback(error, result)
 
-  → 第1引数: エラー（成功時は null）
-  → 第2引数: 結果（エラー時は undefined）
+  -> 1st argument: error (null on success)
+  -> 2nd argument: result (undefined on error)
 
-  利点:
-  - エラーチェックが統一的
-  - エラーを無視しにくい（第1引数を見る習慣）
+  Advantages:
+  - Uniform error checking
+  - Hard to ignore errors (habit of checking the 1st argument)
 
-  問題:
-  - 毎回 if (err) のチェックが必要
-  - 型安全性がない（any）
-  - ネストが深くなりやすい
+  Problems:
+  - Requires if (err) check every time
+  - No type safety (any)
+  - Nesting tends to get deep
 ```
 
 ```javascript
 const fs = require('fs');
 
-// error-first コールバックの基本
+// Basic error-first callback
 fs.readFile('/path/to/file', 'utf8', (err, data) => {
   if (err) {
     console.error('Error:', err.message);
@@ -199,7 +199,7 @@ fs.readFile('/path/to/file', 'utf8', (err, data) => {
   console.log('Data:', data);
 });
 
-// 書き込み
+// Writing
 fs.writeFile('/path/to/output', 'Hello, World!', 'utf8', (err) => {
   if (err) {
     console.error('Write failed:', err.message);
@@ -208,7 +208,7 @@ fs.writeFile('/path/to/output', 'Hello, World!', 'utf8', (err) => {
   console.log('File written successfully');
 });
 
-// ディレクトリ読み取り
+// Reading a directory
 fs.readdir('/path/to/dir', (err, files) => {
   if (err) {
     console.error('Failed to read directory:', err.message);
@@ -218,10 +218,10 @@ fs.readdir('/path/to/dir', (err, files) => {
 });
 ```
 
-### 2.2 error-first パターンの実装
+### 2.2 Implementing the Error-First Pattern
 
 ```javascript
-// error-first の自作関数
+// Custom error-first function
 function readJsonFile(path, callback) {
   fs.readFile(path, 'utf8', (err, data) => {
     if (err) {
@@ -237,7 +237,7 @@ function readJsonFile(path, callback) {
   });
 }
 
-// 使用
+// Usage
 readJsonFile('config.json', (err, config) => {
   if (err) {
     console.error('Failed to read config:', err.message);
@@ -248,7 +248,7 @@ readJsonFile('config.json', (err, config) => {
 ```
 
 ```javascript
-// 非同期データベース操作（コールバックスタイル）
+// Asynchronous database operations (callback style)
 function getUser(userId, callback) {
   db.query('SELECT * FROM users WHERE id = ?', [userId], (err, rows) => {
     if (err) {
@@ -273,7 +273,7 @@ function getUserOrders(userId, callback) {
   });
 }
 
-// HTTPリクエスト（コールバックスタイル）
+// HTTP request (callback style)
 const http = require('http');
 
 function fetchJSON(url, callback) {
@@ -301,7 +301,7 @@ function fetchJSON(url, callback) {
   });
 }
 
-// 使用
+// Usage
 fetchJSON('http://api.example.com/users/1', (err, user) => {
   if (err) {
     console.error('Failed to fetch user:', err.message);
@@ -311,10 +311,10 @@ fetchJSON('http://api.example.com/users/1', (err, user) => {
 });
 ```
 
-### 2.3 コールバックの設計パターン
+### 2.3 Callback Design Patterns
 
 ```javascript
-// パターン1: 設定オブジェクトとコールバック
+// Pattern 1: Configuration object and callback
 function connectToDatabase(options, callback) {
   const { host, port, database, user, password } = options;
 
@@ -328,7 +328,7 @@ function connectToDatabase(options, callback) {
       return;
     }
 
-    // 接続成功: マイグレーションチェック
+    // Connection successful: Check migrations
     connection.checkMigrations((err, needsMigration) => {
       if (err) {
         connection.close();
@@ -352,7 +352,7 @@ function connectToDatabase(options, callback) {
   });
 }
 
-// パターン2: EventEmitter スタイル
+// Pattern 2: EventEmitter style
 const EventEmitter = require('events');
 
 class FileProcessor extends EventEmitter {
@@ -377,7 +377,7 @@ class FileProcessor extends EventEmitter {
   }
 }
 
-// 使用
+// Usage
 const processor = new FileProcessor();
 
 processor.on('data', (data) => {
@@ -385,7 +385,7 @@ processor.on('data', (data) => {
 });
 
 processor.on('line', (line) => {
-  // 各行を処理
+  // Process each line
 });
 
 processor.on('complete', ({ totalLines }) => {
@@ -401,12 +401,12 @@ processor.process('large-file.txt');
 
 ---
 
-## 3. コールバック地獄（Callback Hell）
+## 3. Callback Hell
 
-### 3.1 問題の本質
+### 3.1 The Core Problem
 
 ```javascript
-// ❌ コールバック地獄: ネストが深くなり可読性が崩壊
+// Bad: Callback hell: Nesting gets deep and readability collapses
 getUser(userId, (err, user) => {
   if (err) { handleError(err); return; }
   getOrders(user.id, (err, orders) => {
@@ -417,7 +417,7 @@ getUser(userId, (err, user) => {
         if (err) { handleError(err); return; }
         getTrackingInfo(shipping.trackingId, (err, tracking) => {
           if (err) { handleError(err); return; }
-          // ここまで5段階のネスト
+          // 5 levels of nesting at this point
           console.log(tracking);
         });
       });
@@ -425,29 +425,29 @@ getUser(userId, (err, user) => {
   });
 });
 
-// 問題:
-// 1. 横に広がる「ピラミッド型」コード
-// 2. エラーハンドリングの重複
-// 3. 変数スコープの管理困難
-// 4. 処理の流れが追いにくい
-// 5. テストが書きにくい
-// 6. 制御フロー（条件分岐、ループ）の実装が複雑
+// Problems:
+// 1. "Pyramid-shaped" code expanding horizontally
+// 2. Duplicated error handling
+// 3. Difficult variable scope management
+// 4. Hard to follow the flow of execution
+// 5. Difficult to write tests
+// 6. Complex control flow implementation (conditionals, loops)
 ```
 
-### 3.2 実務で遭遇する典型的なコールバック地獄
+### 3.2 Typical Callback Hell Encountered in Practice
 
 ```javascript
-// ECサイトの注文処理（コールバック地獄版）
+// E-commerce order processing (callback hell version)
 function processOrder(userId, cartId, paymentInfo, callback) {
-  // 1. ユーザー認証
+  // 1. User authentication
   authenticateUser(userId, (err, user) => {
     if (err) { callback(err); return; }
 
-    // 2. カート取得
+    // 2. Get cart
     getCart(cartId, (err, cart) => {
       if (err) { callback(err); return; }
 
-      // 3. 在庫チェック
+      // 3. Check inventory
       checkInventory(cart.items, (err, availability) => {
         if (err) { callback(err); return; }
 
@@ -456,14 +456,14 @@ function processOrder(userId, cartId, paymentInfo, callback) {
           return;
         }
 
-        // 4. 金額計算
+        // 4. Calculate total
         calculateTotal(cart, user, (err, total) => {
           if (err) { callback(err); return; }
 
-          // 5. 支払い処理
+          // 5. Process payment
           processPayment(paymentInfo, total, (err, paymentResult) => {
             if (err) {
-              // 支払い失敗時の在庫ロールバック
+              // Rollback inventory on payment failure
               releaseInventory(cart.items, (rollbackErr) => {
                 if (rollbackErr) {
                   console.error('Rollback failed:', rollbackErr);
@@ -473,10 +473,10 @@ function processOrder(userId, cartId, paymentInfo, callback) {
               return;
             }
 
-            // 6. 注文作成
+            // 6. Create order
             createOrder(user, cart, paymentResult, (err, order) => {
               if (err) {
-                // 注文作成失敗時の支払い取り消し
+                // Refund payment on order creation failure
                 refundPayment(paymentResult.id, (refundErr) => {
                   if (refundErr) {
                     console.error('Refund failed:', refundErr);
@@ -486,11 +486,11 @@ function processOrder(userId, cartId, paymentInfo, callback) {
                 return;
               }
 
-              // 7. 通知送信
+              // 7. Send notification
               sendOrderConfirmation(user.email, order, (err) => {
                 if (err) {
                   console.error('Email failed:', err);
-                  // メール失敗は無視して成功扱い
+                  // Ignore email failure and treat as success
                 }
                 callback(null, order);
               });
@@ -503,10 +503,10 @@ function processOrder(userId, cartId, paymentInfo, callback) {
 }
 ```
 
-### 3.3 改善テクニック1: 名前付き関数で分離
+### 3.3 Improvement Technique 1: Separate with Named Functions
 
 ```javascript
-// やや改善: 名前付き関数で分離
+// Somewhat improved: Separate with named functions
 function handleTracking(err, tracking) {
   if (err) { handleError(err); return; }
   console.log(tracking);
@@ -532,35 +532,35 @@ function handleUser(err, user) {
   getOrders(user.id, handleOrders);
 }
 
-// エントリポイント
+// Entry point
 getUser(userId, handleUser);
 
-// 改善点: ネストが浅い
-// 残る問題: 関数が逆順で定義され、流れが追いにくい
+// Improvement: Shallow nesting
+// Remaining problem: Functions are defined in reverse order, making the flow hard to follow
 ```
 
-### 3.4 改善テクニック2: async ライブラリ
+### 3.4 Improvement Technique 2: async Library
 
 ```javascript
-// async.js ライブラリを使ったフロー制御
+// Flow control using the async.js library
 const async = require('async');
 
-// async.waterfall: 直列実行（前の結果を次に渡す）
+// async.waterfall: Serial execution (passing previous result to next)
 async.waterfall([
-  // Step 1: ユーザー取得
+  // Step 1: Get user
   (cb) => getUser(userId, cb),
 
-  // Step 2: 注文取得（userは前のステップの結果）
+  // Step 2: Get orders (user is the result from the previous step)
   (user, cb) => getOrders(user.id, (err, orders) => {
     cb(err, user, orders);
   }),
 
-  // Step 3: 注文詳細取得
+  // Step 3: Get order details
   (user, orders, cb) => getOrderDetails(orders[0].id, (err, details) => {
     cb(err, user, orders, details);
   }),
 
-  // Step 4: 配送情報取得
+  // Step 4: Get shipping info
   (user, orders, details, cb) => {
     getShippingInfo(details.shippingId, cb);
   },
@@ -572,7 +572,7 @@ async.waterfall([
   console.log('Shipping:', shippingInfo);
 });
 
-// async.parallel: 並行実行
+// async.parallel: Parallel execution
 async.parallel({
   users: (cb) => fetchUsers(cb),
   orders: (cb) => fetchOrders(cb),
@@ -585,7 +585,7 @@ async.parallel({
   console.log(results.users, results.orders, results.products);
 });
 
-// async.series: 直列実行（結果は別々に）
+// async.series: Serial execution (results kept separate)
 async.series([
   (cb) => createBackup(cb),
   (cb) => runMigrations(cb),
@@ -598,7 +598,7 @@ async.series([
   console.log('All steps completed');
 });
 
-// async.eachLimit: 並行数制限付き反復
+// async.eachLimit: Iteration with concurrency limit
 const urls = ['url1', 'url2', 'url3', /* ... */];
 
 async.eachLimit(urls, 5, (url, cb) => {
@@ -612,10 +612,10 @@ async.eachLimit(urls, 5, (url, cb) => {
 });
 ```
 
-### 3.5 改善テクニック3: 制御フロー抽象化
+### 3.5 Improvement Technique 3: Control Flow Abstraction
 
 ```javascript
-// 独自のフロー制御関数
+// Custom flow control function
 function waterfall(tasks, finalCallback) {
   let index = 0;
 
@@ -641,7 +641,7 @@ function waterfall(tasks, finalCallback) {
   next(null);
 }
 
-// 使用
+// Usage
 waterfall([
   (cb) => getUser(userId, cb),
   (user, cb) => getOrders(user.id, cb),
@@ -654,7 +654,7 @@ waterfall([
   console.log('Details:', details);
 });
 
-// 並行実行関数
+// Parallel execution function
 function parallel(tasks, finalCallback) {
   const results = {};
   let completed = 0;
@@ -684,20 +684,20 @@ function parallel(tasks, finalCallback) {
 
 ---
 
-## 4. 各言語のコールバックパターン
+## 4. Callback Patterns Across Languages
 
-### 4.1 Python のコールバック
+### 4.1 Python Callbacks
 
 ```python
 import threading
 import time
 from typing import Callable, Optional, Any
 
-# Python でのコールバックパターン
+# Callback patterns in Python
 
-# 基本的なコールバック
+# Basic callback
 def fetch_data(url: str, on_success: Callable, on_error: Callable) -> None:
-    """非同期的にデータを取得（スレッドベース）"""
+    """Fetch data asynchronously (thread-based)"""
     def worker():
         try:
             import urllib.request
@@ -710,7 +710,7 @@ def fetch_data(url: str, on_success: Callable, on_error: Callable) -> None:
     thread = threading.Thread(target=worker)
     thread.start()
 
-# 使用
+# Usage
 def handle_success(data):
     print(f"Received: {data[:100]}...")
 
@@ -719,9 +719,9 @@ def handle_error(error):
 
 fetch_data("https://api.example.com/data", handle_success, handle_error)
 
-# デコレータとしてのコールバック
+# Decorators as callbacks
 def retry(max_retries: int = 3, delay: float = 1.0):
-    """リトライデコレータ"""
+    """Retry decorator"""
     def decorator(func):
         def wrapper(*args, **kwargs):
             for attempt in range(max_retries):
@@ -737,15 +737,15 @@ def retry(max_retries: int = 3, delay: float = 1.0):
 
 @retry(max_retries=3, delay=0.5)
 def unreliable_api_call():
-    """不安定なAPI呼び出し"""
+    """Unreliable API call"""
     import random
     if random.random() < 0.5:
         raise ConnectionError("Connection failed")
     return {"status": "ok"}
 
-# コンテキストマネージャー + コールバック
+# Context manager + callback
 class TimedOperation:
-    """操作の時間を計測し、コールバックで報告"""
+    """Measure operation time and report via callback"""
     def __init__(self, name: str, on_complete: Callable[[str, float], None]):
         self.name = name
         self.on_complete = on_complete
@@ -760,25 +760,25 @@ class TimedOperation:
         self.on_complete(self.name, elapsed)
         return False
 
-# 使用
+# Usage
 def log_timing(name: str, elapsed: float):
     print(f"[TIMING] {name}: {elapsed:.3f}s")
 
 with TimedOperation("data_processing", log_timing):
-    time.sleep(0.5)  # 何らかの処理
-# 出力: [TIMING] data_processing: 0.501s
+    time.sleep(0.5)  # Some processing
+# Output: [TIMING] data_processing: 0.501s
 ```
 
-### 4.2 Rust のコールバック
+### 4.2 Rust Callbacks
 
 ```rust
 use std::thread;
 use std::sync::mpsc;
 
-// Rust: クロージャをコールバックとして使用
-// 所有権と寿命の制約がある
+// Rust: Using closures as callbacks
+// Subject to ownership and lifetime constraints
 
-// 基本的なコールバック
+// Basic callback
 fn process_async<F>(data: Vec<i32>, callback: F)
 where
     F: FnOnce(Vec<i32>) + Send + 'static,
@@ -789,7 +789,7 @@ where
     });
 }
 
-// 使用
+// Usage
 fn main() {
     process_async(vec![1, 2, 3, 4, 5], |result| {
         println!("Result: {:?}", result);
@@ -798,7 +798,7 @@ fn main() {
     thread::sleep(std::time::Duration::from_secs(1));
 }
 
-// Result型でエラーハンドリング
+// Error handling with Result type
 fn fetch_data<F>(url: &str, callback: F)
 where
     F: FnOnce(Result<String, Box<dyn std::error::Error>>) + Send + 'static,
@@ -814,7 +814,7 @@ where
     });
 }
 
-// トレイトオブジェクトを使ったコールバック
+// Callbacks using trait objects
 trait EventHandler: Send {
     fn on_data(&self, data: &[u8]);
     fn on_error(&self, error: &str);
@@ -841,7 +841,7 @@ impl DataProcessor {
 }
 ```
 
-### 4.3 Go のコールバック
+### 4.3 Go Callbacks
 
 ```go
 package main
@@ -853,14 +853,14 @@ import (
     "time"
 )
 
-// Go: 関数を第一級市民として使用
-// ただし Go では goroutine + channel の方がイディオマティック
+// Go: Using functions as first-class citizens
+// However, goroutine + channel is more idiomatic in Go
 
-// コールバック型の定義
+// Callback type definitions
 type ResultCallback func(data []byte, err error)
 type ProgressCallback func(current, total int)
 
-// コールバック付きHTTPリクエスト
+// HTTP request with callback
 func fetchWithCallback(url string, callback ResultCallback) {
     go func() {
         resp, err := http.Get(url)
@@ -879,7 +879,7 @@ func fetchWithCallback(url string, callback ResultCallback) {
     }()
 }
 
-// プログレス付きダウンロード
+// Download with progress
 func downloadWithProgress(url string, progress ProgressCallback, done ResultCallback) {
     go func() {
         resp, err := http.Get(url)
@@ -911,7 +911,7 @@ func downloadWithProgress(url string, progress ProgressCallback, done ResultCall
 }
 
 func main() {
-    // 使用例
+    // Usage example
     fetchWithCallback("https://api.example.com/data", func(data []byte, err error) {
         if err != nil {
             fmt.Println("Error:", err)
@@ -920,7 +920,7 @@ func main() {
         fmt.Println("Received:", len(data), "bytes")
     })
 
-    // Go のイディオム: channel の方が好ましい
+    // Go idiom: channels are preferred
     ch := make(chan []byte, 1)
     errCh := make(chan error, 1)
 
@@ -946,27 +946,27 @@ func main() {
 }
 ```
 
-### 4.4 C# のコールバック
+### 4.4 C# Callbacks
 
 ```csharp
 using System;
 using System.Net.Http;
 using System.Threading.Tasks;
 
-// C#: デリゲートとイベントによるコールバック
+// C#: Callbacks via delegates and events
 
-// デリゲート定義
+// Delegate definitions
 public delegate void DataCallback(string data);
 public delegate void ErrorCallback(Exception error);
 
 public class AsyncFetcher
 {
-    // イベントベースのコールバック
+    // Event-based callbacks
     public event EventHandler<DataEventArgs> DataReceived;
     public event EventHandler<ErrorEventArgs> ErrorOccurred;
     public event EventHandler Completed;
 
-    // コールバックを受け取るメソッド
+    // Method accepting callbacks
     public void FetchData(string url, Action<string> onSuccess, Action<Exception> onError)
     {
         Task.Run(async () =>
@@ -984,7 +984,7 @@ public class AsyncFetcher
         });
     }
 
-    // イベントを発火するメソッド
+    // Method that fires events
     public async void FetchDataEvent(string url)
     {
         try
@@ -1001,17 +1001,17 @@ public class AsyncFetcher
     }
 }
 
-// 使用
+// Usage
 var fetcher = new AsyncFetcher();
 
-// ラムダ式でコールバック
+// Callback with lambda expressions
 fetcher.FetchData(
     "https://api.example.com/data",
     data => Console.WriteLine($"Success: {data.Length} chars"),
     error => Console.WriteLine($"Error: {error.Message}")
 );
 
-// イベントでコールバック
+// Callback with events
 fetcher.DataReceived += (sender, args) =>
 {
     Console.WriteLine($"Data received: {args.Data.Length} chars");
@@ -1025,37 +1025,37 @@ fetcher.FetchDataEvent("https://api.example.com/data");
 
 ---
 
-## 5. 高階関数としてのコールバック
+## 5. Callbacks as Higher-Order Functions
 
-### 5.1 関数合成とコールバック
+### 5.1 Function Composition and Callbacks
 
 ```javascript
-// コールバックは「高階関数」の一種
-// 「何をするか」を引数として渡す
+// Callbacks are a type of "higher-order function"
+// Passing "what to do" as an argument
 
-// 戦略パターン: コールバックでアルゴリズムを注入
+// Strategy pattern: Injecting algorithms via callbacks
 function sortUsers(users, comparator) {
   return [...users].sort(comparator);
 }
 
 const users = [
-  { name: "田中", age: 30, score: 85 },
-  { name: "山田", age: 25, score: 92 },
-  { name: "鈴木", age: 35, score: 78 },
+  { name: "Tanaka", age: 30, score: 85 },
+  { name: "Yamada", age: 25, score: 92 },
+  { name: "Suzuki", age: 35, score: 78 },
 ];
 
-// 年齢順
+// Sort by age
 const byAge = sortUsers(users, (a, b) => a.age - b.age);
 
-// スコア順（降順）
+// Sort by score (descending)
 const byScore = sortUsers(users, (a, b) => b.score - a.score);
 
-// 名前順
+// Sort by name
 const byName = sortUsers(users, (a, b) => a.name.localeCompare(b.name, 'ja'));
 ```
 
 ```typescript
-// ミドルウェアパターン（Express スタイル）
+// Middleware pattern (Express style)
 type Middleware = (req: Request, res: Response, next: () => void) => void;
 
 class Router {
@@ -1079,16 +1079,16 @@ class Router {
   }
 }
 
-// 使用
+// Usage
 const router = new Router();
 
-// ログミドルウェア
+// Logging middleware
 router.use((req, res, next) => {
   console.log(`${req.method} ${req.url}`);
   next();
 });
 
-// 認証ミドルウェア
+// Authentication middleware
 router.use((req, res, next) => {
   if (!req.headers.authorization) {
     res.status(401).send('Unauthorized');
@@ -1097,16 +1097,16 @@ router.use((req, res, next) => {
   next();
 });
 
-// ハンドラー
+// Handler
 router.use((req, res, next) => {
   res.json({ message: 'Hello, World!' });
 });
 ```
 
-### 5.2 コールバックのカリー化
+### 5.2 Currying Callbacks
 
 ```typescript
-// カリー化されたコールバック
+// Curried callbacks
 function createLogger(prefix: string) {
   return function(message: string) {
     console.log(`[${prefix}] ${new Date().toISOString()} ${message}`);
@@ -1120,7 +1120,7 @@ const debugLog = createLogger('DEBUG');
 infoLog('Server started');    // [INFO] 2024-01-01T00:00:00.000Z Server started
 errorLog('Connection lost');  // [ERROR] 2024-01-01T00:00:00.000Z Connection lost
 
-// コールバックファクトリ
+// Callback factory
 function createRetryCallback<T>(
   fn: (callback: (err: Error | null, result?: T) => void) => void,
   maxRetries: number,
@@ -1150,7 +1150,7 @@ function createRetryCallback<T>(
   });
 }
 
-// 使用
+// Usage
 const result = await createRetryCallback(
   (cb) => fetchData('https://api.example.com/data', cb),
   3,
@@ -1160,18 +1160,18 @@ const result = await createRetryCallback(
 
 ---
 
-## 6. コールバックの落とし穴
+## 6. Callback Pitfalls
 
-### 6.1 Zalgo問題（同期・非同期の混在）
+### 6.1 The Zalgo Problem (Mixing Sync and Async)
 
 ```javascript
-// ❌ Zalgo: 条件によって同期・非同期が変わる
+// Bad: Zalgo: Synchronous or asynchronous behavior depends on conditions
 function getData(cache, key, callback) {
   if (cache[key]) {
-    // ⚠️ 同期的にコールバックを呼んでいる
+    // Warning: Calling callback synchronously
     callback(null, cache[key]);
   } else {
-    // 非同期的にコールバックを呼んでいる
+    // Calling callback asynchronously
     db.query(key, (err, data) => {
       if (!err) cache[key] = data;
       callback(err, data);
@@ -1179,18 +1179,18 @@ function getData(cache, key, callback) {
   }
 }
 
-// 問題: 呼び出し側のコードの実行順序が予測不能
+// Problem: Execution order of calling code becomes unpredictable
 let result;
 getData(cache, 'key', (err, data) => {
   result = data;
 });
-// result が設定されているかどうかは cache の状態に依存
-// → 非常にバグを生みやすい
+// Whether result is set depends on the cache state
+// -> Very bug-prone
 
-// ✅ 修正: 常に非同期にする
+// Good: Always make it asynchronous
 function getDataFixed(cache, key, callback) {
   if (cache[key]) {
-    // process.nextTick で非同期化
+    // Make it asynchronous with process.nextTick
     process.nextTick(() => callback(null, cache[key]));
   } else {
     db.query(key, (err, data) => {
@@ -1200,7 +1200,7 @@ function getDataFixed(cache, key, callback) {
   }
 }
 
-// ✅ より良い修正: queueMicrotask（ブラウザ/Node.js共通）
+// Better: queueMicrotask (works in both browser and Node.js)
 function getDataBetter(cache, key, callback) {
   if (cache[key]) {
     queueMicrotask(() => callback(null, cache[key]));
@@ -1213,28 +1213,28 @@ function getDataBetter(cache, key, callback) {
 }
 ```
 
-### 6.2 コールバックの二重呼び出し
+### 6.2 Double Callback Invocation
 
 ```javascript
-// ❌ コールバックが2回呼ばれる可能性
+// Bad: Callback may be called twice
 function processFile(path, callback) {
   fs.readFile(path, 'utf8', (err, data) => {
     if (err) {
       callback(err);
-      // ⚠️ return を忘れている！
+      // Warning: Missing return!
     }
-    // エラー時もここが実行される
-    const processed = transform(data); // data は undefined → エラー
+    // This executes even on error
+    const processed = transform(data); // data is undefined -> error
     callback(null, processed);
   });
 }
 
-// ✅ 修正: return で早期脱出
+// Good: Early return
 function processFileFixed(path, callback) {
   fs.readFile(path, 'utf8', (err, data) => {
     if (err) {
       callback(err);
-      return; // ← 重要
+      return; // <- Important
     }
     try {
       const processed = transform(data);
@@ -1245,7 +1245,7 @@ function processFileFixed(path, callback) {
   });
 }
 
-// ✅ より安全: once ラッパー
+// Better: once wrapper
 function once(fn) {
   let called = false;
   return function(...args) {
@@ -1276,32 +1276,32 @@ function processFileSafe(path, callback) {
 }
 ```
 
-### 6.3 エラーの飲み込み
+### 6.3 Swallowed Errors
 
 ```javascript
-// ❌ コールバック内のエラーが外に伝播しない
+// Bad: Errors inside callbacks do not propagate outward
 try {
   getUser(userId, (err, user) => {
-    if (err) throw err; // ← これはキャッチされない！
-    // コールバックは別のコールスタックで実行されるため
-    // try-catch は効かない
+    if (err) throw err; // <- This will NOT be caught!
+    // The callback executes in a separate call stack
+    // so try-catch does not work
   });
 } catch (err) {
-  // ここには到達しない
+  // This is never reached
   console.error(err);
 }
 
-// ✅ コールバック内でエラーハンドリング
+// Good: Handle errors inside the callback
 getUser(userId, (err, user) => {
   if (err) {
     console.error('Error:', err.message);
-    // エラーリカバリーやアラート
+    // Error recovery or alerting
     return;
   }
-  // 正常処理
+  // Normal processing
 });
 
-// ✅ ドメインでエラーをキャッチ（非推奨だが参考として）
+// Acceptable: Catch errors with domain (deprecated, shown for reference)
 const domain = require('domain');
 const d = domain.create();
 
@@ -1311,22 +1311,22 @@ d.on('error', (err) => {
 
 d.run(() => {
   getUser(userId, (err, user) => {
-    if (err) throw err; // ドメインがキャッチ
+    if (err) throw err; // Domain catches this
   });
 });
 ```
 
-### 6.4 メモリリーク
+### 6.4 Memory Leaks
 
 ```javascript
-// ❌ クロージャによるメモリリーク
+// Bad: Memory leak via closures
 function createConnection(config) {
   const connection = new DatabaseConnection(config);
   const largeBuffer = Buffer.alloc(100 * 1024 * 1024); // 100MB
 
   return {
     query(sql, callback) {
-      // largeBuffer はクロージャで保持される（使っていなくても）
+      // largeBuffer is retained by the closure (even if unused)
       connection.execute(sql, (err, rows) => {
         callback(err, rows);
       });
@@ -1337,14 +1337,14 @@ function createConnection(config) {
   };
 }
 
-// ✅ 修正: 不要な参照を持たない
+// Good: Do not hold unnecessary references
 function createConnectionFixed(config) {
   const connection = new DatabaseConnection(config);
 
-  // largeBuffer は関数スコープ外
+  // largeBuffer is outside the function scope
   function processLargeData() {
     const largeBuffer = Buffer.alloc(100 * 1024 * 1024);
-    // 使用後に参照が消える
+    // Reference disappears after use
     return transform(largeBuffer);
   }
 
@@ -1358,17 +1358,17 @@ function createConnectionFixed(config) {
   };
 }
 
-// ❌ イベントリスナーの累積
+// Bad: Accumulating event listeners
 function setupHandler(element) {
-  // 呼ばれるたびにリスナーが追加される
+  // A listener is added every time this is called
   element.addEventListener('click', () => {
     doSomething();
   });
 }
 
-// ✅ 修正: 既存のリスナーを解除
+// Good: Remove existing listeners
 function setupHandlerFixed(element) {
-  // 名前付き関数で参照を保持
+  // Keep a reference with a named function
   if (element._clickHandler) {
     element.removeEventListener('click', element._clickHandler);
   }
@@ -1379,7 +1379,7 @@ function setupHandlerFixed(element) {
   element.addEventListener('click', element._clickHandler);
 }
 
-// ✅ さらに良い: AbortController を使用
+// Better: Use AbortController
 function setupHandlerModern(element) {
   const controller = new AbortController();
 
@@ -1387,19 +1387,19 @@ function setupHandlerModern(element) {
     doSomething();
   }, { signal: controller.signal });
 
-  // クリーンアップ
+  // Cleanup
   return () => controller.abort();
 }
 ```
 
 ---
 
-## 7. コールバックから Promise への移行
+## 7. Migrating from Callbacks to Promises
 
-### 7.1 手動 Promise 化
+### 7.1 Manual Promisification
 
 ```javascript
-// 手動でPromise化
+// Manually promisify
 function readFilePromise(path) {
   return new Promise((resolve, reject) => {
     fs.readFile(path, 'utf8', (err, data) => {
@@ -1409,12 +1409,12 @@ function readFilePromise(path) {
   });
 }
 
-// 使用
+// Usage
 readFilePromise('file.txt')
   .then(data => console.log(data))
   .catch(err => console.error(err));
 
-// async/await版
+// async/await version
 async function main() {
   try {
     const data = await readFilePromise('file.txt');
@@ -1428,24 +1428,24 @@ async function main() {
 ### 7.2 util.promisify
 
 ```javascript
-// Node.js: util.promisify でコールバックを Promise に変換
+// Node.js: Convert callbacks to Promises with util.promisify
 const { promisify } = require('util');
 const readFile = promisify(fs.readFile);
 const writeFile = promisify(fs.writeFile);
 const readdir = promisify(fs.readdir);
 
-// コールバック版
+// Callback version
 fs.readFile('file.txt', 'utf8', (err, data) => {
   if (err) throw err;
   console.log(data);
 });
 
-// Promise版
+// Promise version
 readFile('file.txt', 'utf8')
   .then(data => console.log(data))
   .catch(err => console.error(err));
 
-// async/await版
+// async/await version
 async function main() {
   try {
     const data = await readFile('file.txt', 'utf8');
@@ -1455,7 +1455,7 @@ async function main() {
   }
 }
 
-// fs/promises（Node.js 14+）
+// fs/promises (Node.js 14+)
 const fsPromises = require('fs/promises');
 
 async function modernFileOps() {
@@ -1466,10 +1466,10 @@ async function modernFileOps() {
 }
 ```
 
-### 7.3 汎用 promisify 関数
+### 7.3 Generic promisify Function
 
 ```typescript
-// 汎用的な promisify 実装
+// Generic promisify implementation
 function promisify<T>(
   fn: (...args: [...any[], (err: Error | null, result: T) => void]) => void
 ): (...args: any[]) => Promise<T> {
@@ -1486,7 +1486,7 @@ function promisify<T>(
   };
 }
 
-// 複数の戻り値を持つコールバックの promisify
+// promisify for callbacks with multiple return values
 function promisifyMultiResult(fn) {
   return function (...args) {
     return new Promise((resolve, reject) => {
@@ -1501,7 +1501,7 @@ function promisifyMultiResult(fn) {
   };
 }
 
-// EventEmitter を Promise に変換
+// Convert EventEmitter to Promise
 function waitForEvent(emitter, eventName, timeout = 5000) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
@@ -1520,15 +1520,15 @@ function waitForEvent(emitter, eventName, timeout = 5000) {
   });
 }
 
-// 使用
+// Usage
 const server = createServer();
 const connection = await waitForEvent(server, 'connection', 10000);
 ```
 
-### 7.4 コールバック API のラッパークラス
+### 7.4 Wrapper Class for Callback APIs
 
 ```typescript
-// レガシーなコールバック API をモダンにラップ
+// Wrap a legacy callback API in a modern interface
 class DatabaseWrapper {
   private db: LegacyDatabase;
 
@@ -1536,7 +1536,7 @@ class DatabaseWrapper {
     this.db = new LegacyDatabase(connectionString);
   }
 
-  // コールバック API を Promise でラップ
+  // Wrap the callback API with a Promise
   query<T>(sql: string, params?: any[]): Promise<T[]> {
     return new Promise((resolve, reject) => {
       this.db.query(sql, params || [], (err: Error | null, rows: T[]) => {
@@ -1546,7 +1546,7 @@ class DatabaseWrapper {
     });
   }
 
-  // トランザクション
+  // Transaction
   async transaction<T>(fn: (tx: TransactionContext) => Promise<T>): Promise<T> {
     return new Promise((resolve, reject) => {
       this.db.beginTransaction((err: Error | null, tx: any) => {
@@ -1576,7 +1576,7 @@ class DatabaseWrapper {
     });
   }
 
-  // 接続プール
+  // Connection pool
   getConnection(): Promise<Connection> {
     return new Promise((resolve, reject) => {
       this.db.getConnection((err: Error | null, conn: any) => {
@@ -1587,7 +1587,7 @@ class DatabaseWrapper {
   }
 }
 
-// 使用（クリーンなasync/await）
+// Usage (clean async/await)
 const db = new DatabaseWrapper('postgres://localhost/mydb');
 
 async function getUserOrders(userId: string) {
@@ -1605,45 +1605,45 @@ async function getUserOrders(userId: string) {
 
 ---
 
-## 8. 実務でのベストプラクティス
+## 8. Best Practices in Production
 
-### 8.1 コールバック設計のルール
+### 8.1 Callback Design Rules
 
 ```
-1. 常に error-first パターンを使う
-   callback(err, result) の形式を守る
+1. Always use the error-first pattern
+   Follow the callback(err, result) format
 
-2. コールバックは常に非同期で呼ぶ
-   Zalgo問題を避けるために process.nextTick / queueMicrotask を使う
+2. Always call callbacks asynchronously
+   Use process.nextTick / queueMicrotask to avoid the Zalgo problem
 
-3. コールバックは1回だけ呼ぶ
-   once() ラッパーで二重呼び出しを防止
+3. Call callbacks only once
+   Prevent double invocation with a once() wrapper
 
-4. エラーは必ずコールバック経由で伝える
-   throw ではなく callback(err) を使う
+4. Always pass errors through the callback
+   Use callback(err) instead of throw
 
-5. ネストは3段階以下に抑える
-   名前付き関数に分離、または async ライブラリを使う
+5. Keep nesting to 3 levels or fewer
+   Separate into named functions, or use the async library
 
-6. 可能であれば Promise / async-await に移行する
-   新規コードではコールバックを避ける
+6. Migrate to Promise / async-await if possible
+   Avoid callbacks in new code
 ```
 
-### 8.2 移行戦略
+### 8.2 Migration Strategy
 
 ```typescript
-// 段階的な移行戦略
+// Gradual migration strategy
 
-// Step 1: 既存のコールバック API をラップ
+// Step 1: Wrap existing callback APIs
 const readFileAsync = promisify(fs.readFile);
 
-// Step 2: 新しい関数は async/await で書く
+// Step 2: Write new functions with async/await
 async function loadConfig(): Promise<Config> {
   const data = await readFileAsync('config.json', 'utf8');
   return JSON.parse(data);
 }
 
-// Step 3: コールバックを受け取る関数をデュアルインターフェースにする
+// Step 3: Create a dual interface for functions that accept callbacks
 function getData(
   key: string,
   callback?: (err: Error | null, data?: Data) => void,
@@ -1660,58 +1660,58 @@ function getData(
   return promise;
 }
 
-// コールバックスタイルで使用
+// Use with callback style
 getData('key', (err, data) => {
   if (err) handleError(err);
   else console.log(data);
 });
 
-// Promise スタイルで使用
+// Use with Promise style
 const data = await getData('key');
 ```
 
 
 ---
 
-## 実践演習
+## Hands-On Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that meets the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate input data
+- Implement proper error handling
+- Write test code as well
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Basic implementation template
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Exercise for basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main data processing logic"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Get processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1720,26 +1720,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "An exception should have been raised"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation by adding the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Advanced patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Exercise for advanced patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1747,7 +1747,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1758,14 +1758,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Delete by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1773,7 +1773,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1781,44 +1781,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # Size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1827,7 +1827,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1842,71 +1842,71 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient version: {slow_time:.4f}s")
+    print(f"Efficient version:   {fast_time:.6f}s")
+    print(f"Speedup:             {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key Points:**
+- Be aware of algorithmic complexity
+- Choose appropriate data structures
+- Measure results with benchmarks
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point to focus on when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining hands-on experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes that beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts covered in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in real-world development?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently used in everyday development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## まとめ
+## Summary
 
-| 概念 | ポイント |
-|------|---------|
-| コールバック | 完了時に呼ばれる関数 |
-| error-first | (err, result) の規約 |
-| コールバック地獄 | ネスト深化 → Promise で解決 |
-| 同期コールバック | map, filter, sort, reduce |
-| 非同期コールバック | I/O, タイマー, イベント |
-| Zalgo問題 | 同期/非同期の混在を避ける |
-| 二重呼び出し | once() ラッパーで防止 |
-| メモリリーク | クロージャの参照に注意 |
+| Concept | Key Point |
+|---------|-----------|
+| Callback | A function called upon completion |
+| Error-first | The (err, result) convention |
+| Callback hell | Deep nesting -> Solved with Promises |
+| Synchronous callbacks | map, filter, sort, reduce |
+| Asynchronous callbacks | I/O, timers, events |
+| Zalgo problem | Avoid mixing sync and async |
+| Double invocation | Prevent with a once() wrapper |
+| Memory leaks | Watch out for closure references |
 
-### コールバックの進化
+### The Evolution of Callbacks
 
 ```
-コールバック（1990年代〜）
-  ↓ 問題: コールバック地獄
-Promise（ES2015 / 2015年〜）
-  ↓ 改善: チェーン可能、エラー伝播
-async/await（ES2017 / 2017年〜）
-  ↓ 改善: 同期的な記述
-Reactive Streams（RxJS等）
-  ↓ 拡張: ストリーム処理
-AsyncIterator / for-await-of（ES2018）
-  → 非同期イテレーション
+Callbacks (1990s~)
+  | Problem: Callback hell
+Promise (ES2015 / 2015~)
+  | Improvement: Chainable, error propagation
+async/await (ES2017 / 2017~)
+  | Improvement: Synchronous-style writing
+Reactive Streams (RxJS, etc.)
+  | Extension: Stream processing
+AsyncIterator / for-await-of (ES2018)
+  -> Asynchronous iteration
 ```
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
 ---
 
-## 参考文献
+## References
 1. Node.js Documentation. "Asynchronous Programming."
 2. Ogden, M. "Callback Hell." callbackhell.com.
 3. Havoc Pennington. "Don't Release Zalgo!" blog.izs.me.

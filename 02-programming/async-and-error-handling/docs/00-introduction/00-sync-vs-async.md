@@ -1,133 +1,132 @@
-# 同期 vs 非同期
+# Synchronous vs Asynchronous
 
-> 同期処理は「前の処理が終わるまで次を待つ」、非同期処理は「待ち時間に他の処理を進める」。Webアプリケーションのパフォーマンスの鍵は、I/O待ちを効率的に処理すること。
+> Synchronous processing means "wait for the previous operation to finish before starting the next one," while asynchronous processing means "do other work during wait times." The key to web application performance is handling I/O waits efficiently.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] 同期処理と非同期処理の根本的な違いを理解する
-- [ ] ブロッキングとノンブロッキングの意味を把握する
-- [ ] なぜ非同期処理が必要かを具体的に理解する
-- [ ] 各言語における同期・非同期モデルの特徴を比較する
-- [ ] 実務で遭遇する典型的なシナリオと最適な選択を学ぶ
+- [ ] Understand the fundamental difference between synchronous and asynchronous processing
+- [ ] Grasp the meaning of blocking and non-blocking
+- [ ] Understand concretely why asynchronous processing is necessary
+- [ ] Compare the synchronous/asynchronous models across different languages
+- [ ] Learn about typical real-world scenarios and optimal choices
 
+## Prerequisites
 
-## 前提知識
+Before reading this guide, the following knowledge will help deepen your understanding:
 
-このガイドを読む前に、以下の知識があると理解が深まります:
-
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-
----
-
-## 1. 同期 vs 非同期の根本概念
-
-### 1.1 視覚的な理解
-
-```
-同期処理（Synchronous）:
-  処理A ████████████████████
-  処理B                     ████████████████████
-  処理C                                         ████████████████████
-  → 順番に実行。前が終わるまで次は待つ
-  → 合計時間 = A + B + C
-
-非同期処理（Asynchronous）:
-  処理A ████──────────████
-  処理B     ████──────────████
-  処理C         ████──────────████
-  → I/O待ち（──）の間に他の処理を進める
-  → 合計時間 ≒ max(A, B, C)
-
-具体例: 3つのAPI呼び出し（各200ms）
-  同期:  200 + 200 + 200 = 600ms
-  非同期: max(200, 200, 200) = 200ms（3倍速）
-```
-
-### 1.2 日常の比喩で理解する
-
-同期処理と非同期処理の違いは、レストランの注文に例えるとわかりやすい。
-
-```
-同期処理（1人のウェイターが1テーブルずつ完全対応）:
-  テーブル1: 注文受付 → 料理完成待ち → 配膳 → 会計
-  テーブル2:                                     注文受付 → 料理完成待ち → 配膳 → 会計
-  テーブル3:                                                                      注文受付 → ...
-  → 料理を待っている間もウェイターは立ちっぱなし
-  → 非常に非効率
-
-非同期処理（1人のウェイターが複数テーブルを効率的に処理）:
-  テーブル1: 注文受付 →（キッチンに渡す）→ ... → 料理できた！配膳
-  テーブル2:           注文受付 →（キッチンに渡す）→ ... → 料理できた！配膳
-  テーブル3:                     注文受付 →（キッチンに渡す）→ ...
-  → 料理待ちの間に他のテーブルを対応
-  → 1人で多くのテーブルを効率的にさばける
-```
-
-### 1.3 プログラミングにおける定義
-
-```
-同期（Synchronous）:
-  - 呼び出し元が処理の完了を待ってから次に進む
-  - 処理の順序が保証される
-  - コードの流れが直線的で理解しやすい
-  - 関数の戻り値として結果を直接受け取る
-
-非同期（Asynchronous）:
-  - 呼び出し元が処理の完了を待たずに次に進む
-  - 結果は後で通知される（コールバック、Promise、イベントなど）
-  - 処理の順序が非決定的になりうる
-  - より複雑だが、リソースを効率的に使える
-```
+- Basic programming knowledge
+- Understanding of related foundational concepts
 
 ---
 
-## 2. ブロッキング vs ノンブロッキング
+## 1. Fundamental Concepts of Synchronous vs Asynchronous
 
-### 2.1 基本概念
+### 1.1 Visual Understanding
 
 ```
-ブロッキングI/O:
-  → I/O完了までスレッドが停止
-  → スレッドはCPUを消費しないが、占有したまま
+Synchronous Processing:
+  Task A ████████████████████
+  Task B                     ████████████████████
+  Task C                                         ████████████████████
+  → Executed in order. The next one waits until the previous one finishes
+  → Total time = A + B + C
 
-  Thread1: [リクエスト受信] → [DBクエリ... 100ms 待ち...] → [レスポンス]
-  Thread2: [リクエスト受信] → [API呼出... 200ms 待ち...] → [レスポンス]
-  Thread3: [リクエスト受信] → [ファイル読み... 50ms 待ち...] → [レスポンス]
-  → 同時接続数 = スレッド数に制限される
+Asynchronous Processing:
+  Task A ████──────────████
+  Task B     ████──────────████
+  Task C         ████──────────████
+  → Other tasks proceed during I/O waits (──)
+  → Total time ≒ max(A, B, C)
 
-ノンブロッキングI/O:
-  → I/O開始後すぐに制御が戻る
-  → 完了時にコールバック/イベントで通知
-
-  Thread1: [リクエスト1] [リクエスト2] [リクエスト3] [DB結果処理] [API結果処理]
-  → 1スレッドで多数のリクエストを処理可能
-  → Node.js のモデル
+Concrete example: 3 API calls (200ms each)
+  Synchronous:  200 + 200 + 200 = 600ms
+  Asynchronous: max(200, 200, 200) = 200ms (3x faster)
 ```
 
-### 2.2 ブロッキングI/Oの詳細
+### 1.2 Understanding Through an Everyday Analogy
 
-ブロッキングI/Oでは、OSのシステムコール（read, write, connect など）が完了するまでスレッドがブロックされる。
+The difference between synchronous and asynchronous processing is easy to understand when compared to ordering at a restaurant.
+
+```
+Synchronous processing (one waiter fully attending one table at a time):
+  Table 1: Take order → Wait for food to be ready → Serve → Bill
+  Table 2:                                              Take order → Wait for food to be ready → Serve → Bill
+  Table 3:                                                                                           Take order → ...
+  → The waiter stands idle even while waiting for food to be prepared
+  → Extremely inefficient
+
+Asynchronous processing (one waiter efficiently handling multiple tables):
+  Table 1: Take order → (pass to kitchen) → ... → Food ready! Serve
+  Table 2:              Take order → (pass to kitchen) → ... → Food ready! Serve
+  Table 3:                          Take order → (pass to kitchen) → ...
+  → Attends to other tables while waiting for food
+  → One waiter can efficiently handle many tables
+```
+
+### 1.3 Definitions in Programming
+
+```
+Synchronous:
+  - The caller waits for the operation to complete before proceeding
+  - Order of execution is guaranteed
+  - Code flow is linear and easy to understand
+  - Results are received directly as function return values
+
+Asynchronous:
+  - The caller proceeds without waiting for the operation to complete
+  - Results are delivered later (via callbacks, Promises, events, etc.)
+  - Order of execution can become non-deterministic
+  - More complex, but uses resources more efficiently
+```
+
+---
+
+## 2. Blocking vs Non-Blocking
+
+### 2.1 Basic Concepts
+
+```
+Blocking I/O:
+  → Thread is suspended until I/O completes
+  → Thread does not consume CPU, but remains occupied
+
+  Thread1: [Receive request] → [DB query... 100ms wait...] → [Response]
+  Thread2: [Receive request] → [API call... 200ms wait...] → [Response]
+  Thread3: [Receive request] → [File read... 50ms wait...] → [Response]
+  → Concurrent connections are limited by the number of threads
+
+Non-Blocking I/O:
+  → Control returns immediately after I/O starts
+  → Notification via callback/event upon completion
+
+  Thread1: [Request 1] [Request 2] [Request 3] [DB result handling] [API result handling]
+  → A single thread can handle many requests
+  → The Node.js model
+```
+
+### 2.2 Blocking I/O in Detail
+
+With blocking I/O, the thread is blocked until the OS system call (read, write, connect, etc.) completes.
 
 ```typescript
-// ブロッキングI/Oのイメージ（擬似コード）
+// Blocking I/O conceptual illustration (pseudocode)
 function handleRequest(socket: Socket): void {
-  // 1. リクエストを読み取り（ブロック）
-  const request = socket.read(); // ← ここでスレッドが停止
+  // 1. Read request (blocks)
+  const request = socket.read(); // ← Thread stops here
 
-  // 2. DBに問い合わせ（ブロック）
-  const data = database.query("SELECT * FROM users"); // ← ここでスレッドが停止
+  // 2. Query DB (blocks)
+  const data = database.query("SELECT * FROM users"); // ← Thread stops here
 
-  // 3. 外部APIを呼び出し（ブロック）
-  const externalData = http.get("https://api.example.com/data"); // ← ここでスレッドが停止
+  // 3. Call external API (blocks)
+  const externalData = http.get("https://api.example.com/data"); // ← Thread stops here
 
-  // 4. レスポンスを書き込み（ブロック）
-  socket.write(buildResponse(data, externalData)); // ← ここでスレッドが停止
+  // 4. Write response (blocks)
+  socket.write(buildResponse(data, externalData)); // ← Thread stops here
 }
 ```
 
 ```java
-// Java: 伝統的なブロッキングサーバー
+// Java: Traditional blocking server
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.io.*;
@@ -137,10 +136,10 @@ public class BlockingServer {
         ServerSocket serverSocket = new ServerSocket(8080);
 
         while (true) {
-            // accept() はクライアント接続までブロック
+            // accept() blocks until a client connects
             Socket clientSocket = serverSocket.accept();
 
-            // 各接続に1スレッドを割り当て
+            // Assign one thread per connection
             new Thread(() -> {
                 try {
                     BufferedReader reader = new BufferedReader(
@@ -150,7 +149,7 @@ public class BlockingServer {
                         clientSocket.getOutputStream(), true
                     );
 
-                    // readline() はデータ到着までブロック
+                    // readLine() blocks until data arrives
                     String line = reader.readLine();
                     writer.println("Echo: " + line);
 
@@ -160,21 +159,21 @@ public class BlockingServer {
                 }
             }).start();
         }
-        // 問題: 10,000接続 = 10,000スレッド（各1MB） = 10GBメモリ
+        // Problem: 10,000 connections = 10,000 threads (1MB each) = 10GB memory
     }
 }
 ```
 
-### 2.3 ノンブロッキングI/Oの詳細
+### 2.3 Non-Blocking I/O in Detail
 
 ```typescript
-// Node.js: ノンブロッキングI/O
+// Node.js: Non-blocking I/O
 import * as http from 'http';
 import * as fs from 'fs';
 
 const server = http.createServer(async (req, res) => {
-  // ノンブロッキング: I/O開始後すぐに制御が戻る
-  // 他のリクエストを処理できる
+  // Non-blocking: control returns immediately after I/O starts
+  // Other requests can be processed in the meantime
   try {
     const data = await fs.promises.readFile('data.json', 'utf8');
     const parsed = JSON.parse(data);
@@ -187,58 +186,58 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(8080);
-// 1スレッドで数万の同時接続を処理可能
+// A single thread can handle tens of thousands of concurrent connections
 ```
 
-### 2.4 ブロッキングとノンブロッキングの混同に注意
+### 2.4 Caution: Don't Confuse Blocking and Non-Blocking
 
-「同期」と「ブロッキング」、「非同期」と「ノンブロッキング」は密接に関連しているが、厳密には別の概念である。
+"Synchronous" and "blocking," as well as "asynchronous" and "non-blocking," are closely related but are strictly separate concepts.
 
 ```
-              ブロッキング           ノンブロッキング
-同期          同期ブロッキング        同期ノンブロッキング
-              （一般的なI/O）        （ポーリング）
-非同期        非同期ブロッキング      非同期ノンブロッキング
-              （select/poll）       （epoll/kqueue/IOCP）
+                  Blocking                Non-Blocking
+Synchronous       Synchronous Blocking    Synchronous Non-Blocking
+                  (typical I/O)           (polling)
+Asynchronous      Asynchronous Blocking   Asynchronous Non-Blocking
+                  (select/poll)           (epoll/kqueue/IOCP)
 
-同期ブロッキング:
-  → read() を呼ぶと、データが来るまでスレッドが停止
-  → 最も単純だがスケールしない
+Synchronous Blocking:
+  → Calling read() suspends the thread until data arrives
+  → Simplest but does not scale
 
-同期ノンブロッキング（ポーリング）:
-  → read() を呼ぶと、データがなければ即座にEWOULDBLOCKを返す
-  → アプリケーションが繰り返しチェックする必要がある
-  → CPU時間の無駄が発生しやすい
+Synchronous Non-Blocking (polling):
+  → Calling read() immediately returns EWOULDBLOCK if no data is available
+  → Application must check repeatedly
+  → Prone to wasting CPU time
 
-非同期ノンブロッキング:
-  → I/Oを依頼して即座に戻る
-  → 完了時に通知を受ける
-  → 最も効率的（Node.js, nginx のモデル）
+Asynchronous Non-Blocking:
+  → Initiates I/O and returns immediately
+  → Receives notification upon completion
+  → Most efficient (the Node.js and nginx model)
 ```
 
-### 2.5 OSレベルのI/O多重化
+### 2.5 OS-Level I/O Multiplexing
 
 ```
 Linux:
-  select()  → 監視できるfd数に制限（1024）
-  poll()    → fd数制限なし、しかし毎回全fdをスキャン
-  epoll()   → イベント駆動、高効率（Linux 2.6+）
+  select()  → Limited number of monitored fds (1024)
+  poll()    → No fd count limit, but scans all fds every time
+  epoll()   → Event-driven, highly efficient (Linux 2.6+)
 
 macOS/BSD:
-  kqueue()  → epoll相当、BSD系OS
+  kqueue()  → Equivalent to epoll, for BSD-based OSes
 
 Windows:
-  IOCP (I/O Completion Ports) → 完了ポートモデル
+  IOCP (I/O Completion Ports) → Completion port model
 
-Node.js の libuv:
-  → OS ごとに最適な仕組みを抽象化
+Node.js's libuv:
+  → Abstracts the optimal mechanism for each OS
   → Linux: epoll, macOS: kqueue, Windows: IOCP
-  → ファイルI/O: スレッドプール（デフォルト4スレッド）
-  → ネットワークI/O: OS の非同期I/O
+  → File I/O: thread pool (4 threads by default)
+  → Network I/O: OS async I/O
 ```
 
 ```c
-// epoll の使い方（C言語、Linux）
+// How to use epoll (C language, Linux)
 #include <sys/epoll.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -248,7 +247,7 @@ int main() {
     int epoll_fd = epoll_create1(0);
 
     struct epoll_event event;
-    event.events = EPOLLIN;  // 読み取り可能イベントを監視
+    event.events = EPOLLIN;  // Monitor for readable events
     event.data.fd = socket_fd;
 
     epoll_ctl(epoll_fd, EPOLL_CTL_ADD, socket_fd, &event);
@@ -256,12 +255,12 @@ int main() {
     struct epoll_event events[MAX_EVENTS];
 
     while (1) {
-        // イベント待ち（ブロックするが、複数fdを同時に監視）
+        // Wait for events (blocks, but monitors multiple fds simultaneously)
         int nfds = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
 
         for (int i = 0; i < nfds; i++) {
             if (events[i].events & EPOLLIN) {
-                // データが読み取り可能
+                // Data is readable
                 handle_read(events[i].data.fd);
             }
         }
@@ -271,118 +270,118 @@ int main() {
 
 ---
 
-## 3. なぜ非同期が必要か
+## 3. Why Asynchronous Processing Is Necessary
 
-### 3.1 CPUサイクル vs I/O待ち時間
+### 3.1 CPU Cycles vs I/O Wait Times
 
 ```
-CPUサイクル vs I/O 待ち時間（概算）:
+CPU Cycles vs I/O Wait Times (approximate):
 
-  操作                  時間            CPUサイクル換算
+  Operation                 Time            CPU Cycle Equivalent
   ─────────────────────────────────────────────────
-  L1 キャッシュ          1ns            1回
-  L2 キャッシュ          4ns            4回
-  L3 キャッシュ          12ns           12回
-  メインメモリ           100ns          100回
-  SSD ランダムリード     16μs           16,000回
-  SSD シーケンシャル     50μs           50,000回
-  HDD ランダムリード     4ms            4,000,000回
-  ネットワーク（同一DC）  500μs          500,000回
-  ネットワーク（同一国）  30ms           30,000,000回
-  ネットワーク（大陸間）  150ms          150,000,000回
-  TLS ハンドシェイク     250ms          250,000,000回
+  L1 Cache                  1ns             1 cycle
+  L2 Cache                  4ns             4 cycles
+  L3 Cache                  12ns            12 cycles
+  Main Memory               100ns           100 cycles
+  SSD Random Read           16us            16,000 cycles
+  SSD Sequential            50us            50,000 cycles
+  HDD Random Read           4ms             4,000,000 cycles
+  Network (same DC)         500us           500,000 cycles
+  Network (same country)    30ms            30,000,000 cycles
+  Network (intercontinental) 150ms          150,000,000 cycles
+  TLS Handshake             250ms           250,000,000 cycles
 
-  → ネットワークI/O中にCPUは1.5億サイクル分「何もしていない」
-  → この待ち時間を有効活用するのが非同期処理
+  → During network I/O, the CPU does "nothing" for 150 million cycles
+  → Asynchronous processing makes effective use of this wait time
 
-人間の時間感覚に例えると（1CPUサイクル = 1秒とした場合）:
-  L1 キャッシュ   → 1秒
-  メインメモリ    → 1分40秒
-  SSD リード      → 4時間半
-  HDD リード      → 46日
-  ネットワーク    → 4.8年（！）
+In human time (if 1 CPU cycle = 1 second):
+  L1 Cache       → 1 second
+  Main Memory    → 1 minute 40 seconds
+  SSD Read       → 4.5 hours
+  HDD Read       → 46 days
+  Network        → 4.8 years (!)
 ```
 
-### 3.2 具体的な効果: Webサーバーの応答時間
+### 3.2 Concrete Effect: Web Server Response Time
 
 ```typescript
-// 同期的な処理（Node.jsでは非推奨）
+// Synchronous processing (not recommended in Node.js)
 function syncHandler(req: Request): Response {
-  const user = db.getUserSync(req.userId);      // 10ms 待ち
-  const orders = db.getOrdersSync(user.id);     // 15ms 待ち
-  const recommendations = api.getRecsSync(user); // 50ms 待ち
+  const user = db.getUserSync(req.userId);      // 10ms wait
+  const orders = db.getOrdersSync(user.id);     // 15ms wait
+  const recommendations = api.getRecsSync(user); // 50ms wait
   return { user, orders, recommendations };
-  // 合計: 75ms（直列実行）
+  // Total: 75ms (sequential execution)
 }
 
-// 非同期処理（並行実行）
+// Asynchronous processing (concurrent execution)
 async function asyncHandler(req: Request): Promise<Response> {
   const user = await db.getUser(req.userId);    // 10ms
-  // user を取得後、残りを並行実行
+  // After getting user, run the rest concurrently
   const [orders, recommendations] = await Promise.all([
     db.getOrders(user.id),                      // 15ms ┐
-    api.getRecs(user),                           // 50ms ┤ 並行
+    api.getRecs(user),                           // 50ms ┤ concurrent
   ]);                                            //      ┘ max = 50ms
   return { user, orders, recommendations };
-  // 合計: 10 + 50 = 60ms（20%高速化）
+  // Total: 10 + 50 = 60ms (20% faster)
 }
 ```
 
-### 3.3 スループットへの影響
+### 3.3 Impact on Throughput
 
 ```
-ブロッキングサーバー（スレッドプール方式）:
-  スレッド数: 200（Java Tomcatのデフォルト）
-  1リクエストの平均処理時間: 100ms（うちI/O待ち: 80ms）
-  最大スループット: 200 / 0.1 = 2,000 req/sec
+Blocking server (thread pool approach):
+  Thread count: 200 (Java Tomcat default)
+  Average processing time per request: 100ms (of which I/O wait: 80ms)
+  Max throughput: 200 / 0.1 = 2,000 req/sec
 
-ノンブロッキングサーバー（イベントループ方式）:
-  スレッド数: 1（Node.js）
-  1リクエストのCPU実行時間: 20ms（I/O待ちは他の処理に使える）
-  最大スループット: 1 / 0.02 = 50 req/sec（CPU律速の場合）
-  ただし同時接続数に制限がない
-  → 同時接続10,000でもメモリ消費が少ない
+Non-blocking server (event loop approach):
+  Thread count: 1 (Node.js)
+  CPU execution time per request: 20ms (I/O wait time is used for other processing)
+  Max throughput: 1 / 0.02 = 50 req/sec (when CPU-bound)
+  However, there is no limit on concurrent connections
+  → Even with 10,000 concurrent connections, memory usage remains low
 
-実際のベンチマーク（概算）:
-  ┌────────────────────┬──────────────┬──────────────┐
-  │ サーバー            │ 同時接続1,000│ 同時接続10,000│
-  ├────────────────────┼──────────────┼──────────────┤
-  │ Apache（prefork）   │ 5,000 req/s  │ メモリ不足    │
-  │ Nginx              │ 20,000 req/s │ 18,000 req/s │
-  │ Node.js            │ 15,000 req/s │ 12,000 req/s │
-  │ Go net/http        │ 25,000 req/s │ 22,000 req/s │
-  └────────────────────┴──────────────┴──────────────┘
-  ※ 実際の数値はワークロード・ハードウェアにより大きく変動
+Actual benchmarks (approximate):
+  ┌────────────────────┬──────────────────┬───────────────────┐
+  │ Server             │ 1,000 concurrent │ 10,000 concurrent │
+  ├────────────────────┼──────────────────┼───────────────────┤
+  │ Apache (prefork)   │ 5,000 req/s      │ Out of memory     │
+  │ Nginx              │ 20,000 req/s     │ 18,000 req/s      │
+  │ Node.js            │ 15,000 req/s     │ 12,000 req/s      │
+  │ Go net/http        │ 25,000 req/s     │ 22,000 req/s      │
+  └────────────────────┴──────────────────┴───────────────────┘
+  * Actual numbers vary significantly depending on workload and hardware
 ```
 
-### 3.4 C10K問題
+### 3.4 The C10K Problem
 
 ```
-C10K問題（The C10K Problem, 1999年 Dan Kegel提唱）:
-  → 1台のサーバーで1万（10,000）の同時接続を処理できるか？
+The C10K Problem (proposed by Dan Kegel in 1999):
+  → Can a single server handle 10,000 concurrent connections?
 
-従来のアプローチ（1接続1スレッド）:
-  10,000接続 × 1MB/スレッド = 10GB メモリ
-  → スレッドのコンテキストスイッチが膨大
-  → 実用的に不可能
+Traditional approach (one thread per connection):
+  10,000 connections x 1MB/thread = 10GB memory
+  → Enormous thread context switching overhead
+  → Practically impossible
 
-解決策:
-  1. イベント駆動（epoll/kqueue）+ ノンブロッキングI/O
+Solutions:
+  1. Event-driven (epoll/kqueue) + non-blocking I/O
      → Nginx, Node.js, HAProxy
-  2. 軽量スレッド / コルーチン
+  2. Lightweight threads / coroutines
      → Go (goroutine: ~2KB), Erlang (process: ~2KB)
-  3. 非同期I/O（io_uring, IOCP）
-     → 最新のLinuxカーネル (5.1+)
+  3. Asynchronous I/O (io_uring, IOCP)
+     → Latest Linux kernels (5.1+)
 
-現在の課題: C10M問題
-  → 1台で1,000万接続を処理する
-  → カーネルバイパス（DPDK, XDP）、ユーザー空間ネットワーキング
+Current challenge: The C10M Problem
+  → Handling 10 million connections on a single server
+  → Kernel bypass (DPDK, XDP), user-space networking
 ```
 
-### 3.5 リアルワールドでの非同期処理の効果
+### 3.5 Real-World Effects of Asynchronous Processing
 
 ```typescript
-// ECサイトの商品ページ: 同期版
+// E-commerce product page: sequential version
 async function getProductPageSync(productId: string) {
   const start = Date.now();
 
@@ -393,70 +392,70 @@ async function getProductPageSync(productId: string) {
   const pricing = await getPricing(productId);           // 10ms
   const seller = await getSeller(product.sellerId);      // 20ms
 
-  console.log(`直列実行: ${Date.now() - start}ms`);
+  console.log(`Sequential execution: ${Date.now() - start}ms`);
   // → 120ms
   return { product, reviews, relatedProducts, inventory, pricing, seller };
 }
 
-// ECサイトの商品ページ: 最適化版
+// E-commerce product page: optimized version
 async function getProductPageOptimized(productId: string) {
   const start = Date.now();
 
-  // Stage 1: 依存関係のないものを並行実行
+  // Stage 1: Run independent tasks concurrently
   const [product, reviews, relatedProducts, inventory, pricing] =
     await Promise.all([
       getProduct(productId),           // 20ms ┐
       getReviews(productId),           // 30ms ┤
-      getRelated(productId),           // 25ms ┤ 並行
+      getRelated(productId),           // 25ms ┤ concurrent
       getInventory(productId),         // 15ms ┤
       getPricing(productId),           // 10ms ┘
     ]);
   // Stage 1: max(20, 30, 25, 15, 10) = 30ms
 
-  // Stage 2: product に依存する処理
+  // Stage 2: Processing that depends on product
   const seller = await getSeller(product.sellerId); // 20ms
 
-  console.log(`最適化版: ${Date.now() - start}ms`);
-  // → 50ms（58%高速化）
+  console.log(`Optimized version: ${Date.now() - start}ms`);
+  // → 50ms (58% faster)
   return { product, reviews, relatedProducts, inventory, pricing, seller };
 }
 ```
 
 ---
 
-## 4. 各言語の非同期モデル
+## 4. Asynchronous Models Across Languages
 
-### 4.1 モデル一覧
+### 4.1 Model Overview
 
 ```
 ┌──────────────┬───────────────────────────────┐
-│ 言語         │ 非同期モデル                   │
+│ Language     │ Asynchronous Model            │
 ├──────────────┼───────────────────────────────┤
-│ JavaScript   │ イベントループ + Promise       │
-│ Python       │ asyncio（イベントループ）      │
-│ Rust         │ async/await + ランタイム(tokio)│
-│ Go           │ goroutine + channel            │
-│ Java         │ スレッド + CompletableFuture   │
-│ Kotlin       │ coroutines                     │
-│ Swift        │ structured concurrency         │
-│ Elixir       │ アクターモデル（BEAM）          │
-│ C#           │ Task + async/await             │
-│ C++          │ std::async + co_await (C++20)  │
+│ JavaScript   │ Event loop + Promise          │
+│ Python       │ asyncio (event loop)          │
+│ Rust         │ async/await + runtime (tokio) │
+│ Go           │ goroutine + channel           │
+│ Java         │ Threads + CompletableFuture   │
+│ Kotlin       │ coroutines                    │
+│ Swift        │ structured concurrency        │
+│ Elixir       │ Actor model (BEAM)            │
+│ C#           │ Task + async/await            │
+│ C++          │ std::async + co_await (C++20) │
 └──────────────┴───────────────────────────────┘
 
-大きく3つのアプローチ:
-  1. イベントループ（JS, Python）: シングルスレッド + 非同期I/O
-  2. グリーンスレッド（Go, Erlang）: 軽量スレッド × 多数
-  3. OS スレッド + async（Java, C#）: スレッドプール + Future
+Three major approaches:
+  1. Event loop (JS, Python): Single-threaded + async I/O
+  2. Green threads (Go, Erlang): Many lightweight threads
+  3. OS threads + async (Java, C#): Thread pool + Future
 ```
 
 ### 4.2 JavaScript / TypeScript
 
 ```typescript
-// JavaScript: シングルスレッド + イベントループ
-// ブラウザ / Node.js 共通のモデル
+// JavaScript: Single-threaded + event loop
+// Shared model for browser and Node.js
 
-// 1. Promise ベース
+// 1. Promise-based
 function fetchUserData(userId: string): Promise<User> {
   return fetch(`/api/users/${userId}`)
     .then(response => {
@@ -467,7 +466,7 @@ function fetchUserData(userId: string): Promise<User> {
     });
 }
 
-// 2. async/await（Promise の構文糖）
+// 2. async/await (syntactic sugar over Promises)
 async function fetchUserData(userId: string): Promise<User> {
   const response = await fetch(`/api/users/${userId}`);
   if (!response.ok) {
@@ -476,18 +475,18 @@ async function fetchUserData(userId: string): Promise<User> {
   return response.json();
 }
 
-// 3. Node.js 固有: Worker Threads（CPU集約型用）
+// 3. Node.js specific: Worker Threads (for CPU-intensive tasks)
 import { Worker, isMainThread, parentPort } from 'worker_threads';
 
 if (isMainThread) {
   const worker = new Worker(__filename);
   worker.on('message', (result) => {
-    console.log('計算結果:', result);
+    console.log('Computation result:', result);
   });
   worker.postMessage({ data: largeArray });
 } else {
   parentPort?.on('message', (msg) => {
-    // CPU集約的な処理をワーカースレッドで実行
+    // Execute CPU-intensive processing in a worker thread
     const result = heavyComputation(msg.data);
     parentPort?.postMessage(result);
   });
@@ -500,22 +499,22 @@ if (isMainThread) {
 import asyncio
 import aiohttp
 
-# Python: asyncio イベントループ
-# GIL（Global Interpreter Lock）があるため、
-# CPU並列はmultiprocessing、I/O並行はasyncioを使う
+# Python: asyncio event loop
+# Due to the GIL (Global Interpreter Lock),
+# use multiprocessing for CPU parallelism and asyncio for I/O concurrency
 
-# 基本的な非同期関数
+# Basic async function
 async def fetch_user(user_id: str) -> dict:
     async with aiohttp.ClientSession() as session:
         async with session.get(f"https://api.example.com/users/{user_id}") as resp:
             return await resp.json()
 
-# 並行実行
+# Concurrent execution
 async def fetch_all_users(user_ids: list[str]) -> list[dict]:
     tasks = [fetch_user(uid) for uid in user_ids]
     return await asyncio.gather(*tasks)
 
-# 実行
+# Execution
 async def main():
     users = await fetch_all_users(["user-1", "user-2", "user-3"])
     for user in users:
@@ -523,7 +522,7 @@ async def main():
 
 asyncio.run(main())
 
-# CPU集約型: multiprocessing
+# CPU-intensive: multiprocessing
 from concurrent.futures import ProcessPoolExecutor
 import asyncio
 
@@ -550,9 +549,9 @@ import (
 )
 
 // Go: goroutine + channel
-// goroutineは軽量スレッド（~2KB）、OSスレッドの上にランタイムがスケジューリング
+// Goroutines are lightweight threads (~2KB), scheduled by the runtime on top of OS threads
 
-// 基本的な非同期実行
+// Basic asynchronous execution
 func fetchURL(url string, ch chan<- string, wg *sync.WaitGroup) {
     defer wg.Done()
     resp, err := http.Get(url)
@@ -576,10 +575,10 @@ func main() {
 
     for _, url := range urls {
         wg.Add(1)
-        go fetchURL(url, ch, &wg) // goroutineで並行実行
+        go fetchURL(url, ch, &wg) // Concurrent execution with goroutines
     }
 
-    // 全完了を待つ
+    // Wait for all to complete
     go func() {
         wg.Wait()
         close(ch)
@@ -590,7 +589,7 @@ func main() {
     }
 }
 
-// select による複数チャネルの待ち受け
+// Waiting on multiple channels with select
 func fetchWithTimeout(url string, timeout time.Duration) (string, error) {
     ch := make(chan string, 1)
     errCh := make(chan error, 1)
@@ -622,9 +621,9 @@ func fetchWithTimeout(url string, timeout time.Duration) (string, error) {
 use tokio;
 use reqwest;
 
-// Rust: async/await + ランタイム（tokio）
-// ゼロコスト抽象化: async関数はステートマシンにコンパイルされる
-// Future は lazy: .await するまで実行されない
+// Rust: async/await + runtime (tokio)
+// Zero-cost abstraction: async functions compile to state machines
+// Futures are lazy: they don't execute until .await is called
 
 async fn fetch_user(user_id: &str) -> Result<User, reqwest::Error> {
     let url = format!("https://api.example.com/users/{}", user_id);
@@ -635,9 +634,9 @@ async fn fetch_user(user_id: &str) -> Result<User, reqwest::Error> {
     Ok(user)
 }
 
-// 並行実行
+// Concurrent execution
 async fn fetch_all_data(user_id: &str) -> Result<Dashboard, AppError> {
-    // tokio::join! で並行実行
+    // Concurrent execution with tokio::join!
     let (user, orders, notifications) = tokio::join!(
         fetch_user(user_id),
         fetch_orders(user_id),
@@ -651,17 +650,17 @@ async fn fetch_all_data(user_id: &str) -> Result<Dashboard, AppError> {
     })
 }
 
-// tokio::spawn でバックグラウンドタスク
+// Background tasks with tokio::spawn
 async fn background_processing() {
     let handle = tokio::spawn(async {
-        // バックグラウンドで実行
+        // Execute in the background
         heavy_async_work().await
     });
 
-    // 他の処理を続行
+    // Continue with other work
     do_other_work().await;
 
-    // バックグラウンドタスクの結果を取得
+    // Retrieve background task result
     let result = handle.await.unwrap();
 }
 
@@ -678,11 +677,11 @@ async fn main() {
 import java.util.concurrent.*;
 
 // Java: CompletableFuture (Java 8+)
-// 仮想スレッド (Java 21+ / Project Loom)
+// Virtual Threads (Java 21+ / Project Loom)
 
 public class AsyncExample {
 
-    // CompletableFuture ベース
+    // CompletableFuture-based
     public CompletableFuture<Dashboard> getDashboard(String userId) {
         CompletableFuture<User> userFuture =
             CompletableFuture.supplyAsync(() -> userRepo.findById(userId));
@@ -693,7 +692,7 @@ public class AsyncExample {
         CompletableFuture<List<Notification>> notifFuture =
             CompletableFuture.supplyAsync(() -> notifRepo.findByUserId(userId));
 
-        // 全て完了したら結合
+        // Combine when all complete
         return CompletableFuture.allOf(userFuture, ordersFuture, notifFuture)
             .thenApply(v -> new Dashboard(
                 userFuture.join(),
@@ -702,7 +701,7 @@ public class AsyncExample {
             ));
     }
 
-    // Java 21: 仮想スレッド（Project Loom）
+    // Java 21: Virtual Threads (Project Loom)
     public Dashboard getDashboardVirtualThreads(String userId) throws Exception {
         try (var scope = new StructuredTaskScope.ShutdownOnFailure()) {
             var userTask = scope.fork(() -> userRepo.findById(userId));
@@ -730,18 +729,18 @@ using System.Net.Http;
 using System.Threading.Tasks;
 
 // C#: Task + async/await
-// .NET の非同期モデルは最も成熟したものの一つ
+// .NET's async model is one of the most mature
 
 public class AsyncService
 {
     private readonly HttpClient _httpClient;
 
-    // async/await 基本
+    // async/await basics
     public async Task<Dashboard> GetDashboardAsync(string userId)
     {
         var user = await GetUserAsync(userId);
 
-        // 並行実行
+        // Concurrent execution
         var ordersTask = GetOrdersAsync(userId);
         var notificationsTask = GetNotificationsAsync(userId);
 
@@ -755,7 +754,7 @@ public class AsyncService
         };
     }
 
-    // キャンセルトークン対応
+    // Cancellation token support
     public async Task<User> GetUserAsync(
         string userId,
         CancellationToken cancellationToken = default)
@@ -770,16 +769,16 @@ public class AsyncService
         );
     }
 
-    // ValueTask: ホットパス最適化
+    // ValueTask: hot path optimization
     public ValueTask<CachedData> GetCachedDataAsync(string key)
     {
         if (_cache.TryGetValue(key, out var cached))
         {
-            // キャッシュヒット時はヒープ割り当てなし
+            // No heap allocation on cache hit
             return new ValueTask<CachedData>(cached);
         }
 
-        // キャッシュミス時のみ非同期処理
+        // Async processing only on cache miss
         return new ValueTask<CachedData>(FetchAndCacheAsync(key));
     }
 }
@@ -787,40 +786,40 @@ public class AsyncService
 
 ---
 
-## 5. 同期と非同期の使い分け
+## 5. Choosing Between Synchronous and Asynchronous
 
-### 5.1 判断基準
+### 5.1 Decision Criteria
 
 ```
-同期が適切:
-  ✓ CPU集約的な計算（数値計算、暗号化、画像処理）
-  ✓ シンプルなスクリプト・バッチ処理
-  ✓ I/Oが少ない処理
-  ✓ 逐次実行が必要な処理（順序保証が必要）
-  ✓ デバッグ容易性が重要な場合
-  ✓ 短時間で完了する処理
+Synchronous is appropriate:
+  + CPU-intensive computation (numerical calculations, encryption, image processing)
+  + Simple scripts and batch processing
+  + Processing with little I/O
+  + Processing that requires sequential execution (order guarantee needed)
+  + When debuggability is important
+  + Short-lived operations
 
-非同期が適切:
-  ✓ ネットワークI/O（API呼び出し、DB接続）
-  ✓ ファイルI/O（大量のファイル操作）
-  ✓ 多数の同時接続を処理するサーバー
-  ✓ UIをブロックしたくないクライアントアプリ
-  ✓ リアルタイム処理（WebSocket、チャット）
-  ✓ マイクロサービス間通信
+Asynchronous is appropriate:
+  + Network I/O (API calls, DB connections)
+  + File I/O (large-scale file operations)
+  + Servers handling many concurrent connections
+  + Client apps where blocking the UI is undesirable
+  + Real-time processing (WebSocket, chat)
+  + Inter-microservice communication
 
-注意:
-  → CPU集約的な処理を async にしても意味がない
-  → イベントループをブロックしない（Node.js の鉄則）
-  → 非同期のオーバーヘッド（コンテキストスイッチ、メモリ）も考慮
+Caveats:
+  → Making CPU-intensive processing async is pointless
+  → Don't block the event loop (a cardinal rule in Node.js)
+  → Consider the overhead of async (context switching, memory)
 ```
 
-### 5.2 具体的なシナリオ別ガイド
+### 5.2 Scenario-Based Guide
 
 ```typescript
-// シナリオ1: ファイル処理
-// ✅ 大量のファイルを非同期で並行処理
+// Scenario 1: File processing
+// Good: Process many files concurrently with async
 async function processFiles(filePaths: string[]): Promise<void> {
-  const CONCURRENCY = 10; // 同時に10ファイルまで
+  const CONCURRENCY = 10; // Up to 10 files simultaneously
   const results: string[] = [];
 
   for (let i = 0; i < filePaths.length; i += CONCURRENCY) {
@@ -835,20 +834,20 @@ async function processFiles(filePaths: string[]): Promise<void> {
   }
 }
 
-// ❌ 小さなファイル1つだけなら同期でも可
-// （起動スクリプト、設定読み込みなど）
+// Bad: For a single small file, synchronous is fine
+// (startup scripts, config loading, etc.)
 const config = JSON.parse(fs.readFileSync('config.json', 'utf8'));
 ```
 
 ```python
-# シナリオ2: Webスクレイピング
+# Scenario 2: Web scraping
 import asyncio
 import aiohttp
 from typing import List, Dict
 
-# ✅ 多数のURLを非同期で並行取得
+# Good: Fetch many URLs concurrently with async
 async def scrape_urls(urls: list[str]) -> list[dict]:
-    semaphore = asyncio.Semaphore(20)  # 同時接続数制限
+    semaphore = asyncio.Semaphore(20)  # Limit concurrent connections
 
     async def fetch_one(session: aiohttp.ClientSession, url: str) -> dict:
         async with semaphore:
@@ -860,13 +859,13 @@ async def scrape_urls(urls: list[str]) -> list[dict]:
         tasks = [fetch_one(session, url) for url in urls]
         return await asyncio.gather(*tasks, return_exceptions=True)
 
-# 100件のURLを同時20並列で取得
-# 同期: 100 × 200ms = 20秒
-# 非同期: 100 / 20 × 200ms = 1秒（20倍高速）
+# 100 URLs with 20 concurrent connections
+# Synchronous: 100 x 200ms = 20 seconds
+# Asynchronous: 100 / 20 x 200ms = 1 second (20x faster)
 ```
 
 ```go
-// シナリオ3: マイクロサービスのAPI Gateway
+// Scenario 3: Microservice API Gateway
 package main
 
 import (
@@ -883,7 +882,7 @@ type AggregatedResponse struct {
     Notifications []Notification `json:"notifications"`
 }
 
-// ✅ 複数のマイクロサービスを並行呼び出し
+// Good: Call multiple microservices concurrently
 func aggregateHandler(w http.ResponseWriter, r *http.Request) {
     ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
     defer cancel()
@@ -929,19 +928,19 @@ func aggregateHandler(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-### 5.3 アンチパターン
+### 5.3 Anti-Patterns
 
 ```typescript
-// ❌ アンチパターン1: CPU集約処理をイベントループで実行
+// Bad: Anti-pattern 1 - Running CPU-intensive work on the event loop
 async function badImageProcessing(images: Buffer[]): Promise<Buffer[]> {
-  // イベントループをブロックしてしまう
+  // This blocks the event loop
   return images.map(img => {
-    // 重い画像処理（同期的にCPUを占有）
-    return sharp(img).resize(800, 600).toBuffer(); // ← 同期API
+    // Heavy image processing (synchronously occupies CPU)
+    return sharp(img).resize(800, 600).toBuffer(); // ← Synchronous API
   });
 }
 
-// ✅ CPU集約処理はWorker Threadsに委譲
+// Good: Delegate CPU-intensive work to Worker Threads
 import { Worker } from 'worker_threads';
 
 async function goodImageProcessing(images: Buffer[]): Promise<Buffer[]> {
@@ -953,35 +952,35 @@ async function goodImageProcessing(images: Buffer[]): Promise<Buffer[]> {
   });
 }
 
-// ❌ アンチパターン2: 不必要な非同期化
+// Bad: Anti-pattern 2 - Unnecessary async
 async function unnecessary(): Promise<number> {
-  return 1 + 1; // ← 同期で十分な処理を非同期にする意味がない
+  return 1 + 1; // ← No point making synchronous-sufficient code async
 }
 
-// ❌ アンチパターン3: 非同期処理の結果を無視
+// Bad: Anti-pattern 3 - Ignoring async results
 function fireAndForget(data: Data): void {
-  saveToDatabase(data); // Promiseの結果を無視 → エラーが見えなくなる
+  saveToDatabase(data); // Promise result ignored → errors become invisible
 }
 
-// ✅ 結果を適切にハンドリング
+// Good: Handle results properly
 async function properSave(data: Data): Promise<void> {
   try {
     await saveToDatabase(data);
   } catch (error) {
     logger.error('Failed to save data', error);
-    throw error; // 呼び出し元に伝播
+    throw error; // Propagate to caller
   }
 }
 ```
 
 ---
 
-## 6. 実務で頻出するパターン
+## 6. Patterns Frequently Encountered in Practice
 
-### 6.1 タイムアウト付き非同期処理
+### 6.1 Async Operations with Timeout
 
 ```typescript
-// タイムアウト付きfetch
+// Fetch with timeout
 async function fetchWithTimeout(
   url: string,
   options: RequestInit = {},
@@ -1006,19 +1005,19 @@ async function fetchWithTimeout(
   }
 }
 
-// 使用例
+// Usage
 try {
   const response = await fetchWithTimeout('https://api.example.com/data', {}, 3000);
   const data = await response.json();
 } catch (error) {
-  console.error('リクエスト失敗:', error.message);
+  console.error('Request failed:', error.message);
 }
 ```
 
-### 6.2 リトライ付き非同期処理
+### 6.2 Async Operations with Retry
 
 ```typescript
-// 指数バックオフ付きリトライ
+// Retry with exponential backoff
 async function retryWithBackoff<T>(
   fn: () => Promise<T>,
   options: {
@@ -1050,7 +1049,7 @@ async function retryWithBackoff<T>(
         throw error;
       }
 
-      // ジッター（ランダム揺らぎ）を追加
+      // Add jitter (random variation)
       const jitter = delay * 0.1 * Math.random();
       const actualDelay = Math.min(delay + jitter, maxDelayMs);
 
@@ -1067,24 +1066,24 @@ async function retryWithBackoff<T>(
   throw lastError;
 }
 
-// 使用例
+// Usage
 const data = await retryWithBackoff(
   () => fetchWithTimeout('https://api.example.com/data'),
   {
     maxRetries: 3,
     initialDelayMs: 1000,
     retryableErrors: (error) => {
-      // 5xx エラーのみリトライ
+      // Retry only on 5xx errors
       return error instanceof Error && error.message.includes('5');
     },
   }
 );
 ```
 
-### 6.3 並行数制限（セマフォパターン）
+### 6.3 Concurrency Limiting (Semaphore Pattern)
 
 ```typescript
-// セマフォ: 同時実行数を制限
+// Semaphore: limits the number of concurrent executions
 class Semaphore {
   private permits: number;
   private queue: (() => void)[] = [];
@@ -1123,7 +1122,7 @@ class Semaphore {
   }
 }
 
-// 使用例: 同時5並列でAPI呼び出し
+// Usage: API calls with 5 concurrent connections
 const semaphore = new Semaphore(5);
 const urls = Array.from({ length: 100 }, (_, i) => `https://api.example.com/item/${i}`);
 
@@ -1137,10 +1136,10 @@ const results = await Promise.all(
 );
 ```
 
-### 6.4 キャンセル可能な非同期処理
+### 6.4 Cancellable Async Operations
 
 ```typescript
-// AbortController を使ったキャンセル
+// Cancellation using AbortController
 class CancellableTask<T> {
   private controller: AbortController;
   private promise: Promise<T>;
@@ -1159,11 +1158,11 @@ class CancellableTask<T> {
   }
 }
 
-// 使用例: 検索の自動キャンセル
+// Usage: Auto-cancel search
 let currentSearch: CancellableTask<SearchResult[]> | null = null;
 
 async function search(query: string): Promise<SearchResult[]> {
-  // 前の検索をキャンセル
+  // Cancel previous search
   currentSearch?.cancel('New search started');
 
   currentSearch = new CancellableTask(async (signal) => {
@@ -1178,12 +1177,12 @@ async function search(query: string): Promise<SearchResult[]> {
 
 ---
 
-## 7. パフォーマンス計測と最適化
+## 7. Performance Measurement and Optimization
 
-### 7.1 非同期処理のベンチマーク方法
+### 7.1 Benchmarking Async Operations
 
 ```typescript
-// 処理時間の計測
+// Measuring processing time
 async function benchmark<T>(
   name: string,
   fn: () => Promise<T>,
@@ -1208,7 +1207,7 @@ async function benchmark<T>(
   };
 }
 
-// 比較テスト
+// Comparison test
 async function compareSyncVsAsync(): Promise<void> {
   const syncResult = await benchmark('Sequential', async () => {
     const a = await fetchA();
@@ -1236,58 +1235,58 @@ async function compareSyncVsAsync(): Promise<void> {
 }
 ```
 
-### 7.2 よくあるボトルネックと対策
+### 7.2 Common Bottlenecks and Countermeasures
 
 ```
-ボトルネック1: DBコネクションプール不足
-  症状: 並行リクエストが多い時にDB接続待ち
-  対策: プールサイズを適切に設定（CPU cores × 2 + disk数）
+Bottleneck 1: Insufficient DB connection pool
+  Symptom: DB connection wait under high concurrent requests
+  Solution: Set pool size appropriately (CPU cores x 2 + number of disks)
 
-ボトルネック2: 外部API のレート制限
-  症状: 429 Too Many Requests
-  対策: セマフォで並行数制限、レート制限ライブラリ使用
+Bottleneck 2: External API rate limiting
+  Symptom: 429 Too Many Requests
+  Solution: Limit concurrency with semaphore, use rate-limiting libraries
 
-ボトルネック3: メモリリーク（Promiseの蓄積）
-  症状: ヒープメモリが継続的に増加
-  対策: 不要なPromise参照の解放、WeakRefの活用
+Bottleneck 3: Memory leaks (Promise accumulation)
+  Symptom: Heap memory continuously increasing
+  Solution: Release unnecessary Promise references, use WeakRef
 
-ボトルネック4: イベントループのブロック
-  症状: レスポンスタイムの突発的な増大
-  対策: CPU処理をWorker Threadsに移動、blocked-at等で検出
+Bottleneck 4: Event loop blocking
+  Symptom: Sudden spikes in response time
+  Solution: Move CPU work to Worker Threads, detect with tools like blocked-at
 
-ボトルネック5: DNS解決の遅延
-  症状: 初回リクエストだけ遅い
-  対策: DNS プリフェッチ、keep-alive接続の活用
+Bottleneck 5: DNS resolution delay
+  Symptom: Only the first request is slow
+  Solution: DNS prefetch, use keep-alive connections
 ```
 
 ---
 
-## 8. 非同期処理のテスト手法
+## 8. Testing Async Operations
 
-### 8.1 基本的なテストパターン
+### 8.1 Basic Test Patterns
 
 ```typescript
 import { describe, it, expect, vi } from 'vitest';
 
-// 非同期関数のテスト
+// Testing async functions
 describe('fetchUserData', () => {
-  // 基本テスト
-  it('ユーザーデータを正常に取得できる', async () => {
+  // Basic test
+  it('successfully retrieves user data', async () => {
     const user = await fetchUserData('user-123');
     expect(user).toEqual({
       id: 'user-123',
-      name: 'テスト太郎',
+      name: 'Test User',
     });
   });
 
-  // エラーテスト
-  it('存在しないユーザーでエラーをスロー', async () => {
+  // Error test
+  it('throws an error for non-existent user', async () => {
     await expect(fetchUserData('nonexistent'))
       .rejects.toThrow('User not found');
   });
 
-  // タイムアウトテスト
-  it('タイムアウト時にエラーをスロー', async () => {
+  // Timeout test
+  it('throws an error on timeout', async () => {
     vi.useFakeTimers();
 
     const promise = fetchWithTimeout('https://slow.api.com', {}, 3000);
@@ -1299,8 +1298,8 @@ describe('fetchUserData', () => {
     vi.useRealTimers();
   });
 
-  // モック使用
-  it('APIをモックしてテスト', async () => {
+  // Using mocks
+  it('tests with mocked API', async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ id: '123', name: 'Test' }),
@@ -1317,11 +1316,11 @@ describe('fetchUserData', () => {
 });
 ```
 
-### 8.2 並行処理のテスト
+### 8.2 Testing Concurrent Processing
 
 ```typescript
-describe('Promise.all パターンのテスト', () => {
-  it('並行実行の順序非依存性を確認', async () => {
+describe('Promise.all pattern tests', () => {
+  it('confirms order independence of concurrent execution', async () => {
     const results: string[] = [];
 
     const task1 = async () => {
@@ -1340,11 +1339,11 @@ describe('Promise.all パターンのテスト', () => {
 
     expect(r1).toBe('result1');
     expect(r2).toBe('result2');
-    // task2 の方が先に完了するが、結果の順序は保持される
+    // task2 completes first, but the result order is preserved
     expect(results).toEqual(['task2', 'task1']);
   });
 
-  it('部分的な失敗をハンドリング', async () => {
+  it('handles partial failures', async () => {
     const results = await Promise.allSettled([
       Promise.resolve('success'),
       Promise.reject(new Error('failure')),
@@ -1360,66 +1359,66 @@ describe('Promise.all パターンのテスト', () => {
 
 ---
 
-## 9. デバッグテクニック
+## 9. Debugging Techniques
 
-### 9.1 非同期処理のデバッグ
+### 9.1 Debugging Async Operations
 
 ```typescript
-// async_hooks を使った非同期処理のトレース（Node.js）
+// Tracing async operations using async_hooks (Node.js)
 import { AsyncLocalStorage } from 'async_hooks';
 
 const requestStorage = new AsyncLocalStorage<{ requestId: string }>();
 
-// リクエストIDをコンテキストとして伝播
+// Propagate request ID as context
 async function handleRequest(req: Request): Promise<Response> {
   const requestId = generateRequestId();
 
   return requestStorage.run({ requestId }, async () => {
-    logger.info(`[${requestId}] リクエスト開始`);
+    logger.info(`[${requestId}] Request started`);
 
     const user = await getUser(req.userId);
-    logger.info(`[${requestId}] ユーザー取得完了`);
+    logger.info(`[${requestId}] User retrieved`);
 
     const data = await processData(user);
-    logger.info(`[${requestId}] データ処理完了`);
+    logger.info(`[${requestId}] Data processing complete`);
 
     return new Response(JSON.stringify(data));
   });
 }
 
-// どの非同期処理からでもリクエストIDを取得可能
+// Request ID can be retrieved from any async operation
 function getRequestId(): string {
   return requestStorage.getStore()?.requestId ?? 'unknown';
 }
 ```
 
-### 9.2 Unhandled Rejection の検出
+### 9.2 Detecting Unhandled Rejections
 
 ```typescript
-// Node.js: 未処理のPromise Rejectionを検出
+// Node.js: Detect unhandled Promise Rejections
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('未処理のPromise Rejection:', reason);
+  console.error('Unhandled Promise Rejection:', reason);
   console.error('Promise:', promise);
-  // 本番環境ではログに記録してアラートを送信
+  // In production, log and send alerts
   logger.error('Unhandled Promise Rejection', {
     reason: reason instanceof Error ? reason.message : String(reason),
     stack: reason instanceof Error ? reason.stack : undefined,
   });
 });
 
-// ブラウザ
+// Browser
 window.addEventListener('unhandledrejection', (event) => {
-  console.error('未処理のPromise Rejection:', event.reason);
-  event.preventDefault(); // デフォルトのコンソールエラーを抑制
-  // エラー追跡サービスに報告
+  console.error('Unhandled Promise Rejection:', event.reason);
+  event.preventDefault(); // Suppress default console error
+  // Report to error tracking service
   errorTracker.captureException(event.reason);
 });
 ```
 
-### 9.3 非同期処理のプロファイリング
+### 9.3 Profiling Async Operations
 
 ```typescript
-// 非同期処理のパフォーマンスを可視化
+// Visualizing async operation performance
 class AsyncProfiler {
   private traces: Map<string, { start: number; end?: number }[]> = new Map();
 
@@ -1449,7 +1448,7 @@ class AsyncProfiler {
   }
 }
 
-// 使用例
+// Usage
 const profiler = new AsyncProfiler();
 
 const user = await profiler.wrap('getUser', () => getUser(userId));
@@ -1468,45 +1467,45 @@ profiler.report();
 
 ---
 
-## 実践演習
+## Practical Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that satisfies the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate input data
+- Implement proper error handling
+- Write test code as well
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Basic implementation template
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Exercise for basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main data processing logic"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Get processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1515,26 +1514,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "Should have raised an exception"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation by adding the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Advanced patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Exercise for advanced patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1542,7 +1541,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1553,14 +1552,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Remove by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1568,7 +1567,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Get statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1576,44 +1575,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # Size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1622,7 +1621,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1637,72 +1636,72 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient version: {slow_time:.4f}s")
+    print(f"Efficient version:   {fast_time:.6f}s")
+    print(f"Speedup: {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key points:**
+- Be aware of algorithmic complexity
+- Choose appropriate data structures
+- Measure the effect with benchmarks
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point to focus on when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing and running code to see how things work.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the basics and jumping to advanced topics. We recommend solidly understanding the fundamental concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in real-world development?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+The knowledge from this topic is frequently applied in day-to-day development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## まとめ
+## Summary
 
-| 概念 | 同期 | 非同期 |
-|------|------|--------|
-| 実行 | 順番に待つ | 待ち時間に他を処理 |
-| I/O | ブロッキング | ノンブロッキング |
-| 性能 | I/O待ちで無駄 | I/O待ちを有効活用 |
-| 複雑さ | シンプル | コールバック/Promise |
-| 適用 | CPU集約 | I/O集約 |
-| スケーラビリティ | スレッド数に制限 | 多数の同時接続対応 |
-| デバッグ | 容易（スタックトレース直線的） | 困難（非同期スタックトレース） |
-| メモリ | スレッドあたり~1MB | イベント/goroutineあたり~2KB |
+| Concept | Synchronous | Asynchronous |
+|---------|-------------|--------------|
+| Execution | Waits in order | Processes other work during wait times |
+| I/O | Blocking | Non-blocking |
+| Performance | Wastes time on I/O waits | Makes effective use of I/O waits |
+| Complexity | Simple | Callbacks/Promises |
+| Best for | CPU-intensive | I/O-intensive |
+| Scalability | Limited by thread count | Handles many concurrent connections |
+| Debugging | Easy (linear stack traces) | Difficult (async stack traces) |
+| Memory | ~1MB per thread | ~2KB per event/goroutine |
 
-### 判断フローチャート
+### Decision Flowchart
 
 ```
-処理の種類は？
-├── CPU集約型（計算、暗号化、画像処理）
-│   ├── 単一処理 → 同期
-│   └── 並列計算が必要 → Worker Threads / multiprocessing
-├── I/O集約型（API、DB、ファイル）
-│   ├── 単発 → async/await
-│   ├── 複数の独立したI/O → Promise.all / gather / join!
-│   └── ストリーム → Observable / AsyncIterator / Channel
-└── 混合型
-    ├── I/O → 非同期
-    └── CPU → ワーカーに委譲
+What type of processing?
+├── CPU-intensive (computation, encryption, image processing)
+│   ├── Single task → Synchronous
+│   └── Parallel computation needed → Worker Threads / multiprocessing
+├── I/O-intensive (API, DB, files)
+│   ├── Single operation → async/await
+│   ├── Multiple independent I/O → Promise.all / gather / join!
+│   └── Streams → Observable / AsyncIterator / Channel
+└── Mixed
+    ├── I/O → Asynchronous
+    └── CPU → Delegate to workers
 ```
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Reads
 
 ---
 
-## 参考文献
+## References
 1. Kleppmann, M. "Designing Data-Intensive Applications." O'Reilly, 2017.
 2. Node.js Documentation. "Don't Block the Event Loop."
 3. Kegel, D. "The C10K Problem." 1999. http://www.kegel.com/c10k.html
