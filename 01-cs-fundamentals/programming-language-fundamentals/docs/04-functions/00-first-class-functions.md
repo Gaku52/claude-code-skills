@@ -1,165 +1,165 @@
-# 第一級関数（First-Class Functions）
+# First-Class Functions
 
-> 関数が「値」として扱える言語では、関数を変数に代入し、引数として渡し、戻り値として返すことができる。これはモダンプログラミングの基盤であり、関数型プログラミングの出発点でもある。Christopher Strachey が1967年に提唱した「第一級（first-class）」の概念は、半世紀以上を経て、ほぼ全ての主要言語に取り入れられるに至った。
-
----
-
-## この章で学ぶこと
-
-- [ ] 第一級関数の概念と歴史的意義を理解する
-- [ ] 関数を値として操作する4つの方法を習得する
-- [ ] コールバックパターンと高階関数の設計を理解する
-- [ ] 関数合成・部分適用・カリー化の技法を身につける
-- [ ] 言語間の第一級関数サポートの差異を比較できる
-- [ ] ディスパッチテーブルやストラテジーパターンを実装できる
-- [ ] アンチパターンを識別し、適切に回避できる
-
-
-## 前提知識
-
-このガイドを読む前に、以下の知識があると理解が深まります:
-
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
+> In languages where functions can be treated as "values," functions can be assigned to variables, passed as arguments, and returned as return values. This is the foundation of modern programming and the starting point of functional programming. The concept of "first-class," proposed by Christopher Strachey in 1967, has been adopted by virtually all major languages over more than half a century.
 
 ---
 
-## 1. 第一級関数とは何か
+## What You Will Learn in This Chapter
 
-### 1.1 定義と歴史的背景
+- [ ] Understand the concept and historical significance of first-class functions
+- [ ] Master the four ways to manipulate functions as values
+- [ ] Understand callback patterns and higher-order function design
+- [ ] Acquire techniques of function composition, partial application, and currying
+- [ ] Compare first-class function support differences across languages
+- [ ] Implement dispatch tables and the strategy pattern
+- [ ] Identify anti-patterns and learn to avoid them appropriately
 
-「第一級（First-Class）」という用語は、英国の計算機科学者 Christopher Strachey が1967年の講義ノート "Fundamental Concepts in Programming Languages" で初めて体系的に用いた。Strachey は、プログラミング言語における「値」の地位を以下のように分類した。
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│               Strachey の値の分類体系（1967）                     │
-├──────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  第一級（First-Class）                                           │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │ ・変数に束縛（代入）できる                                 │   │
-│  │ ・関数の引数として渡せる                                   │   │
-│  │ ・関数の戻り値として返せる                                 │   │
-│  │ ・データ構造（配列・リスト等）に格納できる                 │   │
-│  │ ・実行時に動的に生成できる                                 │   │
-│  │ ・固有のアイデンティティを持つ                             │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│                                                                  │
-│  第二級（Second-Class）                                          │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │ ・関数の引数としては渡せる                                 │   │
-│  │ ・変数に代入できない、戻り値にできない場合がある           │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│                                                                  │
-│  第三級（Third-Class）                                           │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │ ・言語の構文要素としてのみ存在                             │   │
-│  │ ・引数に渡すことすらできない                               │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│                                                                  │
-└──────────────────────────────────────────────────────────────────┘
-```
+## Prerequisites
 
-この分類において、多くの言語では整数・文字列・配列などは第一級だが、「関数」を第一級として扱える言語は限られていた。LISP（1958年）は関数を第一級として扱う最初の実用言語であり、その設計思想は Scheme、ML、Haskell を経て、JavaScript、Python、Ruby、そして近年では Rust、Go、Kotlin、Swift に至る現代言語に継承されている。
+Before reading this guide, the following knowledge will help deepen your understanding:
 
-### 1.2 第一級関数の4つの性質
+- Basic programming knowledge
+- Understanding of related foundational concepts
 
-第一級関数とは「他の値と全く同等に扱える関数」を意味する。具体的には以下の4つの操作が可能であることが要件となる。
+---
+
+## 1. What Are First-Class Functions?
+
+### 1.1 Definition and Historical Background
+
+The term "First-Class" was first used systematically by British computer scientist Christopher Strachey in his 1967 lecture notes "Fundamental Concepts in Programming Languages." Strachey classified the status of "values" in programming languages as follows.
 
 ```
-第一級関数の4つの性質
++----------------------------------------------------------------------+
+|               Strachey's Classification of Values (1967)              |
++----------------------------------------------------------------------+
+|                                                                        |
+|  First-Class                                                           |
+|  +----------------------------------------------------------+         |
+|  | - Can be bound (assigned) to variables                    |         |
+|  | - Can be passed as function arguments                     |         |
+|  | - Can be returned as function return values                |         |
+|  | - Can be stored in data structures (arrays, lists, etc.)  |         |
+|  | - Can be dynamically generated at runtime                 |         |
+|  | - Has its own identity                                    |         |
+|  +----------------------------------------------------------+         |
+|                                                                        |
+|  Second-Class                                                          |
+|  +----------------------------------------------------------+         |
+|  | - Can be passed as function arguments                     |         |
+|  | - May not be assignable to variables or returnable        |         |
+|  +----------------------------------------------------------+         |
+|                                                                        |
+|  Third-Class                                                           |
+|  +----------------------------------------------------------+         |
+|  | - Exists only as a syntactic element of the language      |         |
+|  | - Cannot even be passed as an argument                    |         |
+|  +----------------------------------------------------------+         |
+|                                                                        |
++----------------------------------------------------------------------+
+```
+
+In this classification, while integers, strings, and arrays are first-class in many languages, only a limited number of languages treated "functions" as first-class. LISP (1958) was the first practical language to treat functions as first-class, and its design philosophy has been inherited through Scheme, ML, and Haskell to modern languages including JavaScript, Python, Ruby, and more recently Rust, Go, Kotlin, and Swift.
+
+### 1.2 The Four Properties of First-Class Functions
+
+A first-class function means "a function that can be treated exactly the same as any other value." Specifically, the following four operations must be possible.
+
+```
+The Four Properties of First-Class Functions
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  [性質 1] 変数への代入
-  ┌─────────────────────────────────────┐
-  │  const f = function(x) { return x; } │
-  │  val    ← ──── 関数値 ──────────→   │
-  └─────────────────────────────────────┘
+  [Property 1] Assignment to Variables
+  +-------------------------------------+
+  | const f = function(x) { return x; } |
+  | val    <---- function value ------> |
+  +-------------------------------------+
 
-  [性質 2] 引数としての受け渡し
-  ┌─────────────────────────────────────┐
-  │  apply(f, 42)                        │
-  │         ↑                            │
-  │       関数を引数として渡す            │
-  └─────────────────────────────────────┘
+  [Property 2] Passing as Arguments
+  +-------------------------------------+
+  | apply(f, 42)                        |
+  |       ^                             |
+  |     Pass function as argument       |
+  +-------------------------------------+
 
-  [性質 3] 戻り値としての返却
-  ┌─────────────────────────────────────┐
-  │  function make() { return f; }       │
-  │                          ↑           │
-  │                   関数を返す          │
-  └─────────────────────────────────────┘
+  [Property 3] Returning as Return Values
+  +-------------------------------------+
+  | function make() { return f; }       |
+  |                        ^            |
+  |                  Return a function  |
+  +-------------------------------------+
 
-  [性質 4] データ構造への格納
-  ┌─────────────────────────────────────┐
-  │  const arr = [f1, f2, f3];           │
-  │  const obj = { op: f1 };             │
-  │     配列・辞書に関数を入れる          │
-  └─────────────────────────────────────┘
+  [Property 4] Storing in Data Structures
+  +-------------------------------------+
+  | const arr = [f1, f2, f3];           |
+  | const obj = { op: f1 };             |
+  |    Store functions in arrays/dicts  |
+  +-------------------------------------+
 ```
 
-### 1.3 なぜ第一級関数が重要なのか
+### 1.3 Why First-Class Functions Matter
 
-第一級関数は以下の理由からモダンプログラミングの基盤とされる。
+First-class functions are considered the foundation of modern programming for the following reasons.
 
-1. **抽象化の強化**: 処理のパターン（反復・変換・選択）を関数として抽象化し、再利用可能にする
-2. **コードの簡潔化**: ボイラープレートコードを排除し、意図を直接表現できる
-3. **柔軟な設計**: 振る舞いを実行時に差し替え可能にする（ストラテジーパターン等）
-4. **並行処理との親和性**: 副作用のない関数はスレッドセーフであり、並行処理に適する
-5. **テスト容易性**: 関数単位でのテストが容易になり、モックの差し替えが自然に行える
+1. **Enhanced abstraction**: Abstract processing patterns (iteration, transformation, selection) as functions, making them reusable
+2. **Code conciseness**: Eliminate boilerplate code and express intent directly
+3. **Flexible design**: Enable behavior to be swapped at runtime (strategy pattern, etc.)
+4. **Affinity with concurrency**: Side-effect-free functions are thread-safe and suitable for concurrent processing
+5. **Testability**: Testing at the function level becomes easy, and mock replacement is natural
 
 ---
 
-## 2. 基本操作：コード例で学ぶ4つの性質
+## 2. Basic Operations: Learning the Four Properties Through Code Examples
 
-### 2.1 性質1 — 変数への代入
+### 2.1 Property 1 -- Assignment to Variables
 
-関数を変数に代入することで、関数に別名を付けたり、条件に応じて異なる関数を選択できる。
+By assigning functions to variables, you can give functions aliases or select different functions based on conditions.
 
 ```javascript
 // ===== JavaScript =====
 
-// 関数宣言を変数に代入（関数式）
+// Assign a function declaration to a variable (function expression)
 const greet = function(name) {
     return `Hello, ${name}!`;
 };
 
-// アロー関数（ES6+）
+// Arrow function (ES6+)
 const greetArrow = (name) => `Hello, ${name}!`;
 
-// 既存の関数を別の変数に代入
+// Assign an existing function to another variable
 const sayHello = greet;
 console.log(sayHello("Alice"));  // => "Hello, Alice!"
 
-// 条件に応じた関数の選択
+// Conditional function selection
 const formatter = process.env.NODE_ENV === "production"
     ? (msg) => `[PROD] ${msg}`
     : (msg) => `[DEV] ${msg}`;
 
 console.log(formatter("Server started"));
-// 開発環境: => "[DEV] Server started"
+// Development: => "[DEV] Server started"
 ```
 
 ```python
 # ===== Python =====
 
 def square(x):
-    """xの二乗を返す"""
+    """Returns the square of x"""
     return x ** 2
 
-# 関数を変数に代入
+# Assign a function to a variable
 f = square
 print(f(5))      # => 25
-print(f.__name__) # => "square"（元の名前を保持）
+print(f.__name__) # => "square" (retains original name)
 
-# lambda式による無名関数
+# Anonymous function via lambda expression
 double = lambda x: x * 2
 print(double(7))  # => 14
 
-# 条件に応じた関数の選択
+# Conditional function selection
 import os
 log_fn = print if os.getenv("DEBUG") else lambda *args: None
-log_fn("デバッグメッセージ")  # DEBUG環境変数がないと何も表示しない
+log_fn("Debug message")  # Displays nothing if DEBUG env var is not set
 ```
 
 ```rust
@@ -170,54 +170,54 @@ fn square(x: i32) -> i32 {
 }
 
 fn main() {
-    // 関数ポインタとして代入
+    // Assign as a function pointer
     let f: fn(i32) -> i32 = square;
     println!("{}", f(5));  // => 25
 
-    // クロージャを変数に代入
+    // Assign a closure to a variable
     let double = |x: i32| -> i32 { x * 2 };
     println!("{}", double(7));  // => 14
 
-    // 条件に応じた関数の選択（関数ポインタの場合）
+    // Conditional function selection (with function pointers)
     let debug = true;
     let log_fn: fn(&str) = if debug {
         |msg| println!("[DEBUG] {}", msg)
     } else {
-        |_msg| {}  // 何もしない
+        |_msg| {}  // Do nothing
     };
-    log_fn("起動しました");
+    log_fn("Started");
 }
 ```
 
-### 2.2 性質2 — 引数としての受け渡し（高階関数）
+### 2.2 Property 2 -- Passing as Arguments (Higher-Order Functions)
 
-関数を引数として受け取る関数を **高階関数（Higher-Order Function）** と呼ぶ。これは第一級関数の最も強力な応用の一つである。
+A function that receives a function as an argument is called a **Higher-Order Function**. This is one of the most powerful applications of first-class functions.
 
 ```javascript
 // ===== JavaScript =====
 
-// map: 各要素に変換関数を適用
+// map: Apply a transformation function to each element
 const numbers = [1, 2, 3, 4, 5];
 const doubled = numbers.map(x => x * 2);
 // => [2, 4, 6, 8, 10]
 
-// filter: 条件関数を満たす要素のみ抽出
+// filter: Extract only elements satisfying a predicate function
 const evens = numbers.filter(x => x % 2 === 0);
 // => [2, 4]
 
-// reduce: 累積関数で畳み込み
+// reduce: Fold with an accumulator function
 const sum = numbers.reduce((acc, x) => acc + x, 0);
 // => 15
 
-// カスタム高階関数の作成
+// Creating custom higher-order functions
 function applyTwice(fn, value) {
     return fn(fn(value));
 }
 
-applyTwice(x => x * 2, 3);   // => 12  (3 → 6 → 12)
-applyTwice(x => x + 10, 5);  // => 25  (5 → 15 → 25)
+applyTwice(x => x * 2, 3);   // => 12  (3 -> 6 -> 12)
+applyTwice(x => x + 10, 5);  // => 25  (5 -> 15 -> 25)
 
-// 汎用的な retry 関数
+// Generic retry function
 async function retry(fn, maxAttempts = 3, delay = 1000) {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
@@ -230,49 +230,49 @@ async function retry(fn, maxAttempts = 3, delay = 1000) {
     }
 }
 
-// 使用例
+// Usage
 await retry(() => fetch("https://api.example.com/data"), 3, 2000);
 ```
 
 ```python
 # ===== Python =====
 
-# 組み込み高階関数
+# Built-in higher-order functions
 numbers = [1, 2, 3, 4, 5]
 
-# map: 各要素に関数を適用
+# map: Apply a function to each element
 squared = list(map(lambda x: x ** 2, numbers))
 # => [1, 4, 9, 16, 25]
 
-# filter: 条件を満たす要素を抽出
+# filter: Extract elements satisfying a condition
 evens = list(filter(lambda x: x % 2 == 0, numbers))
 # => [2, 4]
 
-# sorted: キー関数でソート
+# sorted: Sort with a key function
 words = ["banana", "apple", "cherry", "date"]
 sorted_by_length = sorted(words, key=len)
 # => ["date", "apple", "banana", "cherry"]
 
-# カスタム高階関数
+# Custom higher-order function
 def apply_to_all(fn, items):
-    """リスト全要素にfnを適用して新リストを返す"""
+    """Apply fn to all elements and return a new list"""
     return [fn(item) for item in items]
 
 apply_to_all(str.upper, ["hello", "world"])
 # => ["HELLO", "WORLD"]
 
-# デコレータ: 高階関数の典型的応用
+# Decorator: A typical application of higher-order functions
 import time
 import functools
 
 def timer(func):
-    """関数の実行時間を計測するデコレータ"""
+    """Decorator that measures function execution time"""
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         start = time.perf_counter()
         result = func(*args, **kwargs)
         elapsed = time.perf_counter() - start
-        print(f"{func.__name__}: {elapsed:.4f}秒")
+        print(f"{func.__name__}: {elapsed:.4f}s")
         return result
     return wrapper
 
@@ -281,17 +281,17 @@ def slow_function():
     time.sleep(1)
     return "done"
 
-slow_function()  # => "slow_function: 1.00xx秒" と表示後 "done" を返す
+slow_function()  # => Displays "slow_function: 1.00xxs" then returns "done"
 ```
 
-### 2.3 性質3 — 戻り値としての返却（関数ファクトリ）
+### 2.3 Property 3 -- Returning as Return Values (Function Factories)
 
-関数を返す関数は **関数ファクトリ** または **関数ジェネレータ** と呼ばれる。これにより、設定済みの関数を動的に生成できる。
+A function that returns a function is called a **function factory** or **function generator**. This allows dynamic generation of pre-configured functions.
 
 ```javascript
 // ===== JavaScript =====
 
-// 乗数関数ファクトリ
+// Multiplier function factory
 function multiplier(factor) {
     return (x) => x * factor;
 }
@@ -304,7 +304,7 @@ console.log(double(5));    // => 10
 console.log(triple(5));    // => 15
 console.log(tenTimes(5));  // => 50
 
-// バリデータファクトリ
+// Validator factory
 function createValidator(rules) {
     return (value) => {
         const errors = [];
@@ -316,21 +316,21 @@ function createValidator(rules) {
     };
 }
 
-// ルール定義
-const required = (v) => v ? null : "必須項目です";
+// Rule definitions
+const required = (v) => v ? null : "This field is required";
 const minLength = (n) => (v) => v && v.length >= n
-    ? null : `${n}文字以上必要です`;
+    ? null : `Must be at least ${n} characters`;
 const pattern = (re, msg) => (v) => re.test(v) ? null : msg;
 
-// バリデータ生成
+// Generate validator
 const validateEmail = createValidator([
     required,
     minLength(5),
-    pattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "有効なメールアドレスを入力してください"),
+    pattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Please enter a valid email address"),
 ]);
 
 console.log(validateEmail(""));
-// => { valid: false, errors: ["必須項目です", "5文字以上必要です", ...] }
+// => { valid: false, errors: ["This field is required", "Must be at least 5 characters", ...] }
 
 console.log(validateEmail("user@example.com"));
 // => { valid: true, errors: [] }
@@ -339,9 +339,9 @@ console.log(validateEmail("user@example.com"));
 ```python
 # ===== Python =====
 
-# ロガーファクトリ
+# Logger factory
 def create_logger(prefix, level="INFO"):
-    """指定プレフィックスとレベルのログ関数を生成する"""
+    """Generate a log function with the specified prefix and level"""
     def logger(message):
         from datetime import datetime
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -351,21 +351,21 @@ def create_logger(prefix, level="INFO"):
 app_log = create_logger("APP")
 db_log = create_logger("DB", level="DEBUG")
 
-app_log("サーバー起動")
-# => [2026-03-06 10:30:00] [INFO] [APP] サーバー起動
+app_log("Server started")
+# => [2026-03-06 10:30:00] [INFO] [APP] Server started
 
-db_log("クエリ実行: SELECT * FROM users")
-# => [2026-03-06 10:30:00] [DEBUG] [DB] クエリ実行: SELECT * FROM users
+db_log("Query executed: SELECT * FROM users")
+# => [2026-03-06 10:30:00] [DEBUG] [DB] Query executed: SELECT * FROM users
 ```
 
-### 2.4 性質4 — データ構造への格納（ディスパッチテーブル）
+### 2.4 Property 4 -- Storing in Data Structures (Dispatch Tables)
 
-関数を辞書や配列に格納する「ディスパッチテーブル」パターンは、長い if-else チェーンや switch 文を置き換える強力な手法である。
+The "dispatch table" pattern, which stores functions in dictionaries or arrays, is a powerful technique for replacing long if-else chains or switch statements.
 
 ```python
 # ===== Python =====
 
-# ディスパッチテーブルによるコマンドパターン
+# Command pattern via dispatch table
 class Calculator:
     def __init__(self):
         self.operations = {
@@ -380,20 +380,20 @@ class Calculator:
 
     def calculate(self, a, op, b):
         if op not in self.operations:
-            raise ValueError(f"未対応の演算子: {op}")
-        result = self.operationsop
+            raise ValueError(f"Unsupported operator: {op}")
+        result = self.operations[op](a, b)
         self.history.append(f"{a} {op} {b} = {result}")
         return result
 
     def add_operation(self, symbol, fn):
-        """演算子を動的に追加"""
+        """Dynamically add an operator"""
         self.operations[symbol] = fn
 
 calc = Calculator()
 print(calc.calculate(10, "+", 5))   # => 15
 print(calc.calculate(2, "**", 10))  # => 1024
 
-# 演算子の動的追加
+# Dynamic operator addition
 calc.add_operation("avg", lambda a, b: (a + b) / 2)
 print(calc.calculate(10, "avg", 20))  # => 15.0
 ```
@@ -401,7 +401,7 @@ print(calc.calculate(10, "avg", 20))  # => 15.0
 ```javascript
 // ===== JavaScript =====
 
-// HTTP メソッドのディスパッチテーブル
+// HTTP method dispatch table
 const handlers = {
     GET:    (req) => ({ status: 200, body: fetchResource(req.path) }),
     POST:   (req) => ({ status: 201, body: createResource(req.body) }),
@@ -417,7 +417,7 @@ function handleRequest(req) {
     return handler(req);
 }
 
-// パイプライン: 関数の配列を順に適用
+// Pipeline: Apply an array of functions sequentially
 const pipeline = [
     (data) => ({ ...data, timestamp: Date.now() }),
     (data) => ({ ...data, id: crypto.randomUUID() }),
@@ -437,89 +437,91 @@ const result = processThroughPipeline(
 
 ---
 
-## 3. 高階関数の体系的理解
+## 3. Systematic Understanding of Higher-Order Functions
 
-### 3.1 高階関数の分類
+### 3.1 Classification of Higher-Order Functions
 
-高階関数は「関数を受け取る」ものと「関数を返す」ものに大別される。多くの関数は両方の性質を持つ。
+Higher-order functions are broadly divided into those that "receive functions" and those that "return functions." Many functions have both properties.
 
 ```
-高階関数の分類体系
+Classification System of Higher-Order Functions
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-                        高階関数 (Higher-Order Function)
-                                 │
-                 ┌───────────────┴───────────────┐
-                 │                               │
-        関数を受け取る                      関数を返す
-     (Consumer of Functions)          (Producer of Functions)
-                 │                               │
-     ┌───────────┼──────────┐       ┌────────────┼───────────┐
-     │           │          │       │            │           │
-   map/       filter/    reduce/  ファクトリ    カリー化    デコレータ
-   forEach   find/some  fold                  /部分適用
-     │           │          │       │            │           │
-  変換系     選択系     集約系    生成系       変換系      修飾系
+                    Higher-Order Function
+                             |
+             +---------------+---------------+
+             |                               |
+    Receives Functions              Returns Functions
+  (Consumer of Functions)        (Producer of Functions)
+             |                               |
+     +-------+--------+       +--------+--------+--------+
+     |       |        |       |        |        |        |
+   map/   filter/  reduce/  Factory   Currying  Decorator
+  forEach find/some fold             /Partial
+     |       |        |       |        |        |
+  Transform Select  Aggregate Generate Transform Modify
+  type     type    type      type     type      type
 
-  例: .map()  例: .filter() 例: .reduce() 例: multiplier() 例: curry() 例: @timer
-  各要素を    条件で       蓄積して  設定済み関数   引数を1つ  関数の前後
-  変換する    絞り込む     1値に集約 を動的生成    ずつ受取る  に処理追加
+  Ex: .map() Ex: .filter() Ex: .reduce() Ex: multiplier() Ex: curry() Ex: @timer
+  Transform  Narrow by    Aggregate    Dynamically  Receive args  Add processing
+  each elem  condition    into 1 value generate a   one at a time before/after
+                                       pre-set fn                 a function
 ```
 
-### 3.2 代表的な高階関数のデータフロー
+### 3.2 Data Flow of Representative Higher-Order Functions
 
 ```
-map のデータフロー
+Data Flow of map
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-入力: [1, 2, 3, 4, 5]
-関数: x => x * x
+Input: [1, 2, 3, 4, 5]
+Function: x => x * x
 
-  1 ──→ [x => x*x] ──→  1
-  2 ──→ [x => x*x] ──→  4
-  3 ──→ [x => x*x] ──→  9
-  4 ──→ [x => x*x] ──→ 16
-  5 ──→ [x => x*x] ──→ 25
+  1 --> [x => x*x] -->  1
+  2 --> [x => x*x] -->  4
+  3 --> [x => x*x] -->  9
+  4 --> [x => x*x] --> 16
+  5 --> [x => x*x] --> 25
 
-出力: [1, 4, 9, 16, 25]
+Output: [1, 4, 9, 16, 25]
 
 
-filter のデータフロー
+Data Flow of filter
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-入力: [1, 2, 3, 4, 5]
-述語: x => x % 2 === 0
+Input: [1, 2, 3, 4, 5]
+Predicate: x => x % 2 === 0
 
-  1 ──→ [x%2===0] ──→ false ──→ (除外)
-  2 ──→ [x%2===0] ──→ true  ──→ 2
-  3 ──→ [x%2===0] ──→ false ──→ (除外)
-  4 ──→ [x%2===0] ──→ true  ──→ 4
-  5 ──→ [x%2===0] ──→ false ──→ (除外)
+  1 --> [x%2===0] --> false --> (excluded)
+  2 --> [x%2===0] --> true  --> 2
+  3 --> [x%2===0] --> false --> (excluded)
+  4 --> [x%2===0] --> true  --> 4
+  5 --> [x%2===0] --> false --> (excluded)
 
-出力: [2, 4]
+Output: [2, 4]
 
 
-reduce のデータフロー
+Data Flow of reduce
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-入力: [1, 2, 3, 4, 5]
-関数: (acc, x) => acc + x
-初期値: 0
+Input: [1, 2, 3, 4, 5]
+Function: (acc, x) => acc + x
+Initial value: 0
 
-  acc=0, x=1 ──→ [acc+x] ──→ acc=1
-  acc=1, x=2 ──→ [acc+x] ──→ acc=3
-  acc=3, x=3 ──→ [acc+x] ──→ acc=6
-  acc=6, x=4 ──→ [acc+x] ──→ acc=10
-  acc=10,x=5 ──→ [acc+x] ──→ acc=15
+  acc=0, x=1 --> [acc+x] --> acc=1
+  acc=1, x=2 --> [acc+x] --> acc=3
+  acc=3, x=3 --> [acc+x] --> acc=6
+  acc=6, x=4 --> [acc+x] --> acc=10
+  acc=10,x=5 --> [acc+x] --> acc=15
 
-出力: 15
+Output: 15
 ```
 
-### 3.3 map / filter / reduce の実装から学ぶ
+### 3.3 Learning from Implementing map / filter / reduce
 
-標準ライブラリが提供する高階関数を自ら実装することで、その仕組みを深く理解できる。
+By implementing the higher-order functions provided by standard libraries yourself, you can deeply understand their mechanisms.
 
 ```javascript
-// ===== JavaScript: map / filter / reduce の自作実装 =====
+// ===== JavaScript: Custom implementations of map / filter / reduce =====
 
-// map の実装
+// Implementation of map
 function myMap(arr, fn) {
     const result = [];
     for (let i = 0; i < arr.length; i++) {
@@ -528,7 +530,7 @@ function myMap(arr, fn) {
     return result;
 }
 
-// filter の実装
+// Implementation of filter
 function myFilter(arr, predicate) {
     const result = [];
     for (let i = 0; i < arr.length; i++) {
@@ -539,7 +541,7 @@ function myFilter(arr, predicate) {
     return result;
 }
 
-// reduce の実装
+// Implementation of reduce
 function myReduce(arr, fn, initial) {
     let acc = initial;
     let startIndex = 0;
@@ -553,13 +555,13 @@ function myReduce(arr, fn, initial) {
     return acc;
 }
 
-// 動作確認
+// Verification
 const nums = [1, 2, 3, 4, 5];
 console.log(myMap(nums, x => x * 2));           // => [2, 4, 6, 8, 10]
 console.log(myFilter(nums, x => x > 3));        // => [4, 5]
 console.log(myReduce(nums, (a, b) => a + b, 0)); // => 15
 
-// reduce で map と filter を再実装
+// Re-implementing map and filter using reduce
 function mapWithReduce(arr, fn) {
     return arr.reduce((acc, x, i) => {
         acc.push(fn(x, i, arr));
@@ -577,19 +579,19 @@ function filterWithReduce(arr, pred) {
 
 ---
 
-## 4. コールバックパターンの深掘り
+## 4. Deep Dive into Callback Patterns
 
-### 4.1 同期コールバック
+### 4.1 Synchronous Callbacks
 
 ```javascript
-// ===== JavaScript: 同期コールバックの多様な用例 =====
+// ===== JavaScript: Diverse uses of synchronous callbacks =====
 
-// イベントリスナー（ブラウザ環境）
+// Event listener (browser environment)
 document.addEventListener("click", (event) => {
-    console.log(`クリック位置: (${event.clientX}, ${event.clientY})`);
+    console.log(`Click position: (${event.clientX}, ${event.clientY})`);
 });
 
-// Array メソッドチェーン
+// Array method chaining
 const users = [
     { name: "Alice", age: 30, role: "admin" },
     { name: "Bob", age: 25, role: "user" },
@@ -597,44 +599,44 @@ const users = [
     { name: "Diana", age: 28, role: "user" },
 ];
 
-// 管理者の名前を年齢順に取得
+// Get admin names sorted by age
 const adminNames = users
     .filter(u => u.role === "admin")
     .sort((a, b) => a.age - b.age)
     .map(u => u.name);
 // => ["Alice", "Charlie"]
 
-// forEach: 副作用のためのコールバック
+// forEach: Callback for side effects
 users.forEach(u => {
-    console.log(`${u.name} (${u.age}歳) - ${u.role}`);
+    console.log(`${u.name} (age ${u.age}) - ${u.role}`);
 });
 
-// find / findIndex: 条件に合う最初の要素
+// find / findIndex: First element matching the condition
 const firstAdmin = users.find(u => u.role === "admin");
 // => { name: "Alice", age: 30, role: "admin" }
 
-// every / some: 全要素/一部要素が条件を満たすか
+// every / some: Whether all/some elements satisfy the condition
 const allAdults = users.every(u => u.age >= 18);  // => true
 const hasAdmin = users.some(u => u.role === "admin"); // => true
 ```
 
-### 4.2 非同期コールバック
+### 4.2 Asynchronous Callbacks
 
 ```javascript
-// ===== JavaScript: 非同期コールバックの進化 =====
+// ===== JavaScript: Evolution of asynchronous callbacks =====
 
-// 1. 古典的コールバックスタイル（Node.js）
+// 1. Classic callback style (Node.js)
 const fs = require("fs");
 
 fs.readFile("/path/to/file.txt", "utf8", (err, data) => {
     if (err) {
-        console.error("読み取りエラー:", err);
+        console.error("Read error:", err);
         return;
     }
-    console.log("ファイル内容:", data);
+    console.log("File contents:", data);
 });
 
-// 2. Promise（ES6+）
+// 2. Promise (ES6+)
 function readFileAsync(path) {
     return new Promise((resolve, reject) => {
         fs.readFile(path, "utf8", (err, data) => {
@@ -648,22 +650,22 @@ readFileAsync("/path/to/file.txt")
     .then(data => console.log(data))
     .catch(err => console.error(err));
 
-// 3. async/await（ES2017+）
+// 3. async/await (ES2017+)
 async function processFile() {
     try {
         const data = await readFileAsync("/path/to/file.txt");
         const processed = data.toUpperCase();
         console.log(processed);
     } catch (err) {
-        console.error("処理エラー:", err);
+        console.error("Processing error:", err);
     }
 }
 ```
 
-### 4.3 コールバック地獄と解決策
+### 4.3 Callback Hell and Solutions
 
 ```
-コールバック地獄（Callback Hell）の視覚化
+Visualization of Callback Hell
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   step1(input, (err, result1) => {
@@ -672,36 +674,37 @@ async function processFile() {
           if (err) handleError(err);
           step3(result2, (err, result3) => {
               if (err) handleError(err);
-              step4(result3, (err, result4) => {    ← 深くネスト！
+              step4(result3, (err, result4) => {    <- Deeply nested!
                   if (err) handleError(err);
-                  // ...さらにネストが続く
+                  // ...nesting continues
               });
           });
       });
   });
 
-  解決策の進化:
-  ┌────────────────┐    ┌────────────────┐    ┌────────────────┐
-  │  コールバック    │    │   Promise      │    │  async/await   │
-  │  (ES5以前)      │ →  │  .then()チェーン│ →  │  同期風記述    │
-  │                │    │  (ES6+)        │    │  (ES2017+)     │
-  │  ネスト地獄     │    │  フラットな     │    │  最も読みやすい │
-  │  エラー処理散在  │    │  チェーン       │    │  try/catch     │
-  └────────────────┘    └────────────────┘    └────────────────┘
+  Evolution of solutions:
+  +----------------+    +----------------+    +----------------+
+  |   Callbacks    |    |    Promise     |    |  async/await   |
+  |  (pre-ES5)    | -> |  .then() chain | -> | Synchronous-   |
+  |               |    |  (ES6+)        |    | style syntax   |
+  |  Nesting hell |    |  Flat chains   |    | Most readable  |
+  |  Scattered    |    |               |    | try/catch      |
+  |  error handling|    |               |    |                |
+  +----------------+    +----------------+    +----------------+
 ```
 
 ---
 
-## 5. ストラテジーパターンと関数
+## 5. Strategy Pattern and Functions
 
-### 5.1 従来のOOP実装 vs 第一級関数
+### 5.1 Traditional OOP Implementation vs First-Class Functions
 
-ストラテジーパターンは GoF デザインパターンの一つで、アルゴリズムを動的に切り替える設計パターンである。OOP では専用のクラス階層が必要だが、第一級関数を持つ言語では関数一つで実現できる。
+The strategy pattern is one of the GoF design patterns for dynamically switching algorithms. In OOP, a dedicated class hierarchy is required, but in languages with first-class functions, it can be achieved with a single function.
 
 ```typescript
-// ===== TypeScript: OOP的ストラテジー vs 関数的ストラテジー =====
+// ===== TypeScript: OOP Strategy vs Functional Strategy =====
 
-// --- OOP的アプローチ（Javaスタイル）---
+// --- OOP approach (Java-style) ---
 interface SortStrategy<T> {
     compare(a: T, b: T): number;
 }
@@ -734,7 +737,7 @@ class UserSorter {
     }
 }
 
-// --- 関数的アプローチ（第一級関数を活用）---
+// --- Functional approach (leveraging first-class functions) ---
 type Comparator<T> = (a: T, b: T) => number;
 
 const byName: Comparator<User> = (a, b) => a.name.localeCompare(b.name);
@@ -742,7 +745,7 @@ const byAge: Comparator<User> = (a, b) => a.age - b.age;
 const byNameDesc: Comparator<User> = (a, b) => b.name.localeCompare(a.name);
 const byAgeDesc: Comparator<User> = (a, b) => b.age - a.age;
 
-// 合成: 複数のソート条件を組み合わせ
+// Composition: Combine multiple sort criteria
 function composeComparators<T>(...comparators: Comparator<T>[]): Comparator<T> {
     return (a, b) => {
         for (const cmp of comparators) {
@@ -753,7 +756,7 @@ function composeComparators<T>(...comparators: Comparator<T>[]): Comparator<T> {
     };
 }
 
-// ロール優先 → 年齢順でソート
+// Sort by role first, then age
 const byRoleThenAge = composeComparators(
     (a, b) => a.role.localeCompare(b.role),
     byAge
@@ -762,52 +765,52 @@ const byRoleThenAge = composeComparators(
 const sorted = [...users].sort(byRoleThenAge);
 ```
 
-### 5.2 比較表: OOP vs 関数的ストラテジー
+### 5.2 Comparison: OOP vs Functional Strategy
 
-| 観点 | OOP（クラスベース） | 関数的アプローチ |
-|------|---------------------|------------------|
-| コード量 | インターフェース + 実装クラスが必要 | 関数1つで完結 |
-| 新戦略の追加 | 新クラスの作成が必要 | 新関数の定義のみ |
-| 状態の保持 | インスタンス変数で保持可能 | クロージャで保持可能 |
-| 型安全性 | インターフェースで強制 | 型エイリアスで表現 |
-| テスト | モックオブジェクトが必要な場合あり | 関数単体でテスト可能 |
-| 合成 | Compositeパターンが必要 | 関数合成で自然に実現 |
-| 直列化 | クラスのシリアライズが必要 | 関数は直列化不可 |
-| デバッグ | クラス名で特定しやすい | 無名関数は追跡しにくい |
-| 適用場面 | 複雑な状態・ライフサイクル管理 | 単純な振る舞いの差し替え |
+| Aspect | OOP (Class-based) | Functional Approach |
+|--------|-------------------|---------------------|
+| Code volume | Requires interface + implementation classes | A single function suffices |
+| Adding new strategies | Requires creating a new class | Just define a new function |
+| State retention | Via instance variables | Via closures |
+| Type safety | Enforced by interfaces | Expressed via type aliases |
+| Testing | May require mock objects | Functions can be tested individually |
+| Composition | Requires Composite pattern | Naturally achieved via function composition |
+| Serialization | Requires class serialization | Functions cannot be serialized |
+| Debugging | Easy to identify by class name | Anonymous functions are harder to trace |
+| Applicable scenarios | Complex state/lifecycle management | Simple behavior swapping |
 
 ---
 
-## 6. 関数合成と部分適用
+## 6. Function Composition and Partial Application
 
-### 6.1 関数合成（Function Composition）
+### 6.1 Function Composition
 
-二つの関数 f と g を組み合わせ、g の出力を f の入力とする新しい関数 f . g を作る操作を関数合成という。数学的には (f . g)(x) = f(g(x)) と表記される。
+Combining two functions f and g to create a new function f . g where the output of g becomes the input of f is called function composition. Mathematically, it is written as (f . g)(x) = f(g(x)).
 
 ```
-関数合成の概念図
+Concept Diagram of Function Composition
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   compose(f, g) = x => f(g(x))
 
                  g            f
-  入力 x ──→ [double] ──→ [addOne] ──→ 出力
+  Input x --> [double] --> [addOne] --> Output
           x=5    10          11
 
-  pipe(g, f) = x => f(g(x))   ※左から右へ読める
+  pipe(g, f) = x => f(g(x))   * Reads left to right
 
                  g            f
-  入力 x ──→ [double] ──→ [addOne] ──→ 出力
+  Input x --> [double] --> [addOne] --> Output
           x=5    10          11
 
-  compose: 数学的記法（右から左）
-  pipe:    プログラミング的記法（左から右）
+  compose: Mathematical notation (right to left)
+  pipe:    Programming notation (left to right)
 ```
 
 ```typescript
-// ===== TypeScript: 関数合成の実装 =====
+// ===== TypeScript: Function Composition Implementation =====
 
-// compose: 右から左へ適用（数学的記法）
+// compose: Apply right to left (mathematical notation)
 function compose<A, B, C>(
     f: (b: B) => C,
     g: (a: A) => B
@@ -815,12 +818,12 @@ function compose<A, B, C>(
     return (a: A) => f(g(a));
 }
 
-// pipe: 左から右へ適用（プログラミング的記法）
+// pipe: Apply left to right (programming notation)
 function pipe<T>(...fns: Array<(arg: T) => T>): (arg: T) => T {
     return (arg: T) => fns.reduce((acc, fn) => fn(acc), arg);
 }
 
-// 使用例
+// Usage
 const double = (x: number) => x * 2;
 const addOne = (x: number) => x + 1;
 const square = (x: number) => x * x;
@@ -829,16 +832,16 @@ const doubleAndAddOne = compose(addOne, double);
 console.log(doubleAndAddOne(5));  // => 11
 
 const transform = pipe(double, addOne, square);
-console.log(transform(3));  // => 3 → 6 → 7 → 49
+console.log(transform(3));  // => 3 -> 6 -> 7 -> 49
 ```
 
 ```python
-# ===== Python: 関数合成 =====
+# ===== Python: Function Composition =====
 
 from functools import reduce
 
 def compose(*fns):
-    """右から左への関数合成"""
+    """Right-to-left function composition"""
     def composed(x):
         result = x
         for fn in reversed(fns):
@@ -847,7 +850,7 @@ def compose(*fns):
     return composed
 
 def pipe(*fns):
-    """左から右への関数合成"""
+    """Left-to-right function composition"""
     def piped(x):
         result = x
         for fn in fns:
@@ -855,15 +858,15 @@ def pipe(*fns):
         return result
     return piped
 
-# 使用例
+# Usage
 double = lambda x: x * 2
 add_one = lambda x: x + 1
 square = lambda x: x ** 2
 
 transform = pipe(double, add_one, square)
-print(transform(3))  # => 49  (3 → 6 → 7 → 49)
+print(transform(3))  # => 49  (3 -> 6 -> 7 -> 49)
 
-# 文字列処理パイプライン
+# String processing pipeline
 normalize = pipe(
     str.strip,
     str.lower,
@@ -872,7 +875,7 @@ normalize = pipe(
 print(normalize("  Hello   World  "))  # => "hello world"
 ```
 
-### 6.2 部分適用（Partial Application）
+### 6.2 Partial Application
 
 ```python
 # ===== Python: functools.partial =====
@@ -880,42 +883,42 @@ print(normalize("  Hello   World  "))  # => "hello world"
 from functools import partial
 
 def power(base, exponent):
-    """baseのexponent乗を計算"""
+    """Calculate base raised to the exponent"""
     return base ** exponent
 
-# 部分適用で新しい関数を生成
+# Generate new functions via partial application
 square = partial(power, exponent=2)
 cube = partial(power, exponent=3)
 
 print(square(5))  # => 25
 print(cube(3))    # => 27
 
-# HTTPクライアントの部分適用
+# Partial application of an HTTP client
 import urllib.request
 
 def fetch(method, url, headers=None, body=None):
-    """汎用HTTPリクエスト関数"""
+    """Generic HTTP request function"""
     req = urllib.request.Request(url, method=method, headers=headers or {})
     if body:
         req.data = body.encode()
     return urllib.request.urlopen(req)
 
-# メソッド固定の関数を生成
+# Generate functions with fixed methods
 get = partial(fetch, "GET")
 post = partial(fetch, "POST")
 put = partial(fetch, "PUT")
 
-# 使用: get("https://api.example.com/users")
+# Usage: get("https://api.example.com/users")
 ```
 
-### 6.3 カリー化（Currying）
+### 6.3 Currying
 
-カリー化は、n個の引数を取る関数を、1個の引数を取る関数のチェーンに変換する技法である。部分適用とは異なり、常に1引数ずつ適用する点が特徴。
+Currying is the technique of transforming a function that takes n arguments into a chain of functions each taking 1 argument. Unlike partial application, currying always applies one argument at a time.
 
 ```javascript
-// ===== JavaScript: カリー化 =====
+// ===== JavaScript: Currying =====
 
-// 手動カリー化
+// Manual currying
 function add(a) {
     return function(b) {
         return a + b;
@@ -925,7 +928,7 @@ function add(a) {
 const add5 = add(5);
 console.log(add5(3));  // => 8
 
-// 汎用カリー化関数
+// Generic currying function
 function curry(fn) {
     return function curried(...args) {
         if (args.length >= fn.length) {
@@ -937,14 +940,14 @@ function curry(fn) {
     };
 }
 
-// 使用例
+// Usage
 const curriedAdd = curry((a, b, c) => a + b + c);
 console.log(curriedAdd(1)(2)(3));    // => 6
 console.log(curriedAdd(1, 2)(3));    // => 6
 console.log(curriedAdd(1)(2, 3));    // => 6
 console.log(curriedAdd(1, 2, 3));    // => 6
 
-// 実用例: ログ関数のカリー化
+// Practical example: Curried log function
 const log = curry((level, module, message) => {
     console.log(`[${level}] [${module}] ${message}`);
 });
@@ -953,182 +956,192 @@ const errorLog = log("ERROR");
 const appError = errorLog("APP");
 const dbError = errorLog("DB");
 
-appError("接続タイムアウト");
-// => [ERROR] [APP] 接続タイムアウト
+appError("Connection timeout");
+// => [ERROR] [APP] Connection timeout
 
-dbError("クエリ失敗");
-// => [ERROR] [DB] クエリ失敗
+dbError("Query failed");
+// => [ERROR] [DB] Query failed
 ```
 
 ---
 
-## 7. 言語間の第一級関数サポート比較
+## 7. First-Class Function Support Comparison Across Languages
 
-### 7.1 総合比較表
+### 7.1 Comprehensive Comparison Table
 
-各言語がどの程度「第一級関数」をサポートしているかを、主要な観点から比較する。
+A comparison of how well each language supports "first-class functions" across key aspects.
 
-| 機能 / 言語 | JavaScript | Python | Rust | Go | Java | C | Haskell |
-|-------------|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 変数への代入 | Yes | Yes | Yes | Yes | 制限あり | ポインタのみ | Yes |
-| 引数として渡す | Yes | Yes | Yes | Yes | SAM型 | ポインタのみ | Yes |
-| 戻り値として返す | Yes | Yes | Yes | Yes | SAM型 | ポインタのみ | Yes |
-| データ構造に格納 | Yes | Yes | Yes | Yes | 制限あり | ポインタのみ | Yes |
-| 無名関数 (ラムダ) | Yes | 式のみ | Yes | Yes | 式のみ | No | Yes |
-| クロージャ | Yes | Yes | 3種類 | Yes | 制限あり | No | Yes |
-| 部分適用 | 手動/ライブラリ | functools | 手動 | 手動 | 手動 | No | 自然 |
-| カリー化 | 手動/ライブラリ | 手動 | 手動 | 手動 | No | No | 自動 |
-| 関数合成演算子 | No | No | No | No | No | No | Yes (.) |
-| 型推論 | 動的型付 | 動的型付 | Yes | Yes | 制限あり | No | Yes |
-| ジェネリック高階関数 | Yes (動的) | Yes (動的) | Yes | Yes | Yes | No | Yes |
+| Feature / Language | JavaScript | Python | Rust | Go | Java | C | Haskell |
+|-------------------|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| Assignment to variables | Yes | Yes | Yes | Yes | Limited | Pointer only | Yes |
+| Passing as arguments | Yes | Yes | Yes | Yes | SAM types | Pointer only | Yes |
+| Returning as return values | Yes | Yes | Yes | Yes | SAM types | Pointer only | Yes |
+| Storing in data structures | Yes | Yes | Yes | Yes | Limited | Pointer only | Yes |
+| Anonymous functions (lambdas) | Yes | Expression only | Yes | Yes | Expression only | No | Yes |
+| Closures | Yes | Yes | 3 types | Yes | Limited | No | Yes |
+| Partial application | Manual/library | functools | Manual | Manual | Manual | No | Natural |
+| Currying | Manual/library | Manual | Manual | Manual | No | No | Automatic |
+| Function composition operator | No | No | No | No | No | No | Yes (.) |
+| Type inference | Dynamic typing | Dynamic typing | Yes | Yes | Limited | No | Yes |
+| Generic higher-order functions | Yes (dynamic) | Yes (dynamic) | Yes | Yes | Yes | No | Yes |
 
-### 7.2 言語別の詳細特性
+### 7.2 Detailed Characteristics by Language
 
 ```
-言語別の第一級関数サポート特性
+First-Class Function Support Characteristics by Language
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   JavaScript (ES6+)
-  ┌────────────────────────────────────────────────────────────────┐
-  │ ・関数は Object のサブタイプ（typeof fn === "function"）       │
-  │ ・function 宣言、function 式、アロー関数の3形式               │
-  │ ・アロー関数は this を束縛しない（レキシカル this）            │
-  │ ・全てのオブジェクトメソッドも関数値                          │
-  │ ・非同期: async/await も第一級関数として扱える                │
-  └────────────────────────────────────────────────────────────────┘
+  +------------------------------------------------------------+
+  | - Functions are a subtype of Object (typeof fn === "function")|
+  | - Three forms: function declaration, function expression,   |
+  |   arrow function                                            |
+  | - Arrow functions do not bind their own this (lexical this) |
+  | - All object methods are also function values               |
+  | - Async: async/await can also be treated as first-class     |
+  +------------------------------------------------------------+
 
   Python
-  ┌────────────────────────────────────────────────────────────────┐
-  │ ・関数は object（type(fn) → <class 'function'>）             │
-  │ ・def 文（複数行）と lambda 式（単一式のみ）の2形式           │
-  │ ・デコレータ（@）が高階関数の糖衣構文                        │
-  │ ・functools モジュールで partial, reduce, lru_cache 等を提供   │
-  │ ・内省: fn.__name__, fn.__doc__, fn.__code__ 等にアクセス可能 │
-  └────────────────────────────────────────────────────────────────┘
+  +------------------------------------------------------------+
+  | - Functions are objects (type(fn) -> <class 'function'>)    |
+  | - Two forms: def statement (multi-line) and lambda          |
+  |   expression (single expression only)                       |
+  | - Decorators (@) are syntactic sugar for higher-order fns   |
+  | - functools module provides partial, reduce, lru_cache, etc.|
+  | - Introspection: fn.__name__, fn.__doc__, fn.__code__       |
+  |   are accessible                                            |
+  +------------------------------------------------------------+
 
   Rust
-  ┌────────────────────────────────────────────────────────────────┐
-  │ ・関数ポインタ（fn）とクロージャ（|args| body）の2系統       │
-  │ ・クロージャは3つのトレイトで分類:                            │
-  │   - Fn:     環境を不変参照でキャプチャ                       │
-  │   - FnMut:  環境を可変参照でキャプチャ                       │
-  │   - FnOnce: 環境を所有権移動でキャプチャ                     │
-  │ ・型推論が強力だが、戻り値型にはdyn/implが必要な場合あり      │
-  │ ・ゼロコスト抽象: クロージャはコンパイル時に最適化される      │
-  └────────────────────────────────────────────────────────────────┘
+  +------------------------------------------------------------+
+  | - Two systems: function pointers (fn) and closures          |
+  |   (|args| body)                                             |
+  | - Closures classified by 3 traits:                          |
+  |   - Fn:     Captures environment by immutable reference     |
+  |   - FnMut:  Captures environment by mutable reference       |
+  |   - FnOnce: Captures environment by moving ownership        |
+  | - Powerful type inference, but dyn/impl may be needed for   |
+  |   return types                                              |
+  | - Zero-cost abstraction: Closures optimized at compile time |
+  +------------------------------------------------------------+
 
   Go
-  ┌────────────────────────────────────────────────────────────────┐
-  │ ・関数は第一級値（func リテラルで無名関数を生成）             │
-  │ ・クロージャは参照でキャプチャ（注意: ループ変数の罠）        │
-  │ ・ジェネリクス（Go 1.18+）で型安全な高階関数が記述可能       │
-  │ ・メソッド値: obj.Method を関数値として取り出せる             │
-  └────────────────────────────────────────────────────────────────┘
+  +------------------------------------------------------------+
+  | - Functions are first-class values (func literals create    |
+  |   anonymous functions)                                      |
+  | - Closures capture by reference (caution: loop variable trap)|
+  | - Generics (Go 1.18+) enable type-safe higher-order fns    |
+  | - Method values: obj.Method can be extracted as a fn value  |
+  +------------------------------------------------------------+
 
   Java
-  ┌────────────────────────────────────────────────────────────────┐
-  │ ・ラムダ式は SAM（Single Abstract Method）インターフェースの    │
-  │   インスタンスとして扱われる                                   │
-  │ ・Function<T,R>, Predicate<T>, Consumer<T> 等の関数型IF提供    │
-  │ ・メソッド参照: ClassName::method で関数値として取得           │
-  │ ・クロージャは「実質final」変数のみキャプチャ可能              │
-  └────────────────────────────────────────────────────────────────┘
+  +------------------------------------------------------------+
+  | - Lambda expressions are treated as instances of SAM        |
+  |   (Single Abstract Method) interfaces                       |
+  | - Functional interfaces: Function<T,R>, Predicate<T>,      |
+  |   Consumer<T>, etc.                                         |
+  | - Method references: ClassName::method extracts as fn value |
+  | - Closures can only capture "effectively final" variables   |
+  +------------------------------------------------------------+
 
   Haskell
-  ┌────────────────────────────────────────────────────────────────┐
-  │ ・全ての関数は自動的にカリー化される                          │
-  │ ・関数合成演算子 (.) が組み込み: (f . g) x = f (g x)          │
-  │ ・部分適用が最も自然（add 3 で「3を足す関数」が生成）         │
-  │ ・型クラスにより多相的な高階関数が自然に記述できる            │
-  │ ・遅延評価により無限リストを扱う高階関数も可能                │
-  └────────────────────────────────────────────────────────────────┘
+  +------------------------------------------------------------+
+  | - All functions are automatically curried                   |
+  | - Built-in function composition operator (.):               |
+  |   (f . g) x = f (g x)                                      |
+  | - Partial application is most natural                       |
+  |   (add 3 creates "a function that adds 3")                  |
+  | - Type classes enable naturally polymorphic higher-order fns|
+  | - Lazy evaluation enables higher-order fns on infinite lists|
+  +------------------------------------------------------------+
 ```
 
-### 7.3 Rust のクロージャ3種類の詳解
+### 7.3 Detailed Explanation of Rust's Three Closure Types
 
-Rust のクロージャは所有権システムと統合されており、3つのトレイトで分類される。これは他の言語には見られない独自の特徴である。
+Rust closures are integrated with the ownership system and classified by three traits. This is a unique feature not found in other languages.
 
 ```rust
-// ===== Rust: 3種類のクロージャトレイト =====
+// ===== Rust: Three Closure Traits =====
 
 fn main() {
-    // --- Fn: 環境を不変参照でキャプチャ ---
+    // --- Fn: Captures environment by immutable reference ---
     let name = String::from("Alice");
-    let greet = || println!("Hello, {}!", name);  // name を &name でキャプチャ
-    greet();  // 何度でも呼べる
-    greet();  // 再利用可能
-    println!("{}", name);  // name はまだ使える
+    let greet = || println!("Hello, {}!", name);  // Captures name as &name
+    greet();  // Can be called multiple times
+    greet();  // Reusable
+    println!("{}", name);  // name is still usable
 
-    // --- FnMut: 環境を可変参照でキャプチャ ---
+    // --- FnMut: Captures environment by mutable reference ---
     let mut count = 0;
     let mut increment = || {
-        count += 1;  // count を &mut count でキャプチャ
+        count += 1;  // Captures count as &mut count
         println!("count = {}", count);
     };
     increment();  // count = 1
     increment();  // count = 2
 
-    // --- FnOnce: 環境を所有権移動でキャプチャ ---
+    // --- FnOnce: Captures environment by moving ownership ---
     let data = vec![1, 2, 3];
     let consume = move || {
-        println!("data: {:?}", data);  // data の所有権を移動
-        drop(data);  // data を消費
+        println!("data: {:?}", data);  // Moves ownership of data
+        drop(data);  // Consumes data
     };
-    consume();  // 1回しか呼べない
-    // consume();  // コンパイルエラー: 既に消費済み
+    consume();  // Can only be called once
+    // consume();  // Compile error: already consumed
+    // println!("{:?}", data);  // Compile error: data has been moved
 
-    // --- 高階関数での使い分け ---
+    // --- Usage in higher-order functions ---
     fn apply_fn<F: Fn()>(f: F) {
-        f(); f();  // 複数回呼べる
+        f(); f();  // Can call multiple times
     }
 
     fn apply_fn_mut<F: FnMut()>(mut f: F) {
-        f(); f();  // 状態を変更しつつ複数回呼べる
+        f(); f();  // Can call multiple times while mutating state
     }
 
     fn apply_fn_once<F: FnOnce()>(f: F) {
-        f();  // 1回だけ呼べる
+        f();  // Can only call once
     }
 }
 ```
 
 ```
-Rust クロージャトレイトの包含関係
+Rust Closure Trait Containment Relationship
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  ┌─────────────────────────────────────┐
-  │           FnOnce                    │  最も制約が緩い（全クロージャが実装）
-  │  ┌──────────────────────────────┐   │
-  │  │         FnMut                │   │  FnOnce のサブトレイト
-  │  │  ┌───────────────────────┐   │   │
-  │  │  │        Fn             │   │   │  最も制約が厳しい
-  │  │  │                       │   │   │
-  │  │  │  不変参照キャプチャ    │   │   │
-  │  │  └───────────────────────┘   │   │
-  │  │  可変参照キャプチャ          │   │
-  │  └──────────────────────────────┘   │
-  │  所有権移動キャプチャ               │
-  └─────────────────────────────────────┘
+  +-------------------------------------+
+  |           FnOnce                    |  Least restrictive (all closures implement)
+  |  +------------------------------+  |
+  |  |         FnMut                |  |  Subtrait of FnOnce
+  |  |  +-----------------------+   |  |
+  |  |  |        Fn             |   |  |  Most restrictive
+  |  |  |                       |   |  |
+  |  |  |  Immutable ref capture|   |  |
+  |  |  +-----------------------+   |  |
+  |  |  Mutable ref capture        |  |
+  |  +------------------------------+  |
+  |  Ownership move capture            |
+  +-------------------------------------+
 
-  Fn ⊂ FnMut ⊂ FnOnce
+  Fn < FnMut < FnOnce
 
-  ・Fn を実装するクロージャは FnMut も FnOnce も実装する
-  ・FnMut を実装するクロージャは FnOnce も実装する
-  ・関数ポインタ fn は Fn, FnMut, FnOnce 全てを実装する
+  - A closure implementing Fn also implements FnMut and FnOnce
+  - A closure implementing FnMut also implements FnOnce
+  - Function pointers fn implement Fn, FnMut, and FnOnce
 ```
 
 ---
 
-## 8. 実践的なデザインパターン
+## 8. Practical Design Patterns
 
-### 8.1 ミドルウェアパターン
+### 8.1 Middleware Pattern
 
-Webフレームワーク（Express.js、Koa、axum等）で広く使われるミドルウェアパターンは、第一級関数の典型的な活用例である。
+The middleware pattern, widely used in web frameworks (Express.js, Koa, axum, etc.), is a typical application of first-class functions.
 
 ```javascript
-// ===== JavaScript: ミドルウェアパターン =====
+// ===== JavaScript: Middleware Pattern =====
 
-// シンプルなミドルウェアシステム
+// Simple middleware system
 class Pipeline {
     constructor() {
         this.middlewares = [];
@@ -1136,7 +1149,7 @@ class Pipeline {
 
     use(middleware) {
         this.middlewares.push(middleware);
-        return this;  // メソッドチェーン
+        return this;  // Method chaining
     }
 
     async execute(context) {
@@ -1152,19 +1165,19 @@ class Pipeline {
     }
 }
 
-// ミドルウェアの定義（各ミドルウェアは関数）
+// Define middlewares (each middleware is a function)
 const logger = async (ctx, next) => {
     const start = Date.now();
-    console.log(`→ ${ctx.method} ${ctx.path}`);
+    console.log(`-> ${ctx.method} ${ctx.path}`);
     await next();
-    console.log(`← ${ctx.method} ${ctx.path} (${Date.now() - start}ms)`);
+    console.log(`<- ${ctx.method} ${ctx.path} (${Date.now() - start}ms)`);
 };
 
 const auth = async (ctx, next) => {
     if (!ctx.headers.authorization) {
         ctx.status = 401;
         ctx.body = "Unauthorized";
-        return;  // next() を呼ばない → 以降のミドルウェアをスキップ
+        return;  // Not calling next() -> skip subsequent middleware
     }
     ctx.user = verifyToken(ctx.headers.authorization);
     await next();
@@ -1176,11 +1189,11 @@ const handler = async (ctx, next) => {
     await next();
 };
 
-// パイプラインの組み立て
+// Assemble the pipeline
 const app = new Pipeline();
 app.use(logger).use(auth).use(handler);
 
-// 実行
+// Execute
 await app.execute({
     method: "GET",
     path: "/api/users",
@@ -1188,10 +1201,10 @@ await app.execute({
 });
 ```
 
-### 8.2 イベントエミッタパターン
+### 8.2 Event Emitter Pattern
 
 ```typescript
-// ===== TypeScript: 型安全なイベントエミッタ =====
+// ===== TypeScript: Type-safe Event Emitter =====
 
 type EventMap = {
     "user:login":  { userId: string; timestamp: number };
@@ -1208,7 +1221,7 @@ class TypedEventEmitter<T extends Record<string, unknown>> {
         }
         this.listeners.get(event)!.add(handler);
 
-        // 解除関数を返す（これも第一級関数の活用）
+        // Return an unsubscribe function (also an application of first-class functions)
         return () => {
             this.listeners.get(event)?.delete(handler);
         };
@@ -1219,11 +1232,11 @@ class TypedEventEmitter<T extends Record<string, unknown>> {
     }
 }
 
-// 使用例
+// Usage
 const emitter = new TypedEventEmitter<EventMap>();
 
 const unsubscribe = emitter.on("user:login", (data) => {
-    console.log(`ユーザー ${data.userId} がログイン (${data.timestamp})`);
+    console.log(`User ${data.userId} logged in (${data.timestamp})`);
 });
 
 emitter.emit("user:login", {
@@ -1231,14 +1244,14 @@ emitter.emit("user:login", {
     timestamp: Date.now(),
 });
 
-// 不要になったら解除
+// Unsubscribe when no longer needed
 unsubscribe();
 ```
 
-### 8.3 メモ化パターン
+### 8.3 Memoization Pattern
 
 ```javascript
-// ===== JavaScript: 汎用メモ化関数 =====
+// ===== JavaScript: Generic Memoization Function =====
 
 function memoize(fn, options = {}) {
     const cache = new Map();
@@ -1253,7 +1266,7 @@ function memoize(fn, options = {}) {
 
         const result = fn.apply(this, args);
 
-        // キャッシュサイズ制限
+        // Cache size limit
         if (cache.size >= maxSize) {
             const firstKey = cache.keys().next().value;
             cache.delete(firstKey);
@@ -1263,22 +1276,22 @@ function memoize(fn, options = {}) {
         return result;
     }
 
-    // キャッシュ操作メソッドを付加
+    // Add cache management methods
     memoized.cache = cache;
     memoized.clear = () => cache.clear();
 
     return memoized;
 }
 
-// 使用例: フィボナッチ数列
+// Usage: Fibonacci sequence
 const fib = memoize((n) => {
     if (n <= 1) return n;
     return fib(n - 1) + fib(n - 2);
 });
 
-console.log(fib(50));  // => 12586269025（高速に計算される）
+console.log(fib(50));  // => 12586269025 (computed quickly)
 
-// 使用例: API レスポンスキャッシュ
+// Usage: API response cache
 const fetchUser = memoize(
     async (id) => {
         const res = await fetch(`/api/users/${id}`);
@@ -1289,54 +1302,54 @@ const fetchUser = memoize(
 ```
 
 ```python
-# ===== Python: lru_cache デコレータ =====
+# ===== Python: lru_cache Decorator =====
 
 from functools import lru_cache
 
 @lru_cache(maxsize=128)
 def fibonacci(n):
-    """メモ化されたフィボナッチ数列"""
+    """Memoized Fibonacci sequence"""
     if n <= 1:
         return n
     return fibonacci(n - 1) + fibonacci(n - 2)
 
 print(fibonacci(100))
-# => 354224848179261915075（高速に計算される）
+# => 354224848179261915075 (computed quickly)
 
-# キャッシュ統計
+# Cache statistics
 print(fibonacci.cache_info())
 # => CacheInfo(hits=98, misses=101, maxsize=128, currsize=101)
 
-# キャッシュクリア
+# Clear cache
 fibonacci.cache_clear()
 ```
 
 ---
 
-## 9. アンチパターンと注意点
+## 9. Anti-Patterns and Caveats
 
-### 9.1 アンチパターン1: 過剰な抽象化（Abstraction Astronaut）
+### 9.1 Anti-Pattern 1: Over-Abstraction (Abstraction Astronaut)
 
-第一級関数の強力さに魅せられて、過剰に抽象化してしまうケースがある。
+Becoming enamored with the power of first-class functions can lead to excessive abstraction.
 
 ```javascript
-// ===== アンチパターン: 過剰な抽象化 =====
+// ===== Anti-Pattern: Over-Abstraction =====
 
-// BAD: 不要な関数ラッピング
+// BAD: Unnecessary function wrapping
 const add = (a) => (b) => a + b;
 const multiply = (a) => (b) => a * b;
 const compose = (f) => (g) => (x) => f(g(x));
 const pipe = (...fns) => (x) => fns.reduce((a, f) => f(a), x);
 
-// 単純な計算なのに読解コストが高い
+// A simple calculation with high cognitive overhead
 const result = pipe(
     add(1),
     multiply(2),
     compose(add(3))(multiply(4)),
 )(5);
-// 何をしているのか一見して分からない...
+// Not immediately clear what this does...
 
-// GOOD: 適切な抽象度
+// GOOD: Appropriate level of abstraction
 function calculatePrice(basePrice, taxRate, discount) {
     const afterDiscount = basePrice * (1 - discount);
     const withTax = afterDiscount * (1 + taxRate);
@@ -1344,17 +1357,17 @@ function calculatePrice(basePrice, taxRate, discount) {
 }
 
 calculatePrice(1000, 0.1, 0.2);  // => 880
-// 意図が明確で読みやすい
+// Intent is clear and readable
 ```
 
-**教訓**: 抽象化は「繰り返しパターンが3回以上出現した場合」に検討する（Rule of Three）。1-2回しか使わないパターンを関数化すると、かえって可読性を損なう。
+**Lesson**: Consider abstraction only when "a repeating pattern appears 3 or more times" (Rule of Three). Abstracting patterns used only 1-2 times actually harms readability.
 
-### 9.2 アンチパターン2: this 参照の喪失
+### 9.2 Anti-Pattern 2: Loss of `this` Reference
 
-JavaScript において、関数を値として取り回す際に最も頻出するバグが `this` 参照の喪失である。
+In JavaScript, the most common bug when passing functions as values is the loss of the `this` reference.
 
 ```javascript
-// ===== アンチパターン: this の喪失 =====
+// ===== Anti-Pattern: Loss of this =====
 
 class UserService {
     constructor() {
@@ -1368,27 +1381,27 @@ class UserService {
 
 const service = new UserService();
 
-// BAD: メソッドを変数に代入すると this が失われる
+// BAD: Assigning a method to a variable loses this
 const getUsers = service.getUsers;
 // getUsers();  // TypeError: Cannot read property 'users' of undefined
 
-// BAD: コールバックとして渡しても this が失われる
-// setTimeout(service.getUsers, 1000);  // 同様のエラー
+// BAD: Passing as a callback also loses this
+// setTimeout(service.getUsers, 1000);  // Same error
 
-// --- 解決策 ---
+// --- Solutions ---
 
-// 解決策1: bind で this を束縛
+// Solution 1: Bind this with bind
 const getUsersBound = service.getUsers.bind(service);
 getUsersBound();  // => ["Alice", "Bob"]
 
-// 解決策2: アロー関数でラップ
+// Solution 2: Wrap with an arrow function
 setTimeout(() => service.getUsers(), 1000);
 
-// 解決策3: クラスフィールドでアロー関数を使う（推奨）
+// Solution 3: Use arrow functions as class fields (recommended)
 class UserServiceFixed {
     users = ["Alice", "Bob"];
 
-    // アロー関数のクラスフィールド → this が固定される
+    // Arrow function class field -> this is fixed
     getUsers = () => {
         return this.users;
     };
@@ -1396,87 +1409,87 @@ class UserServiceFixed {
 
 const fixed = new UserServiceFixed();
 const fn = fixed.getUsers;
-fn();  // => ["Alice", "Bob"]（正常動作）
+fn();  // => ["Alice", "Bob"] (works correctly)
 ```
 
-### 9.3 アンチパターン3: ループ変数のクロージャキャプチャ
+### 9.3 Anti-Pattern 3: Closure Capture of Loop Variables
 
 ```javascript
-// ===== アンチパターン: ループ変数の罠 =====
+// ===== Anti-Pattern: Loop Variable Trap =====
 
-// BAD: var を使ったループでのクロージャ
+// BAD: Closures in a loop using var
 const functions = [];
 for (var i = 0; i < 5; i++) {
     functions.push(() => i);
 }
 console.log(functions.map(f => f()));
-// => [5, 5, 5, 5, 5]  全て5になる！（var はブロックスコープを持たない）
+// => [5, 5, 5, 5, 5]  All 5! (var has no block scope)
 
-// GOOD: let を使う（ブロックスコープ）
+// GOOD: Use let (block scope)
 const functions2 = [];
 for (let i = 0; i < 5; i++) {
     functions2.push(() => i);
 }
 console.log(functions2.map(f => f()));
-// => [0, 1, 2, 3, 4]  期待通り
+// => [0, 1, 2, 3, 4]  As expected
 
-// GOOD: IIFE（即時実行関数式）で値をキャプチャ
+// GOOD: IIFE (Immediately Invoked Function Expression) to capture values
 const functions3 = [];
 for (var i = 0; i < 5; i++) {
     functions3.push(((captured) => () => captured)(i));
 }
 
-// BEST: 関数型アプローチ
+// BEST: Functional approach
 const functions4 = Array.from({ length: 5 }, (_, i) => () => i);
 console.log(functions4.map(f => f()));
 // => [0, 1, 2, 3, 4]
 ```
 
 ```go
-// ===== Go: ループ変数の罠（Go 1.21 以前） =====
+// ===== Go: Loop Variable Trap (Go 1.21 and earlier) =====
 
 package main
 
 import "fmt"
 
 func main() {
-    // BAD（Go 1.21 以前）: ループ変数はイテレーション間で共有される
+    // BAD (Go 1.21 and earlier): Loop variable is shared across iterations
     fns := make([]func(), 5)
     for i := 0; i < 5; i++ {
         fns[i] = func() { fmt.Println(i) }
     }
     for _, f := range fns {
-        f()  // Go 1.21以前: 全て5。Go 1.22+: 0,1,2,3,4
+        f()  // Go 1.21 and earlier: all 5. Go 1.22+: 0,1,2,3,4
     }
 
-    // GOOD: ローカル変数にコピー（Go 1.21 以前の対策）
+    // GOOD: Copy to local variable (workaround for Go 1.21 and earlier)
     fns2 := make([]func(), 5)
     for i := 0; i < 5; i++ {
-        i := i  // シャドーイングで値をキャプチャ
+        i := i  // Shadow to capture value
         fns2[i] = func() { fmt.Println(i) }
     }
 }
 ```
 
-### 9.4 アンチパターン4: パフォーマンスの罠
+### 9.4 Anti-Pattern 4: Performance Traps
 
 ```javascript
-// ===== アンチパターン: 不要なクロージャの生成 =====
+// ===== Anti-Pattern: Unnecessary Closure Generation =====
 
-// BAD: レンダリングのたびに新しい関数オブジェクトが生成される
+// BAD: New function object created on every render
 function TodoList({ todos, onDelete }) {
     return todos.map(todo => (
-        // 毎回新しいアロー関数が生成され、子コンポーネントの
-        // メモ化が無効化される
+        // A new arrow function is created each time,
+        // invalidating child component memoization
         <TodoItem
             key={todo.id}
             todo={todo}
-            onDelete={() => onDelete(todo.id)}  // 毎回新しい関数
+            onDelete={() => onDelete(todo.id)}  // New function each time
         />
     ));
 }
 
-// GOOD: useCallback やメソッド参照を使用
+// GOOD: Use useCallback or method references
 function TodoListOptimized({ todos, onDelete }) {
     const handleDelete = useCallback((id) => {
         onDelete(id);
@@ -1495,21 +1508,21 @@ function TodoListOptimized({ todos, onDelete }) {
 
 ---
 
-## 10. 演習問題（3段階）
+## 10. Exercises (3 Levels)
 
-### 10.1 基礎演習（Beginner）
+### 10.1 Beginner Exercises
 
-**演習 B-1: 関数を値として操作する**
+**Exercise B-1: Manipulating Functions as Values**
 
-以下の要件を満たすコードを JavaScript で実装せよ。
+Implement the following in JavaScript.
 
 ```
-要件:
-1. 関数 applyOperation(a, b, operation) を定義する
-   - a, b は数値、operation は2引数の関数
-   - operation(a, b) の結果を返す
-2. 加算・減算・乗算・除算の4つの関数を定義する
-3. applyOperation を使って以下を計算する:
+Requirements:
+1. Define a function applyOperation(a, b, operation)
+   - a, b are numbers, operation is a two-argument function
+   - Return the result of operation(a, b)
+2. Define four functions: add, subtract, multiply, divide
+3. Calculate the following using applyOperation:
    - 10 + 5 = 15
    - 10 - 5 = 5
    - 10 * 5 = 50
@@ -1517,7 +1530,7 @@ function TodoListOptimized({ todos, onDelete }) {
 ```
 
 ```javascript
-// 解答例
+// Solution
 
 function applyOperation(a, b, operation) {
     return operation(a, b);
@@ -1527,7 +1540,7 @@ const add = (a, b) => a + b;
 const subtract = (a, b) => a - b;
 const multiply = (a, b) => a * b;
 const divide = (a, b) => {
-    if (b === 0) throw new Error("0で除算はできません");
+    if (b === 0) throw new Error("Cannot divide by zero");
     return a / b;
 };
 
@@ -1537,20 +1550,20 @@ console.log(applyOperation(10, 5, multiply));  // => 50
 console.log(applyOperation(10, 5, divide));    // => 2
 ```
 
-**演習 B-2: フィルタ関数の実装**
+**Exercise B-2: Implementing Filter Functions**
 
 ```
-要件:
-Python で以下を実装せよ。
-1. リスト [1, -2, 3, -4, 5, -6, 7, -8, 9, -10] から:
-   a. 正の数だけを抽出
-   b. 偶数だけを抽出
-   c. 絶対値が5以上のものだけを抽出
-2. それぞれ filter() と lambda を使って1行で実現する
+Requirements:
+Implement the following in Python.
+1. From the list [1, -2, 3, -4, 5, -6, 7, -8, 9, -10]:
+   a. Extract only positive numbers
+   b. Extract only even numbers
+   c. Extract only those with absolute value >= 5
+2. Accomplish each in one line using filter() and lambda
 ```
 
 ```python
-# 解答例
+# Solution
 
 numbers = [1, -2, 3, -4, 5, -6, 7, -8, 9, -10]
 
@@ -1564,75 +1577,75 @@ abs_gte_5 = list(filter(lambda x: abs(x) >= 5, numbers))
 # => [5, -6, 7, -8, 9, -10]
 ```
 
-**演習 B-3: ディスパッチテーブル**
+**Exercise B-3: Dispatch Table**
 
 ```
-要件:
-JavaScript で簡易的な文字列変換ディスパッチテーブルを作成せよ。
-- "upper": 大文字変換
-- "lower": 小文字変換
-- "reverse": 文字列反転
-- "length": 文字数を文字列で返す
-- 未知のコマンドにはエラーメッセージを返す
+Requirements:
+Create a simple string transformation dispatch table in JavaScript.
+- "upper": Convert to uppercase
+- "lower": Convert to lowercase
+- "reverse": Reverse the string
+- "length": Return the character count as a string
+- Return an error message for unknown commands
 ```
 
 ```javascript
-// 解答例
+// Solution
 
 const transforms = {
     upper:   (s) => s.toUpperCase(),
     lower:   (s) => s.toLowerCase(),
     reverse: (s) => s.split("").reverse().join(""),
-    length:  (s) => `${s.length}文字`,
+    length:  (s) => `${s.length} characters`,
 };
 
 function applyTransform(command, text) {
     const fn = transforms[command];
     if (!fn) {
-        return `エラー: 未知のコマンド "${command}"`;
+        return `Error: Unknown command "${command}"`;
     }
     return fn(text);
 }
 
 console.log(applyTransform("upper", "hello"));     // => "HELLO"
 console.log(applyTransform("reverse", "hello"));   // => "olleh"
-console.log(applyTransform("length", "hello"));    // => "5文字"
-console.log(applyTransform("unknown", "hello"));   // => "エラー: 未知のコマンド..."
+console.log(applyTransform("length", "hello"));    // => "5 characters"
+console.log(applyTransform("unknown", "hello"));   // => "Error: Unknown command..."
 ```
 
-### 10.2 中級演習（Intermediate）
+### 10.2 Intermediate Exercises
 
-**演習 I-1: 関数合成パイプラインの実装**
+**Exercise I-1: Implementing a Function Composition Pipeline**
 
 ```
-要件:
-TypeScript で以下を実装せよ。
-1. pipe 関数を実装する（任意個の関数を左から右へ合成）
-2. 以下のデータ処理パイプラインを構築する:
-   - 入力: 文字列の配列
-   - ステップ1: 全て小文字に変換
-   - ステップ2: 3文字以下の単語を除外
-   - ステップ3: 重複を除去
-   - ステップ4: アルファベット順にソート
-   - ステップ5: カンマ区切りの文字列に結合
+Requirements:
+Implement the following in TypeScript.
+1. Implement a pipe function (compose any number of functions left to right)
+2. Build the following data processing pipeline:
+   - Input: Array of strings
+   - Step 1: Convert all to lowercase
+   - Step 2: Remove words of 3 characters or less
+   - Step 3: Remove duplicates
+   - Step 4: Sort alphabetically
+   - Step 5: Join with commas
 ```
 
 ```typescript
-// 解答例
+// Solution
 
-// pipe の実装（型安全版は複雑になるため、ここではシンプル版）
+// pipe implementation (simplified version as type-safe version is complex)
 function pipe<T>(...fns: Array<(arg: T) => T>): (arg: T) => T {
     return (arg: T) => fns.reduce((acc, fn) => fn(acc), arg);
 }
 
-// 各ステップを関数として定義
+// Define each step as a function
 const toLowerAll = (words: string[]) => words.map(w => w.toLowerCase());
 const filterShort = (words: string[]) => words.filter(w => w.length > 3);
 const unique = (words: string[]) => [...new Set(words)];
 const sortAlpha = (words: string[]) => [...words].sort();
 const joinComma = (words: string[]) => words.join(", ");
 
-// パイプラインの構築（型の都合上、段階的に適用）
+// Build pipeline (apply step by step for type compatibility)
 function processWords(input: string[]): string {
     const step1 = toLowerAll(input);
     const step2 = filterShort(step1);
@@ -1641,26 +1654,26 @@ function processWords(input: string[]): string {
     return joinComma(step4);
 }
 
-// テスト
+// Test
 const input = ["Hello", "WORLD", "the", "HELLO", "JavaScript", "is", "Great", "hello"];
 console.log(processWords(input));
 // => "great, hello, javascript, world"
 ```
 
-**演習 I-2: 汎用 retry 関数の実装**
+**Exercise I-2: Implementing a Generic Retry Function**
 
 ```
-要件:
-JavaScript で以下を満たす retry 関数を実装せよ。
-1. 失敗した関数を指定回数リトライする
-2. リトライ間隔は指数バックオフ（1秒、2秒、4秒...）
-3. 最大リトライ回数を超えたら最後のエラーをスローする
-4. 各リトライ時にログを出力する
-5. 成功した場合は結果を返す
+Requirements:
+Implement a retry function in JavaScript that satisfies the following.
+1. Retry a failed function a specified number of times
+2. Use exponential backoff for retry intervals (1s, 2s, 4s...)
+3. Throw the last error when max retries exceeded
+4. Log output on each retry
+5. Return the result on success
 ```
 
 ```javascript
-// 解答例
+// Solution
 
 async function retry(fn, options = {}) {
     const {
@@ -1668,7 +1681,7 @@ async function retry(fn, options = {}) {
         baseDelay = 1000,
         backoffFactor = 2,
         onRetry = (attempt, err) => {
-            console.log(`リトライ ${attempt}回目: ${err.message}`);
+            console.log(`Retry attempt ${attempt}: ${err.message}`);
         },
     } = options;
 
@@ -1688,68 +1701,68 @@ async function retry(fn, options = {}) {
     }
 
     throw new Error(
-        `${maxAttempts}回リトライしましたが失敗しました: ${lastError.message}`
+        `Failed after ${maxAttempts} retries: ${lastError.message}`
     );
 }
 
-// テスト: 3回目で成功するシミュレーション
+// Test: Simulation that succeeds on the 3rd attempt
 let callCount = 0;
 const result = await retry(
     async (attempt) => {
         callCount++;
         if (callCount < 3) {
-            throw new Error(`接続エラー（試行${callCount}）`);
+            throw new Error(`Connection error (attempt ${callCount})`);
         }
-        return { data: "成功！" };
+        return { data: "Success!" };
     },
     { maxAttempts: 5, baseDelay: 100 }
 );
-console.log(result);  // => { data: "成功！" }
+console.log(result);  // => { data: "Success!" }
 ```
 
-**演習 I-3: デコレータパターンの実装**
+**Exercise I-3: Implementing the Decorator Pattern**
 
 ```
-要件:
-Python で以下のデコレータを実装せよ。
-1. @validate_args: 全引数が None でないことを検証
-2. @log_calls: 関数呼び出し時に引数と戻り値をログ出力
-3. 両方のデコレータを重ねて使用する
+Requirements:
+Implement the following decorators in Python.
+1. @validate_args: Verify that all arguments are not None
+2. @log_calls: Log arguments and return values on function calls
+3. Stack both decorators together
 ```
 
 ```python
-# 解答例
+# Solution
 
 import functools
 
 def validate_args(func):
-    """全引数が None でないことを検証するデコレータ"""
+    """Decorator that verifies all arguments are not None"""
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         for i, arg in enumerate(args):
             if arg is None:
                 raise ValueError(
-                    f"{func.__name__}: 引数{i}が None です"
+                    f"{func.__name__}: Argument {i} is None"
                 )
         for key, val in kwargs.items():
             if val is None:
                 raise ValueError(
-                    f"{func.__name__}: キーワード引数'{key}'が None です"
+                    f"{func.__name__}: Keyword argument '{key}' is None"
                 )
         return func(*args, **kwargs)
     return wrapper
 
 
 def log_calls(func):
-    """関数呼び出しをログ出力するデコレータ"""
+    """Decorator that logs function calls"""
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         args_repr = [repr(a) for a in args]
         kwargs_repr = [f"{k}={v!r}" for k, v in kwargs.items()]
         signature = ", ".join(args_repr + kwargs_repr)
-        print(f"呼び出し: {func.__name__}({signature})")
+        print(f"Call: {func.__name__}({signature})")
         result = func(*args, **kwargs)
-        print(f"戻り値: {func.__name__} → {result!r}")
+        print(f"Return: {func.__name__} -> {result!r}")
         return result
     return wrapper
 
@@ -1757,38 +1770,38 @@ def log_calls(func):
 @log_calls
 @validate_args
 def divide(a, b):
-    """a / b を計算する"""
+    """Calculate a / b"""
     if b == 0:
-        raise ZeroDivisionError("0で除算はできません")
+        raise ZeroDivisionError("Cannot divide by zero")
     return a / b
 
 
-# テスト
+# Test
 divide(10, 3)
-# 呼び出し: divide(10, 3)
-# 戻り値: divide → 3.3333333333333335
+# Call: divide(10, 3)
+# Return: divide -> 3.3333333333333335
 
 # divide(10, None)
-# ValueError: divide: 引数1が None です
+# ValueError: divide: Argument 1 is None
 ```
 
-### 10.3 上級演習（Advanced）
+### 10.3 Advanced Exercises
 
-**演習 A-1: モナド風パイプラインの実装**
+**Exercise A-1: Implementing a Monad-Style Pipeline**
 
 ```
-要件:
-TypeScript で Optional（Maybe）モナド風のパイプラインを実装せよ。
-1. Optional<T> クラスを実装:
-   - of(value): 値をラップ
-   - map(fn): 値があれば関数を適用
-   - flatMap(fn): Optional を返す関数を適用（ネスト解消）
-   - getOrElse(defaultValue): 値がなければデフォルト値を返す
-2. ユーザーの住所の郵便番号を安全に取得するパイプラインを構築
+Requirements:
+Implement an Optional (Maybe) monad-style pipeline in TypeScript.
+1. Implement an Optional<T> class:
+   - of(value): Wrap a value
+   - map(fn): Apply function if value exists
+   - flatMap(fn): Apply a function that returns Optional (flatten nesting)
+   - getOrElse(defaultValue): Return default if no value
+2. Build a pipeline to safely retrieve a user's postal code
 ```
 
 ```typescript
-// 解答例
+// Solution
 
 class Optional<T> {
     private constructor(private readonly value: T | null | undefined) {}
@@ -1825,7 +1838,7 @@ class Optional<T> {
     }
 }
 
-// ユーザーデータの型定義
+// User data type definition
 interface User {
     name: string;
     address?: {
@@ -1835,39 +1848,39 @@ interface User {
     };
 }
 
-// 安全な郵便番号取得パイプライン
+// Safe postal code retrieval pipeline
 function getFormattedZip(user: User | null): string {
     return Optional.of(user)
         .flatMap(u => Optional.of(u.address))
         .flatMap(a => Optional.of(a.zip))
         .filter(zip => /^\d{3}-?\d{4}$/.test(zip))
         .map(zip => zip.includes("-") ? zip : `${zip.slice(0,3)}-${zip.slice(3)}`)
-        .getOrElse("郵便番号なし");
+        .getOrElse("No postal code");
 }
 
-// テスト
-const user1: User = { name: "太郎", address: { zip: "1000001" } };
-const user2: User = { name: "花子" };
+// Test
+const user1: User = { name: "Taro", address: { zip: "1000001" } };
+const user2: User = { name: "Hanako" };
 const user3: User | null = null;
 
 console.log(getFormattedZip(user1));  // => "100-0001"
-console.log(getFormattedZip(user2));  // => "郵便番号なし"
-console.log(getFormattedZip(user3));  // => "郵便番号なし"
+console.log(getFormattedZip(user2));  // => "No postal code"
+console.log(getFormattedZip(user3));  // => "No postal code"
 ```
 
-**演習 A-2: 型安全なイベントバスの設計**
+**Exercise A-2: Designing a Type-Safe Event Bus**
 
 ```
-要件:
-TypeScript で以下を満たすイベントバスを設計・実装せよ。
-1. イベント名と型の対応を型レベルで保証する
-2. on/off/emit/once の4メソッドを提供する
-3. ワイルドカード（*）リスナーをサポートする
-4. リスナーの優先度をサポートする
+Requirements:
+Design and implement an event bus in TypeScript that satisfies the following.
+1. Guarantee event name to type correspondence at the type level
+2. Provide on/off/emit/once methods
+3. Support wildcard (*) listeners
+4. Support listener priorities
 ```
 
 ```typescript
-// 解答例
+// Solution
 
 type EventHandler<T = unknown> = (data: T) => void;
 
@@ -1915,7 +1928,7 @@ class EventBus<TEvents extends Record<string, unknown>> {
     }
 
     emit<K extends keyof TEvents & string>(event: K, data: TEvents[K]): void {
-        // 通常リスナー
+        // Regular listeners
         const entries = this.listeners.get(event) || [];
         const remaining: ListenerEntry[] = [];
         for (const entry of entries) {
@@ -1924,7 +1937,7 @@ class EventBus<TEvents extends Record<string, unknown>> {
         }
         this.listeners.set(event, remaining);
 
-        // ワイルドカードリスナー
+        // Wildcard listeners
         for (const entry of this.wildcardListeners) {
             entry.handler({ event, data });
         }
@@ -1951,7 +1964,7 @@ class EventBus<TEvents extends Record<string, unknown>> {
     }
 }
 
-// 使用例
+// Usage
 interface AppEvents {
     "user:login":  { userId: string; time: number };
     "user:logout": { userId: string };
@@ -1960,38 +1973,38 @@ interface AppEvents {
 
 const bus = new EventBus<AppEvents>();
 
-// 通常リスナー
+// Regular listener
 const unsub = bus.on("user:login", (data) => {
-    console.log(`ログイン: ${data.userId}`);
+    console.log(`Login: ${data.userId}`);
 });
 
-// 1回限りのリスナー
+// One-time listener
 bus.once("error", (data) => {
-    console.error(`エラー ${data.code}: ${data.message}`);
+    console.error(`Error ${data.code}: ${data.message}`);
 });
 
-// ワイルドカードリスナー（全イベント監視）
+// Wildcard listener (monitor all events)
 bus.onAny(({ event, data }) => {
-    console.log(`[監査ログ] ${event}:`, data);
+    console.log(`[Audit Log] ${event}:`, data);
 });
 
 bus.emit("user:login", { userId: "user-1", time: Date.now() });
-unsub();  // リスナー解除
+unsub();  // Unsubscribe
 ```
 
-**演習 A-3: 遅延評価チェーンの実装**
+**Exercise A-3: Implementing a Lazy Evaluation Chain**
 
 ```
-要件:
-JavaScript で遅延評価（Lazy Evaluation）コレクション処理を実装せよ。
-1. LazySeq クラスを実装:
-   - map, filter, take, forEach メソッド
-   - forEach が呼ばれるまで実際の計算を行わない
-2. 無限数列に対して map → filter → take が動作することを確認
+Requirements:
+Implement lazy evaluation collection processing in JavaScript.
+1. Implement a LazySeq class:
+   - map, filter, take, forEach methods
+   - No actual computation until forEach is called
+2. Verify that map -> filter -> take works on infinite sequences
 ```
 
 ```javascript
-// 解答例
+// Solution
 
 class LazySeq {
     constructor(iterable) {
@@ -2035,7 +2048,7 @@ class LazySeq {
         let count = 0;
         let takeLimit = Infinity;
 
-        // take の上限を事前計算
+        // Pre-compute take limit
         for (const t of this.transforms) {
             if (t.type === "take") takeLimit = Math.min(takeLimit, t.n);
         }
@@ -2054,7 +2067,7 @@ class LazySeq {
                         break;
                     }
                 } else if (transform.type === "take") {
-                    // 後で処理
+                    // Handled later
                 }
             }
 
@@ -2076,7 +2089,7 @@ class LazySeq {
     }
 }
 
-// テスト: 無限数列から素数を10個取得
+// Test: Get 10 primes from an infinite sequence
 function isPrime(n) {
     if (n < 2) return false;
     for (let i = 2; i <= Math.sqrt(n); i++) {
@@ -2093,7 +2106,7 @@ const first10Primes = LazySeq.range(2)
 console.log(first10Primes);
 // => [2, 3, 5, 7, 11, 13, 17, 19, 23, 29]
 
-// テスト: 遅延評価の確認（無限数列でも動作する）
+// Test: Verify lazy evaluation (works even on infinite sequences)
 const result = LazySeq.range(1)
     .map(x => x * x)
     .filter(x => x % 2 === 1)
@@ -2106,87 +2119,88 @@ console.log(result);
 
 ---
 
-## 11. FAQ（よくある質問）
+## 11. FAQ (Frequently Asked Questions)
 
-### Q1: 第一級関数とクロージャは同じものですか？
+### Q1: Are first-class functions and closures the same thing?
 
-**A**: いいえ、異なる概念です。第一級関数とは「関数を値として扱える」という言語の性質を指し、クロージャは「定義時の環境（変数束縛）を保持した関数」を指します。クロージャは第一級関数の仕組みを前提として成立しますが、第一級関数であってもクロージャでないもの（環境をキャプチャしない純粋な関数ポインタ等）は存在します。
-
-```
-関係図:
-  ┌──────────────────────────────────────┐
-  │         第一級関数                    │
-  │  ┌───────────────────────────────┐   │
-  │  │      クロージャ                │   │
-  │  │  （環境をキャプチャした関数）   │   │
-  │  └───────────────────────────────┘   │
-  │                                      │
-  │  関数ポインタ（環境なし）            │
-  │  純粋関数リテラル（環境なし）        │
-  └──────────────────────────────────────┘
-```
-
-### Q2: ラムダ式と無名関数は同じものですか？
-
-**A**: 実用上はほぼ同義で使われます。厳密には、「ラムダ式」はラムダ計算に由来する数学的な概念で、「無名関数（anonymous function）」は名前を持たない関数リテラルを指すプログラミング用語です。Python では `lambda` キーワードで無名関数を作りますが、式1つしか書けない制限があります。JavaScript のアロー関数 `(x) => x + 1` も無名関数（ラムダ式）の一種です。
-
-### Q3: 全ての関数をアロー関数で書くべきですか？（JavaScript）
-
-**A**: いいえ。アロー関数は便利ですが、以下のケースでは通常の function 宣言が適しています。
-
-1. **`this` バインディングが必要な場合**: アロー関数は独自の `this` を持たないため、オブジェクトのメソッドやプロトタイプメソッドには不向きです
-2. **`arguments` オブジェクトが必要な場合**: アロー関数は `arguments` を持ちません
-3. **ジェネレータ関数**: `function*` 構文が必要で、アロー関数では書けません
-4. **ホイスティングが必要な場合**: function 宣言はホイスティングされますが、アロー関数（const への代入）はされません
-5. **コンストラクタ**: アロー関数は `new` で呼び出せません
-
-### Q4: 高階関数を使うとパフォーマンスは低下しますか？
-
-**A**: 一般的に、高階関数の呼び出しオーバーヘッドは無視できるほど小さいです。現代の JavaScript エンジン（V8 等）は、インライン展開や JIT コンパイルにより、高階関数のオーバーヘッドをほぼゼロに最適化します。ただし、以下の場合は注意が必要です。
-
-- **ホットループ内での関数オブジェクト生成**: `arr.map(x => x * 2)` のようにリテラルを直接渡す場合、毎回新しい関数オブジェクトが生成される可能性がある（多くのエンジンは最適化する）
-- **React での再レンダリング**: コンポーネント内で毎回新しい関数を生成すると、子コンポーネントの不要な再レンダリングを引き起こす可能性がある
-- **Rust**: クロージャはコンパイル時にモノモーフィゼーションされるため、ランタイムオーバーヘッドはゼロ
-
-### Q5: 関数型プログラミングとオブジェクト指向プログラミングはどちらが優れていますか？
-
-**A**: これは二者択一ではありません。現代の多くの言語（JavaScript、Python、Kotlin、Swift、Rust 等）は両方のパラダイムをサポートしており、場面に応じて使い分けるのが最善です。
-
-| 場面 | 関数型が適する | OOPが適する |
-|------|--------------|-------------|
-| データ変換 | map/filter/reduce パイプライン | - |
-| 状態管理 | イミュータブルなデータフロー | ステートフルなオブジェクト |
-| 振る舞い切替 | 高階関数・コールバック | ストラテジーパターン（クラス） |
-| 大規模設計 | 関数合成・モジュール | クラス階層・DI |
-| ドメインモデル | 代数的データ型 | エンティティ・値オブジェクト |
-| 並行処理 | 純粋関数・アクター | synchronized・ロック |
-
-### Q6: カリー化と部分適用の違いは何ですか？
-
-**A**: 似ていますが異なる操作です。
-
-- **カリー化（Currying）**: n引数の関数を、1引数関数のチェーンに変換する。`f(a, b, c)` → `f(a)(b)(c)`。Haskell では全ての関数が自動的にカリー化されている
-- **部分適用（Partial Application）**: n引数の関数の一部の引数を固定し、残りの引数を受け取る新しい関数を生成する。`f(a, b, c)` で a を固定 → `g(b, c) = f(fixed_a, b, c)`
+**A**: No, they are different concepts. First-class functions refers to a language's ability to "treat functions as values," while closures refers to "functions that retain the environment (variable bindings) from their definition site." Closures presuppose the mechanism of first-class functions, but things that are first-class functions but not closures (pure function pointers that don't capture any environment, etc.) do exist.
 
 ```
-カリー化 vs 部分適用
+Relationship diagram:
+  +--------------------------------------+
+  |         First-Class Functions        |
+  |  +-------------------------------+  |
+  |  |      Closures                  |  |
+  |  |  (Functions that capture       |  |
+  |  |   their environment)           |  |
+  |  +-------------------------------+  |
+  |                                      |
+  |  Function pointers (no environment) |
+  |  Pure function literals (no env)    |
+  +--------------------------------------+
+```
+
+### Q2: Are lambda expressions and anonymous functions the same thing?
+
+**A**: In practice, they are used almost synonymously. Strictly speaking, "lambda expression" is a mathematical concept derived from lambda calculus, while "anonymous function" is a programming term for a function literal without a name. In Python, the `lambda` keyword creates anonymous functions, but with the restriction that only a single expression can be used. JavaScript's arrow functions `(x) => x + 1` are also a type of anonymous function (lambda expression).
+
+### Q3: Should all functions be written as arrow functions? (JavaScript)
+
+**A**: No. Arrow functions are convenient, but regular function declarations are more appropriate in the following cases:
+
+1. **When `this` binding is needed**: Arrow functions don't have their own `this`, so they're unsuitable for object methods or prototype methods
+2. **When the `arguments` object is needed**: Arrow functions don't have `arguments`
+3. **Generator functions**: Require `function*` syntax, which can't be written as arrow functions
+4. **When hoisting is needed**: function declarations are hoisted, but arrow functions (assigned to const) are not
+5. **Constructors**: Arrow functions cannot be called with `new`
+
+### Q4: Does using higher-order functions degrade performance?
+
+**A**: Generally, the call overhead of higher-order functions is negligibly small. Modern JavaScript engines (V8, etc.) optimize higher-order function overhead to nearly zero through inlining and JIT compilation. However, caution is needed in the following cases:
+
+- **Function object creation in hot loops**: When passing literals directly like `arr.map(x => x * 2)`, a new function object may be created each time (many engines optimize this)
+- **Re-rendering in React**: Creating new functions inside components each time can trigger unnecessary re-renders of child components
+- **Rust**: Closures are monomorphized at compile time, so runtime overhead is zero
+
+### Q5: Is functional programming or object-oriented programming better?
+
+**A**: This is not an either/or choice. Many modern languages (JavaScript, Python, Kotlin, Swift, Rust, etc.) support both paradigms, and the best approach is to use each as appropriate for the situation.
+
+| Scenario | Functional is suitable | OOP is suitable |
+|----------|----------------------|-----------------|
+| Data transformation | map/filter/reduce pipelines | - |
+| State management | Immutable data flow | Stateful objects |
+| Behavior switching | Higher-order functions/callbacks | Strategy pattern (classes) |
+| Large-scale design | Function composition/modules | Class hierarchies/DI |
+| Domain models | Algebraic data types | Entities/value objects |
+| Concurrency | Pure functions/actors | synchronized/locks |
+
+### Q6: What is the difference between currying and partial application?
+
+**A**: They are similar but different operations.
+
+- **Currying**: Transforms an n-argument function into a chain of 1-argument functions. `f(a, b, c)` -> `f(a)(b)(c)`. In Haskell, all functions are automatically curried
+- **Partial Application**: Fixes some arguments of an n-argument function to generate a new function that accepts the remaining arguments. `f(a, b, c)` with a fixed -> `g(b, c) = f(fixed_a, b, c)`
+
+```
+Currying vs Partial Application
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  元の関数: f(a, b, c)
+  Original function: f(a, b, c)
 
-  カリー化:
-  f(a, b, c) → curry(f) → g(a)(b)(c)
-  全引数を1つずつ受け取る形に変換
+  Currying:
+  f(a, b, c) -> curry(f) -> g(a)(b)(c)
+  Transform to accept all arguments one at a time
 
-  部分適用:
-  f(a, b, c) → partial(f, fixedA) → g(b, c)
-  一部の引数を固定して新関数を生成
+  Partial Application:
+  f(a, b, c) -> partial(f, fixedA) -> g(b, c)
+  Fix some arguments to generate a new function
 
-  違い:
-  ・カリー化は常に1引数ずつ
-  ・部分適用は任意の数の引数を固定可能
-  ・カリー化は関数の形を変える変換
-  ・部分適用は引数を埋める操作
+  Differences:
+  - Currying always takes one argument at a time
+  - Partial application can fix any number of arguments
+  - Currying transforms the shape of the function
+  - Partial application fills in arguments
 ```
 
 ---
@@ -2194,102 +2208,103 @@ console.log(result);
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point in learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the basics and jumping to advanced topics. We recommend thoroughly understanding the fundamental concepts explained in this guide before moving to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently used in everyday development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## 12. まとめ
+## 12. Summary
 
-### 12.1 概念の整理
+### 12.1 Concept Summary
 
-| 概念 | 定義 | 代表的な使用場面 |
-|------|------|------------------|
-| 第一級関数 | 関数を値として扱える言語機能 | 変数代入、引数渡し、戻り値 |
-| 高階関数 | 関数を受け取る/返す関数 | map, filter, reduce, デコレータ |
-| コールバック | 引数として渡される関数 | イベントハンドラ、非同期処理 |
-| ストラテジー | 振る舞いを関数で差し替える設計 | ソート順の切替、バリデーション |
-| 部分適用 | 引数の一部を固定して新関数を作る | 設定の固定、ロガー生成 |
-| カリー化 | n引数関数を1引数関数のチェーンに変換 | 段階的な引数適用 |
-| 関数合成 | 複数の関数を組み合わせて新関数を作る | データ処理パイプライン |
-| クロージャ | 定義時の環境を保持した関数 | 状態の隠蔽、ファクトリ |
-| ディスパッチテーブル | 関数を辞書に格納して動的に選択 | コマンド処理、ルーティング |
-| メモ化 | 結果をキャッシュする高階関数 | 計算コストの高い関数の最適化 |
-| ミドルウェア | 処理を挟み込む関数チェーン | HTTPリクエスト処理、ログ |
+| Concept | Definition | Typical Use Case |
+|---------|-----------|------------------|
+| First-Class Functions | Language feature allowing functions to be treated as values | Variable assignment, argument passing, return values |
+| Higher-Order Functions | Functions that receive/return functions | map, filter, reduce, decorators |
+| Callbacks | Functions passed as arguments | Event handlers, async processing |
+| Strategy | Design of swapping behavior via functions | Sort order switching, validation |
+| Partial Application | Creating new functions by fixing some arguments | Fixing configuration, logger generation |
+| Currying | Transforming an n-argument function into a chain of 1-argument functions | Incremental argument application |
+| Function Composition | Combining multiple functions to create a new function | Data processing pipelines |
+| Closures | Functions that retain their definition-time environment | State hiding, factories |
+| Dispatch Tables | Storing functions in dictionaries for dynamic selection | Command processing, routing |
+| Memoization | Higher-order function that caches results | Optimizing computationally expensive functions |
+| Middleware | Function chains that intercept processing | HTTP request handling, logging |
 
-### 12.2 設計判断のガイドライン
+### 12.2 Design Decision Guidelines
 
 ```
-第一級関数の適用判断フローチャート
+First-Class Functions Application Decision Flowchart
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  処理パターンを抽象化したい？
-  │
-  ├─ YES → 同じパターンが3回以上出現する？
-  │         │
-  │         ├─ YES → 高階関数として抽出
-  │         │         │
-  │         │         ├─ 変換系 → map 的な関数を作成
-  │         │         ├─ 選択系 → filter 的な関数を作成
-  │         │         └─ 集約系 → reduce 的な関数を作成
-  │         │
-  │         └─ NO  → インラインのままにする
-  │                   （過剰な抽象化を避ける）
-  │
-  ├─ 振る舞いを実行時に切り替えたい？
-  │  │
-  │  ├─ YES → 状態が複雑？
-  │  │         │
-  │  │         ├─ YES → OOPストラテジーパターン
-  │  │         └─ NO  → 関数を引数/変数で切り替え
-  │  │
-  │  └─ NO
-  │
-  └─ 設定を事前に固定した関数が欲しい？
-     │
-     ├─ YES → 部分適用 or ファクトリ関数
-     └─ NO  → 通常の関数で十分
+  Want to abstract a processing pattern?
+  |
+  +-- YES -> Does the same pattern appear 3+ times?
+  |           |
+  |           +-- YES -> Extract as a higher-order function
+  |           |           |
+  |           |           +-- Transform type -> Create a map-like function
+  |           |           +-- Selection type -> Create a filter-like function
+  |           |           +-- Aggregation type -> Create a reduce-like function
+  |           |
+  |           +-- NO  -> Keep it inline
+  |                       (Avoid over-abstraction)
+  |
+  +-- Want to switch behavior at runtime?
+  |    |
+  |    +-- YES -> Is the state complex?
+  |    |           |
+  |    |           +-- YES -> OOP strategy pattern
+  |    |           +-- NO  -> Switch via function arguments/variables
+  |    |
+  |    +-- NO
+  |
+  +-- Want a function with pre-fixed configuration?
+       |
+       +-- YES -> Partial application or factory function
+       +-- NO  -> A regular function is sufficient
 ```
 
 ---
 
-## 13. 次に読むべきガイド
+## 13. Suggested Next Reading
 
-
----
-
-## 14. 参考文献
-
-1. Abelson, H. & Sussman, G. J. *Structure and Interpretation of Computer Programs (SICP)*, 2nd ed., MIT Press, 1996. -- 第1章「Building Abstractions with Procedures」で第一級関数の概念を徹底的に解説。LISP/Scheme を通じて高階関数・関数合成の本質を学べる古典的名著。
-
-2. Strachey, C. "Fundamental Concepts in Programming Languages," *Higher-Order and Symbolic Computation*, Vol.13, pp.11--49, 2000 (originally 1967 lecture notes). -- 「第一級（first-class）」の概念を最初に体系化した歴史的文献。プログラミング言語の意味論における基礎概念を定義した。
-
-3. Bird, R. *Thinking Functionally with Haskell*, Cambridge University Press, 2015. -- Haskell を題材に、第一級関数・高階関数・関数合成・カリー化を含む関数型プログラミングの考え方を体系的に学べる。
-
-4. Crockford, D. *JavaScript: The Good Parts*, O'Reilly Media, 2008. -- JavaScript における関数の第一級性、クロージャ、コールバックパターンを実践的に解説。JavaScript 特有の落とし穴（this の喪失等）も詳述。
-
-5. Kleppmann, M. *Designing Data-Intensive Applications*, O'Reilly Media, 2017. -- 分散システムにおける関数型パターン（イミュータブルデータ、純粋関数）の重要性を実システムの文脈で論じている。
-
-6. Gamma, E., Helm, R., Johnson, R. & Vlissides, J. *Design Patterns: Elements of Reusable Object-Oriented Software*, Addison-Wesley, 1994. -- ストラテジーパターン、コマンドパターン等、第一級関数で簡潔に表現できるGoFパターンの原典。OOPとFPの対比を理解する上で有用。
+- [Closures](./01-closures.md) - Proceed to the next topic
 
 ---
 
-## 次に読むべきガイド
+## 14. References
 
-- [クロージャ（Closures）](./01-closures.md) - 次のトピックへ進む
+1. Abelson, H. & Sussman, G. J. *Structure and Interpretation of Computer Programs (SICP)*, 2nd ed., MIT Press, 1996. -- Chapter 1 "Building Abstractions with Procedures" thoroughly explains the concept of first-class functions. A classic masterpiece for learning the essence of higher-order functions and function composition through LISP/Scheme.
+
+2. Strachey, C. "Fundamental Concepts in Programming Languages," *Higher-Order and Symbolic Computation*, Vol.13, pp.11--49, 2000 (originally 1967 lecture notes). -- The historical document that first systematized the concept of "first-class." Defined foundational concepts in programming language semantics.
+
+3. Bird, R. *Thinking Functionally with Haskell*, Cambridge University Press, 2015. -- Systematically teaches functional programming concepts including first-class functions, higher-order functions, function composition, and currying, using Haskell as the subject.
+
+4. Crockford, D. *JavaScript: The Good Parts*, O'Reilly Media, 2008. -- Practical explanation of first-class nature of functions, closures, and callback patterns in JavaScript. Also details JavaScript-specific pitfalls (loss of this, etc.).
+
+5. Kleppmann, M. *Designing Data-Intensive Applications*, O'Reilly Media, 2017. -- Discusses the importance of functional patterns (immutable data, pure functions) in distributed systems in the context of real systems.
+
+6. Gamma, E., Helm, R., Johnson, R. & Vlissides, J. *Design Patterns: Elements of Reusable Object-Oriented Software*, Addison-Wesley, 1994. -- The original source for GoF patterns such as strategy and command patterns that can be concisely expressed with first-class functions. Useful for understanding the contrast between OOP and FP.
 
 ---
 
-## 参考文献
+## Suggested Next Reading
 
-- [MDN Web Docs](https://developer.mozilla.org/) - Web技術のリファレンス
-- [Wikipedia](https://ja.wikipedia.org/) - 技術概念の概要
+- [Closures](./01-closures.md) - Proceed to the next topic
+
+---
+
+## References
+
+- [MDN Web Docs](https://developer.mozilla.org/) - Web technology reference
+- [Wikipedia](https://en.wikipedia.org/) - Overview of technical concepts
