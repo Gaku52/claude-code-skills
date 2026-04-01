@@ -1,149 +1,150 @@
-# 言語の選び方
+# How to Choose a Language
 
-> 最適な言語は「何を作るか」「誰が作るか」「どこで動かすか」で決まる。
-> 銀の弾丸は存在しない ── あるのは「トレードオフの見極め」だけである。
+> The optimal language is determined by "what you build," "who builds it," and "where it runs."
+> There is no silver bullet -- all that exists is "evaluating trade-offs."
 
-プログラミング言語の選定は、ソフトウェアプロジェクトの成功を左右する最も重要な初期判断の一つである。適切な言語選定はチームの生産性を数倍に引き上げ、不適切な選定は技術的負債の温床となる。本章では、言語選定に必要な知識・フレームワーク・実践手法を体系的に解説する。
-
----
-
-## この章で学ぶこと
-
-- [ ] プロジェクト要件に基づいて言語を選定できる
-- [ ] 各言語の強み・弱み・適用領域を把握する
-- [ ] 言語選定の判断フレームワークを活用できる
-- [ ] チーム構成・組織戦略と言語選定を関連づけられる
-- [ ] 言語のパラダイム・型システム・実行モデルの違いを理解する
-- [ ] アンチパターンを回避した合理的な選定ができる
-- [ ] 複数言語を組み合わせたポリグロット戦略を設計できる
-
-
-## 前提知識
-
-このガイドを読む前に、以下の知識があると理解が深まります:
-
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [プログラミングパラダイム概論](./02-paradigms-overview.md) の内容を理解していること
+Choosing a programming language is one of the most critical early decisions that can determine the success or failure of a software project. An appropriate language choice can multiply a team's productivity, while a poor choice becomes a breeding ground for technical debt. This chapter systematically explains the knowledge, frameworks, and practical methods needed for language selection.
 
 ---
 
-## 本章の全体構成
+## Learning Objectives
+
+- [ ] Select a language based on project requirements
+- [ ] Understand the strengths, weaknesses, and application domains of each language
+- [ ] Utilize a decision framework for language selection
+- [ ] Relate team composition and organizational strategy to language selection
+- [ ] Understand differences in language paradigms, type systems, and execution models
+- [ ] Make rational selections by avoiding anti-patterns
+- [ ] Design polyglot strategies that combine multiple languages
+
+
+## Prerequisites
+
+Before reading this guide, the following knowledge will deepen your understanding:
+
+- Basic programming knowledge
+- Understanding of related fundamental concepts
+- Familiarity with the content of [Programming Paradigms Overview](./02-paradigms-overview.md)
+
+---
+
+## Overall Structure of This Chapter
 
 ```
 +===========================================================================+
-|                        言語選定ガイド 全体マップ                            |
+|                    Language Selection Guide: Full Map                       |
 +===========================================================================+
 |                                                                           |
-|  [第1章] ドメイン別の定番言語                                               |
+|  [Chapter 1] Standard Languages by Domain                                 |
 |     |                                                                     |
 |     v                                                                     |
-|  [第2章] 言語の技術的特性比較                                               |
+|  [Chapter 2] Technical Characteristics Comparison                         |
 |     |                                                                     |
 |     v                                                                     |
-|  [第3章] 言語パラダイムと設計哲学                                            |
+|  [Chapter 3] Language Paradigms and Design Philosophy                     |
 |     |                                                                     |
 |     v                                                                     |
-|  [第4章] 言語選定の判断フレームワーク ----+                                  |
-|     |                                    |                                |
-|     v                                    v                                |
-|  [第5章] チーム・組織の観点         [第6章] 2025年のトレンド                  |
-|     |                                    |                                |
-|     v                                    v                                |
-|  [第7章] ポリグロット戦略          [第8章] 移行戦略                          |
-|     |                                    |                                |
+|  [Chapter 4] Decision Framework for Language Selection ---+               |
+|     |                                                     |               |
+|     v                                                     v               |
+|  [Chapter 5] Team & Organization          [Chapter 6] 2025 Trends        |
+|     |                                                     |               |
+|     v                                                     v               |
+|  [Chapter 7] Polyglot Strategy           [Chapter 8] Migration Strategy   |
+|     |                                                     |               |
 |     +------------+   +------------------+                                 |
 |                  v   v                                                    |
-|           [第9章] アンチパターン集                                          |
+|           [Chapter 9] Anti-Pattern Collection                             |
 |                   |                                                       |
 |                   v                                                       |
-|           [第10章] 実践演習                                                |
+|           [Chapter 10] Practical Exercises                                |
 |                   |                                                       |
 |                   v                                                       |
-|           [FAQ / まとめ / 参考文献]                                         |
+|           [FAQ / Summary / References]                                    |
 +===========================================================================+
 ```
 
 ---
 
-## 第1章: ドメイン別の定番言語
+## Chapter 1: Standard Languages by Domain
 
-ソフトウェア開発の各領域には「定番」と呼べる言語が存在する。これは歴史的経緯・エコシステムの充実度・コミュニティの規模によって形成されたものであり、特段の理由がない限り定番に従うのが合理的である。
+In each area of software development, there exist languages that can be called "standard." These have been shaped by historical context, ecosystem maturity, and community size. Unless there is a compelling reason otherwise, following the standard is the rational approach.
 
-### 1.1 Web 開発
+### 1.1 Web Development
 
 ```
 +===================================================================+
-|                       Web 開発の言語マップ                          |
+|                      Web Development Language Map                   |
 +===================================================================+
 |                                                                   |
-|  ブラウザ（クライアント）                                           |
+|  Browser (Client-Side)                                            |
 |  +-------------------------------------------------------------+ |
-|  | JavaScript / TypeScript  ← 事実上の唯一の選択肢               | |
-|  |   + フレームワーク: React, Vue, Svelte, Angular               | |
-|  |   + メタフレームワーク: Next.js, Nuxt, SvelteKit, Remix       | |
-|  |   + ビルドツール: Vite, Turbopack, esbuild                   | |
-|  |   + WebAssembly(Rust/C++/Go) で一部処理を高速化可能            | |
+|  | JavaScript / TypeScript  <- Virtually the only choice        | |
+|  |   + Frameworks: React, Vue, Svelte, Angular                  | |
+|  |   + Meta-frameworks: Next.js, Nuxt, SvelteKit, Remix         | |
+|  |   + Build tools: Vite, Turbopack, esbuild                    | |
+|  |   + WebAssembly (Rust/C++/Go) can accelerate some processing | |
 |  +-------------------------------------------------------------+ |
 |                          |  HTTP / WebSocket                      |
 |                          v                                        |
-|  サーバー（バックエンド）                                           |
+|  Server (Backend)                                                 |
 |  +-------------------------------------------------------------+ |
 |  | TypeScript(Node/Deno/Bun) | Python | Go | Java/Kotlin        | |
 |  | Rust | Ruby | PHP | C# | Elixir                              | |
 |  +-------------------------------------------------------------+ |
 |                          |  SQL / ORM / Driver                    |
 |                          v                                        |
-|  データ層                                                          |
+|  Data Layer                                                       |
 |  +-------------------------------------------------------------+ |
 |  | PostgreSQL | MySQL | MongoDB | Redis | DynamoDB               | |
 |  +-------------------------------------------------------------+ |
 +===================================================================+
 ```
 
-#### バックエンド言語の詳細比較
+#### Detailed Backend Language Comparison
 
 ```
   +----------------+-------------------------------------------+
-  | 言語            | 特徴・適用                                 |
+  | Language        | Characteristics & Applications             |
   +----------------+-------------------------------------------+
-  | TypeScript     | フルスタック統一。中小規模に最適             |
-  | (Node.js/Bun)  | npm エコシステム。リアルタイム得意           |
+  | TypeScript     | Full-stack unification. Optimal for small  |
+  | (Node.js/Bun)  | to mid-scale. npm ecosystem. Real-time    |
   +----------------+-------------------------------------------+
-  | Python         | AI/ML連携、プロトタイプ、Django/Flask       |
-  | (FastAPI)      | 型ヒント + 非同期で高速化                   |
+  | Python         | AI/ML integration, prototyping, Django/    |
+  | (FastAPI)      | Flask. Type hints + async for speed        |
   +----------------+-------------------------------------------+
-  | Go             | 高パフォーマンス API、マイクロサービス       |
-  |                | 標準ライブラリが充実、デプロイ容易           |
+  | Go             | High-performance APIs, microservices.      |
+  |                | Rich standard library, easy deployment     |
   +----------------+-------------------------------------------+
-  | Java/Kotlin    | エンタープライズ、大規模チーム              |
-  | (Spring Boot)  | 堅牢な型、長期保守に強い                    |
+  | Java/Kotlin    | Enterprise, large-scale teams.             |
+  | (Spring Boot)  | Robust types, strong long-term maintenance |
   +----------------+-------------------------------------------+
-  | Rust           | 高パフォーマンス + メモリ安全               |
-  | (Axum/Actix)   | CPU密集型処理、システム寄りの API           |
+  | Rust           | High performance + memory safety.          |
+  | (Axum/Actix)   | CPU-intensive processing, system-level APIs|
   +----------------+-------------------------------------------+
-  | Ruby (Rails)   | 高速プロトタイピング、MVP 開発              |
+  | Ruby (Rails)   | Rapid prototyping, MVP development.        |
   |                | Convention over Configuration              |
   +----------------+-------------------------------------------+
-  | PHP (Laravel)  | 膨大なホスティング対応、WordPress            |
-  |                | Laravel で現代的開発が可能                  |
+  | PHP (Laravel)  | Vast hosting support, WordPress.           |
+  |                | Modern development possible with Laravel   |
   +----------------+-------------------------------------------+
-  | C# (ASP.NET)  | Windows エコシステム、Azure 統合            |
-  |                | Blazor で WASM 対応も可能                  |
+  | C# (ASP.NET)  | Windows ecosystem, Azure integration.      |
+  |                | WASM support possible via Blazor           |
   +----------------+-------------------------------------------+
-  | Elixir         | 大量同時接続、リアルタイム処理              |
-  | (Phoenix)      | Erlang VM の耐障害性を継承                 |
+  | Elixir         | Massive concurrent connections, real-time  |
+  | (Phoenix)      | processing. Inherits Erlang VM's fault     |
+  |                | tolerance                                  |
   +----------------+-------------------------------------------+
 ```
 
-#### コード例: 各言語での HTTP API エンドポイント
+#### Code Examples: HTTP API Endpoints in Different Languages
 
-以下に、同一の「ユーザー情報を返す GET エンドポイント」を 5 つの言語で実装する。この比較により、各言語の構文スタイル・冗長性・エコシステムの違いが明確になる。
+Below, we implement the same "GET endpoint that returns user information" in 5 languages. This comparison clarifies the differences in syntax style, verbosity, and ecosystem of each language.
 
 **TypeScript (Express)**
 
 ```typescript
-// TypeScript + Express: 簡潔で型安全な API 定義
+// TypeScript + Express: Concise and type-safe API definition
 import express, { Request, Response } from "express";
 
 interface User {
@@ -154,13 +155,13 @@ interface User {
 }
 
 const users: User[] = [
-  { id: 1, name: "田中太郎", email: "tanaka@example.com", role: "admin" },
-  { id: 2, name: "佐藤花子", email: "sato@example.com", role: "member" },
+  { id: 1, name: "Taro Tanaka", email: "tanaka@example.com", role: "admin" },
+  { id: 2, name: "Hanako Sato", email: "sato@example.com", role: "member" },
 ];
 
 const app = express();
 
-// GET /users/:id - ユーザー情報の取得
+// GET /users/:id - Retrieve user information
 app.get("/users/:id", (req: Request, res: Response) => {
   const userId = parseInt(req.params.id, 10);
   const user = users.find((u) => u.id === userId);
@@ -179,7 +180,7 @@ app.listen(3000, () => {
 **Python (FastAPI)**
 
 ```python
-# Python + FastAPI: 型ヒントから自動的に API ドキュメントを生成
+# Python + FastAPI: Automatically generates API documentation from type hints
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from enum import Enum
@@ -196,13 +197,13 @@ class User(BaseModel):
     role: Role
 
 users_db: dict[int, User] = {
-    1: User(id=1, name="田中太郎", email="tanaka@example.com", role=Role.admin),
-    2: User(id=2, name="佐藤花子", email="sato@example.com", role=Role.member),
+    1: User(id=1, name="Taro Tanaka", email="tanaka@example.com", role=Role.admin),
+    2: User(id=2, name="Hanako Sato", email="sato@example.com", role=Role.member),
 }
 
 app = FastAPI()
 
-# GET /users/{user_id} - ユーザー情報の取得
+# GET /users/{user_id} - Retrieve user information
 @app.get("/users/{user_id}", response_model=User)
 async def get_user(user_id: int) -> User:
     if user_id not in users_db:
@@ -210,10 +211,10 @@ async def get_user(user_id: int) -> User:
     return users_db[user_id]
 ```
 
-**Go (標準ライブラリ)**
+**Go (Standard Library)**
 
 ```go
-// Go: 標準ライブラリだけで HTTP サーバーを構築可能
+// Go: Can build an HTTP server using only the standard library
 package main
 
 import (
@@ -231,12 +232,12 @@ type User struct {
 }
 
 var users = map[int]User{
-    1: {ID: 1, Name: "田中太郎", Email: "tanaka@example.com", Role: "admin"},
-    2: {ID: 2, Name: "佐藤花子", Email: "sato@example.com", Role: "member"},
+    1: {ID: 1, Name: "Taro Tanaka", Email: "tanaka@example.com", Role: "admin"},
+    2: {ID: 2, Name: "Hanako Sato", Email: "sato@example.com", Role: "member"},
 }
 
 func getUserHandler(w http.ResponseWriter, r *http.Request) {
-    // パスからユーザーIDを抽出
+    // Extract user ID from the path
     parts := strings.Split(r.URL.Path, "/")
     if len(parts) < 3 {
         http.Error(w, `{"error":"invalid path"}`, http.StatusBadRequest)
@@ -268,7 +269,7 @@ func main() {
 **Rust (Axum)**
 
 ```rust
-// Rust + Axum: コンパイル時の型安全性とゼロコスト抽象化
+// Rust + Axum: Compile-time type safety and zero-cost abstractions
 use axum::{
     extract::Path,
     http::StatusCode,
@@ -292,13 +293,13 @@ static USERS: LazyLock<HashMap<u32, User>> = LazyLock::new(|| {
     let mut m = HashMap::new();
     m.insert(1, User {
         id: 1,
-        name: "田中太郎".into(),
+        name: "Taro Tanaka".into(),
         email: "tanaka@example.com".into(),
         role: "admin".into(),
     });
     m.insert(2, User {
         id: 2,
-        name: "佐藤花子".into(),
+        name: "Hanako Sato".into(),
         email: "sato@example.com".into(),
         role: "member".into(),
     });
@@ -328,7 +329,7 @@ async fn main() {
 **Java (Spring Boot)**
 
 ```java
-// Java + Spring Boot: アノテーション駆動の宣言的 API 定義
+// Java + Spring Boot: Annotation-driven declarative API definition
 package com.example.api;
 
 import org.springframework.http.ResponseEntity;
@@ -343,11 +344,11 @@ record User(int id, String name, String email, String role) {}
 public class UserController {
 
     private final Map<Integer, User> users = new ConcurrentHashMap<>(Map.of(
-        1, new User(1, "田中太郎", "tanaka@example.com", "admin"),
-        2, new User(2, "佐藤花子", "sato@example.com", "member")
+        1, new User(1, "Taro Tanaka", "tanaka@example.com", "admin"),
+        2, new User(2, "Hanako Sato", "sato@example.com", "member")
     ));
 
-    // GET /users/{id} - ユーザー情報の取得
+    // GET /users/{id} - Retrieve user information
     @GetMapping("/{id}")
     public ResponseEntity<User> getUser(@PathVariable int id) {
         User user = users.get(id);
@@ -359,143 +360,143 @@ public class UserController {
 }
 ```
 
-> **観察ポイント**: 同じ機能でも行数・構文・型の表現力が大きく異なる。TypeScript と Python は簡潔で立ち上がりが速く、Go は標準ライブラリだけで完結し、Rust はコンパイル時の安全保証が強力で、Java はアノテーションによる宣言的定義が特徴的である。
+> **Key Observation**: Even for identical functionality, the line count, syntax, and type expressiveness differ significantly. TypeScript and Python are concise with fast startup, Go is self-contained with just its standard library, Rust offers strong compile-time safety guarantees, and Java is characterized by declarative definitions through annotations.
 
-### 1.2 モバイル開発
+### 1.2 Mobile Development
 
 ```
 +-----------------------------------------------------------------+
-|                     モバイル開発の選択肢                          |
+|                     Mobile Development Options                    |
 +-----------------------------------------------------------------+
 |                                                                 |
-|  ネイティブ開発                                                  |
+|  Native Development                                             |
 |  +---------------------------+  +----------------------------+  |
 |  |        iOS               |  |        Android             |  |
-|  |  Swift (推奨)             |  |  Kotlin (推奨)             |  |
-|  |  Objective-C (レガシー)   |  |  Java (レガシー)            |  |
-|  |  SwiftUI / UIKit         |  |  Jetpack Compose / XML     |  |
+|  |  Swift (recommended)      |  |  Kotlin (recommended)      |  |
+|  |  Objective-C (legacy)     |  |  Java (legacy)             |  |
+|  |  SwiftUI / UIKit          |  |  Jetpack Compose / XML     |  |
 |  +---------------------------+  +----------------------------+  |
 |                                                                 |
-|  クロスプラットフォーム                                           |
+|  Cross-Platform                                                  |
 |  +-----------------------------------------------------------+ |
 |  | Flutter (Dart)                                             | |
-|  |   - 独自レンダリングエンジン (Skia/Impeller)                | |
-|  |   - UI の細部までピクセル単位の制御が可能                     | |
-|  |   - iOS / Android / Web / Desktop 全対応                   | |
+|  |   - Custom rendering engine (Skia/Impeller)                | |
+|  |   - Pixel-level control over UI details                    | |
+|  |   - Full support: iOS / Android / Web / Desktop            | |
 |  +-----------------------------------------------------------+ |
 |  | React Native (JavaScript/TypeScript)                       | |
-|  |   - Web 開発者が参入しやすい                                 | |
-|  |   - ネイティブコンポーネントをブリッジで呼び出し              | |
-|  |   - Expo で開発体験が大幅向上                                | |
+|  |   - Easy entry for web developers                          | |
+|  |   - Calls native components through a bridge               | |
+|  |   - Significantly improved DX with Expo                    | |
 |  +-----------------------------------------------------------+ |
 |  | Kotlin Multiplatform (KMP)                                 | |
-|  |   - ビジネスロジックを Kotlin で共有                         | |
-|  |   - UI は各プラットフォームのネイティブで構築                 | |
-|  |   - 段階的な導入が可能                                      | |
+|  |   - Share business logic in Kotlin                         | |
+|  |   - Build UI with native platform toolkits                 | |
+|  |   - Gradual adoption possible                              | |
 |  +-----------------------------------------------------------+ |
 +-----------------------------------------------------------------+
 ```
 
-#### モバイル言語の選定フローチャート
+#### Mobile Language Selection Flowchart
 
 ```
-  iOS のみ必要？
+  Need iOS only?
   |
-  +-- Yes --> Swift（SwiftUI が第一候補）
+  +-- Yes --> Swift (SwiftUI is the top candidate)
   |
-  +-- No --> Android のみ必要？
+  +-- No --> Need Android only?
               |
-              +-- Yes --> Kotlin（Jetpack Compose が第一候補）
+              +-- Yes --> Kotlin (Jetpack Compose is the top candidate)
               |
-              +-- No --> 両方必要
+              +-- No --> Need both
                           |
-                          +-- チームに Web 開発者が多い？
+                          +-- Does the team have many web developers?
                           |    |
                           |    +-- Yes --> React Native
-                          |    +-- No  --> UI の一貫性が最重要？
+                          |    +-- No  --> Is UI consistency the top priority?
                           |                |
                           |                +-- Yes --> Flutter
                           |                +-- No  --> KMP
 ```
 
-### 1.3 データサイエンス・AI/ML
+### 1.3 Data Science & AI/ML
 
-| 領域 | 推奨言語 | 主要ライブラリ/ツール | 理由 |
+| Domain | Recommended Language | Major Libraries/Tools | Reason |
 |------|---------|---------------------|------|
-| データ分析 | Python | pandas, polars, matplotlib | エコシステムの圧倒的充実 |
-| 機械学習 | Python | scikit-learn, XGBoost | 研究→実装の移行が最速 |
-| 深層学習 | Python | PyTorch, JAX | GPU 計算との統合が成熟 |
-| データエンジニアリング | Python + SQL | Spark, dbt, Airflow | パイプライン構築の標準 |
-| 統計分析 | R / Python | tidyverse, statsmodels | R は可視化と統計検定に優位 |
-| 高速推論 | C++ / Rust | ONNX Runtime, TensorRT | レイテンシ要件が厳しい本番環境 |
-| LLM アプリ | Python + TS | LangChain, LlamaIndex | Python でプロトタイプ、TS でフロント |
+| Data Analysis | Python | pandas, polars, matplotlib | Overwhelmingly rich ecosystem |
+| Machine Learning | Python | scikit-learn, XGBoost | Fastest research-to-implementation transition |
+| Deep Learning | Python | PyTorch, JAX | Mature GPU computation integration |
+| Data Engineering | Python + SQL | Spark, dbt, Airflow | Standard for pipeline construction |
+| Statistical Analysis | R / Python | tidyverse, statsmodels | R excels at visualization and statistical tests |
+| High-Speed Inference | C++ / Rust | ONNX Runtime, TensorRT | Production environments with strict latency requirements |
+| LLM Applications | Python + TS | LangChain, LlamaIndex | Prototype in Python, frontend in TS |
 
-### 1.4 システム・インフラストラクチャ
+### 1.4 Systems & Infrastructure
 
 ```
-  用途別の言語選定マップ
+  Language Selection Map by Use Case
   =====================
 
-  OS カーネル / ドライバ
+  OS Kernels / Drivers
     └──> C / Rust
-         (ハードウェア直接制御、ゼロオーバーヘッド抽象化)
+         (Direct hardware control, zero-overhead abstractions)
 
-  組み込み / IoT
+  Embedded / IoT
     └──> C / C++ / Rust / MicroPython
-         (メモリ制約、リアルタイム性)
+         (Memory constraints, real-time requirements)
 
-  CLI ツール
+  CLI Tools
     └──> Go / Rust
-         (シングルバイナリ、クロスコンパイル)
+         (Single binary, cross-compilation)
 
-  DevOps スクリプト
+  DevOps Scripts
     └──> Python / Bash / Go
-         (自動化、テキスト処理)
+         (Automation, text processing)
 
-  コンテナ / クラウド基盤
+  Containers / Cloud Infrastructure
     └──> Go
          (Docker, Kubernetes, Terraform, Prometheus)
 
-  ネットワークプログラミング
+  Network Programming
     └──> Go / Rust / C++
-         (高並行性、低レイテンシ)
+         (High concurrency, low latency)
 
-  ゲームエンジン
+  Game Engines
     └──> C++ (Unreal) / C# (Unity) / Rust (Bevy)
-         (フレームレート要件、GPU 制御)
+         (Frame rate requirements, GPU control)
 ```
 
-### 1.5 ドメイン別推奨言語のサマリー表
+### 1.5 Domain-Specific Recommended Language Summary Table
 
-| ドメイン | 第一候補 | 第二候補 | 避けるべき選択 |
+| Domain | First Choice | Second Choice | Choices to Avoid |
 |---------|---------|---------|--------------|
-| Web フロントエンド | TypeScript | JavaScript | Java, Python |
-| Web バックエンド (小規模) | TypeScript / Python | Ruby / PHP | C++ |
-| Web バックエンド (大規模) | Go / Java / Kotlin | TypeScript / C# | Bash |
-| iOS アプリ | Swift | Flutter (Dart) | Java |
-| Android アプリ | Kotlin | Flutter (Dart) | Objective-C |
-| データサイエンス | Python | R | Go, Rust |
-| 機械学習 | Python | Julia | PHP, Ruby |
-| システムプログラミング | Rust | C / C++ | Python, JavaScript |
-| CLI ツール | Go | Rust | Java |
-| DevOps / 自動化 | Python | Go / Bash | C++ |
-| ゲーム開発 | C# (Unity) / C++ | Rust (Bevy) | Python |
-| ブロックチェーン | Solidity / Rust | Go | PHP |
+| Web Frontend | TypeScript | JavaScript | Java, Python |
+| Web Backend (small-scale) | TypeScript / Python | Ruby / PHP | C++ |
+| Web Backend (large-scale) | Go / Java / Kotlin | TypeScript / C# | Bash |
+| iOS Apps | Swift | Flutter (Dart) | Java |
+| Android Apps | Kotlin | Flutter (Dart) | Objective-C |
+| Data Science | Python | R | Go, Rust |
+| Machine Learning | Python | Julia | PHP, Ruby |
+| Systems Programming | Rust | C / C++ | Python, JavaScript |
+| CLI Tools | Go | Rust | Java |
+| DevOps / Automation | Python | Go / Bash | C++ |
+| Game Development | C# (Unity) / C++ | Rust (Bevy) | Python |
+| Blockchain | Solidity / Rust | Go | PHP |
 
 ---
 
-## 第2章: 言語の技術的特性比較
+## Chapter 2: Technical Characteristics Comparison
 
-言語選定においては、表面的な「人気度」ではなく、技術的特性の理解が不可欠である。ここでは 6 つの軸で主要言語を比較する。
+In language selection, understanding technical characteristics is essential rather than relying on superficial "popularity." Here we compare major languages across 6 axes.
 
-### 2.1 型システム
+### 2.1 Type Systems
 
 ```
-  型システムのスペクトラム
+  Type System Spectrum
   =======================
 
-  動的型付け                                静的型付け
-  (実行時に型チェック)                       (コンパイル時に型チェック)
+  Dynamic Typing                                Static Typing
+  (Type checked at runtime)                     (Type checked at compile time)
   <------------------------------------------------------>
 
   Python    Ruby    JavaScript   TypeScript   Go   Java   Rust   Haskell
@@ -503,163 +504,164 @@ public class UserController {
 
                                      ^
                                      |
-                               TypeScript は
-                             JavaScript に型を
-                              後付けした言語
+                               TypeScript is
+                             a language that added
+                              types to JavaScript
 
   +----------------------------------------------------------------+
-  | 漸進的型付け (Gradual Typing)                                    |
-  |  Python (型ヒント), TypeScript, PHP (型宣言)                    |
-  |  → 動的言語に型を段階的に導入可能                                |
+  | Gradual Typing                                                  |
+  |  Python (type hints), TypeScript, PHP (type declarations)       |
+  |  -> Can gradually introduce types to dynamic languages          |
   +----------------------------------------------------------------+
 ```
 
-#### 型システムの強度比較表
+#### Type System Strength Comparison Table
 
-| 言語 | 型付け | 型推論 | Null安全 | ジェネリクス | 代数的データ型 |
+| Language | Typing | Type Inference | Null Safety | Generics | Algebraic Data Types |
 |------|--------|--------|----------|-------------|--------------|
-| Python | 動的 (型ヒント可) | N/A | Optional型 | Yes | match文 (3.10+) |
-| JavaScript | 動的 | N/A | なし | N/A | なし |
-| TypeScript | 静的 (構造的) | 強力 | strictNullChecks | Yes | 判別共用体 |
-| Go | 静的 (公称的) | `:=`で推論 | nil (ポインタ) | Yes (1.18+) | なし |
-| Java | 静的 (公称的) | var (10+) | Optional | Yes (型消去) | sealed (17+) |
-| Kotlin | 静的 (公称的) | 強力 | 言語組込み `?` | Yes (具象化可) | sealed class |
-| Rust | 静的 (公称的) | 強力 | Option\<T\> | Yes (単相化) | enum (強力) |
-| Swift | 静的 (公称的) | 強力 | Optional `?` | Yes | enum + associated |
-| Haskell | 静的 (公称的) | Hindley-Milner | Maybe | Yes (高カインド) | ADT (最強) |
+| Python | Dynamic (type hints available) | N/A | Optional type | Yes | match statement (3.10+) |
+| JavaScript | Dynamic | N/A | None | N/A | None |
+| TypeScript | Static (structural) | Powerful | strictNullChecks | Yes | Discriminated unions |
+| Go | Static (nominal) | Inferred with `:=` | nil (pointers) | Yes (1.18+) | None |
+| Java | Static (nominal) | var (10+) | Optional | Yes (type erasure) | sealed (17+) |
+| Kotlin | Static (nominal) | Powerful | Built-in `?` | Yes (reifiable) | sealed class |
+| Rust | Static (nominal) | Powerful | Option\<T\> | Yes (monomorphization) | enum (powerful) |
+| Swift | Static (nominal) | Powerful | Optional `?` | Yes | enum + associated |
+| Haskell | Static (nominal) | Hindley-Milner | Maybe | Yes (higher-kinded) | ADT (strongest) |
 
-### 2.2 メモリ管理モデル
+### 2.2 Memory Management Models
 
 ```
-  メモリ管理の 3 つのアプローチ
+  Three Approaches to Memory Management
   ============================
 
-  [手動管理]          [ガベージコレクション]     [所有権システム]
-  C / C++            Java, Go, Python,         Rust
-                     JavaScript, C#,
-                     Ruby, Kotlin
+  [Manual Management]          [Garbage Collection]          [Ownership System]
+  C / C++                     Java, Go, Python,             Rust
+                              JavaScript, C#,
+                              Ruby, Kotlin
 
-  malloc/free        ランタイムが自動回収        コンパイル時にメモリの
-  を開発者が          参照を追跡して未使用        ライフタイムを解析
-  明示的に呼ぶ        メモリを解放               → GC不要 + メモリ安全
+  Developer explicitly         Runtime automatically          Compiler analyzes
+  calls malloc/free            tracks references and          memory lifetimes
+                              frees unused memory            at compile time
+                                                             -> No GC + memory safe
 
-  長所:               長所:                     長所:
-  - 最大性能          - 開発者の負荷が少ない      - GCなしで安全
-  - 予測可能な遅延     - メモリリーク防止          - 予測可能な性能
-                                                - データ競合を防止
-  短所:               短所:                     短所:
-  - メモリリーク       - GC停止(STW)              - 学習曲線が急
-  - 解放後使用         - メモリ使用量が多め        - コンパイル時間
-  - バッファオーバーフロー - レイテンシの変動       - 設計の制約
+  Pros:                       Pros:                         Pros:
+  - Maximum performance       - Low developer burden         - Safe without GC
+  - Predictable latency       - Prevents memory leaks        - Predictable performance
+                                                             - Prevents data races
+  Cons:                       Cons:                         Cons:
+  - Memory leaks              - GC pauses (STW)              - Steep learning curve
+  - Use after free            - Higher memory usage           - Compile times
+  - Buffer overflows          - Latency variability           - Design constraints
 ```
 
-### 2.3 並行・並列処理モデル
+### 2.3 Concurrency and Parallelism Models
 
-| モデル | 言語 | 仕組み | 適用場面 |
+| Model | Languages | Mechanism | Use Cases |
 |--------|------|--------|---------|
-| OS スレッド | Java, C++, Rust | OS がスケジュール | CPU 集中型タスク |
-| グリーンスレッド | Go (goroutine) | ランタイムがスケジュール | 大量の I/O 待ち |
-| async/await | Python, Rust, JS, C# | イベントループ + Future/Promise | I/O バウンドな処理 |
-| アクターモデル | Erlang/Elixir, Akka(Scala) | メッセージパッシング | 分散・耐障害性 |
-| CSP | Go (channel) | チャネル通信 | パイプライン処理 |
-| GIL 制約 | Python (CPython) | グローバルロック | マルチスレッド非推奨 |
+| OS Threads | Java, C++, Rust | OS-scheduled | CPU-intensive tasks |
+| Green Threads | Go (goroutine) | Runtime-scheduled | Massive I/O waiting |
+| async/await | Python, Rust, JS, C# | Event loop + Future/Promise | I/O-bound processing |
+| Actor Model | Erlang/Elixir, Akka(Scala) | Message passing | Distributed fault tolerance |
+| CSP | Go (channel) | Channel communication | Pipeline processing |
+| GIL Constraint | Python (CPython) | Global lock | Multi-threading not recommended |
 
-### 2.4 実行モデル
+### 2.4 Execution Models
 
 ```
-  ソースコード → 実行 までの流れ
+  From Source Code to Execution
   =============================
 
-  [AOT コンパイル (Ahead-Of-Time)]
+  [AOT Compilation (Ahead-Of-Time)]
   C, C++, Rust, Go, Swift
-  ソース --[コンパイラ]--> ネイティブバイナリ --[OS]--> 実行
-  長所: 最高の実行速度、配布が容易
-  短所: コンパイル待ち、プラットフォーム別ビルド
+  Source --[Compiler]--> Native binary --[OS]--> Execution
+  Pros: Fastest execution speed, easy distribution
+  Cons: Compilation wait time, platform-specific builds
 
-  [JIT コンパイル (Just-In-Time)]
+  [JIT Compilation (Just-In-Time)]
   Java(JVM), C#(CLR), JavaScript(V8)
-  ソース --[コンパイラ]--> 中間コード --[JITコンパイラ]--> 実行
-  長所: 実行時最適化、ポータビリティ
-  短所: ウォームアップ時間、メモリ消費
+  Source --[Compiler]--> Intermediate code --[JIT Compiler]--> Execution
+  Pros: Runtime optimization, portability
+  Cons: Warm-up time, memory consumption
 
-  [インタープリタ]
+  [Interpreter]
   Python(CPython), Ruby(MRI), PHP
-  ソース --[インタープリタ]--> 逐次実行
-  長所: 即座に実行可能、対話的開発
-  短所: 実行速度が遅い
-  ※ 多くの言語は内部的にバイトコードに変換してから実行
+  Source --[Interpreter]--> Sequential execution
+  Pros: Immediate execution, interactive development
+  Cons: Slow execution speed
+  * Many languages internally convert to bytecode before execution
 
-  [トランスパイル]
+  [Transpilation]
   TypeScript --> JavaScript
   Kotlin/JS  --> JavaScript
-  ソースA --[トランスパイラ]--> ソースB --[対象ランタイム]--> 実行
+  SourceA --[Transpiler]--> SourceB --[Target Runtime]--> Execution
 ```
 
 ---
 
-## 第3章: 言語パラダイムと設計哲学
+## Chapter 3: Language Paradigms and Design Philosophy
 
-### 3.1 主要パラダイム
+### 3.1 Major Paradigms
 
-プログラミング言語はそれぞれ固有の「世界の見方」を持っている。この哲学的基盤がパラダイムであり、コードの構造と問題の分解方法を根本的に規定する。
+Programming languages each have their own unique "worldview." This philosophical foundation is the paradigm, which fundamentally governs code structure and problem decomposition.
 
 ```
-  パラダイムの系統図
+  Paradigm Family Tree
   =================
 
-  プログラミングパラダイム
+  Programming Paradigms
   |
-  +-- 命令型 (Imperative)
-  |   |   "手順を一つずつ指示する"
+  +-- Imperative
+  |   |   "Give step-by-step instructions"
   |   |
-  |   +-- 手続き型 (Procedural)
+  |   +-- Procedural
   |   |     C, Pascal, Fortran
-  |   |     → 関数(手続き)で処理を分割
+  |   |     -> Divide processing with functions (procedures)
   |   |
-  |   +-- オブジェクト指向 (Object-Oriented)
+  |   +-- Object-Oriented
   |         Java, C#, Python, Ruby, Kotlin, Swift
-  |         → データと振る舞いをオブジェクトにカプセル化
+  |         -> Encapsulate data and behavior in objects
   |
-  +-- 宣言型 (Declarative)
-      |   "何を求めるかを宣言する"
+  +-- Declarative
+      |   "Declare what you want"
       |
-      +-- 関数型 (Functional)
+      +-- Functional
       |     Haskell, Erlang, Clojure, OCaml, F#
-      |     → 純粋関数と不変データ、副作用の隔離
+      |     -> Pure functions and immutable data, isolation of side effects
       |
-      +-- 論理型 (Logic)
+      +-- Logic
       |     Prolog
-      |     → 論理規則と事実から推論
+      |     -> Inference from logical rules and facts
       |
-      +-- 問い合わせ型 (Query)
+      +-- Query
             SQL
-            → データの抽出条件を宣言的に記述
+            -> Declaratively describe data extraction conditions
 ```
 
-> **マルチパラダイム言語**: 現代の多くの言語は複数のパラダイムを融合している。Python, Scala, Kotlin, Rust, TypeScript, Swift はいずれもオブジェクト指向と関数型の要素を併せ持つ。
+> **Multi-paradigm languages**: Many modern languages blend multiple paradigms. Python, Scala, Kotlin, Rust, TypeScript, and Swift all combine elements of object-oriented and functional programming.
 
-### 3.2 設計哲学の比較
+### 3.2 Design Philosophy Comparison
 
-各言語には設計哲学（Design Philosophy）がある。これは言語の API 設計・エコシステム・コミュニティの文化に深く影響する。
+Each language has a design philosophy. This deeply influences the language's API design, ecosystem, and community culture.
 
-| 言語 | 設計哲学 | 具体的な影響 |
+| Language | Design Philosophy | Concrete Impact |
 |------|---------|-------------|
-| Python | "There should be one obvious way to do it" | コードの読みやすさ重視、PEP 8 |
-| Go | "Less is more" / 単純さ | ジェネリクス後発、エラー処理が明示的 |
-| Rust | "Safety without compromise" | 所有権、borrow checker |
-| Ruby | "Developer happiness" | DSL 的なコード、メタプログラミング |
-| Java | "Write once, run anywhere" | JVM、エンタープライズ向け安定性 |
-| Perl | "There's more than one way to do it" | 柔軟だが読みづらい |
-| Erlang | "Let it crash" | 耐障害性、スーパーバイザーツリー |
-| Haskell | "Avoid success at all costs" | 型安全性の極限追求 |
-| JavaScript | "Don't break the web" | 後方互換性、柔軟な型変換 |
-| C++ | "Zero overhead abstraction" | 多機能だが複雑 |
+| Python | "There should be one obvious way to do it" | Emphasis on code readability, PEP 8 |
+| Go | "Less is more" / Simplicity | Late adoption of generics, explicit error handling |
+| Rust | "Safety without compromise" | Ownership, borrow checker |
+| Ruby | "Developer happiness" | DSL-like code, metaprogramming |
+| Java | "Write once, run anywhere" | JVM, enterprise-grade stability |
+| Perl | "There's more than one way to do it" | Flexible but hard to read |
+| Erlang | "Let it crash" | Fault tolerance, supervisor trees |
+| Haskell | "Avoid success at all costs" | Extreme pursuit of type safety |
+| JavaScript | "Don't break the web" | Backward compatibility, flexible type coercion |
+| C++ | "Zero overhead abstraction" | Feature-rich but complex |
 
-### 3.3 コード例: パラダイムによる問題解決の違い
+### 3.3 Code Examples: Problem-Solving Differences by Paradigm
 
-「1 から 100 までの整数のうち、3 の倍数かつ偶数であるものの合計を求める」
+"Find the sum of all integers from 1 to 100 that are multiples of 3 and even"
 
-**手続き型 (C)**
+**Procedural (C)**
 
 ```c
 #include <stdio.h>
@@ -671,12 +673,12 @@ int main(void) {
             sum += i;
         }
     }
-    printf("合計: %d\n", sum);  // 合計: 918
+    printf("Sum: %d\n", sum);  // Sum: 918
     return 0;
 }
 ```
 
-**オブジェクト指向 (Java)**
+**Object-Oriented (Java)**
 
 ```java
 import java.util.stream.IntStream;
@@ -686,20 +688,20 @@ public class Sum {
         int sum = IntStream.rangeClosed(1, 100)
             .filter(i -> i % 3 == 0 && i % 2 == 0)
             .sum();
-        System.out.printf("合計: %d%n", sum);  // 合計: 918
+        System.out.printf("Sum: %d%n", sum);  // Sum: 918
     }
 }
 ```
 
-**関数型 (Haskell)**
+**Functional (Haskell)**
 
 ```haskell
 main :: IO ()
 main = print $ sum [x | x <- [1..100], x `mod` 6 == 0]
--- 合計: 918 (3の倍数かつ偶数 = 6の倍数)
+-- Sum: 918 (multiples of 3 that are also even = multiples of 6)
 ```
 
-**宣言型 (SQL)**
+**Declarative (SQL)**
 
 ```sql
 SELECT SUM(n) AS total
@@ -710,184 +712,184 @@ WHERE n % 6 = 0;
 
 ---
 
-## 第4章: 言語選定の判断フレームワーク
+## Chapter 4: Decision Framework for Language Selection
 
-言語選定を属人的な「好み」から脱却させ、再現可能な意思決定プロセスとして体系化する。
+We systematize language selection from a subjective "preference" into a reproducible decision-making process.
 
-### 4.1 スコアカード方式
+### 4.1 Scorecard Method
 
-プロジェクトの要件に応じて評価項目に重み付けを行い、候補言語を定量的に比較する。
+Assign weights to evaluation criteria based on project requirements and quantitatively compare candidate languages.
 
 ```
-  評価項目と重み付け（Webバックエンド API の例）
+  Evaluation Criteria and Weighting (Example: Web Backend API)
 
   +-------------------+------+--------+------+--------+--------+
-  | 項目               | 重み | Python |  Go  |  Rust  |  Java  |
+  | Criterion          | Weight| Python |  Go  |  Rust  |  Java  |
   +-------------------+------+--------+------+--------+--------+
-  | チーム習熟度       | 25%  |   9    |  5   |   3    |   7    |
-  | エコシステム       | 20%  |   9    |  7   |   6    |   9    |
-  | 実行性能           | 15%  |   4    |  8   |  10    |   7    |
-  | 開発速度           | 15%  |   9    |  7   |   5    |   6    |
-  | 保守性             | 10%  |   6    |  8   |   9    |   8    |
-  | 採用のしやすさ     | 10%  |   9    |  6   |   5    |   8    |
-  | デプロイ容易性     |  5%  |   6    | 10   |   9    |   5    |
+  | Team Proficiency   | 25%  |   9    |  5   |   3    |   7    |
+  | Ecosystem          | 20%  |   9    |  7   |   6    |   9    |
+  | Runtime Performance| 15%  |   4    |  8   |  10    |   7    |
+  | Development Speed  | 15%  |   9    |  7   |   5    |   6    |
+  | Maintainability    | 10%  |   6    |  8   |   9    |   8    |
+  | Hiring Ease        | 10%  |   9    |  6   |   5    |   8    |
+  | Deployment Ease    |  5%  |   6    | 10   |   9    |   5    |
   +-------------------+------+--------+------+--------+--------+
-  | 加重スコア         |      |  7.7   | 6.7  |  5.8   |  7.2   |
+  | Weighted Score     |      |  7.7   | 6.7  |  5.8   |  7.2   |
   +-------------------+------+--------+------+--------+--------+
 
-  計算方法:
+  Calculation:
     Python = 9*0.25 + 9*0.20 + 4*0.15 + 9*0.15 + 6*0.10 + 9*0.10 + 6*0.05
            = 2.25 + 1.80 + 0.60 + 1.35 + 0.60 + 0.90 + 0.30
-           = 7.80 (四捨五入: 7.8)
+           = 7.80 (rounded: 7.8)
 
-  → この例ではPythonが最適という結論
-  ※ 重みはプロジェクトの性質で変わる
-  ※ 性能要件が最重要ならRustのスコアが逆転する
+  -> In this example, Python is the optimal choice
+  * Weights vary depending on project characteristics
+  * If performance is the top requirement, Rust's score would overtake
 ```
 
-#### スコアカードの重み付けパターン
+#### Scorecard Weighting Patterns
 
-| プロジェクト特性 | 重視すべき項目 | 重みを上げる項目 |
+| Project Characteristics | Criteria to Emphasize | Items to Increase Weight |
 |---------------|---------------|----------------|
-| スタートアップ MVP | 開発速度 | 開発速度 30%, エコシステム 25% |
-| エンタープライズ | 保守性・チーム | チーム習熟度 30%, 保守性 20% |
-| 高トラフィック | 性能 | 実行性能 30%, デプロイ容易性 15% |
-| 研究開発 | エコシステム | エコシステム 30%, 開発速度 25% |
-| 長期運用 (10年+) | 保守性・人材 | 保守性 25%, 採用しやすさ 20% |
+| Startup MVP | Development speed | Development Speed 30%, Ecosystem 25% |
+| Enterprise | Maintainability & team | Team Proficiency 30%, Maintainability 20% |
+| High Traffic | Performance | Runtime Performance 30%, Deployment Ease 15% |
+| R&D | Ecosystem | Ecosystem 30%, Development Speed 25% |
+| Long-term Operation (10+ years) | Maintainability & talent | Maintainability 25%, Hiring Ease 20% |
 
-### 4.2 制約ベース判断（ディシジョンツリー）
+### 4.2 Constraint-Based Decision (Decision Tree)
 
-一定の条件を満たさなければならない「ハード制約」がある場合、スコアカードの前にまず制約で候補を絞り込む。
+When there are "hard constraints" that must be satisfied, first narrow down candidates by constraints before applying the scorecard.
 
 ```
-  制約ベースの言語選定フロー
+  Constraint-Based Language Selection Flow
   =========================
 
   START
     |
     v
-  ブラウザで動く必要がある？
+  Must run in the browser?
     |
     +-- Yes --> JavaScript / TypeScript / WebAssembly
     |
     +-- No
          |
          v
-       iOS アプリ？
+       iOS app?
          |
-         +-- Yes --> Swift (ネイティブ) or Flutter/RN (クロス)
+         +-- Yes --> Swift (native) or Flutter/RN (cross-platform)
          |
          +-- No
               |
               v
-            レイテンシ < 1ms が必要？
+            Latency < 1ms required?
               |
-              +-- Yes --> C++ / Rust（GC なし言語）
+              +-- Yes --> C++ / Rust (no-GC languages)
               |
               +-- No
                    |
                    v
-                 チームサイズ > 50人？
+                 Team size > 50 people?
                    |
-                   +-- Yes --> 静的型付け言語
+                   +-- Yes --> Statically typed languages
                    |           (TypeScript, Go, Java, Kotlin)
                    |
                    +-- No
                         |
                         v
-                      AI/ML が中核機能？
+                      AI/ML is a core feature?
                         |
-                        +-- Yes --> Python + (高速部分は C++/Rust)
+                        +-- Yes --> Python + (C++/Rust for hot paths)
                         |
                         +-- No
                              |
                              v
-                           プロトタイプを 1 週間で？
+                           Prototype needed in 1 week?
                              |
                              +-- Yes --> Python / Ruby / JavaScript
                              |
                              +-- No
                                   |
                                   v
-                                10 年以上の保守が必要？
+                                Need 10+ years of maintenance?
                                   |
                                   +-- Yes --> Java / C# / Go / TS
                                   |
-                                  +-- No --> スコアカードで評価
+                                  +-- No --> Evaluate with scorecard
 ```
 
-### 4.3 意思決定マトリクス: 具体的シナリオ
+### 4.3 Decision Matrix: Specific Scenarios
 
-以下に、よくあるプロジェクトシナリオと推奨言語の対応を示す。
+Below are common project scenarios and their recommended language pairings.
 
-| シナリオ | 推奨言語 | 理由 |
+| Scenario | Recommended Language | Reason |
 |---------|---------|------|
-| SaaS MVP (3ヶ月) | TypeScript (Next.js) | フルスタック統一で最速の立ち上げ |
-| 社内管理システム | Java/Kotlin (Spring) | 長期保守、認証基盤が充実 |
-| リアルタイムチャット | Go / Elixir | 同時接続数、WebSocket 処理 |
-| ML 推論 API | Python (FastAPI) + Rust | Python でモデル管理、Rust で推論高速化 |
-| 動画変換サービス | Rust / C++ | CPU 集中型、メモリ効率が重要 |
-| EC サイト | PHP (Laravel) / Ruby (Rails) | 既存資産、開発速度 |
-| ブロックチェーン DApp | Rust (Solana) / Solidity (EVM) | プラットフォーム依存 |
-| IoT デバイス | C / Rust | メモリ制約、リアルタイム性 |
-| データパイプライン | Python + SQL | pandas/Spark エコシステム |
-| ゲーム (AAA) | C++ (Unreal) | パフォーマンス、業界標準 |
+| SaaS MVP (3 months) | TypeScript (Next.js) | Fastest launch with full-stack unification |
+| Internal Management System | Java/Kotlin (Spring) | Long-term maintenance, robust auth infrastructure |
+| Real-time Chat | Go / Elixir | Concurrent connections, WebSocket processing |
+| ML Inference API | Python (FastAPI) + Rust | Python for model management, Rust for inference speed |
+| Video Transcoding Service | Rust / C++ | CPU-intensive, memory efficiency critical |
+| E-commerce Site | PHP (Laravel) / Ruby (Rails) | Existing assets, development speed |
+| Blockchain DApp | Rust (Solana) / Solidity (EVM) | Platform-dependent |
+| IoT Device | C / Rust | Memory constraints, real-time requirements |
+| Data Pipeline | Python + SQL | pandas/Spark ecosystem |
+| AAA Game | C++ (Unreal) | Performance, industry standard |
 
-### 4.4 ADR (Architecture Decision Record) テンプレート
+### 4.4 ADR (Architecture Decision Record) Template
 
-言語選定の結果はチームの合意事項として ADR に記録することを推奨する。以下は実用的なテンプレートである。
+It is recommended to record language selection results as team consensus in an ADR. Below is a practical template.
 
 ```markdown
-# ADR-001: バックエンド言語の選定
+# ADR-001: Backend Language Selection
 
-## ステータス
-承認済み (2025-01-15)
+## Status
+Approved (2025-01-15)
 
-## コンテキスト
-- 新規 SaaS プロダクトのバックエンド API を開発する
-- チーム構成: バックエンド 5 名 (Python 経験者 4 名, Go 経験者 1 名)
-- 要件: REST API + WebSocket、ピーク時 10,000 req/s
-- 保守期間: 5 年以上
+## Context
+- Developing a backend API for a new SaaS product
+- Team composition: 5 backend engineers (4 with Python experience, 1 with Go experience)
+- Requirements: REST API + WebSocket, peak 10,000 req/s
+- Maintenance period: 5+ years
 
-## 検討した選択肢
+## Options Considered
 1. Python (FastAPI)
-2. Go (標準ライブラリ + Echo)
+2. Go (Standard library + Echo)
 3. TypeScript (NestJS)
 
-## 決定
-Python (FastAPI) を選定する。
+## Decision
+We select Python (FastAPI).
 
-## 根拠
-- チームの 80% が Python に習熟している
-- FastAPI は型ヒント + 非同期で十分な性能を発揮する
-- ML 機能の将来的な統合が容易
-- 10,000 req/s は FastAPI + uvicorn で対応可能
+## Rationale
+- 80% of the team is proficient in Python
+- FastAPI with type hints + async delivers sufficient performance
+- Easy future integration of ML features
+- 10,000 req/s is achievable with FastAPI + uvicorn
 
-## 受容するトレードオフ
-- Go/Rust と比較して CPU 集中型処理は遅い
-- GIL の制約でマルチスレッド処理に制限がある
-  → CPU 集中部分は将来的に Go/Rust マイクロサービスに切り出す
+## Accepted Trade-offs
+- Slower than Go/Rust for CPU-intensive processing
+- GIL constraints limit multi-threaded processing
+  -> CPU-intensive parts will be extracted to Go/Rust microservices in the future
 
-## 却下した理由
-- Go: チーム習熟度が低く、立ち上がりに 2 ヶ月以上かかる見込み
-- TypeScript: バックエンドの型安全性は Python の型ヒントで十分
+## Rejection Reasons
+- Go: Low team proficiency, estimated 2+ months ramp-up time
+- TypeScript: Backend type safety is sufficient with Python's type hints
 
-## 関連情報
-- スコアカード評価結果: Python 7.8 / Go 6.7 / TypeScript 7.0
+## Related Information
+- Scorecard evaluation results: Python 7.8 / Go 6.7 / TypeScript 7.0
 ```
 
 ---
 
-## 第5章: チーム・組織の観点
+## Chapter 5: Team and Organizational Perspective
 
-技術的に最適な言語が、組織的に最適とは限らない。チームの構成・スキルセット・採用市場・組織文化は言語選定に大きな影響を与える。
+The technically optimal language may not be organizationally optimal. Team composition, skill sets, hiring market, and organizational culture significantly influence language selection.
 
-### 5.1 チーム習熟度と生産性の関係
+### 5.1 Team Proficiency and Productivity Relationship
 
 ```
-  生産性
+  Productivity
   ^
-  |                                          xxxxxxx  熟練者
+  |                                          xxxxxxx  Expert
   |                                     xxxxx
   |                                xxxxx
   |                           xxxx
@@ -897,104 +899,104 @@ Python (FastAPI) を選定する。
   |         xxxxx
   |     xxxx
   | xxxx
-  +--+------+------+------+------+------+------> 経験月数
+  +--+------+------+------+------+------+------> Months of experience
      0      3      6      12     18     24
 
-  言語別の「生産的になるまでの期間」(目安)
+  Time to Productivity by Language (approximate)
   +------------------+------------------+
-  | 言語              | 生産的到達期間    |
+  | Language          | Time to Productive|
   +------------------+------------------+
-  | Python           | 1-2 ヶ月         |
-  | JavaScript/TS    | 2-3 ヶ月         |
-  | Go               | 2-3 ヶ月         |
-  | Java/Kotlin      | 3-4 ヶ月         |
-  | C#               | 3-4 ヶ月         |
-  | Swift            | 3-4 ヶ月         |
-  | C++              | 6-12 ヶ月        |
-  | Rust             | 6-12 ヶ月        |
-  | Haskell          | 6-12 ヶ月        |
+  | Python           | 1-2 months       |
+  | JavaScript/TS    | 2-3 months       |
+  | Go               | 2-3 months       |
+  | Java/Kotlin      | 3-4 months       |
+  | C#               | 3-4 months       |
+  | Swift            | 3-4 months       |
+  | C++              | 6-12 months      |
+  | Rust             | 6-12 months      |
+  | Haskell          | 6-12 months      |
   +------------------+------------------+
-  ※ 他の言語経験がある開発者の場合
+  * Assumes developers with experience in other languages
 ```
 
-### 5.2 採用市場の現実
+### 5.2 Hiring Market Reality
 
-言語を選定する際、その言語を使える開発者を継続的に採用できるかは極めて重要な要素である。
+When selecting a language, whether you can continuously hire developers proficient in that language is an extremely important factor.
 
-| 言語 | 求人数 (相対) | 候補者プール | 給与水準 (相対) | 採用難易度 |
+| Language | Job Postings (relative) | Candidate Pool | Salary Level (relative) | Hiring Difficulty |
 |------|-------------|-------------|----------------|----------|
-| JavaScript/TS | 極めて多い | 極めて大きい | 中 | 低 |
-| Python | 極めて多い | 極めて大きい | 中〜高 | 低 |
-| Java | 多い | 大きい | 中 | 低〜中 |
-| Go | 増加中 | 中程度 | 高 | 中 |
-| Rust | 少ないが急増 | 小さい | 高 | 高 |
-| Kotlin | 増加中 | 中程度 | 中〜高 | 中 |
-| Swift | 中程度 | 中程度 | 高 | 中 |
-| Ruby | 減少傾向 | 中程度 | 中 | 中 |
-| Elixir | 少ない | 小さい | 高 | 高 |
-| Haskell | 少ない | 極めて小さい | 高 | 極めて高 |
+| JavaScript/TS | Very high | Very large | Medium | Low |
+| Python | Very high | Very large | Medium-High | Low |
+| Java | High | Large | Medium | Low-Medium |
+| Go | Growing | Medium | High | Medium |
+| Rust | Low but rapidly growing | Small | High | High |
+| Kotlin | Growing | Medium | Medium-High | Medium |
+| Swift | Medium | Medium | High | Medium |
+| Ruby | Declining | Medium | Medium | Medium |
+| Elixir | Low | Small | High | High |
+| Haskell | Low | Very small | High | Very high |
 
-> **重要な洞察**: Rust や Haskell のような言語は「採用が難しい」反面、応募者の平均スキルレベルが高い傾向がある。ニッチ言語は「フィルター効果」として機能し、特定の指向性を持つ優秀な開発者を引き寄せることがある。
+> **Key Insight**: Languages like Rust and Haskell are "hard to hire for," but applicants tend to have higher average skill levels. Niche languages function as a "filter effect," attracting talented developers with specific inclinations.
 
-### 5.3 組織規模と言語選定
+### 5.3 Organization Size and Language Selection
 
 ```
-  組織規模別の言語選定指針
+  Language Selection Guidelines by Organization Size
   ========================
 
-  [個人 / 1-3人チーム]
-  → 自分が最も得意な言語を選ぶ
-  → 生産性が最優先、エコシステムの充実度を確認
-  → 推奨: Python, TypeScript, Ruby
+  [Individual / 1-3 Person Team]
+  -> Choose the language you are most proficient in
+  -> Productivity is the top priority; verify ecosystem maturity
+  -> Recommended: Python, TypeScript, Ruby
 
-  [小規模チーム (5-15人)]
-  → 全員が読み書きできる言語を選ぶ
-  → コードレビューの品質が言語理解度に依存する
-  → 推奨: TypeScript, Go, Python, Kotlin
+  [Small Team (5-15 people)]
+  -> Choose a language everyone can read and write
+  -> Code review quality depends on language comprehension
+  -> Recommended: TypeScript, Go, Python, Kotlin
 
-  [中規模チーム (15-50人)]
-  → 型システムの重要性が増す（暗黙知の共有が困難になる）
-  → コンパイラによるバグ検出を活用する
-  → 推奨: TypeScript, Go, Java/Kotlin, C#
+  [Medium Team (15-50 people)]
+  -> Type system importance increases (implicit knowledge sharing becomes difficult)
+  -> Leverage compiler-based bug detection
+  -> Recommended: TypeScript, Go, Java/Kotlin, C#
 
-  [大規模チーム (50-200人)]
-  → 静的型付けが事実上の必須要件
-  → リンター、フォーマッター、CI の厳格な統一が必要
-  → 推奨: Java/Kotlin, Go, TypeScript, C#
+  [Large Team (50-200 people)]
+  -> Static typing becomes a de facto requirement
+  -> Strict unification of linters, formatters, and CI is necessary
+  -> Recommended: Java/Kotlin, Go, TypeScript, C#
 
-  [超大規模 (200人以上 / Google規模)]
-  → 独自の言語基盤チームを持つことが多い
-  → 社内ツールチェーンの最適化が重要
-  → 実例: Google(Go, Java, Python, C++),
-          Meta(Hack, Python, C++, Rust),
-          Apple(Swift, Objective-C, C++)
+  [Very Large (200+ people / Google-scale)]
+  -> Often have dedicated language infrastructure teams
+  -> Internal toolchain optimization is important
+  -> Examples: Google (Go, Java, Python, C++),
+               Meta (Hack, Python, C++, Rust),
+               Apple (Swift, Objective-C, C++)
 ```
 
-### 5.4 コード例: チーム規模による型安全性の違い
+### 5.4 Code Example: Type Safety Differences by Team Size
 
-小規模チームでは動的型付けの柔軟さが活きるが、大規模チームでは型による「ドキュメント効果」が不可欠になる。
+In small teams, the flexibility of dynamic typing thrives, but in large teams, the "documentation effect" of types becomes indispensable.
 
-**動的型付け (Python) -- 小規模チーム向け**
+**Dynamic Typing (Python) -- For Small Teams**
 
 ```python
-# 小規模チームでは暗黙知で補完できる
+# In small teams, implicit knowledge can compensate
 def calculate_discount(order, customer):
-    """注文に対する割引額を計算する"""
+    """Calculate the discount amount for an order"""
     if customer["tier"] == "premium":
         return order["total"] * 0.15
     elif customer["tier"] == "standard":
         return order["total"] * 0.05
     return 0
 
-# 辞書のキーが何かは「チーム内の共通理解」に依存
-# → 5人チームなら口頭で共有できる
-# → 50人チームでは「tier って何の値を取るの？」が頻発
+# What keys the dictionaries have depends on "shared team understanding"
+# -> In a 5-person team, this can be communicated verbally
+# -> In a 50-person team, "what values does 'tier' take?" becomes frequent
 ```
 
-**静的型付け (TypeScript) -- 大規模チーム向け**
+**Static Typing (TypeScript) -- For Large Teams**
 
 ```typescript
-// 型がドキュメントとして機能する
+// Types serve as documentation
 type CustomerTier = "premium" | "standard" | "basic";
 
 interface Customer {
@@ -1018,8 +1020,8 @@ interface OrderItem {
   unitPrice: number;
 }
 
-// 型シグネチャだけで入出力が明確
-// 50人チームでも初見のコードが読める
+// Input and output are clear from the type signature alone
+// Even a 50-person team can read unfamiliar code
 function calculateDiscount(order: Order, customer: Customer): number {
   switch (customer.tier) {
     case "premium":
@@ -1028,154 +1030,154 @@ function calculateDiscount(order: Order, customer: Customer): number {
       return order.total * 0.05;
     case "basic":
       return 0;
-    // TypeScript の exhaustiveness check により
-    // 新しい tier が追加されたら ここでコンパイルエラーになる
+    // TypeScript's exhaustiveness check causes
+    // a compile error here if a new tier is added
   }
 }
 ```
 
-### 5.5 オンボーディングコストの比較
+### 5.5 Onboarding Cost Comparison
 
-新メンバーがチームに加わってから、独力で機能実装できるまでの期間は言語選定に直結する。
+The time from when a new member joins the team to when they can independently implement features is directly tied to language selection.
 
 ```
-  オンボーディングに影響する要素
+  Factors Affecting Onboarding
   =============================
 
-  +-- 言語の複雑性
+  +-- Language Complexity
   |     C++ > Rust > Scala > Java > Kotlin > Go > Python > JS
-  |     (複雑)                                        (単純)
+  |     (Complex)                                    (Simple)
   |
-  +-- 開発環境のセットアップ
+  +-- Development Environment Setup
   |     Java(Maven/Gradle) > Rust(cargo) > Python(venv) > Go(mod)
-  |     (複雑)                                            (単純)
+  |     (Complex)                                        (Simple)
   |
-  +-- 学習リソースの量
+  +-- Volume of Learning Resources
   |     JS/Python > Java > Go > Rust > Elixir > Zig
-  |     (豊富)                                (少ない)
+  |     (Abundant)                           (Scarce)
   |
-  +-- エラーメッセージの親切さ
+  +-- Error Message Friendliness
   |     Rust/Elm > Go > Kotlin > Java > C++ > Haskell
-  |     (親切)                              (難解)
+  |     (Friendly)                         (Cryptic)
   |
-  +-- コードベースの慣習
-        (言語とは独立だが、言語の哲学が影響する)
+  +-- Codebase Conventions
+        (Independent of language, but influenced by language philosophy)
 ```
 
 ---
 
-## 第6章: 2025年の言語トレンドと将来展望
+## Chapter 6: 2025 Language Trends and Future Outlook
 
-### 6.1 成長中の言語
+### 6.1 Growing Languages
 
 ```
-  成長中の言語とその背景
+  Growing Languages and Their Background
   =====================
 
   Rust
-  ├── メモリ安全への需要増
-  ├── Linux kernel での公式採用
-  ├── Android, AWS, Microsoft での採用拡大
-  ├── WebAssembly のメイン言語
-  └── crates.io のエコシステムが急速に成熟
+  ├── Increasing demand for memory safety
+  ├── Official adoption in the Linux kernel
+  ├── Expanding adoption at Android, AWS, Microsoft
+  ├── Primary language for WebAssembly
+  └── crates.io ecosystem maturing rapidly
 
   TypeScript
-  ├── JavaScript の事実上の後継
-  ├── 大規模プロジェクトの標準
-  ├── Node.js / Deno / Bun 全てで一級サポート
-  └── フロントエンド + バックエンド + インフラ (Pulumi)
+  ├── De facto successor to JavaScript
+  ├── Standard for large-scale projects
+  ├── First-class support in Node.js / Deno / Bun
+  └── Frontend + Backend + Infrastructure (Pulumi)
 
   Go
-  ├── クラウドネイティブの標準 (Docker, K8s, Terraform)
-  ├── シンプルさが大規模チームで評価される
-  ├── ジェネリクス (1.18+) で表現力が向上
-  └── 起動速度とシングルバイナリが DevOps で重宝
+  ├── Cloud-native standard (Docker, K8s, Terraform)
+  ├── Simplicity valued in large teams
+  ├── Improved expressiveness with generics (1.18+)
+  └── Fast startup and single binary valued in DevOps
 
   Kotlin
-  ├── Android 公式言語
-  ├── サーバーサイドでの採用増 (Ktor, Spring Boot)
-  ├── Kotlin Multiplatform (KMP) の成熟
-  └── coroutines による優れた並行処理モデル
+  ├── Official Android language
+  ├── Growing server-side adoption (Ktor, Spring Boot)
+  ├── Maturing Kotlin Multiplatform (KMP)
+  └── Excellent concurrency model via coroutines
 
   Zig
-  ├── C の現代的代替候補
-  ├── 組み込み・システムプログラミング
-  ├── コンパイラ基盤としての採用 (Bun は Zig 製)
-  └── C との完全な相互運用性
+  ├── Modern alternative candidate to C
+  ├── Embedded and systems programming
+  ├── Adopted as compiler infrastructure (Bun is built with Zig)
+  └── Complete interoperability with C
 ```
 
-### 6.2 安定した言語
+### 6.2 Stable Languages
 
-| 言語 | 安定している理由 | 今後の展望 |
+| Language | Reason for Stability | Future Outlook |
 |------|----------------|-----------|
-| Python | AI/ML の覇権が当面続く。Web/スクリプトでも万能 | GIL 除去 (PEP 703)、型ヒントの強化 |
-| Java | エンタープライズ基盤。21+ の進化が活発 | Virtual Threads (Loom)、Value Types (Valhalla) |
-| C# | .NET の進化で再評価。ゲーム (Unity) で強い | Native AOT、Blazor WASM の成熟 |
-| Swift | Apple エコシステムの唯一の選択肢 | Server-Side Swift の成長、Swift 6 の並行安全性 |
-| C/C++ | レガシー資産と性能要件で不滅 | C++23/26 の近代化、Carbon (後継候補) |
+| Python | AI/ML dominance continues for now. Versatile in web/scripting | GIL removal (PEP 703), type hint enhancements |
+| Java | Enterprise foundation. Active evolution since 21+ | Virtual Threads (Loom), Value Types (Valhalla) |
+| C# | Reevaluated with .NET evolution. Strong in games (Unity) | Native AOT, Blazor WASM maturation |
+| Swift | The sole option for Apple ecosystem | Growth of Server-Side Swift, Swift 6 concurrency safety |
+| C/C++ | Immortal due to legacy assets and performance requirements | C++23/26 modernization, Carbon (potential successor) |
 
-### 6.3 注目の新興言語
+### 6.3 Notable Emerging Languages
 
-| 言語 | 概要 | 注目理由 | 成熟度 |
+| Language | Overview | Reason for Attention | Maturity |
 |------|------|---------|-------|
-| Mojo | Python 構文 + C 性能 | AI/ML 向け高速実行 | 初期段階 |
-| Gleam | Erlang VM 上の型付き関数型 | Elixir の代替候補 | 成長中 |
-| Roc | Elm inspired な関数型 | Web 開発向け純粋関数型 | 実験的 |
-| Vale | リージョンベースのメモリ管理 | Rust 代替の新アプローチ | 実験的 |
-| Carbon | Google 主導の C++ 後継 | C++ との段階的移行を志向 | 初期段階 |
-| Unison | コンテンツアドレス方式 | 分散コンピューティング | 初期段階 |
+| Mojo | Python syntax + C performance | High-speed execution for AI/ML | Early stage |
+| Gleam | Typed functional on Erlang VM | Alternative candidate to Elixir | Growing |
+| Roc | Elm-inspired functional | Pure functional for web development | Experimental |
+| Vale | Region-based memory management | New approach as Rust alternative | Experimental |
+| Carbon | Google-led C++ successor | Aims for gradual migration from C++ | Early stage |
+| Unison | Content-addressed approach | Distributed computing | Early stage |
 
-### 6.4 メタトレンド: 言語設計の方向性
+### 6.4 Meta-Trends: Directions in Language Design
 
 ```
-  2020年代の言語設計トレンド
+  Language Design Trends of the 2020s
   =========================
 
-  1. メモリ安全性の重視
-     C/C++ のメモリ脆弱性コストが無視できなくなっている
-     → Rust, Zig, Carbon, Vale が代替を提案
-     → 米国政府 (CISA) がメモリ安全言語を推奨
+  1. Emphasis on Memory Safety
+     The cost of C/C++ memory vulnerabilities can no longer be ignored
+     -> Rust, Zig, Carbon, Vale propose alternatives
+     -> US government (CISA) recommends memory-safe languages
 
-  2. 段階的な型付け (Gradual Typing)
-     動的言語に後から型を導入するアプローチが主流化
-     → TypeScript, Python型ヒント, PHP型宣言, Ruby RBS/Sorbet
+  2. Gradual Typing
+     The approach of adding types to dynamic languages later has become mainstream
+     -> TypeScript, Python type hints, PHP type declarations, Ruby RBS/Sorbet
 
-  3. AI 支援によるコーディングの変化
-     GitHub Copilot, Cursor, Claude Code 等の普及
-     → 冗長な言語でも生産性低下が緩和される
-     → 型情報が AI の補完精度を向上させる
+  3. Changes in Coding through AI Assistance
+     Proliferation of GitHub Copilot, Cursor, Claude Code, etc.
+     -> Productivity decline in verbose languages is mitigated
+     -> Type information improves AI completion accuracy
 
-  4. WebAssembly (Wasm) の拡大
-     ブラウザ外での Wasm 実行 (WASI) が実用化
-     → 言語非依存のポータブル実行環境
-     → Rust, Go, C/C++ が Wasm ターゲットとして有力
+  4. Expansion of WebAssembly (Wasm)
+     Wasm execution outside browsers (WASI) becomes practical
+     -> Language-agnostic portable execution environment
+     -> Rust, Go, C/C++ are leading Wasm targets
 
-  5. マルチプラットフォーム対応
-     1つの言語/コードベースで複数プラットフォームを対象
-     → Kotlin Multiplatform, Flutter, .NET MAUI
+  5. Multi-Platform Support
+     Targeting multiple platforms from one language/codebase
+     -> Kotlin Multiplatform, Flutter, .NET MAUI
 ```
 
 ---
 
-## 第7章: ポリグロット戦略
+## Chapter 7: Polyglot Strategy
 
-### 7.1 なぜ複数言語を使うのか
+### 7.1 Why Use Multiple Languages
 
-現実のソフトウェアシステムは、単一の言語で全てを最適に構築できることは稀である。各言語には得意領域があり、複数言語を戦略的に組み合わせることで、各層で最適な選択を行える。
+In reality, it is rare for a single language to optimally build an entire software system. Each language has its strengths, and by strategically combining multiple languages, you can make optimal choices at each layer.
 
 ```
-  ポリグロットアーキテクチャの例
+  Polyglot Architecture Example
   =============================
 
-  +--[ ブラウザ ]---------------------------------------+
+  +--[ Browser ]---------------------------------------+
   |  TypeScript (React / Next.js)                       |
-  |  → UI レンダリング、インタラクション                  |
+  |  -> UI rendering, interactions                      |
   +----------------------------------------------------+
            | HTTP / GraphQL
            v
-  +--[ API ゲートウェイ ]-------------------------------+
-  |  Go (Kong / 自前実装)                               |
-  |  → ルーティング、認証、レート制限                    |
+  +--[ API Gateway ]-------------------------------+
+  |  Go (Kong / custom implementation)              |
+  |  -> Routing, authentication, rate limiting       |
   +----------------------------------------------------+
            |
      +-----+-----+-----+
@@ -1183,41 +1185,42 @@ function calculateDiscount(order: Order, customer: Customer): number {
      v           v           v
   +--------+ +--------+ +--------+
   | Python | | Go     | | Rust   |
-  | ML推論 | | CRUD   | | 動画   |
-  | サービス| | API    | | 変換   |
+  | ML     | | CRUD   | | Video  |
+  | Inference| API    | | Trans- |
+  | Service| |        | | coding |
   +--------+ +--------+ +--------+
      |           |           |
      v           v           v
   +----------------------------------------------------+
-  |  SQL (PostgreSQL) + Python (データパイプライン)       |
-  |  → データ層                                         |
+  |  SQL (PostgreSQL) + Python (Data Pipeline)          |
+  |  -> Data layer                                      |
   +----------------------------------------------------+
            |
            v
   +----------------------------------------------------+
-  |  Bash / Python (CI/CD スクリプト)                    |
+  |  Bash / Python (CI/CD scripts)                      |
   |  Go (Terraform) / YAML (Kubernetes)                 |
-  |  → インフラ層                                       |
+  |  -> Infrastructure layer                            |
   +----------------------------------------------------+
 ```
 
-### 7.2 ポリグロット戦略のパターン
+### 7.2 Polyglot Strategy Patterns
 
-| パターン | 構成例 | メリット | リスク |
+| Pattern | Composition Example | Benefits | Risks |
 |---------|--------|---------|--------|
-| フルスタック統一 | TypeScript のみ | コンテキストスイッチなし | バックエンドの性能限界 |
-| フロント/バック分離 | TS + Go | 各層の最適化 | 2言語の習熟が必要 |
-| バック + ML 分離 | Go + Python | ML エコシステムの活用 | サービス間通信のオーバーヘッド |
-| コア + スクリプト | Rust + Python | 性能 + 開発速度の両立 | FFI の複雑さ |
-| レガシー + 新規 | Java + Kotlin | 段階的な近代化 | 共存期間の複雑さ |
+| Full-Stack Unification | TypeScript only | No context switching | Backend performance limits |
+| Frontend/Backend Separation | TS + Go | Optimization at each layer | Need proficiency in 2 languages |
+| Backend + ML Separation | Go + Python | Leverage ML ecosystem | Inter-service communication overhead |
+| Core + Scripting | Rust + Python | Both performance and development speed | FFI complexity |
+| Legacy + New | Java + Kotlin | Gradual modernization | Complexity during coexistence period |
 
-### 7.3 ポリグロットの限界: 何言語までが現実的か
+### 7.3 Polyglot Limits: How Many Languages Are Realistic
 
 ```
-  言語数と組織コストの関係
+  Relationship Between Number of Languages and Organizational Cost
   ========================
 
-  組織コスト
+  Organizational Cost
   ^
   |                                        x
   |                                    x
@@ -1229,41 +1232,41 @@ function calculateDiscount(order: Order, customer: Customer): number {
   |         x
   |     x
   | x
-  +--+------+------+------+------+------> 使用言語数
+  +--+------+------+------+------+------> Number of languages used
      1      2      3      4      5+
 
-  推奨:
-  - スタートアップ: 1-2 言語
-  - 中規模企業: 2-3 言語
-  - 大企業: 3-5 言語（チームごとに 1-2 言語）
-  - FAANG級: 5+ 言語（専門チームが各言語を支える）
+  Recommended:
+  - Startups: 1-2 languages
+  - Mid-size companies: 2-3 languages
+  - Large enterprises: 3-5 languages (1-2 per team)
+  - FAANG-scale: 5+ languages (dedicated teams support each language)
 
-  コスト要因:
-  - ツールチェーンの保守 (CI/CD, リンター, フォーマッター)
-  - ライブラリの脆弱性管理
-  - オンボーディング
-  - コードレビューの品質
-  - 共有ライブラリの管理
+  Cost Factors:
+  - Toolchain maintenance (CI/CD, linters, formatters)
+  - Library vulnerability management
+  - Onboarding
+  - Code review quality
+  - Shared library management
 ```
 
-### 7.4 言語間連携の技術的手法
+### 7.4 Technical Methods for Inter-Language Integration
 
-| 連携手法 | 説明 | 遅延 | 複雑度 | 使用例 |
+| Integration Method | Description | Latency | Complexity | Use Case |
 |---------|------|------|--------|--------|
-| HTTP/gRPC | マイクロサービス間通信 | 中〜高 | 低 | Go ↔ Python |
-| FFI (Foreign Function Interface) | ネイティブ関数呼び出し | 極低 | 高 | Python → C/Rust |
-| WebAssembly | Wasm モジュール呼び出し | 低 | 中 | JS → Rust (Wasm) |
-| メッセージキュー | 非同期メッセージング | 高 | 中 | 任意の言語間 |
-| 共有データベース | DB を介したデータ共有 | 中 | 低 | 任意の言語間 |
-| CLI 呼び出し | サブプロセス起動 | 高 | 低 | Python → Go CLI |
+| HTTP/gRPC | Microservice inter-communication | Medium-High | Low | Go <-> Python |
+| FFI (Foreign Function Interface) | Native function calls | Very Low | High | Python -> C/Rust |
+| WebAssembly | Wasm module invocation | Low | Medium | JS -> Rust (Wasm) |
+| Message Queue | Asynchronous messaging | High | Medium | Between any languages |
+| Shared Database | Data sharing via DB | Medium | Low | Between any languages |
+| CLI Invocation | Subprocess spawning | High | Low | Python -> Go CLI |
 
-#### コード例: Python から Rust 関数を FFI で呼び出す
+#### Code Example: Calling a Rust Function from Python via FFI
 
-**Rust 側 (ライブラリ)**
+**Rust Side (Library)**
 
 ```rust
-// lib.rs -- Rust で高速なフィボナッチ計算を提供
-// コンパイル: cargo build --release (共有ライブラリを生成)
+// lib.rs -- Rust provides high-speed Fibonacci computation
+// Compile: cargo build --release (generates a shared library)
 
 #[no_mangle]
 pub extern "C" fn fibonacci(n: u64) -> u64 {
@@ -1281,22 +1284,22 @@ pub extern "C" fn fibonacci(n: u64) -> u64 {
 }
 ```
 
-**Python 側 (呼び出し)**
+**Python Side (Caller)**
 
 ```python
-# main.py -- Python から Rust 関数を ctypes で呼び出す
+# main.py -- Calling a Rust function from Python via ctypes
 import ctypes
 import time
 
-# Rust の共有ライブラリをロード
+# Load the Rust shared library
 lib = ctypes.CDLL("./target/release/libfibonacci.so")  # Linux
 # lib = ctypes.CDLL("./target/release/libfibonacci.dylib")  # macOS
 
-# 関数シグネチャの定義
+# Define the function signature
 lib.fibonacci.argtypes = [ctypes.c_uint64]
 lib.fibonacci.restype = ctypes.c_uint64
 
-# Python 純粋実装との比較
+# Compare with a pure Python implementation
 def fibonacci_py(n: int) -> int:
     if n <= 1:
         return n
@@ -1307,593 +1310,600 @@ def fibonacci_py(n: int) -> int:
 
 n = 40
 
-# Rust 版
+# Rust version
 start = time.perf_counter()
 result_rust = lib.fibonacci(n)
 time_rust = time.perf_counter() - start
 
-# Python 版
+# Python version
 start = time.perf_counter()
 result_py = fibonacci_py(n)
 time_py = time.perf_counter() - start
 
 print(f"Rust:   fib({n}) = {result_rust} ({time_rust:.6f}s)")
 print(f"Python: fib({n}) = {result_py}   ({time_py:.6f}s)")
-print(f"Rust は Python の約 {time_py / time_rust:.0f} 倍高速")
+print(f"Rust is approximately {time_py / time_rust:.0f}x faster than Python")
 ```
 
 ---
 
-## 第8章: 移行戦略 -- 言語を切り替えるとき
+## Chapter 8: Migration Strategy -- When to Switch Languages
 
-### 8.1 移行を検討すべきシグナル
+### 8.1 Signals That Warrant Migration
 
-言語の切り替えは高コストな判断であり、明確なシグナルがなければ実行すべきではない。以下のシグナルが複数該当する場合に移行を検討する。
+Switching languages is a costly decision and should not be executed without clear signals. Consider migration when multiple of the following signals apply.
 
 ```
-  移行検討のシグナル (3つ以上該当で要検討)
+  Migration Consideration Signals (review if 3 or more apply)
   ========================================
 
-  [ ] 性能ボトルネックが言語起因で、最適化の余地がない
-  [ ] エコシステムのメンテナンスが停滞している
-  [ ] セキュリティパッチの提供が遅延・停止している
-  [ ] 開発者の採用が著しく困難になっている
-  [ ] チームのモチベーションが低下している
-  [ ] 新しい要件（リアルタイム性、AI統合等）に対応困難
-  [ ] ランタイムのサポート期限が近い
-  [ ] 技術的負債が蓄積し、リファクタリングのコストが高い
-  [ ] 依存ライブラリの互換性問題が頻発している
+  [ ] Performance bottleneck is language-caused with no remaining optimization room
+  [ ] Ecosystem maintenance has stagnated
+  [ ] Security patch delivery is delayed or stopped
+  [ ] Developer hiring has become significantly difficult
+  [ ] Team motivation is declining
+  [ ] Cannot meet new requirements (real-time, AI integration, etc.)
+  [ ] Runtime support deadline is approaching
+  [ ] Technical debt has accumulated and refactoring cost is high
+  [ ] Dependency library compatibility issues are frequent
 ```
 
-### 8.2 移行戦略の比較
+### 8.2 Migration Strategy Comparison
 
-| 戦略 | 概要 | リスク | 期間 | 適用場面 |
+| Strategy | Overview | Risk | Duration | Application |
 |------|------|--------|------|---------|
-| ビッグバン書き換え | 全体を一度に新言語で書き直す | 極めて高い | 長い | 小規模システム限定 |
-| Strangler Fig パターン | 新機能から段階的に新言語で実装 | 低〜中 | 長い | 大規模システム推奨 |
-| サイドカーパターン | 特定機能を別言語のサービスに切り出す | 低 | 中 | 性能要件がある一部機能 |
-| バインディング方式 | FFI/WASM で新言語の関数を既存に埋め込む | 低 | 短い | ホットパスの最適化 |
-| 並行運用 | 新旧システムを並行稼働し段階的に切替 | 中 | 長い | ミッションクリティカル |
+| Big Bang Rewrite | Rewrite everything in the new language at once | Very high | Long | Small-scale systems only |
+| Strangler Fig Pattern | Gradually implement new features in the new language | Low-Medium | Long | Recommended for large-scale systems |
+| Sidecar Pattern | Extract specific features into separate language services | Low | Medium | Specific features with performance requirements |
+| Binding Approach | Embed new language functions via FFI/WASM | Low | Short | Hot path optimization |
+| Parallel Operation | Run old and new systems in parallel, gradually switch over | Medium | Long | Mission-critical systems |
 
-### 8.3 Strangler Fig パターンの実践
+### 8.3 Strangler Fig Pattern in Practice
 
 ```
-  Strangler Fig パターンによる段階的移行
+  Gradual Migration with the Strangler Fig Pattern
   ======================================
 
-  Phase 1: 新機能は新言語で実装
+  Phase 1: New features implemented in new language
   +------------------------------------------+
-  |  [リバースプロキシ / API ゲートウェイ]      |
+  |  [Reverse Proxy / API Gateway]            |
   |       |                    |               |
   |       v                    v               |
   |  +-----------+      +-----------+          |
-  |  | 旧システム |      | 新サービス |          |
+  |  | Old System|      | New Service|          |
   |  | (Python)  |      | (Go)      |          |
-  |  | 機能A,B,C |      | 機能D     |          |
+  |  | Feature   |      | Feature D |          |
+  |  | A, B, C   |      |           |          |
   |  +-----------+      +-----------+          |
   +------------------------------------------+
 
-  Phase 2: 既存機能を段階的に移行
+  Phase 2: Gradually migrate existing features
   +------------------------------------------+
-  |  [リバースプロキシ / API ゲートウェイ]      |
+  |  [Reverse Proxy / API Gateway]            |
   |       |                    |               |
   |       v                    v               |
   |  +-----------+      +-----------+          |
-  |  | 旧システム |      | 新サービス |          |
+  |  | Old System|      | New Service|          |
   |  | (Python)  |      | (Go)      |          |
-  |  | 機能A     |      | 機能B,C,D |          |
+  |  | Feature A |      | Feature   |          |
+  |  |           |      | B, C, D   |          |
   |  +-----------+      +-----------+          |
   +------------------------------------------+
 
-  Phase 3: 旧システムを完全に廃止
+  Phase 3: Completely retire the old system
   +------------------------------------------+
-  |  [リバースプロキシ / API ゲートウェイ]      |
+  |  [Reverse Proxy / API Gateway]            |
   |                      |                     |
   |                      v                     |
   |               +-----------+                |
-  |               | 新サービス |                |
+  |               | New Service|                |
   |               | (Go)      |                |
-  |               | 機能A,B,C,D|                |
+  |               | Feature   |                |
+  |               | A, B, C, D|                |
   |               +-----------+                |
   +------------------------------------------+
 ```
 
-### 8.4 移行のリスク管理チェックリスト
+### 8.4 Migration Risk Management Checklist
 
-移行プロジェクトを開始する前に、以下の項目を確認する。
+Verify the following items before starting a migration project.
 
 ```
-  移行前チェックリスト
+  Pre-Migration Checklist
   ====================
 
-  計画フェーズ:
-  [ ] 移行の目的と成功基準を定義した
-  [ ] 移行にかかる工数を見積もった (通常の 2-3 倍を確保)
-  [ ] ロールバック計画を策定した
-  [ ] 移行期間中の機能開発のフリーズ/並行方針を決めた
-  [ ] 新言語での PoC (Proof of Concept) を完了した
+  Planning Phase:
+  [ ] Defined migration purpose and success criteria
+  [ ] Estimated migration effort (secure 2-3x normal buffer)
+  [ ] Developed rollback plan
+  [ ] Decided feature development freeze/parallel policy during migration
+  [ ] Completed PoC (Proof of Concept) in the new language
 
-  技術フェーズ:
-  [ ] テストカバレッジが十分にある (移行前に補強)
-  [ ] API の互換性テストを自動化した
-  [ ] データ移行のスクリプトを検証した
-  [ ] 監視・アラートを新旧両システムに設定した
-  [ ] パフォーマンスベンチマークを定義した
+  Technical Phase:
+  [ ] Test coverage is sufficient (reinforce before migration)
+  [ ] API compatibility tests are automated
+  [ ] Data migration scripts are verified
+  [ ] Monitoring and alerts are set up for both old and new systems
+  [ ] Performance benchmarks are defined
 
-  チームフェーズ:
-  [ ] チームメンバーの新言語トレーニングを実施した
-  [ ] コーディング規約とレビュー基準を策定した
-  [ ] ペアプログラミング/モブプログラミングの計画を立てた
-  [ ] 外部のエキスパートの支援を確保した (必要な場合)
+  Team Phase:
+  [ ] Conducted new language training for team members
+  [ ] Established coding conventions and review criteria
+  [ ] Planned pair programming/mob programming sessions
+  [ ] Secured external expert support (if needed)
 ```
 
-### 8.5 移行の失敗事例から学ぶ教訓
+### 8.5 Lessons from Failed Migration Cases
 
-| 事例パターン | 失敗の原因 | 教訓 |
+| Case Pattern | Cause of Failure | Lesson |
 |-------------|-----------|------|
-| ビッグバン書き換えの長期化 | 開発中に市場が変化し、要件がずれた | 段階的移行を選択すべき |
-| 新言語の過大評価 | ベンチマークだけで判断し、エコシステム不足を軽視 | PoC で現実的な検証を行う |
-| チームの抵抗 | 移行の理由を十分に共有せず、モチベーションが低下 | チーム全体で意思決定に参加する |
-| 旧システムの知識喪失 | 旧システムを理解するメンバーが退職した | 移行と並行でドキュメントを整備する |
-| 期間の過小見積もり | 移行は「書き換え」だけでなく周辺ツールも含む | 見積もりの 2-3 倍のバッファを確保する |
+| Prolonged big bang rewrite | Market changed during development, requirements drifted | Should have chosen gradual migration |
+| Overestimation of new language | Judged by benchmarks alone, underestimated ecosystem gaps | Conduct realistic validation with PoC |
+| Team resistance | Migration reasons not sufficiently shared, motivation dropped | Involve the entire team in decision-making |
+| Loss of old system knowledge | Members who understood the old system left | Maintain documentation in parallel with migration |
+| Underestimation of timeline | Migration includes not just "rewriting" but surrounding tools | Secure 2-3x buffer on estimates |
 
 ---
 
-## 第9章: アンチパターン集
+## Chapter 9: Anti-Pattern Collection
 
-言語選定における典型的なアンチパターンを整理する。これらは繰り返し観察される失敗パターンであり、事前に認識することで回避可能である。
+We organize typical anti-patterns in language selection. These are repeatedly observed failure patterns that can be avoided by recognizing them in advance.
 
-### アンチパターン 1: 履歴書駆動開発 (Resume-Driven Development)
+### Anti-Pattern 1: Resume-Driven Development
 
 ```
-  アンチパターン: 履歴書駆動開発
+  Anti-Pattern: Resume-Driven Development
   ==============================
 
-  症状:
-    チームリーダーや意思決定者が、自分のキャリアに有利な
-    技術（最新・話題の言語）を選定理由にする。
+  Symptoms:
+    Team leaders or decision-makers choose languages that benefit
+    their own careers (latest, trending languages).
 
-  例:
-    「Rust を使えば履歴書に書けるから Rust にしよう」
-    「Kubernetes は転職に有利だからマイクロサービスにしよう」
+  Examples:
+    "Let's use Rust because it looks good on my resume"
+    "Let's go with Kubernetes and microservices since it helps with job changes"
 
-  実害:
-    - チームの大多数が未経験の言語で生産性が大幅低下
-    - 学習コストがプロジェクトのスケジュールを圧迫
-    - 技術的な問題解決力が不足し、品質が低下
+  Actual Harm:
+    - Majority of team is inexperienced, productivity drops significantly
+    - Learning costs strain project schedules
+    - Insufficient problem-solving capability leads to quality decline
 
-  対策:
-    - 言語選定をチーム全体の合議制にする
-    - スコアカードで定量評価を行い、個人の嗜好を排除する
-    - PoC フェーズで客観的なデータを収集する
+  Countermeasures:
+    - Make language selection a team-wide consensus decision
+    - Conduct quantitative evaluation with scorecards, eliminating personal preferences
+    - Collect objective data during a PoC phase
 
-  判断基準:
-    「この言語を選ぶ理由を、プロジェクトの要件だけで
-     説明できるか？」
-    → 説明できなければ、それは履歴書駆動である。
+  Decision Criterion:
+    "Can you explain the reason for choosing this language
+     solely based on project requirements?"
+    -> If not, it is resume-driven.
 ```
 
-### アンチパターン 2: ゴールデンハンマー (Golden Hammer)
+### Anti-Pattern 2: Golden Hammer
 
 ```
-  アンチパターン: ゴールデンハンマー
+  Anti-Pattern: Golden Hammer
   ==================================
 
-  症状:
-    「ハンマーを持っている人には全てが釘に見える」
-    特定の言語に精通しているがゆえに、あらゆる問題を
-    その言語で解決しようとする。
+  Symptoms:
+    "To someone with a hammer, everything looks like a nail"
+    Because of deep proficiency in a specific language, they try to
+    solve every problem with that language.
 
-  例:
-    - Web 開発者が Python ですべてを構築しようとする
-      → リアルタイム処理で苦戦し、Celery + Redis の
-        複雑なキューイングを導入
-      → Go や Elixir なら言語レベルで解決できた
+  Examples:
+    - Web developers trying to build everything with Python
+      -> Struggle with real-time processing, introduce complex
+        Celery + Redis queuing
+      -> Could have been solved at the language level with Go or Elixir
 
-    - Java エンジニアが CLI ツールを Java で書く
-      → JVM の起動に 1 秒以上かかり、ユーザー体験が悪い
-      → Go や Rust なら即座に起動する
+    - Java engineers writing CLI tools in Java
+      -> JVM startup takes over 1 second, poor user experience
+      -> Go or Rust would start instantly
 
-    - C++ エンジニアが管理画面を C++ で書く
-      → 開発速度が遅く、セキュリティリスクも高い
-      → Python + Django なら 1/10 の時間で完成する
+    - C++ engineers writing an admin dashboard in C++
+      -> Development speed is slow, security risks are high
+      -> Python + Django would complete in 1/10 the time
 
-  対策:
-    - 「この問題を解決するのに最適な言語は何か？」を
-      言語を選ぶ前に問う
-    - チーム内に複数言語の経験者を配置する
-    - 定期的に他言語の動向をキャッチアップする
+  Countermeasures:
+    - Ask "What is the optimal language for this problem?"
+      before choosing a language
+    - Place multi-language experienced members on the team
+    - Regularly catch up on trends in other languages
 ```
 
-### アンチパターン 3: ベンチマーク信仰
+### Anti-Pattern 3: Benchmark Worship
 
 ```
-  アンチパターン: ベンチマーク信仰
+  Anti-Pattern: Benchmark Worship
   ================================
 
-  症状:
-    マイクロベンチマークの結果だけで言語を選定する。
-    「TechEmpower のベンチマークで Go が Python の 50 倍
-     速いから Go にすべき」
+  Symptoms:
+    Selecting a language based solely on micro-benchmark results.
+    "Go is 50x faster than Python in TechEmpower benchmarks,
+     so we should use Go"
 
-  現実:
+  Reality:
     +------------------------------------------------------+
-    | Web アプリケーションの典型的なレスポンスタイム構成     |
+    | Typical response time breakdown for web applications  |
     |                                                      |
-    | DB クエリ:        [====================] 60%          |
-    | ネットワーク I/O:  [==========] 25%                   |
-    | ビジネスロジック:  [===] 10%                           |
-    | 言語のオーバーヘッド: [=] 5%                           |
+    | DB queries:        [====================] 60%         |
+    | Network I/O:       [==========] 25%                   |
+    | Business logic:    [===] 10%                          |
+    | Language overhead:  [=] 5%                            |
     +------------------------------------------------------+
 
-    → 言語を Go に変えても全体の 5% しか改善しない
-    → DB のインデックス最適化の方が 10 倍効果的
+    -> Switching to Go only improves 5% of the total
+    -> DB index optimization is 10x more effective
 
-  対策:
-    - ボトルネックを計測してから判断する
-    - アプリケーション全体のプロファイリングを行う
-    - 「十分な速度」で足りるなら開発速度を優先する
+  Countermeasures:
+    - Measure the bottleneck before deciding
+    - Profile the entire application
+    - If "sufficient speed" is enough, prioritize development speed
 ```
 
-### アンチパターン 4: 流行追従
+### Anti-Pattern 4: Trend Chasing
 
 ```
-  アンチパターン: 流行追従
+  Anti-Pattern: Trend Chasing
   ========================
 
-  症状:
-    Hacker News や Twitter で話題になった言語に飛びつく。
-    「今年の新言語ランキングで 1 位だから採用しよう」
+  Symptoms:
+    Jumping on languages trending on Hacker News or Twitter.
+    "It's #1 in this year's new language ranking, so let's adopt it"
 
-  リスク:
-    - エコシステムが未成熟でライブラリが不足
-    - コミュニティが小さくサポートが得られない
-    - 言語仕様が不安定で破壊的変更が頻発
-    - 採用市場にその言語の開発者がいない
+  Risks:
+    - Immature ecosystem with insufficient libraries
+    - Small community with limited support
+    - Unstable language spec with frequent breaking changes
+    - No developers for that language in the hiring market
 
-  歴史的な教訓:
-    - CoffeeScript: 2012年に大流行 → TypeScript に完全に置換
-    - Dart (v1): 2013年に期待 → ブラウザ採用に失敗 → Flutter で復活
-    - Elm: Web フロントの革新 → 開発者不足で採用が進まず
+  Historical Lessons:
+    - CoffeeScript: Highly popular in 2012 -> Completely replaced by TypeScript
+    - Dart (v1): High expectations in 2013 -> Failed browser adoption -> Revived with Flutter
+    - Elm: Frontend innovation -> Adoption stalled due to developer shortage
 
-  対策:
-    - 新言語は「サイドプロジェクト」で試す
-    - 本番導入は「2 年以上の安定した成長」を確認してから
-    - "Lindy Effect": 長く生き延びた言語ほど今後も生き延びる
+  Countermeasures:
+    - Try new languages in "side projects"
+    - Only introduce to production after "2+ years of stable growth"
+    - "Lindy Effect": The longer a language has survived, the longer it will continue to survive
 ```
 
-### アンチパターン 5: 全会一致の幻想
+### Anti-Pattern 5: Illusion of Unanimity
 
 ```
-  アンチパターン: 全会一致の幻想
+  Anti-Pattern: Illusion of Unanimity
   ==============================
 
-  症状:
-    チーム全員が納得する言語を探し続け、いつまでも決定できない。
-    「全員が賛成するまで議論しよう」
+  Symptoms:
+    Endlessly searching for a language everyone agrees on, never making a decision.
+    "Let's keep discussing until everyone agrees"
 
-  現実:
-    - 完璧な言語は存在しない
-    - 全員の好みを満たす言語は存在しない
-    - 議論が長引くほど、開発が遅れるコストが増大する
+  Reality:
+    - No perfect language exists
+    - No language satisfies everyone's preferences
+    - The longer the debate drags on, the more the cost of delayed development increases
 
-  対策:
-    - タイムボックスを設ける（例: 1 週間で決定）
-    - スコアカードで定量化し、感情論を排除する
-    - 「反対する自由」は認めつつ「決定に従う義務」を合意する
-    - 決定プロセスを事前に合意する（多数決、リーダー判断等）
+  Countermeasures:
+    - Set a timebox (e.g., decide within 1 week)
+    - Quantify with scorecards, eliminating emotional arguments
+    - Respect the "freedom to disagree" while agreeing on the "obligation to follow the decision"
+    - Agree on the decision process in advance (majority vote, leader's call, etc.)
 ```
 
 ---
 
-## 第10章: 実践演習
+## Chapter 10: Practical Exercises
 
-### 演習 1: 基礎 -- 言語特性の比較表作成
+### Exercise 1: Basic -- Creating a Language Characteristics Comparison Table
 
-**課題**: Python, Go, Rust を以下の 6 軸で比較する表を作成せよ。
+**Task**: Create a comparison table of Python, Go, and Rust across the following 6 axes.
 
-| 比較軸 | Python | Go | Rust |
+| Comparison Axis | Python | Go | Rust |
 |--------|--------|-----|------|
-| 型付け | ? | ? | ? |
-| メモリ管理 | ? | ? | ? |
-| 並行処理モデル | ? | ? | ? |
-| エコシステムの成熟度 | ? | ? | ? |
-| コンパイル/実行速度 | ? | ? | ? |
-| 学習曲線 | ? | ? | ? |
+| Typing | ? | ? | ? |
+| Memory Management | ? | ? | ? |
+| Concurrency Model | ? | ? | ? |
+| Ecosystem Maturity | ? | ? | ? |
+| Compilation/Execution Speed | ? | ? | ? |
+| Learning Curve | ? | ? | ? |
 
-**手順**:
+**Steps**:
 
-1. 各言語の公式ドキュメントを参照し、各軸の特徴を 1-2 文で記述する
-2. 各軸について 1-10 のスコアを付与する（何を「良い」とするかの基準も明記）
-3. 3 言語のうち「Web API バックエンド」に最適なものを選び、理由を述べる
+1. Refer to each language's official documentation and describe characteristics for each axis in 1-2 sentences
+2. Assign a score of 1-10 for each axis (also specify the criteria for what constitutes "good")
+3. Select the optimal language for a "Web API backend" among the 3, and state your reasoning
 
-**模範解答の方向性**:
-
-```
-  型付け:
-    Python: 動的型付け + 型ヒント（漸進的型付け）
-    Go:     静的型付け、型推論あり（:=）、公称型
-    Rust:   静的型付け、強力な型推論、代数的データ型
-
-  メモリ管理:
-    Python: 参照カウント + GC（CPython）
-    Go:     トレーシング GC（STW を最小化）
-    Rust:   所有権システム（GC なし）
-
-  並行処理:
-    Python: asyncio / threading (GIL 制約)
-    Go:     goroutine + channel (CSP モデル)
-    Rust:   async/await + OS スレッド（fearless concurrency）
-```
-
-### 演習 2: 応用 -- 言語選定レポート
-
-**課題**: 以下のプロジェクト要件に対して、言語選定レポートを作成せよ。
+**Model Answer Direction**:
 
 ```
-  プロジェクト: リアルタイム株価表示ダッシュボード
+  Typing:
+    Python: Dynamic typing + type hints (gradual typing)
+    Go:     Static typing, type inference (`:=`), nominal types
+    Rust:   Static typing, powerful type inference, algebraic data types
+
+  Memory Management:
+    Python: Reference counting + GC (CPython)
+    Go:     Tracing GC (minimized STW)
+    Rust:   Ownership system (no GC)
+
+  Concurrency:
+    Python: asyncio / threading (GIL constraint)
+    Go:     goroutine + channel (CSP model)
+    Rust:   async/await + OS threads (fearless concurrency)
+```
+
+### Exercise 2: Applied -- Language Selection Report
+
+**Task**: Create a language selection report for the following project requirements.
+
+```
+  Project: Real-Time Stock Price Display Dashboard
   ==================================================
 
-  機能要件:
-    - 証券取引所から WebSocket で株価データを受信
-    - 1 秒間に最大 10,000 件の価格更新を処理
-    - ブラウザ上でリアルタイムチャートを表示
-    - 過去 30 日分のデータで移動平均を計算
-    - ユーザーごとにポートフォリオの損益を計算
+  Functional Requirements:
+    - Receive stock price data from exchange via WebSocket
+    - Process up to 10,000 price updates per second
+    - Display real-time charts in the browser
+    - Calculate moving averages from past 30 days of data
+    - Calculate portfolio profit/loss for each user
 
-  非機能要件:
-    - レイテンシ: データ受信からブラウザ表示まで 100ms 以内
-    - 可用性: 99.9% (市場開場時間中)
-    - 同時接続ユーザー: 最大 5,000
-    - データ保持期間: 1 年
+  Non-Functional Requirements:
+    - Latency: Under 100ms from data reception to browser display
+    - Availability: 99.9% (during market hours)
+    - Concurrent users: Up to 5,000
+    - Data retention period: 1 year
 
-  チーム構成:
-    - バックエンドエンジニア 3 名 (Python 経験者)
-    - フロントエンドエンジニア 2 名 (React 経験者)
-    - 納期: 4 ヶ月
+  Team Composition:
+    - 3 backend engineers (Python experienced)
+    - 2 frontend engineers (React experienced)
+    - Deadline: 4 months
 ```
 
-**レポート構成**:
+**Report Structure**:
 
-1. フロントエンド言語の選定と根拠
-2. バックエンド言語の選定と根拠
-3. データ処理層の言語の選定と根拠
-4. スコアカードによる定量評価
-5. リスクと対策
+1. Frontend language selection and rationale
+2. Backend language selection and rationale
+3. Data processing layer language selection and rationale
+4. Quantitative evaluation with scorecard
+5. Risks and countermeasures
 6. ADR (Architecture Decision Record)
 
-**ヒント**:
-- フロントエンドは TypeScript (React) がほぼ確定
-- バックエンドは WebSocket の大量同時接続がキーポイント
-- Python チームがバックエンドを担当する場合の「チーム習熟度 vs 性能要件」のトレードオフをどう扱うかが論点
+**Hints**:
+- Frontend is nearly certain to be TypeScript (React)
+- Backend key point is massive concurrent WebSocket connections
+- The trade-off of "team proficiency vs. performance requirements" when the Python team handles the backend is the key discussion point
 
-### 演習 3: 発展 -- 新言語の 30 分評価
+### Exercise 3: Advanced -- 30-Minute New Language Evaluation
 
-**課題**: 以下のリストから触ったことのない言語を 1 つ選び、30 分で以下の 3 つのタスクを実装せよ。
+**Task**: Select one language you have never used from the following list, and implement the following 3 tasks in 30 minutes.
 
-**候補言語**: Elixir, Zig, Gleam, Kotlin, Dart, OCaml, F#, Julia
+**Candidate Languages**: Elixir, Zig, Gleam, Kotlin, Dart, OCaml, F#, Julia
 
-**タスク**:
+**Tasks**:
 
 ```
-  Step 1 (5分): Hello World
-    - 開発環境のセットアップ
-    - "Hello, World!" の出力
+  Step 1 (5 min): Hello World
+    - Set up the development environment
+    - Output "Hello, World!"
 
-  Step 2 (10分): FizzBuzz
-    - 1 から 100 までの FizzBuzz を実装
-    - 言語の制御構造・パターンマッチを活用
+  Step 2 (10 min): FizzBuzz
+    - Implement FizzBuzz from 1 to 100
+    - Utilize the language's control structures and pattern matching
 
-  Step 3 (15分): 簡単な HTTP サーバー
-    - GET /hello で {"message": "Hello!"} を返す
-    - JSON レスポンスの生成
-    - ポート 8080 でリッスン
+  Step 3 (15 min): Simple HTTP Server
+    - Return {"message": "Hello!"} for GET /hello
+    - Generate a JSON response
+    - Listen on port 8080
 ```
 
-**評価観点** (30 分後に振り返る):
+**Evaluation Criteria** (reflect after 30 minutes):
 
-| 評価項目 | 記録 |
+| Evaluation Item | Record |
 |---------|------|
-| 開発環境セットアップは容易だったか | |
-| Hello World は何分で動いたか | |
-| FizzBuzz は何分で動いたか | |
-| HTTP サーバーは動いたか | |
-| エラーメッセージは理解しやすかったか | |
-| ドキュメント/チュートリアルの質は | |
-| 標準ライブラリの充実度は | |
-| もう一度使いたいと思うか | |
+| Was the development environment easy to set up? | |
+| How many minutes to Hello World? | |
+| How many minutes to FizzBuzz? | |
+| Did the HTTP server work? | |
+| Were error messages understandable? | |
+| How was the documentation/tutorial quality? | |
+| How rich was the standard library? | |
+| Would you want to use it again? | |
 
-**この演習の目的**: 新しい言語の「第一印象」を体系的に評価するスキルを身につける。言語選定において「実際に触ってみる」ことの価値は計り知れない。
+**Purpose of this exercise**: Develop the skill to systematically evaluate a new language's "first impression." In language selection, the value of "actually trying it out" is immeasurable.
 
 ---
 
-## FAQ (よくある質問)
+## FAQ (Frequently Asked Questions)
 
-### Q1: フルスタックを 1 言語で統一するメリットは？
+### Q1: What are the benefits of unifying the full stack in one language?
 
-**A**: コンテキストスイッチの削減、フロント・バック間のコード共有（バリデーションロジック等）、チーム全体でのコードレビューが容易になることが主なメリットである。TypeScript (Node.js + React) が代表例で、型定義を共有することで API の型安全性が端から端まで保証される。
+**A**: The main benefits are reduced context switching, code sharing between frontend and backend (validation logic, etc.), and easier code reviews across the entire team. TypeScript (Node.js + React) is the representative example, where sharing type definitions ensures API type safety from end to end.
 
-ただし、以下の場合はフルスタック統一を避けるべきである:
-- バックエンドの CPU 集中型処理が多い場合（Go/Rust を検討）
-- ML/AI 機能が中核にある場合（Python が不可欠）
-- 超高トラフィックで GC 停止が許容できない場合（Rust を検討）
+However, full-stack unification should be avoided in the following cases:
+- When the backend has heavy CPU-intensive processing (consider Go/Rust)
+- When ML/AI functionality is at the core (Python is essential)
+- When GC pauses are unacceptable under ultra-high traffic (consider Rust)
 
-### Q2: 言語を切り替えるタイミングは？
+### Q2: When should you switch languages?
 
-**A**: 以下の条件が複数該当する場合に検討する:
+**A**: Consider when multiple of the following conditions apply:
 
-1. 既存言語で解決困難な技術的制約に直面した（性能、並行性等）
-2. チームの生産性が明らかに低下している
-3. エコシステムのサポートが終了・停滞している
-4. 開発者の採用が著しく困難になっている
-5. セキュリティ上の懸念が言語起因で解消困難
+1. Facing technical constraints that are difficult to resolve with the existing language (performance, concurrency, etc.)
+2. Team productivity is clearly declining
+3. Ecosystem support has ended or stagnated
+4. Developer hiring has become significantly difficult
+5. Security concerns are language-caused and hard to resolve
 
-切り替える場合は Strangler Fig パターンによる段階的移行を推奨する。新機能から別言語で実装し、既存機能は徐々に移行する。ビッグバン書き換えは小規模システム以外では避けるべきである。
+When switching, gradual migration using the Strangler Fig pattern is recommended. Implement new features in a different language first, and migrate existing features gradually. Big bang rewrites should be avoided for anything beyond small-scale systems.
 
-### Q3: プログラミング言語の寿命は？
+### Q3: What is the lifespan of a programming language?
 
-**A**: COBOL (1959年〜)、Fortran (1957年〜)、LISP (1958年〜) が今も稼働している通り、言語自体の寿命は非常に長い。重要なのは以下の 3 点である:
+**A**: As COBOL (1959~), Fortran (1957~), and LISP (1958~) still operate today, the lifespan of a language itself is very long. The important points are the following 3:
 
-1. **エコシステムの活発さ**: ライブラリ・フレームワークが活発に開発されているか
-2. **人材の獲得可能性**: その言語を使える開発者を採用できるか
-3. **ランタイムのサポート**: ランタイムや処理系が継続的にメンテナンスされているか
+1. **Ecosystem vitality**: Are libraries and frameworks being actively developed?
+2. **Talent availability**: Can you hire developers who know the language?
+3. **Runtime support**: Is the runtime/implementation continuously maintained?
 
-Lindy 効果（存続した期間と同程度、将来も存続する傾向）から考えると、20 年以上の実績がある言語（C, C++, Java, Python, JavaScript 等）は今後も長期間使われ続ける可能性が高い。
+Based on the Lindy Effect (a tendency to survive for a period proportional to how long it has existed), languages with 20+ years of track record (C, C++, Java, Python, JavaScript, etc.) are likely to continue being used for a long time.
 
-### Q4: AI (LLM) の普及で言語選定は変わるか？
+### Q4: Will AI (LLM) proliferation change language selection?
 
-**A**: AI コーディング支援ツールの普及により、以下の変化が見られる:
+**A**: With the proliferation of AI coding assistance tools, the following changes are observed:
 
-1. **冗長な言語のハンディキャップが減少**: Java のボイラープレートを AI が自動生成するため、開発速度の差が縮まる
-2. **型情報が AI の精度を向上**: TypeScript, Rust 等の静的型付け言語は、AI の補完精度が高い
-3. **ドキュメントの質が重要に**: AI が学習するドキュメント・コード例が豊富な言語が有利
-4. **ニッチ言語は不利**: 学習データが少ない言語では AI の支援品質が低い
+1. **Reduced handicap for verbose languages**: AI auto-generates Java boilerplate, narrowing the development speed gap
+2. **Type information improves AI accuracy**: Static typed languages like TypeScript and Rust have higher AI completion accuracy
+3. **Documentation quality becomes important**: Languages with abundant documentation and code examples that AI can learn from have an advantage
+4. **Niche languages are disadvantaged**: Languages with limited training data have lower AI assistance quality
 
-ただし、言語選定の本質（ドメイン適合性、チーム習熟度、エコシステム）は変わらない。AI は「生産性の差を縮める」ツールであり、根本的な適合性を覆すものではない。
+However, the essence of language selection (domain fit, team proficiency, ecosystem) does not change. AI is a tool that "narrows the productivity gap," not something that overturns fundamental suitability.
 
-### Q5: 「学ぶべき言語」と「仕事で使う言語」は違うのか？
+### Q5: Are "languages to learn" and "languages to use at work" different?
 
-**A**: 異なることが多い。学習目的には、自分のプログラミング観を広げる言語を選ぶべきである。
+**A**: They often differ. For learning purposes, you should choose languages that broaden your programming perspective.
 
-| 学習目的 | 推奨言語 | 学べること |
+| Learning Purpose | Recommended Language | What You Learn |
 |---------|---------|-----------|
-| 関数型プログラミング | Haskell / OCaml | 純粋性、型推論、不変性 |
-| メモリモデルの理解 | C / Rust | 手動管理 vs 所有権 |
-| 並行処理の設計 | Go / Erlang | CSP / アクターモデル |
-| メタプログラミング | Ruby / Lisp | DSL、マクロ、リフレクション |
-| 低レベル最適化 | C / Assembly | ハードウェアとの関係 |
+| Functional Programming | Haskell / OCaml | Purity, type inference, immutability |
+| Understanding Memory Models | C / Rust | Manual management vs. ownership |
+| Concurrency Design | Go / Erlang | CSP / Actor model |
+| Metaprogramming | Ruby / Lisp | DSLs, macros, reflection |
+| Low-Level Optimization | C / Assembly | Relationship with hardware |
 
-仕事では「プロジェクトに最適な言語」を使い、学習では「視野を広げる言語」を選ぶ。この二重戦略がエンジニアとしての総合力を高める。
+Use "the optimal language for the project" at work, and choose "languages that broaden your horizons" for learning. This dual strategy enhances your overall engineering capability.
 
-### Q6: マイクロサービスごとに異なる言語を使ってよいか？
+### Q6: Is it acceptable to use different languages for each microservice?
 
-**A**: 技術的には可能だが、組織的なコストを慎重に評価する必要がある。
+**A**: It is technically possible, but organizational costs must be carefully evaluated.
 
-**許容される場合**:
-- 各チームが独立して言語を選択でき、チーム間の人材ローテーションが少ない
-- 明確な技術的理由がある（ML サービスは Python、リアルタイム処理は Go 等）
-- 共通基盤（CI/CD、監視、デプロイ）が言語非依存で構築されている
+**Acceptable when**:
+- Each team can independently choose languages, and cross-team personnel rotation is infrequent
+- There are clear technical reasons (ML service in Python, real-time processing in Go, etc.)
+- Common infrastructure (CI/CD, monitoring, deployment) is built language-agnostically
 
-**避けるべき場合**:
-- チームが小さく、全員が全サービスを触る必要がある
-- DevOps チームが各言語のツールチェーンを保守する余力がない
-- 「使いたいから」が唯一の理由である
+**Should be avoided when**:
+- The team is small and everyone needs to touch all services
+- The DevOps team lacks the capacity to maintain each language's toolchain
+- "We want to use it" is the only reason
 
-推奨は「2-3 言語に絞り、明確な使い分けルールを設ける」ことである。
+The recommendation is to "limit to 2-3 languages and establish clear usage rules."
 
 ---
 
-## まとめ
+## Summary
 
-### 言語選定の 7 原則
+### 7 Principles of Language Selection
 
 ```
   +================================================================+
-  |                    言語選定の 7 原則                              |
+  |                  7 Principles of Language Selection               |
   +================================================================+
   |                                                                |
-  |  1. ドメインの定番に従え                                         |
-  |     → 特段の理由がない限り、その領域の標準を選ぶ                  |
+  |  1. Follow the domain's standard                                |
+  |     -> Unless there is a compelling reason, choose the standard  |
+  |        for that domain                                          |
   |                                                                |
-  |  2. チームの強みを活かせ                                        |
-  |     → 習熟度が生産性に最も影響する                               |
+  |  2. Leverage team strengths                                     |
+  |     -> Proficiency has the greatest impact on productivity       |
   |                                                                |
-  |  3. 制約から逆算せよ                                            |
-  |     → ハード制約で候補を絞り、その後にスコアカードで評価          |
+  |  3. Work backward from constraints                              |
+  |     -> Narrow candidates with hard constraints, then evaluate    |
+  |        with scorecard                                           |
   |                                                                |
-  |  4. 測定してから判断せよ                                        |
-  |     → 性能要件は推測ではなく計測で確認する                       |
+  |  4. Measure before deciding                                     |
+  |     -> Verify performance requirements through measurement,      |
+  |        not speculation                                          |
   |                                                                |
-  |  5. エコシステムを確認せよ                                      |
-  |     → 必要なライブラリ・ツールの有無を事前に確認                 |
+  |  5. Verify the ecosystem                                        |
+  |     -> Confirm availability of required libraries and tools      |
+  |        in advance                                               |
   |                                                                |
-  |  6. 10 年後を想像せよ                                           |
-  |     → 人材がいるか、サポートが続くか                             |
+  |  6. Envision 10 years ahead                                     |
+  |     -> Will talent be available? Will support continue?          |
   |                                                                |
-  |  7. 決定を記録せよ                                              |
-  |     → ADR で根拠を残し、将来の見直しに備える                     |
+  |  7. Record the decision                                         |
+  |     -> Document rationale in an ADR, preparing for future review |
   |                                                                |
   +================================================================+
 ```
 
-### 判断軸サマリー
+### Decision Axis Summary
 
-| 判断軸 | 最重要ポイント |
+| Decision Axis | Key Point |
 |-------|-------------|
-| ドメイン | 領域ごとに定番がある。逆らわない |
-| チーム | 習熟度が生産性に直結する |
-| 性能 | 本当にボトルネックか測定してから判断 |
-| エコシステム | 必要なライブラリの有無を事前確認 |
-| 保守性 | 10 年後も人材がいる言語か |
-| トレンド | 流行に振り回されず本質で判断 |
-| コスト | 採用・育成・ツールチェーンの総コストで評価 |
+| Domain | Each domain has its standards. Do not go against them |
+| Team | Proficiency directly impacts productivity |
+| Performance | Measure to confirm it is truly the bottleneck before deciding |
+| Ecosystem | Verify availability of required libraries in advance |
+| Maintainability | Will talent be available in 10 years? |
+| Trends | Judge by substance, not by trends |
+| Cost | Evaluate by total cost of hiring, training, and toolchain |
 
-### 言語選定チートシート
+### Language Selection Cheat Sheet
 
 ```
-  言語選定クイックリファレンス
+  Language Selection Quick Reference
   ===========================
 
-  "何を作るか" で決まる 80%:
+  "What you build" determines 80%:
   +-----------------------+---------------------------+
-  | 作るもの               | 第一候補                   |
+  | What You Build         | First Choice               |
   +-----------------------+---------------------------+
-  | Web フロント           | TypeScript                |
-  | Web バックエンド(小)   | TypeScript / Python       |
-  | Web バックエンド(大)   | Go / Java / Kotlin        |
-  | iOS アプリ             | Swift                     |
-  | Android アプリ         | Kotlin                    |
-  | クロスプラットフォーム  | Flutter (Dart)            |
+  | Web Frontend           | TypeScript                |
+  | Web Backend (small)    | TypeScript / Python       |
+  | Web Backend (large)    | Go / Java / Kotlin        |
+  | iOS App                | Swift                     |
+  | Android App            | Kotlin                    |
+  | Cross-Platform         | Flutter (Dart)            |
   | AI/ML                 | Python                    |
-  | システムプログラミング  | Rust / C                  |
-  | CLI ツール             | Go / Rust                 |
-  | データ分析             | Python / R                |
+  | Systems Programming    | Rust / C                  |
+  | CLI Tool               | Go / Rust                 |
+  | Data Analysis          | Python / R                |
   | DevOps                | Python / Go / Bash        |
-  | ゲーム                 | C++ / C#                  |
+  | Games                  | C++ / C#                  |
   +-----------------------+---------------------------+
 
-  "誰が作るか" で変わる 15%:
-  → チーム習熟度、採用可能性、オンボーディングコスト
+  "Who builds it" changes 15%:
+  -> Team proficiency, hiring availability, onboarding cost
 
-  "どこで動かすか" で変わる 5%:
-  → ブラウザ、モバイル、サーバー、組み込み、エッジ
+  "Where it runs" changes 5%:
+  -> Browser, mobile, server, embedded, edge
 ```
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Reads
 
 
 ---
 
-## 参考文献
+## References
 
-1. Scott, M. L. *Programming Language Pragmatics*. 4th Edition, Morgan Kaufmann, 2015. -- 言語設計の原理を網羅的に解説した教科書。型システム、メモリ管理、制御構造の理論的基盤を学べる。
-2. Van Roy, P. and Haridi, S. *Concepts, Techniques, and Models of Computer Programming*. MIT Press, 2004. -- プログラミングパラダイムを統一的に扱った名著。宣言型・命令型・並行プログラミングの概念モデルを体系的に理解できる。
-3. Klabnik, S. and Nichols, C. *The Rust Programming Language*. No Starch Press, 2023. -- Rust の所有権システムを通じて、メモリ安全性と型安全性の現代的アプローチを学べる公式ガイド。
-4. Donovan, A. A. and Kernighan, B. W. *The Go Programming Language*. Addison-Wesley Professional, 2015. -- Go の設計哲学「Less is More」を体現した言語入門書。シンプルさと実用性のバランスを理解できる。
-5. "Stack Overflow Developer Survey 2024." stackoverflow.com. -- 世界最大の開発者調査。言語の人気度、満足度、給与水準の統計データを提供。
-6. "The State of Developer Ecosystem 2024." JetBrains. -- JetBrains による年次開発者エコシステムレポート。言語のトレンド、ツール利用状況、チーム構成の統計を収録。
-7. Pierce, B. C. *Types and Programming Languages*. MIT Press, 2002. -- 型理論の標準的教科書。型推論、多相性、サブタイピングの数学的基盤を厳密に学べる。
+1. Scott, M. L. *Programming Language Pragmatics*. 4th Edition, Morgan Kaufmann, 2015. -- A comprehensive textbook on language design principles. Covers the theoretical foundations of type systems, memory management, and control structures.
+2. Van Roy, P. and Haridi, S. *Concepts, Techniques, and Models of Computer Programming*. MIT Press, 2004. -- A seminal work that treats programming paradigms in a unified manner. Enables systematic understanding of declarative, imperative, and concurrent programming concepts.
+3. Klabnik, S. and Nichols, C. *The Rust Programming Language*. No Starch Press, 2023. -- The official guide for learning modern approaches to memory safety and type safety through Rust's ownership system.
+4. Donovan, A. A. and Kernighan, B. W. *The Go Programming Language*. Addison-Wesley Professional, 2015. -- A language introduction that embodies Go's design philosophy "Less is More." Enables understanding the balance between simplicity and practicality.
+5. "Stack Overflow Developer Survey 2024." stackoverflow.com. -- The world's largest developer survey. Provides statistical data on language popularity, satisfaction, and salary levels.
+6. "The State of Developer Ecosystem 2024." JetBrains. -- Annual developer ecosystem report by JetBrains. Includes statistics on language trends, tool usage, and team composition.
+7. Pierce, B. C. *Types and Programming Languages*. MIT Press, 2002. -- The standard textbook on type theory. Enables rigorous study of the mathematical foundations of type inference, polymorphism, and subtyping.
 
 ---
 
-## 用語集
+## Glossary
 
-| 用語 | 英語 | 説明 |
+| Term | English | Description |
 |------|------|------|
-| 漸進的型付け | Gradual Typing | 動的型付けと静的型付けを同一プログラム内で併用する仕組み |
-| 所有権 | Ownership | Rust で導入されたメモリ管理モデル。各値には一つの所有者がいる |
-| GC | Garbage Collection | ガベージコレクション。不要なメモリを自動的に回収する仕組み |
-| JIT | Just-In-Time | 実行時にバイトコードをネイティブコードにコンパイルする方式 |
-| AOT | Ahead-Of-Time | 実行前にネイティブコードにコンパイルする方式 |
-| FFI | Foreign Function Interface | 異なる言語の関数を呼び出すためのインタフェース |
-| CSP | Communicating Sequential Processes | Go のチャネルモデルの理論的基盤 |
-| ADR | Architecture Decision Record | アーキテクチャ上の意思決定を記録するドキュメント形式 |
-| PoC | Proof of Concept | 概念実証。技術的な実現可能性を検証するための試作 |
-| GIL | Global Interpreter Lock | CPython でマルチスレッドの並行実行を制限するロック機構 |
-| Wasm | WebAssembly | ブラウザやサーバーで実行できるポータブルなバイナリ形式 |
-| STW | Stop-The-World | GC 実行時にアプリケーションが一時停止する現象 |
-| DSL | Domain-Specific Language | 特定のドメインに特化した小さな言語 |
-| MVP | Minimum Viable Product | 最小限の機能を持つ製品。仮説検証に用いる |
-| Lindy 効果 | Lindy Effect | 存続期間が長いものほど将来も存続する傾向 |
+| Gradual Typing | Gradual Typing | A mechanism for using dynamic and static typing together within the same program |
+| Ownership | Ownership | A memory management model introduced in Rust. Each value has exactly one owner |
+| GC | Garbage Collection | A mechanism that automatically reclaims unused memory |
+| JIT | Just-In-Time | A method of compiling bytecode to native code at runtime |
+| AOT | Ahead-Of-Time | A method of compiling to native code before execution |
+| FFI | Foreign Function Interface | An interface for calling functions written in different languages |
+| CSP | Communicating Sequential Processes | The theoretical foundation of Go's channel model |
+| ADR | Architecture Decision Record | A document format for recording architectural decisions |
+| PoC | Proof of Concept | A prototype for verifying technical feasibility |
+| GIL | Global Interpreter Lock | A lock mechanism in CPython that restricts concurrent execution of multiple threads |
+| Wasm | WebAssembly | A portable binary format executable in browsers and servers |
+| STW | Stop-The-World | The phenomenon where the application temporarily pauses during GC execution |
+| DSL | Domain-Specific Language | A small language specialized for a specific domain |
+| MVP | Minimum Viable Product | A product with the minimum features needed for hypothesis validation |
+| Lindy Effect | Lindy Effect | The tendency for things that have existed longer to continue existing |

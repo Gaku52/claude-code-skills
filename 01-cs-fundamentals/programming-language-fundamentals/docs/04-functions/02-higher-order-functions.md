@@ -1,68 +1,72 @@
-# 高階関数（Higher-Order Functions）
+# Higher-Order Functions
 
-> 高階関数は「関数を引数に取る、または関数を返す関数」。コードの再利用性と抽象化のレベルを劇的に向上させる。
+> Higher-order functions are "functions that take functions as arguments or return functions as results." They dramatically improve code reusability and the level of abstraction.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] map, filter, reduce の本質を理解する
-- [ ] 高階関数による抽象化パターンを習得する
-- [ ] 関数型プログラミングの実践的な適用を理解する
-- [ ] カリー化と部分適用の違いを理解する
-- [ ] 関数合成による宣言的プログラミングを習得する
-- [ ] 各言語での高階関数の実装パターンを横断的に理解する
+- [ ] Understand the essence of map, filter, and reduce
+- [ ] Master abstraction patterns using higher-order functions
+- [ ] Understand practical applications of functional programming
+- [ ] Understand the difference between currying and partial application
+- [ ] Master declarative programming through function composition
+- [ ] Gain a cross-cutting understanding of higher-order function implementation patterns across languages
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [クロージャ（Closures）](./01-closures.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding the content of [Closures](./01-closures.md)
 
 ---
 
-## 1. 高階関数の基礎概念
+## 1. Fundamental Concepts of Higher-Order Functions
 
-### 1.1 高階関数とは何か
+### 1.1 What Are Higher-Order Functions?
 
-高階関数（Higher-Order Function）は、以下のいずれかまたは両方を満たす関数である。
+A higher-order function satisfies one or both of the following conditions:
 
-1. **関数を引数として受け取る**（コールバック関数、述語関数など）
-2. **関数を戻り値として返す**（クロージャ、ファクトリ関数など）
+1. **Accepts a function as an argument** (callback functions, predicate functions, etc.)
+2. **Returns a function as a result** (closures, factory functions, etc.)
 
-この概念はラムダ計算（Lambda Calculus）に起源を持ち、Alonzo Church が1930年代に定式化した計算モデルに基づく。高階関数が存在することで、関数は「第一級オブジェクト（First-class citizen）」として扱われ、変数に代入したり、データ構造に格納したり、他の関数に渡したりすることが可能になる。
+This concept originates from Lambda Calculus, a computational model formalized by Alonzo Church in the 1930s. The existence of higher-order functions allows functions to be treated as "first-class citizens," meaning they can be assigned to variables, stored in data structures, or passed to other functions.
 
 ```
-第一級関数の条件:
-1. 変数に代入できる           const f = Math.sqrt;
-2. 引数として渡せる           arr.map(f);
-3. 戻り値として返せる         function make() { return f; }
-4. データ構造に格納できる     const fns = [f, Math.abs];
-5. 実行時に生成できる         const g = (x) => x * 2;
+Conditions for first-class functions:
+1. Can be assigned to a variable       const f = Math.sqrt;
+2. Can be passed as an argument        arr.map(f);
+3. Can be returned as a value          function make() { return f; }
+4. Can be stored in data structures    const fns = [f, Math.abs];
+5. Can be created at runtime           const g = (x) => x * 2;
 ```
 
-### 1.2 なぜ高階関数が重要なのか
+### 1.2 Why Are Higher-Order Functions Important?
 
-高階関数がプログラミングにおいて重要な理由は以下の通りである。
+The reasons higher-order functions are important in programming are as follows:
 
 ```
 ┌─────────────────────────────────────────────────┐
-│            高階関数の利点                         │
+│         Benefits of Higher-Order Functions       │
 ├─────────────────────────────────────────────────┤
-│ 1. 抽象化: 共通パターンを関数として抽出          │
-│ 2. 再利用性: 動作をパラメータ化して汎用的に      │
-│ 3. 合成可能性: 小さな関数を組み合わせて複雑な    │
-│    処理を構築                                    │
-│ 4. 宣言的: 「何をするか」を記述、「どうやるか」  │
-│    を抽象化                                      │
-│ 5. テスト容易性: 純粋関数を個別にテスト可能      │
-│ 6. 遅延評価: 計算を必要な時まで遅延可能          │
+│ 1. Abstraction: Extract common patterns as       │
+│    functions                                     │
+│ 2. Reusability: Parameterize behavior for        │
+│    general-purpose use                           │
+│ 3. Composability: Build complex operations by    │
+│    combining small functions                     │
+│ 4. Declarative: Describe "what to do," abstract  │
+│    away "how to do it"                           │
+│ 5. Testability: Pure functions can be tested     │
+│    individually                                  │
+│ 6. Lazy evaluation: Computation can be deferred  │
+│    until needed                                  │
 └─────────────────────────────────────────────────┘
 ```
 
 ```typescript
-// 命令的アプローチ（低い抽象度）
+// Imperative approach (low abstraction)
 const results: string[] = [];
 for (let i = 0; i < users.length; i++) {
     if (users[i].active) {
@@ -70,38 +74,40 @@ for (let i = 0; i < users.length; i++) {
     }
 }
 
-// 宣言的アプローチ（高い抽象度 - 高階関数を使用）
+// Declarative approach (high abstraction - using higher-order functions)
 const results = users
     .filter(u => u.active)
     .map(u => u.name.toUpperCase());
 ```
 
-命令的アプローチでは「どうやって処理するか」（ループ変数の管理、条件分岐、配列への追加）を記述しているが、宣言的アプローチでは「何をしたいか」（アクティブなユーザーをフィルタし、名前を大文字に変換する）だけを記述している。この違いは、コードの可読性と保守性に大きな影響を与える。
+The imperative approach describes "how to process" (managing loop variables, branching conditions, appending to arrays), while the declarative approach describes only "what we want to do" (filter active users and convert names to uppercase). This difference has a significant impact on code readability and maintainability.
 
-### 1.3 歴史的背景
+### 1.3 Historical Background
 
 ```
-1930年代  Alonzo Church がラムダ計算を定式化
-1958年    Lisp 誕生 - 初めて高階関数を実用的に実装
-1973年    ML 誕生 - 型推論と高階関数の融合
-1990年    Haskell 誕生 - 純粋関数型言語
-2004年    Scala 誕生 - OOP + FP の融合
-2007年    C# 3.0 LINQ - 高階関数が主流言語に浸透
-2011年    Java 8 Lambda - 世界で最も使用される言語に高階関数が導入
-2015年    ES2015 (JavaScript) - Arrow Function が標準化
-2015年    Rust 1.0 - ゼロコスト抽象化としての高階関数
+1930s     Alonzo Church formalizes Lambda Calculus
+1958      Lisp is born - first practical implementation of higher-order functions
+1973      ML is born - fusion of type inference and higher-order functions
+1990      Haskell is born - pure functional language
+2004      Scala is born - fusion of OOP + FP
+2007      C# 3.0 LINQ - higher-order functions permeate mainstream languages
+2011      Java 8 Lambda - higher-order functions introduced to the world's most used language
+2015      ES2015 (JavaScript) - Arrow Functions standardized
+2015      Rust 1.0 - higher-order functions as zero-cost abstractions
 ```
 
 ---
 
-## 2. 三大高階関数: map, filter, reduce
+## 2. The Big Three Higher-Order Functions: map, filter, reduce
 
-### 2.1 概念の図解
+### 2.1 Conceptual Diagram
 
 ```
-map:    各要素を変換する      [1,2,3] → [2,4,6]
-filter: 条件に合う要素を選ぶ  [1,2,3,4,5] → [2,4]
-reduce: 全要素を1つの値に集約 [1,2,3,4,5] → 15
+map:    Transform each element       [1,2,3] → [2,4,6]
+filter: Select elements matching     [1,2,3,4,5] → [2,4]
+        a condition
+reduce: Aggregate all elements       [1,2,3,4,5] → 15
+        into a single value
 ```
 
 ```
@@ -109,42 +115,42 @@ reduce: 全要素を1つの値に集約 [1,2,3,4,5] → 15
 ┌───┬───┬───┬───┐  f(x) = x * 2  ┌───┬───┬───┬───┐
 │ 1 │ 2 │ 3 │ 4 │ ─────────────→ │ 2 │ 4 │ 6 │ 8 │
 └───┴───┴───┴───┘                 └───┴───┴───┴───┘
-  入力配列（同じ長さ）              出力配列（同じ長さ）
+  Input array (same length)         Output array (same length)
 
                     filter (p)
 ┌───┬───┬───┬───┐  p(x) = x > 2  ┌───┬───┐
 │ 1 │ 2 │ 3 │ 4 │ ─────────────→ │ 3 │ 4 │
 └───┴───┴───┴───┘                 └───┴───┘
-  入力配列                          出力配列（要素数 ≤ 入力）
+  Input array                       Output array (count ≤ input)
 
                     reduce (f, init)
 ┌───┬───┬───┬───┐  f(acc, x) = acc + x  ┌────┐
 │ 1 │ 2 │ 3 │ 4 │ ───────────────────→  │ 10 │
 └───┴───┴───┴───┘  init = 0              └────┘
-  入力配列                                 単一値
+  Input array                             Single value
 ```
 
-### 2.2 TypeScript での実装
+### 2.2 Implementation in TypeScript
 
 ```typescript
-// TypeScript: 三大高階関数
+// TypeScript: The big three higher-order functions
 const numbers = [1, 2, 3, 4, 5];
 
-// map: 変換
+// map: Transform
 numbers.map(n => n * 2);              // [2, 4, 6, 8, 10]
 numbers.map(n => n.toString());       // ["1", "2", "3", "4", "5"]
 numbers.map((n, i) => ({ index: i, value: n }));
 
-// filter: 選択
+// filter: Select
 numbers.filter(n => n > 3);           // [4, 5]
 numbers.filter(n => n % 2 === 0);     // [2, 4]
 
-// reduce: 集約
-numbers.reduce((acc, n) => acc + n, 0);        // 15（合計）
-numbers.reduce((acc, n) => acc * n, 1);        // 120（積）
-numbers.reduce((max, n) => Math.max(max, n), -Infinity); // 5（最大）
+// reduce: Aggregate
+numbers.reduce((acc, n) => acc + n, 0);        // 15 (sum)
+numbers.reduce((acc, n) => acc * n, 1);        // 120 (product)
+numbers.reduce((max, n) => Math.max(max, n), -Infinity); // 5 (maximum)
 
-// reduce で他の高階関数を実装できる
+// reduce can implement other higher-order functions
 const myMap = <T, U>(arr: T[], fn: (x: T) => U): U[] =>
     arr.reduce<U[]>((acc, x) => [...acc, fn(x)], []);
 
@@ -152,12 +158,12 @@ const myFilter = <T>(arr: T[], pred: (x: T) => boolean): T[] =>
     arr.reduce<T[]>((acc, x) => pred(x) ? [...acc, x] : acc, []);
 ```
 
-### 2.3 reduce の深い理解
+### 2.3 Deep Understanding of reduce
 
-`reduce` は三大高階関数の中で最も強力で汎用的である。実際、`map` と `filter` は `reduce` で実装できることからもわかるように、`reduce` は折りたたみ（fold）操作の特殊なケースである。
+`reduce` is the most powerful and versatile of the big three higher-order functions. As demonstrated by the fact that `map` and `filter` can be implemented with `reduce`, `reduce` is a special case of the fold operation.
 
 ```typescript
-// reduce の仕組みを段階的に追跡
+// Tracing the mechanism of reduce step by step
 const trace = [1, 2, 3, 4].reduce((acc, n) => {
     console.log(`acc=${acc}, n=${n}, result=${acc + n}`);
     return acc + n;
@@ -168,22 +174,22 @@ const trace = [1, 2, 3, 4].reduce((acc, n) => {
 // acc=6, n=4, result=10
 // → 10
 
-// reduce でさまざまなデータ変換を実現
+// Achieving various data transformations with reduce
 const items = ["apple", "banana", "apple", "cherry", "banana", "apple"];
 
-// 頻度カウント
+// Frequency count
 const frequency = items.reduce<Record<string, number>>((acc, item) => {
     acc[item] = (acc[item] || 0) + 1;
     return acc;
 }, {});
 // → { apple: 3, banana: 2, cherry: 1 }
 
-// 配列の平坦化
+// Array flattening
 const nested = [[1, 2], [3, 4], [5, 6]];
 const flat = nested.reduce<number[]>((acc, arr) => [...acc, ...arr], []);
 // → [1, 2, 3, 4, 5, 6]
 
-// パイプライン構築
+// Pipeline construction
 type Transform = (s: string) => string;
 const transforms: Transform[] = [
     s => s.trim(),
@@ -194,12 +200,12 @@ const slugify = (input: string): string =>
     transforms.reduce((result, transform) => transform(result), input);
 slugify("  Hello World  ");  // → "hello-world"
 
-// reduceRight: 右から左への集約
+// reduceRight: Aggregate from right to left
 const compose = <T>(...fns: Array<(x: T) => T>) =>
     (x: T): T => fns.reduceRight((acc, fn) => fn(acc), x);
 ```
 
-### 2.4 Python での三大高階関数
+### 2.4 The Big Three Higher-Order Functions in Python
 
 ```python
 from functools import reduce
@@ -207,26 +213,26 @@ from typing import List, Dict, Any
 
 numbers = [1, 2, 3, 4, 5]
 
-# map: 変換（遅延評価 - イテレータを返す）
+# map: Transform (lazy evaluation - returns an iterator)
 doubled = list(map(lambda n: n * 2, numbers))      # [2, 4, 6, 8, 10]
 strings = list(map(str, numbers))                    # ['1', '2', '3', '4', '5']
 
-# filter: 選択（遅延評価）
+# filter: Select (lazy evaluation)
 evens = list(filter(lambda n: n % 2 == 0, numbers)) # [2, 4]
 adults = list(filter(lambda u: u['age'] >= 18, users))
 
-# reduce: 集約
+# reduce: Aggregate
 total = reduce(lambda acc, n: acc + n, numbers, 0)   # 15
 product = reduce(lambda acc, n: acc * n, numbers, 1)  # 120
 
-# Python ではリスト内包表記が推奨される場合が多い
+# In Python, list comprehensions are often preferred
 doubled_comp = [n * 2 for n in numbers]               # [2, 4, 6, 8, 10]
 evens_comp = [n for n in numbers if n % 2 == 0]       # [2, 4]
 
-# ジェネレータ式（メモリ効率が良い）
+# Generator expressions (memory efficient)
 sum_of_squares = sum(n ** 2 for n in range(1000000))
 
-# 複雑な変換パイプライン
+# Complex transformation pipeline
 users: List[Dict[str, Any]] = [
     {"name": "Alice", "age": 30, "active": True},
     {"name": "Bob", "age": 17, "active": True},
@@ -234,7 +240,7 @@ users: List[Dict[str, Any]] = [
     {"name": "Diana", "age": 22, "active": True},
 ]
 
-# 関数型スタイル
+# Functional style
 active_adult_names = list(
     map(
         lambda u: u["name"],
@@ -245,16 +251,16 @@ active_adult_names = list(
     )
 )
 
-# リスト内包表記スタイル（Python ではこちらが推奨）
+# List comprehension style (preferred in Python)
 active_adult_names = [
     u["name"] for u in users
     if u["active"] and u["age"] >= 18
 ]
 
-# functools を活用した高度な使い方
+# Advanced usage with functools
 from functools import partial, lru_cache
 
-# partial: 部分適用
+# partial: Partial application
 def multiply(a: int, b: int) -> int:
     return a * b
 
@@ -263,22 +269,22 @@ triple = partial(multiply, 3)
 print(list(map(double, numbers)))  # [2, 4, 6, 8, 10]
 print(list(map(triple, numbers)))  # [3, 6, 9, 12, 15]
 
-# itertools との組み合わせ
+# Combining with itertools
 from itertools import chain, starmap, accumulate
 
-# accumulate: 累積計算（scan 操作）
+# accumulate: Cumulative calculation (scan operation)
 running_sum = list(accumulate(numbers))        # [1, 3, 6, 10, 15]
 running_max = list(accumulate(numbers, max))   # [1, 2, 3, 4, 5]
 
-# chain: 複数のイテラブルを連結
+# chain: Concatenate multiple iterables
 combined = list(chain([1, 2], [3, 4], [5, 6]))  # [1, 2, 3, 4, 5, 6]
 
-# starmap: タプルの展開
+# starmap: Unpack tuples
 pairs = [(2, 5), (3, 2), (10, 3)]
 results = list(starmap(pow, pairs))  # [32, 9, 1000]
 ```
 
-### 2.5 Go での高階関数
+### 2.5 Higher-Order Functions in Go
 
 ```go
 package main
@@ -288,11 +294,11 @@ import (
     "strings"
 )
 
-// Go にはジェネリクス（1.18+）があるが、組み込みの map/filter はない
-// 自前で実装する
+// Go has generics (1.18+) but no built-in map/filter
+// We implement them ourselves
 
-// Map: スライスの各要素に関数を適用
-func MapT, U any U) []U {
+// Map: Apply a function to each element of a slice
+func Map[T, U any](slice []T, f func(T) U) []U {
     result := make([]U, len(slice))
     for i, v := range slice {
         result[i] = f(v)
@@ -300,8 +306,8 @@ func MapT, U any U) []U {
     return result
 }
 
-// Filter: 述語を満たす要素のみ返す
-func FilterT any bool) []T {
+// Filter: Return only elements that satisfy the predicate
+func Filter[T any](slice []T, pred func(T) bool) []T {
     result := make([]T, 0)
     for _, v := range slice {
         if pred(v) {
@@ -311,8 +317,8 @@ func FilterT any bool) []T {
     return result
 }
 
-// Reduce: スライスを単一の値に集約
-func ReduceT, U any U) U {
+// Reduce: Aggregate a slice into a single value
+func Reduce[T, U any](slice []T, init U, f func(U, T) U) U {
     acc := init
     for _, v := range slice {
         acc = f(acc, v)
@@ -320,15 +326,15 @@ func ReduceT, U any U) U {
     return acc
 }
 
-// ForEach: 各要素に対して副作用を実行
-func ForEachT any) {
+// ForEach: Execute a side effect for each element
+func ForEach[T any](slice []T, f func(T)) {
     for _, v := range slice {
         f(v)
     }
 }
 
-// Any: いずれかの要素が条件を満たすか
-func AnyT any bool) bool {
+// Any: Check if any element satisfies the condition
+func Any[T any](slice []T, pred func(T) bool) bool {
     for _, v := range slice {
         if pred(v) {
             return true
@@ -337,8 +343,8 @@ func AnyT any bool) bool {
     return false
 }
 
-// All: すべての要素が条件を満たすか
-func AllT any bool) bool {
+// All: Check if all elements satisfy the condition
+func All[T any](slice []T, pred func(T) bool) bool {
     for _, v := range slice {
         if !pred(v) {
             return false
@@ -362,7 +368,7 @@ func main() {
     sum := Reduce(numbers, 0, func(acc, n int) int { return acc + n })
     fmt.Println(sum) // 15
 
-    // チェーン（Go では関数呼び出しのネストになる）
+    // Chaining (in Go this becomes nested function calls)
     words := []string{"hello", "world", "go", "higher", "order"}
     longUpper := Map(
         Filter(words, func(s string) bool { return len(s) > 3 }),
@@ -372,10 +378,10 @@ func main() {
 }
 ```
 
-### 2.6 Rust での三大高階関数
+### 2.6 The Big Three Higher-Order Functions in Rust
 
 ```rust
-// Rust: イテレータ + 高階関数（ゼロコスト抽象化）
+// Rust: Iterators + higher-order functions (zero-cost abstractions)
 
 fn main() {
     let words = vec!["hello", "world", "foo", "bar"];
@@ -386,30 +392,30 @@ fn main() {
         .collect();
     // → ["HELLO", "WORLD", "FOO", "BAR"]
 
-    // filter + map + collect（filter_map で一括）
+    // filter + map + collect (can be combined with filter_map)
     let lengths: Vec<usize> = words.iter()
         .filter(|w| w.len() > 3)
         .map(|w| w.len())
         .collect();
     // → [5, 5]
 
-    // filter_map: None を除外しつつ変換
+    // filter_map: Filter out None while transforming
     let valid_numbers: Vec<i32> = vec!["1", "abc", "3", "def", "5"]
         .iter()
         .filter_map(|s| s.parse::<i32>().ok())
         .collect();
     // → [1, 3, 5]
 
-    // fold（reduce に相当）
+    // fold (equivalent to reduce)
     let numbers = vec![1, 2, 3, 4, 5];
     let sum: i32 = numbers.iter().fold(0, |acc, &n| acc + n);
     // → 15
 
-    // 初期値なしの reduce（Rust 1.51+: reduce メソッド）
+    // reduce without initial value (Rust 1.51+: reduce method)
     let product: Option<i32> = numbers.iter().copied().reduce(|a, b| a * b);
     // → Some(120)
 
-    // scan: 累積計算（遅延イテレータ）
+    // scan: Cumulative calculation (lazy iterator)
     let running_sum: Vec<i32> = numbers.iter()
         .scan(0, |state, &n| {
             *state += n;
@@ -418,14 +424,14 @@ fn main() {
         .collect();
     // → [1, 3, 6, 10, 15]
 
-    // enumerate + map: インデックス付き変換
+    // enumerate + map: Transformation with index
     let indexed: Vec<String> = words.iter()
         .enumerate()
         .map(|(i, w)| format!("{}:{}", i, w))
         .collect();
     // → ["0:hello", "1:world", "2:foo", "3:bar"]
 
-    // zip: 2つのイテレータを結合
+    // zip: Combine two iterators
     let keys = vec!["a", "b", "c"];
     let values = vec![1, 2, 3];
     let pairs: Vec<(&str, i32)> = keys.iter()
@@ -434,7 +440,7 @@ fn main() {
         .collect();
     // → [("a", 1), ("b", 2), ("c", 3)]
 
-    // chain: 2つのイテレータを連結
+    // chain: Concatenate two iterators
     let first = vec![1, 2, 3];
     let second = vec![4, 5, 6];
     let combined: Vec<i32> = first.iter()
@@ -443,14 +449,14 @@ fn main() {
         .collect();
     // → [1, 2, 3, 4, 5, 6]
 
-    // flat_map: ネストを平坦化
+    // flat_map: Flatten nested structures
     let sentences = vec!["hello world", "foo bar"];
     let words_flat: Vec<&str> = sentences.iter()
         .flat_map(|s| s.split_whitespace())
         .collect();
     // → ["hello", "world", "foo", "bar"]
 
-    // partition: 条件で二分割
+    // partition: Split into two groups by condition
     let numbers = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
     let (evens, odds): (Vec<i32>, Vec<i32>) = numbers.iter()
         .partition(|&&n| n % 2 == 0);
@@ -460,12 +466,12 @@ fn main() {
 
 ---
 
-## 3. 実践的なデータ変換パイプライン
+## 3. Practical Data Transformation Pipelines
 
-### 3.1 データパイプラインの構築
+### 3.1 Building Data Pipelines
 
 ```typescript
-// データ変換パイプライン
+// Data transformation pipeline
 interface User { name: string; age: number; active: boolean; }
 
 const users: User[] = [
@@ -475,7 +481,7 @@ const users: User[] = [
     { name: "Diana", age: 22, active: true },
 ];
 
-// アクティブな成人ユーザーの名前を取得
+// Get names of active adult users
 const result = users
     .filter(u => u.active)
     .filter(u => u.age >= 18)
@@ -483,21 +489,21 @@ const result = users
     .sort();
 // → ["Alice", "Diana"]
 
-// グループ化（reduce）
+// Grouping (reduce)
 const byAge = users.reduce<Record<string, User[]>>((groups, user) => {
     const key = user.age >= 18 ? "adult" : "minor";
     return { ...groups, [key]: [...(groups[key] || []), user] };
 }, {});
 // → { adult: [Alice, Charlie, Diana], minor: [Bob] }
 
-// Object.groupBy（ES2024）
+// Object.groupBy (ES2024)
 const grouped = Object.groupBy(users, u => u.age >= 18 ? "adult" : "minor");
 ```
 
-### 3.2 複雑なビジネスロジック
+### 3.2 Complex Business Logic
 
 ```typescript
-// ECサイトの注文処理パイプライン
+// E-commerce order processing pipeline
 interface Order {
     id: string;
     userId: string;
@@ -530,10 +536,10 @@ interface OrderSummary {
     lastOrderDate: Date;
 }
 
-// ユーザーごとの注文サマリーを生成
+// Generate order summaries per user
 function generateOrderSummaries(orders: Order[]): OrderSummary[] {
     return Object.entries(
-        // 1. ユーザーIDでグループ化
+        // 1. Group by user ID
         orders
             .filter(o => o.status !== "cancelled")
             .reduce<Record<string, Order[]>>((groups, order) => {
@@ -544,13 +550,13 @@ function generateOrderSummaries(orders: Order[]): OrderSummary[] {
                 };
             }, {})
     )
-    // 2. 各ユーザーのサマリーを計算
+    // 2. Calculate summary for each user
     .map(([userId, userOrders]): OrderSummary => {
         const totalSpent = userOrders
             .flatMap(o => o.items)
             .reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-        // カテゴリ別の購入金額を集計
+        // Aggregate purchase amount by category
         const categorySpend = userOrders
             .flatMap(o => o.items)
             .reduce<Record<string, number>>((acc, item) => ({
@@ -558,7 +564,7 @@ function generateOrderSummaries(orders: Order[]): OrderSummary[] {
                 [item.category]: (acc[item.category] || 0) + item.price * item.quantity,
             }), {});
 
-        // 最も金額の大きいカテゴリを取得
+        // Get the category with the highest amount
         const topCategory = Object.entries(categorySpend)
             .reduce((max, [cat, amount]) =>
                 amount > max[1] ? [cat, amount] : max,
@@ -576,11 +582,11 @@ function generateOrderSummaries(orders: Order[]): OrderSummary[] {
                 .reduce((latest, date) => date > latest ? date : latest),
         };
     })
-    // 3. 総購入額の降順でソート
+    // 3. Sort by total spent in descending order
     .sort((a, b) => b.totalSpent - a.totalSpent);
 }
 
-// 月別売上レポートの生成
+// Generate monthly revenue report
 function monthlyRevenue(orders: Order[]): Map<string, number> {
     return orders
         .filter(o => o.status !== "cancelled")
@@ -595,10 +601,10 @@ function monthlyRevenue(orders: Order[]): Map<string, number> {
 }
 ```
 
-### 3.3 CSV / JSON データの変換
+### 3.3 CSV / JSON Data Transformation
 
 ```typescript
-// CSV パーサー（高階関数を活用）
+// CSV parser (leveraging higher-order functions)
 function parseCSV<T>(
     csv: string,
     transform: (row: Record<string, string>) => T
@@ -619,7 +625,7 @@ function parseCSV<T>(
         .map(transform);
 }
 
-// 使用例
+// Usage example
 const csvData = `
 name, age, department, salary
 Alice, 30, Engineering, 80000
@@ -642,7 +648,7 @@ const employees = parseCSV<Employee>(csvData, row => ({
     salary: parseInt(row.salary, 10),
 }));
 
-// 部門別の平均給与
+// Average salary by department
 const avgSalaryByDept = employees
     .reduce<Record<string, { total: number; count: number }>>((acc, emp) => ({
         ...acc,
@@ -663,12 +669,12 @@ const departmentReport = Object.entries(avgSalaryByDept)
 
 ---
 
-## 4. 関数を返す高階関数
+## 4. Higher-Order Functions That Return Functions
 
-### 4.1 ファクトリパターン
+### 4.1 Factory Pattern
 
 ```typescript
-// ファクトリパターン: バリデータ生成
+// Factory pattern: Validator generation
 function createValidator(rules: Record<string, (v: any) => boolean>) {
     return function validate(data: Record<string, any>): string[] {
         const errors: string[] = [];
@@ -691,10 +697,10 @@ validateUser({ name: "", age: -1, email: "invalid" });
 // → ["Invalid: name", "Invalid: age", "Invalid: email"]
 ```
 
-### 4.2 ミドルウェアパターン
+### 4.2 Middleware Pattern
 
 ```typescript
-// ミドルウェアパターン
+// Middleware pattern
 type Middleware = (req: Request, next: () => Response) => Response;
 
 function compose(...middlewares: Middleware[]) {
@@ -709,7 +715,7 @@ function compose(...middlewares: Middleware[]) {
     };
 }
 
-// Express スタイルのミドルウェアチェーン
+// Express-style middleware chain
 type ExpressMiddleware<T = any> = (
     req: T,
     res: { body: string; status: number; headers: Record<string, string> },
@@ -733,14 +739,14 @@ function createPipeline<T>(...middlewares: ExpressMiddleware<T>[]) {
     };
 }
 
-// ログ記録ミドルウェア
+// Logging middleware
 const logger: ExpressMiddleware = (req, res, next) => {
     console.log(`[${new Date().toISOString()}] Request received`);
     next();
     console.log(`[${new Date().toISOString()}] Response: ${res.status}`);
 };
 
-// 認証ミドルウェア
+// Authentication middleware
 const auth: ExpressMiddleware<{ token?: string }> = (req, res, next) => {
     if (!req.token) {
         res.status = 401;
@@ -750,19 +756,19 @@ const auth: ExpressMiddleware<{ token?: string }> = (req, res, next) => {
     next();
 };
 
-// レスポンスヘッダーミドルウェア
+// Response header middleware
 const cors: ExpressMiddleware = (_req, res, next) => {
     res.headers["Access-Control-Allow-Origin"] = "*";
     next();
 };
 ```
 
-### 4.3 デコレータパターン
+### 4.3 Decorator Pattern
 
 ```typescript
-// 関数デコレータ: 既存の関数に機能を追加する高階関数
+// Function decorators: Higher-order functions that add functionality to existing functions
 
-// ログ記録デコレータ
+// Logging decorator
 function withLogging<Args extends any[], R>(
     fn: (...args: Args) => R,
     label?: string
@@ -778,7 +784,7 @@ function withLogging<Args extends any[], R>(
     };
 }
 
-// メモ化デコレータ
+// Memoization decorator
 function withMemoization<Args extends any[], R>(
     fn: (...args: Args) => R,
     keyFn?: (...args: Args) => string
@@ -795,7 +801,7 @@ function withMemoization<Args extends any[], R>(
     };
 }
 
-// リトライデコレータ
+// Retry decorator
 function withRetry<Args extends any[], R>(
     fn: (...args: Args) => Promise<R>,
     maxRetries: number = 3,
@@ -819,7 +825,7 @@ function withRetry<Args extends any[], R>(
     };
 }
 
-// スロットルデコレータ
+// Throttle decorator
 function withThrottle<Args extends any[]>(
     fn: (...args: Args) => void,
     intervalMs: number
@@ -834,7 +840,7 @@ function withThrottle<Args extends any[]>(
     };
 }
 
-// デバウンスデコレータ
+// Debounce decorator
 function withDebounce<Args extends any[]>(
     fn: (...args: Args) => void,
     delayMs: number
@@ -846,13 +852,13 @@ function withDebounce<Args extends any[]>(
     };
 }
 
-// 使用例
+// Usage example
 const fetchUserData = async (userId: string) => {
     const response = await fetch(`/api/users/${userId}`);
     return response.json();
 };
 
-// デコレータの合成
+// Composing decorators
 const resilientFetchUser = withLogging(
     withRetry(fetchUserData, 3, 500),
     "fetchUserData"
@@ -861,7 +867,7 @@ const resilientFetchUser = withLogging(
 const memoizedExpensiveCalc = withMemoization(
     withLogging(
         (n: number) => {
-            // 重い計算
+            // Expensive computation
             let result = 0;
             for (let i = 0; i < n; i++) result += Math.sqrt(i);
             return result;
@@ -871,7 +877,7 @@ const memoizedExpensiveCalc = withMemoization(
 );
 ```
 
-### 4.4 Python のデコレータ
+### 4.4 Python Decorators
 
 ```python
 import functools
@@ -881,10 +887,10 @@ from typing import TypeVar, Callable, Any
 
 F = TypeVar("F", bound=Callable[..., Any])
 
-# Python のデコレータは高階関数の糖衣構文
-# @decorator は func = decorator(func) と同等
+# Python decorators are syntactic sugar for higher-order functions
+# @decorator is equivalent to func = decorator(func)
 
-# タイミングデコレータ
+# Timing decorator
 def timing(func: F) -> F:
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
@@ -895,7 +901,7 @@ def timing(func: F) -> F:
         return result
     return wrapper  # type: ignore
 
-# リトライデコレータ（引数付き）
+# Retry decorator (with arguments)
 def retry(max_attempts: int = 3, delay: float = 1.0):
     def decorator(func: F) -> F:
         @functools.wraps(func)
@@ -917,24 +923,24 @@ def retry(max_attempts: int = 3, delay: float = 1.0):
         return wrapper  # type: ignore
     return decorator
 
-# キャッシュデコレータ（標準ライブラリ）
+# Cache decorator (standard library)
 @functools.lru_cache(maxsize=128)
 def fibonacci(n: int) -> int:
     if n < 2:
         return n
     return fibonacci(n - 1) + fibonacci(n - 2)
 
-# デコレータのスタック
+# Stacking decorators
 @timing
 @retry(max_attempts=3, delay=0.5)
 def fetch_data(url: str) -> dict:
-    """外部APIからデータを取得"""
+    """Fetch data from an external API"""
     import requests
     response = requests.get(url)
     response.raise_for_status()
     return response.json()
 
-# クラスベースのデコレータ
+# Class-based decorator
 class RateLimiter:
     def __init__(self, calls_per_second: float = 1.0):
         self.min_interval = 1.0 / calls_per_second
@@ -952,40 +958,40 @@ class RateLimiter:
 
 @RateLimiter(calls_per_second=2.0)
 def call_api(endpoint: str) -> dict:
-    """レート制限付きAPI呼び出し"""
+    """Rate-limited API call"""
     pass
 ```
 
 ---
 
-## 5. カリー化と部分適用
+## 5. Currying and Partial Application
 
-### 5.1 概念の違い
+### 5.1 Conceptual Differences
 
 ```
-カリー化 (Currying):
+Currying:
   f(a, b, c) → f(a)(b)(c)
-  複数引数の関数を、1引数関数のチェーンに変換
+  Transform a multi-argument function into a chain of single-argument functions
 
-部分適用 (Partial Application):
-  f(a, b, c) → g(b, c)  （a を固定）
-  一部の引数を固定した新しい関数を生成
+Partial Application:
+  f(a, b, c) → g(b, c)  (fix a)
+  Generate a new function with some arguments fixed
 
 ┌─────────────────────────────────────────────┐
-│  カリー化                                    │
+│  Currying                                    │
 │  add(a, b)  → add(a)(b)                     │
 │  add(1, 2)  → add(1)(2) → 3                 │
 │                                              │
-│  部分適用                                    │
-│  add(a, b)  → add1(b)  （a=1 を固定）       │
+│  Partial Application                         │
+│  add(a, b)  → add1(b)  (fix a=1)            │
 │  add(1, 2)  → add1(2)  → 3                  │
 └─────────────────────────────────────────────┘
 ```
 
-### 5.2 TypeScript でのカリー化
+### 5.2 Currying in TypeScript
 
 ```typescript
-// 手動カリー化
+// Manual currying
 const add = (a: number) => (b: number) => a + b;
 add(1)(2);  // → 3
 
@@ -993,7 +999,7 @@ const add5 = add(5);
 add5(10);   // → 15
 add5(20);   // → 25
 
-// 汎用カリー化関数
+// Generic currying function
 function curry<A, B, C>(fn: (a: A, b: B) => C): (a: A) => (b: B) => C {
     return (a: A) => (b: B) => fn(a, b);
 }
@@ -1004,7 +1010,7 @@ function curry3<A, B, C, D>(
     return (a: A) => (b: B) => (c: C) => fn(a, b, c);
 }
 
-// 使用例
+// Usage example
 const multiply = (a: number, b: number) => a * b;
 const curriedMultiply = curry(multiply);
 const double = curriedMultiply(2);
@@ -1013,7 +1019,7 @@ const triple = curriedMultiply(3);
 [1, 2, 3, 4, 5].map(double);  // [2, 4, 6, 8, 10]
 [1, 2, 3, 4, 5].map(triple);  // [3, 6, 9, 12, 15]
 
-// 自動カリー化（可変長引数対応）
+// Auto-currying (variadic arguments support)
 function autoCurry(fn: Function): Function {
     return function curried(...args: any[]): any {
         if (args.length >= fn.length) {
@@ -1029,7 +1035,7 @@ curriedAdd3(1, 2)(3);     // → 6
 curriedAdd3(1)(2, 3);     // → 6
 curriedAdd3(1, 2, 3);     // → 6
 
-// 実践的なカリー化の活用
+// Practical use of currying
 const propGetter = <T>(key: keyof T) => (obj: T): T[keyof T] => obj[key];
 const getName = propGetter<User>("name");
 const getAge = propGetter<User>("age");
@@ -1037,7 +1043,7 @@ const getAge = propGetter<User>("age");
 users.map(getName);  // ["Alice", "Bob", "Charlie", "Diana"]
 users.map(getAge);   // [30, 17, 25, 22]
 
-// 述語関数の生成
+// Predicate function generation
 const greaterThan = (threshold: number) => (value: number) => value > threshold;
 const isAdult = greaterThan(17);
 const isSenior = greaterThan(64);
@@ -1045,7 +1051,7 @@ const isSenior = greaterThan(64);
 numbers.filter(greaterThan(3));  // [4, 5]
 users.filter(u => isAdult(u.age));  // Alice, Charlie, Diana
 
-// 文字列操作のカリー化
+// Currying string operations
 const startsWith = (prefix: string) => (str: string) => str.startsWith(prefix);
 const endsWith = (suffix: string) => (str: string) => str.endsWith(suffix);
 const contains = (substr: string) => (str: string) => str.includes(substr);
@@ -1055,10 +1061,10 @@ files.filter(endsWith(".ts"));    // ["index.ts", "utils.ts", "test.ts"]
 files.filter(startsWith("main")); // ["main.js"]
 ```
 
-### 5.3 Rust でのクロージャとカリー化
+### 5.3 Closures and Currying in Rust
 
 ```rust
-// Rust では move クロージャでカリー化を実現
+// In Rust, currying is achieved with move closures
 fn make_adder(n: i32) -> impl Fn(i32) -> i32 {
     move |x| x + n
 }
@@ -1081,7 +1087,7 @@ fn main() {
     println!("{}", is_valid_age(25));   // true
     println!("{}", is_valid_age(200));  // false
 
-    // イテレータとの組み合わせ
+    // Combining with iterators
     let numbers = vec![1, 2, 3, 4, 5];
     let add10 = make_adder(10);
     let result: Vec<i32> = numbers.iter()
@@ -1089,12 +1095,12 @@ fn main() {
         .collect();
     // → [11, 12, 13, 14, 15]
 
-    // Fn, FnMut, FnOnce トレイトの違い
-    // Fn:     &self で呼び出し（不変借用、何度でも呼べる）
-    // FnMut:  &mut self で呼び出し（可変借用）
-    // FnOnce: self で呼び出し（所有権を消費、1回のみ）
+    // Differences between Fn, FnMut, and FnOnce traits
+    // Fn:     Called with &self (immutable borrow, can be called multiple times)
+    // FnMut:  Called with &mut self (mutable borrow)
+    // FnOnce: Called with self (consumes ownership, can only be called once)
 
-    // FnMut の例: 内部状態を変更するクロージャ
+    // FnMut example: Closure that modifies internal state
     fn make_counter() -> impl FnMut() -> i32 {
         let mut count = 0;
         move || {
@@ -1108,10 +1114,10 @@ fn main() {
     println!("{}", counter()); // 2
     println!("{}", counter()); // 3
 
-    // FnOnce の例: 所有権を消費するクロージャ
+    // FnOnce example: Closure that consumes ownership
     fn consume_and_print(f: impl FnOnce() -> String) {
         println!("{}", f());
-        // f(); // コンパイルエラー: 2回呼べない
+        // f(); // Compile error: cannot be called twice
     }
 
     let name = String::from("Alice");
@@ -1121,21 +1127,21 @@ fn main() {
 
 ---
 
-## 6. 関数合成（Function Composition）
+## 6. Function Composition
 
-### 6.1 基本的な関数合成
+### 6.1 Basic Function Composition
 
 ```
-合成: (f . g)(x) = f(g(x))
+Composition: (f . g)(x) = f(g(x))
 
   x → [g] → g(x) → [f] → f(g(x))
 
-例: toUpper . trim
+Example: toUpper . trim
   "  hello  " → trim → "hello" → toUpper → "HELLO"
 ```
 
 ```typescript
-// 基本的な合成
+// Basic composition
 const compose2 = <A, B, C>(
     f: (b: B) => C,
     g: (a: A) => B
@@ -1146,17 +1152,17 @@ const pipe2 = <A, B, C>(
     g: (b: B) => C
 ): ((a: A) => C) => (a: A) => g(f(a));
 
-// pipe: 左から右へ実行（可読性が高い）
+// pipe: Execute left to right (more readable)
 function pipe<T>(...fns: Array<(arg: any) => any>) {
     return (initial: T) => fns.reduce((acc, fn) => fn(acc), initial as any);
 }
 
-// compose: 右から左へ実行（数学的記法に近い）
+// compose: Execute right to left (closer to mathematical notation)
 function compose<T>(...fns: Array<(arg: any) => any>) {
     return (initial: T) => fns.reduceRight((acc, fn) => fn(acc), initial as any);
 }
 
-// 使用例: テキスト処理パイプライン
+// Usage example: Text processing pipeline
 const processText = pipe<string>(
     (s: string) => s.trim(),
     (s: string) => s.toLowerCase(),
@@ -1166,7 +1172,7 @@ const processText = pipe<string>(
 
 processText("  Hello, World!  ");  // → "hello-world"
 
-// 型安全なパイプ（TypeScript 5.0+ のオーバーロード）
+// Type-safe pipe (TypeScript 5.0+ overloads)
 function typedPipe<A, B>(f1: (a: A) => B): (a: A) => B;
 function typedPipe<A, B, C>(f1: (a: A) => B, f2: (b: B) => C): (a: A) => C;
 function typedPipe<A, B, C, D>(
@@ -1179,34 +1185,34 @@ function typedPipe(...fns: Array<(arg: any) => any>) {
     return (initial: any) => fns.reduce((acc, fn) => fn(acc), initial);
 }
 
-// 型安全に合成される
+// Composed with type safety
 const processUser = typedPipe(
     (user: User) => user.name,          // User → string
     (name: string) => name.toUpperCase(), // string → string
     (name: string) => name.length,       // string → number
 );
-// processUser の型: (user: User) => number
+// Type of processUser: (user: User) => number
 ```
 
-### 6.2 ポイントフリースタイル
+### 6.2 Point-Free Style
 
 ```typescript
-// ポイントフリー: 引数を明示せずに関数を合成するスタイル
+// Point-free: A style of composing functions without explicitly mentioning arguments
 
-// ポイントあり（通常のスタイル）
+// Pointed (normal style)
 const getActiveUserNames1 = (users: User[]) =>
     users
         .filter(u => u.active)
         .map(u => u.name);
 
-// ポイントフリーに近いスタイル
+// Near point-free style
 const isActive = (u: User) => u.active;
 const getName = (u: User) => u.name;
 
 const getActiveUserNames2 = (users: User[]) =>
     users.filter(isActive).map(getName);
 
-// ヘルパー関数を使ったポイントフリー
+// Point-free with helper functions
 const filter = <T>(pred: (item: T) => boolean) => (arr: T[]) =>
     arr.filter(pred);
 const map = <T, U>(fn: (item: T) => U) => (arr: T[]) =>
@@ -1217,7 +1223,7 @@ const getActiveUserNames3 = pipe<User[]>(
     map(getName),
 );
 
-// Ramda スタイルの関数合成
+// Ramda-style function composition
 // npm install ramda @types/ramda
 // import * as R from "ramda";
 // const getActiveUserNames = R.pipe(
@@ -1226,70 +1232,70 @@ const getActiveUserNames3 = pipe<User[]>(
 // );
 ```
 
-### 6.3 Haskell での関数合成（参考）
+### 6.3 Function Composition in Haskell (Reference)
 
 ```haskell
--- Haskell: 関数合成の本場
+-- Haskell: The home of function composition
 
--- (.) 演算子: 関数合成
+-- (.) operator: Function composition
 -- (f . g) x = f (g x)
 
--- ポイントフリースタイルが自然
+-- Point-free style comes naturally
 toSlug :: String -> String
 toSlug = map toLower . filter isAlphaNum . words . unwords
 
--- パイプ演算子（&）
+-- Pipe operator (&)
 -- x & f = f x
 result = [1,2,3,4,5]
     & filter even     -- [2, 4]
     & map (* 2)       -- [4, 8]
     & sum              -- 12
 
--- 高階関数の基本
+-- Basic higher-order functions
 map :: (a -> b) -> [a] -> [b]
 filter :: (a -> Bool) -> [a] -> [a]
 foldl :: (b -> a -> b) -> b -> [a] -> b
 foldr :: (a -> b -> b) -> b -> [a] -> b
 
--- 高階関数の合成例
+-- Higher-order function composition example
 wordCount :: String -> [(String, Int)]
 wordCount =
-    map (\ws -> (head ws, length ws))  -- グループを (単語, 出現回数) に
-    . group                             -- 同じ単語をグループ化
-    . sort                              -- ソート
-    . words                             -- 単語分割
+    map (\ws -> (head ws, length ws))  -- Convert groups to (word, count)
+    . group                             -- Group identical words
+    . sort                              -- Sort
+    . words                             -- Split into words
 ```
 
 ---
 
-## 7. flatMap（bind / chain）
+## 7. flatMap (bind / chain)
 
-### 7.1 基本概念
+### 7.1 Basic Concept
 
 ```typescript
-// flatMap: map + flatten（ネストしたコレクションを平坦化）
+// flatMap: map + flatten (flatten nested collections)
 const sentences = ["hello world", "foo bar baz"];
 
-// map だとネスト
+// map produces nesting
 sentences.map(s => s.split(" "));
 // → [["hello", "world"], ["foo", "bar", "baz"]]
 
-// flatMap で平坦化
+// flatMap flattens
 sentences.flatMap(s => s.split(" "));
 // → ["hello", "world", "foo", "bar", "baz"]
 
-// Option/Result での flatMap（モナドの bind）
-// Promise.then は flatMap に相当
+// flatMap in Option/Result (monadic bind)
+// Promise.then is equivalent to flatMap
 fetch("/api/user")
-    .then(res => res.json())        // Response → Promise<JSON>（flatMap）
+    .then(res => res.json())        // Response → Promise<JSON> (flatMap)
     .then(user => fetch(`/api/posts/${user.id}`))  // JSON → Promise
     .then(res => res.json());
 ```
 
-### 7.2 flatMap の実践的活用
+### 7.2 Practical Use of flatMap
 
 ```typescript
-// 1対多の関係を展開
+// Expanding one-to-many relationships
 interface Department {
     name: string;
     members: string[];
@@ -1301,11 +1307,11 @@ const departments: Department[] = [
     { name: "Marketing", members: ["Frank"] },
 ];
 
-// 全メンバーのリスト
+// List of all members
 const allMembers = departments.flatMap(d => d.members);
 // → ["Alice", "Bob", "Charlie", "Diana", "Eve", "Frank"]
 
-// メンバーと部門名のペア
+// Member-department name pairs
 const memberDepts = departments.flatMap(d =>
     d.members.map(m => ({ member: m, department: d.name }))
 );
@@ -1315,16 +1321,16 @@ const memberDepts = departments.flatMap(d =>
 //     ...
 // ]
 
-// ネストした配列の完全な平坦化
+// Complete flattening of nested arrays
 const fullyFlat = deepNested.flat(Infinity); // [1, 2, 3, 4, 5, 6]
-// または再帰的 flatMap
+// Or recursive flatMap
 function deepFlatten<T>(arr: (T | T[])[]): T[] {
     return arr.flatMap(item =>
         Array.isArray(item) ? deepFlatten(item) : [item]
     );
 }
 
-// 順列の生成
+// Generating permutations
 function permutations<T>(items: T[]): T[][] {
     if (items.length <= 1) return [items];
     return items.flatMap((item, i) => {
@@ -1335,7 +1341,7 @@ function permutations<T>(items: T[]): T[][] {
 permutations([1, 2, 3]);
 // → [[1,2,3], [1,3,2], [2,1,3], [2,3,1], [3,1,2], [3,2,1]]
 
-// 組み合わせの生成
+// Generating combinations
 function combinations<T>(items: T[], k: number): T[][] {
     if (k === 0) return [[]];
     if (items.length === 0) return [];
@@ -1346,12 +1352,12 @@ function combinations<T>(items: T[], k: number): T[][] {
 }
 ```
 
-### 7.3 モナドとしての flatMap
+### 7.3 flatMap as a Monad
 
 ```typescript
-// モナドの本質: flatMap（bind / chain）による計算の連鎖
+// The essence of monads: Chaining computations via flatMap (bind / chain)
 
-// Maybe モナドの簡易実装
+// Simple Maybe monad implementation
 class Maybe<T> {
     private constructor(private value: T | null) {}
 
@@ -1386,7 +1392,7 @@ class Maybe<T> {
     }
 }
 
-// 使用例: 安全なプロパティアクセスチェーン
+// Usage example: Safe property access chain
 interface Config {
     database?: {
         connection?: {
@@ -1403,7 +1409,7 @@ function getDbHost(config: Config): string {
         .getOrElse("localhost");
 }
 
-// Result モナドの簡易実装
+// Simple Result monad implementation
 type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };
 
 const Ok = <T>(value: T): Result<T, never> => ({ ok: true, value });
@@ -1423,7 +1429,7 @@ function flatMapResult<T, U, E>(
     return result.ok ? fn(result.value) : result;
 }
 
-// 使用例: バリデーションチェーン
+// Usage example: Validation chain
 function parseAge(input: string): Result<number, string> {
     const age = parseInt(input, 10);
     if (isNaN(age)) return Err(`"${input}" is not a number`);
@@ -1459,36 +1465,36 @@ function validateUser(
 
 ---
 
-## 8. 高度な高階関数パターン
+## 8. Advanced Higher-Order Function Patterns
 
-### 8.1 トランスデューサー（Transducers）
+### 8.1 Transducers
 
 ```typescript
-// トランスデューサー: 中間配列を生成せずに変換を合成する
+// Transducers: Compose transformations without generating intermediate arrays
 
-// 通常のチェーン（各ステップで中間配列が生成される）
+// Normal chaining (intermediate arrays are generated at each step)
 const result1 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-    .filter(n => n % 2 === 0)  // [2, 4, 6, 8, 10] ← 中間配列
-    .map(n => n * 3)           // [6, 12, 18, 24, 30] ← 中間配列
+    .filter(n => n % 2 === 0)  // [2, 4, 6, 8, 10] ← intermediate array
+    .map(n => n * 3)           // [6, 12, 18, 24, 30] ← intermediate array
     .filter(n => n > 10);      // [12, 18, 24, 30]
 
-// トランスデューサーの型定義
+// Transducer type definitions
 type Reducer<Acc, T> = (acc: Acc, item: T) => Acc;
 type Transducer<T, U> = <Acc>(reducer: Reducer<Acc, U>) => Reducer<Acc, T>;
 
-// map トランスデューサー
+// map transducer
 function tMap<T, U>(fn: (item: T) => U): Transducer<T, U> {
     return <Acc>(reducer: Reducer<Acc, U>): Reducer<Acc, T> =>
         (acc: Acc, item: T) => reducer(acc, fn(item));
 }
 
-// filter トランスデューサー
+// filter transducer
 function tFilter<T>(pred: (item: T) => boolean): Transducer<T, T> {
     return <Acc>(reducer: Reducer<Acc, T>): Reducer<Acc, T> =>
         (acc: Acc, item: T) => pred(item) ? reducer(acc, item) : acc;
 }
 
-// トランスデューサーの合成
+// Transducer composition
 function tCompose<A, B, C>(
     t1: Transducer<A, B>,
     t2: Transducer<B, C>
@@ -1497,7 +1503,7 @@ function tCompose<A, B, C>(
         t1(t2(reducer));
 }
 
-// 使用例
+// Usage example
 const xform = tCompose(
     tCompose(
         tFilter<number>(n => n % 2 === 0),
@@ -1513,20 +1519,20 @@ const arrayAppend: Reducer<number[], number> = (acc, item) => {
 
 const result2 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     .reduce(xform(arrayAppend), []);
-// → [12, 18, 24, 30]（中間配列なし、1パスで完了）
+// → [12, 18, 24, 30] (no intermediate arrays, completed in a single pass)
 ```
 
-### 8.2 レンズ（Lenses）
+### 8.2 Lenses
 
 ```typescript
-// レンズ: 不変データ構造の深いプロパティへのアクセスと更新を合成可能にする
+// Lenses: Make access and updates to deep properties of immutable data structures composable
 
 interface Lens<S, A> {
     get: (s: S) => A;
     set: (a: A, s: S) => S;
 }
 
-// レンズの生成
+// Lens creation
 function lens<S, A>(
     get: (s: S) => A,
     set: (a: A, s: S) => S
@@ -1534,12 +1540,12 @@ function lens<S, A>(
     return { get, set };
 }
 
-// レンズ経由の変更
+// Modification through a lens
 function over<S, A>(l: Lens<S, A>, fn: (a: A) => A, s: S): S {
     return l.set(fn(l.get(s)), s);
 }
 
-// レンズの合成
+// Lens composition
 function composeLens<A, B, C>(
     outer: Lens<A, B>,
     inner: Lens<B, C>
@@ -1550,7 +1556,7 @@ function composeLens<A, B, C>(
     };
 }
 
-// 使用例
+// Usage example
 interface Address {
     street: string;
     city: string;
@@ -1563,7 +1569,7 @@ interface Person {
     address: Address;
 }
 
-// レンズ定義
+// Lens definitions
 const addressLens: Lens<Person, Address> = lens(
     p => p.address,
     (a, p) => ({ ...p, address: a })
@@ -1574,7 +1580,7 @@ const cityLens: Lens<Address, string> = lens(
     (c, a) => ({ ...a, city: c })
 );
 
-// レンズの合成
+// Lens composition
 const personCityLens = composeLens(addressLens, cityLens);
 
 const alice: Person = {
@@ -1583,34 +1589,34 @@ const alice: Person = {
     address: { street: "123 Main St", city: "Tokyo", zipCode: "100-0001" },
 };
 
-// 読み取り
+// Read
 personCityLens.get(alice);  // → "Tokyo"
 
-// 更新（不変 - 新しいオブジェクトを返す）
+// Update (immutable - returns a new object)
 const aliceInOsaka = personCityLens.set("Osaka", alice);
 // → { name: "Alice", age: 30, address: { ...address, city: "Osaka" } }
 
-// over: 既存の値に関数を適用
+// over: Apply a function to the existing value
 const aliceUpperCity = over(personCityLens, city => city.toUpperCase(), alice);
 // → { name: "Alice", age: 30, address: { ...address, city: "TOKYO" } }
 ```
 
-### 8.3 コンティニュエーション渡しスタイル（CPS）
+### 8.3 Continuation-Passing Style (CPS)
 
 ```typescript
-// CPS: 結果をコールバックに渡すスタイル
+// CPS: A style where results are passed to callbacks
 
-// 直接スタイル
+// Direct style
 function addDirect(a: number, b: number): number {
     return a + b;
 }
 
-// CPS（コンティニュエーション渡し）
+// CPS (Continuation-Passing Style)
 function addCPS(a: number, b: number, k: (result: number) => void): void {
     k(a + b);
 }
 
-// CPS での複雑な計算チェーン
+// Complex computation chain in CPS
 function factorialCPS(n: number, k: (result: number) => void): void {
     if (n <= 1) {
         k(1);
@@ -1621,22 +1627,22 @@ function factorialCPS(n: number, k: (result: number) => void): void {
 
 factorialCPS(5, (result) => console.log(result));  // → 120
 
-// CPS の実用例: 非同期操作の連鎖（コールバック地獄の原型）
+// Practical CPS example: Chaining async operations (the origin of callback hell)
 function readFileCPS(
     path: string,
     onSuccess: (data: string) => void,
     onError: (err: Error) => void
 ): void {
-    // 非同期ファイル読み取り
+    // Async file read
     try {
-        const data = "file content"; // 実際にはFS操作
+        const data = "file content"; // In practice, this would be an FS operation
         onSuccess(data);
     } catch (e) {
         onError(e as Error);
     }
 }
 
-// CPS から Promise への変換
+// Converting CPS to Promise
 function cpsToPromise<T>(
     fn: (onSuccess: (value: T) => void, onError: (err: Error) => void) => void
 ): Promise<T> {
@@ -1645,7 +1651,7 @@ function cpsToPromise<T>(
     });
 }
 
-// Promise が CPS を構造化・標準化したものであることがわかる
+// This shows that Promises are a structured, standardized form of CPS
 const readFilePromise = (path: string) =>
     cpsToPromise<string>((resolve, reject) =>
         readFileCPS(path, resolve, reject)
@@ -1654,12 +1660,12 @@ const readFilePromise = (path: string) =>
 
 ---
 
-## 9. パフォーマンスと最適化
+## 9. Performance and Optimization
 
-### 9.1 遅延評価（Lazy Evaluation）
+### 9.1 Lazy Evaluation
 
 ```typescript
-// 遅延イテレータ: 必要な要素だけ計算する
+// Lazy iterators: Compute only the elements that are needed
 
 function* lazyMap<T, U>(iterable: Iterable<T>, fn: (item: T) => U): Generator<U> {
     for (const item of iterable) {
@@ -1682,7 +1688,7 @@ function* lazyTake<T>(iterable: Iterable<T>, n: number): Generator<T> {
     }
 }
 
-// 無限リストから最初の5個の偶数の二乗を取得
+// Get the squares of the first 5 even numbers from an infinite list
 function* naturals(): Generator<number> {
     let n = 1;
     while (true) yield n++;
@@ -1696,12 +1702,12 @@ const result = [...lazyTake(
     5
 )];
 // → [4, 16, 36, 64, 100]
-// 無限リストでも必要な分だけ計算される
+// Only the needed elements are computed even from an infinite list
 
-// パイプライン API（提案中）
+// Pipeline API (proposal stage)
 // TC39 Pipeline Operator Proposal
 // value |> fn1 |> fn2 |> fn3
-// ↓ 現時点での代替
+// ↓ Current alternative
 const pipeValue = <T>(value: T) => ({
     pipe: <U>(fn: (v: T) => U) => pipeValue(fn(value)),
     value,
@@ -1715,24 +1721,24 @@ const finalResult = pipeValue(10)
 // → "25"
 ```
 
-### 9.2 チェーンのパフォーマンス比較
+### 9.2 Performance Comparison of Chains
 
 ```typescript
-// 大量データでの高階関数 vs for ループ
+// Higher-order functions vs for loops with large datasets
 
-// テストデータ
+// Test data
 const largeArray = Array.from({ length: 1_000_000 }, (_, i) => i);
 
-// 方法1: チェーン（各ステップで新しい配列生成）
+// Method 1: Chaining (new array generated at each step)
 console.time("chain");
 const r1 = largeArray
-    .filter(n => n % 2 === 0)    // 500,000要素の配列生成
-    .map(n => n * 3)              // 500,000要素の配列生成
-    .filter(n => n > 100_000)     // さらに配列生成
+    .filter(n => n % 2 === 0)    // Generate 500,000-element array
+    .map(n => n * 3)              // Generate 500,000-element array
+    .filter(n => n > 100_000)     // Generate yet another array
     .reduce((sum, n) => sum + n, 0);
 console.timeEnd("chain");
 
-// 方法2: for ループ（配列生成なし）
+// Method 2: for loop (no array generation)
 console.time("loop");
 let r2 = 0;
 for (let i = 0; i < largeArray.length; i++) {
@@ -1746,7 +1752,7 @@ for (let i = 0; i < largeArray.length; i++) {
 }
 console.timeEnd("loop");
 
-// 方法3: reduce 一発（中間配列なし）
+// Method 3: Single reduce (no intermediate arrays)
 console.time("single-reduce");
 const r3 = largeArray.reduce((sum, n) => {
     if (n % 2 === 0) {
@@ -1759,7 +1765,7 @@ const r3 = largeArray.reduce((sum, n) => {
 }, 0);
 console.timeEnd("single-reduce");
 
-// 方法4: ジェネレータ（遅延評価）
+// Method 4: Generators (lazy evaluation)
 console.time("generator");
 const r4 = [...lazyFilter(
     lazyMap(
@@ -1773,35 +1779,35 @@ const r4 = [...lazyFilter(
 )].reduce((sum, n) => sum + n, 0);
 console.timeEnd("generator");
 
-// 実測値の目安（環境依存）:
-// chain:          ~80ms  （可読性: 高、メモリ: 大）
-// loop:           ~15ms  （可読性: 低、メモリ: 小）
-// single-reduce:  ~20ms  （可読性: 中、メモリ: 小）
-// generator:      ~120ms （可読性: 中、メモリ: 小）
+// Approximate measurements (environment-dependent):
+// chain:          ~80ms  (readability: high, memory: large)
+// loop:           ~15ms  (readability: low, memory: small)
+// single-reduce:  ~20ms  (readability: medium, memory: small)
+// generator:      ~120ms (readability: medium, memory: small)
 //
-// 結論:
-// - 通常のデータ量（<10,000）ではチェーンで十分
-// - 大量データでは reduce 一発 or for ループ
-// - メモリ制約がある場合はジェネレータ
+// Conclusion:
+// - For normal data sizes (<10,000), chaining is sufficient
+// - For large data, use single reduce or for loops
+// - For memory constraints, use generators
 ```
 
-### 9.3 Rust のゼロコスト抽象化
+### 9.3 Zero-Cost Abstractions in Rust
 
 ```rust
-// Rust のイテレータチェーンはゼロコスト抽象化
-// コンパイル時にfor ループと同等のコードに最適化される
+// Rust's iterator chains are zero-cost abstractions
+// They are optimized at compile time to code equivalent to for loops
 
 fn benchmark_rust() {
     let numbers: Vec<i32> = (0..1_000_000).collect();
 
-    // 高階関数チェーン（ゼロコスト: for ループと同等性能）
+    // Higher-order function chain (zero-cost: same performance as for loop)
     let result: i64 = numbers.iter()
         .filter(|&&n| n % 2 == 0)
         .map(|&n| n as i64 * 3)
         .filter(|&n| n > 100_000)
         .sum();
 
-    // これは以下の for ループとほぼ同じ機械語に最適化される
+    // This is optimized to nearly the same machine code as the following for loop
     let mut result2: i64 = 0;
     for &n in &numbers {
         if n % 2 == 0 {
@@ -1812,23 +1818,23 @@ fn benchmark_rust() {
         }
     }
 
-    // さらに SIMD 最適化が適用される場合もある
-    // Rust のイテレータは:
-    // 1. 中間コレクションを生成しない（遅延評価）
-    // 2. 各要素に対してパイプライン全体を適用
-    // 3. インライン化によりオーバーヘッドなし
+    // SIMD optimizations may also be applied
+    // Rust iterators:
+    // 1. Do not generate intermediate collections (lazy evaluation)
+    // 2. Apply the entire pipeline to each element
+    // 3. No overhead due to inlining
     assert_eq!(result, result2);
 }
 ```
 
 ---
 
-## 10. 実務でよく使うパターン集
+## 10. Commonly Used Patterns in Practice
 
-### 10.1 バリデーションの合成
+### 10.1 Validation Composition
 
 ```typescript
-// バリデーション関数の合成
+// Composing validation functions
 type Validator<T> = (value: T) => string | null;
 
 function composeValidators<T>(...validators: Validator<T>[]): Validator<T> {
@@ -1848,25 +1854,25 @@ function collectErrors<T>(...validators: Validator<T>[]): (value: T) => string[]
             .filter((err): err is string => err !== null);
 }
 
-// バリデータの定義
+// Validator definitions
 const required: Validator<string> = (v) =>
-    v.trim().length === 0 ? "必須項目です" : null;
+    v.trim().length === 0 ? "This field is required" : null;
 
 const minLength = (min: number): Validator<string> => (v) =>
-    v.length < min ? `${min}文字以上で入力してください` : null;
+    v.length < min ? `Must be at least ${min} characters` : null;
 
 const maxLength = (max: number): Validator<string> => (v) =>
-    v.length > max ? `${max}文字以内で入力してください` : null;
+    v.length > max ? `Must be at most ${max} characters` : null;
 
 const pattern = (regex: RegExp, message: string): Validator<string> => (v) =>
     regex.test(v) ? null : message;
 
 const email = pattern(
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-    "有効なメールアドレスを入力してください"
+    "Please enter a valid email address"
 );
 
-// 合成して使用
+// Compose and use
 const validateEmail = composeValidators(
     required,
     email,
@@ -1877,28 +1883,28 @@ const validatePassword = composeValidators(
     required,
     minLength(8),
     maxLength(128),
-    pattern(/[A-Z]/, "大文字を含めてください"),
-    pattern(/[a-z]/, "小文字を含めてください"),
-    pattern(/[0-9]/, "数字を含めてください"),
+    pattern(/[A-Z]/, "Must include an uppercase letter"),
+    pattern(/[a-z]/, "Must include a lowercase letter"),
+    pattern(/[0-9]/, "Must include a digit"),
 );
 
-// すべてのエラーを収集
+// Collect all errors
 const allPasswordErrors = collectErrors(
     required,
     minLength(8),
-    pattern(/[A-Z]/, "大文字を含めてください"),
-    pattern(/[a-z]/, "小文字を含めてください"),
-    pattern(/[0-9]/, "数字を含めてください"),
+    pattern(/[A-Z]/, "Must include an uppercase letter"),
+    pattern(/[a-z]/, "Must include a lowercase letter"),
+    pattern(/[0-9]/, "Must include a digit"),
 );
 
 console.log(allPasswordErrors("abc"));
-// → ["8文字以上で入力してください", "大文字を含めてください", "数字を含めてください"]
+// → ["Must be at least 8 characters", "Must include an uppercase letter", "Must include a digit"]
 ```
 
-### 10.2 イベントハンドラの合成
+### 10.2 Event Handler Composition
 
 ```typescript
-// React でのイベントハンドラ合成
+// Event handler composition in React
 type EventHandler<E> = (event: E) => void;
 
 function combineHandlers<E>(...handlers: EventHandler<E>[]): EventHandler<E> {
@@ -1916,7 +1922,7 @@ function conditionalHandler<E>(
     };
 }
 
-// 使用例
+// Usage example
 const logClick: EventHandler<MouseEvent> = (e) =>
     console.log(`Clicked at (${e.clientX}, ${e.clientY})`);
 
@@ -1925,7 +1931,7 @@ const trackAnalytics: EventHandler<MouseEvent> = (e) =>
 
 const preventAndHandle: EventHandler<MouseEvent> = (e) => {
     e.preventDefault();
-    // 処理...
+    // Processing...
 };
 
 const handleClick = combineHandlers(
@@ -1938,10 +1944,10 @@ const handleClick = combineHandlers(
 );
 ```
 
-### 10.3 条件分岐の関数化
+### 10.3 Functional Conditional Branching
 
 ```typescript
-// match パターン: switch 文の関数化
+// match pattern: Functional version of switch statements
 function match<T, R>(value: T, cases: Array<[((v: T) => boolean) | T, R]>, defaultValue: R): R {
     for (const [condition, result] of cases) {
         if (typeof condition === "function") {
@@ -1953,7 +1959,7 @@ function match<T, R>(value: T, cases: Array<[((v: T) => boolean) | T, R]>, defau
     return defaultValue;
 }
 
-// 使用例
+// Usage example
 const httpStatus = (code: number): string =>
     match(code, [
         [200, "OK"],
@@ -1965,7 +1971,7 @@ const httpStatus = (code: number): string =>
         [(c: number) => c >= 500, "Server Error"],
     ], "Unknown");
 
-// パターンマッチング風の分岐
+// Pattern matching-style branching
 type Shape =
     | { type: "circle"; radius: number }
     | { type: "rectangle"; width: number; height: number }
@@ -1977,14 +1983,14 @@ const area = (shape: Shape): number => {
         rectangle: (s) => s.width * s.height,
         triangle: (s) => 0.5 * s.base * s.height,
     };
-    return handlersshape.type;
+    return handlers[shape.type](shape);
 };
 ```
 
-### 10.4 状態管理（Redux パターン）
+### 10.4 State Management (Redux Pattern)
 
 ```typescript
-// Redux: 高階関数による状態管理
+// Redux: State management with higher-order functions
 
 type Action = { type: string; payload?: any };
 type Reducer<S> = (state: S, action: Action) => S;
@@ -1992,7 +1998,7 @@ type Middleware<S> = (
     store: { getState: () => S; dispatch: (action: Action) => void }
 ) => (next: (action: Action) => void) => (action: Action) => void;
 
-// ストア作成（高階関数のオンパレード）
+// Store creation (a parade of higher-order functions)
 function createStore<S>(
     reducer: Reducer<S>,
     initialState: S,
@@ -2016,7 +2022,7 @@ function createStore<S>(
         listeners.forEach(l => l());
     };
 
-    // ミドルウェアの適用（右から左に合成）
+    // Apply middleware (compose from right to left)
     const store = { getState, dispatch };
     const chain = middlewares.map(mw => mw(store));
     dispatch = chain.reduceRight(
@@ -2027,7 +2033,7 @@ function createStore<S>(
     return { getState, dispatch, subscribe };
 }
 
-// Reducer の合成
+// Reducer composition
 function combineReducers<S extends Record<string, any>>(
     reducers: { [K in keyof S]: Reducer<S[K]> }
 ): Reducer<S> {
@@ -2036,7 +2042,7 @@ function combineReducers<S extends Record<string, any>>(
         let hasChanged = false;
         for (const key in reducers) {
             const prevStateForKey = state[key];
-            nextState[key] = reducerskey;
+            nextState[key] = reducers[key](prevStateForKey, action);
             if (nextState[key] !== prevStateForKey) {
                 hasChanged = true;
             }
@@ -2045,7 +2051,7 @@ function combineReducers<S extends Record<string, any>>(
     };
 }
 
-// ログミドルウェア
+// Logger middleware
 const loggerMiddleware: Middleware<any> = (store) => (next) => (action) => {
     console.log("dispatching:", action.type);
     console.log("before:", store.getState());
@@ -2053,7 +2059,7 @@ const loggerMiddleware: Middleware<any> = (store) => (next) => (action) => {
     console.log("after:", store.getState());
 };
 
-// Thunk ミドルウェア（非同期アクション対応）
+// Thunk middleware (async action support)
 const thunkMiddleware: Middleware<any> = (store) => (next) => (action: any) => {
     if (typeof action === "function") {
         return action(store.dispatch, store.getState);
@@ -2064,55 +2070,56 @@ const thunkMiddleware: Middleware<any> = (store) => (next) => (action: any) => {
 
 ---
 
-## 11. 言語間の比較表
+## 11. Cross-Language Comparison Table
 
 ```
 ┌──────────────┬────────────┬──────────┬──────────┬──────────┬──────────┐
-│ 概念          │ TypeScript │ Python   │ Rust     │ Go       │ Haskell  │
+│ Concept       │ TypeScript │ Python   │ Rust     │ Go       │ Haskell  │
 ├──────────────┼────────────┼──────────┼──────────┼──────────┼──────────┤
-│ map          │ .map()     │ map()    │ .map()   │ 自前実装  │ map      │
-│ filter       │ .filter()  │ filter() │ .filter()│ 自前実装  │ filter   │
-│ reduce/fold  │ .reduce()  │ reduce() │ .fold()  │ 自前実装  │ foldl    │
-│ flatMap      │ .flatMap() │ chain()  │ .flat_map│ 自前実装  │ >>=      │
-│ 合成         │ 手動       │ 手動     │ 手動     │ 手動      │ (.)      │
-│ カリー化     │ 手動       │ partial  │ クロージャ│ クロージャ│ 自動     │
-│ パイプ       │ 提案中(|>) │ -        │ -        │ -         │ & / $    │
-│ 遅延評価     │ Generator  │ Iterator │ Iterator │ -         │ デフォルト│
-│ パターンマッチ│ switch/if  │ match    │ match    │ switch    │ case     │
-│ クロージャ   │ Arrow Fn   │ lambda   │ |x| expr │ func lit  │ \x->expr │
-│ デコレータ   │ @実験的    │ @標準    │ マクロ    │ -         │ HoF      │
-│ ゼロコスト   │ ×          │ ×        │ ○        │ △         │ ×        │
+│ map          │ .map()     │ map()    │ .map()   │ Custom   │ map      │
+│ filter       │ .filter()  │ filter() │ .filter()│ Custom   │ filter   │
+│ reduce/fold  │ .reduce()  │ reduce() │ .fold()  │ Custom   │ foldl    │
+│ flatMap      │ .flatMap() │ chain()  │ .flat_map│ Custom   │ >>=      │
+│ Composition  │ Manual     │ Manual   │ Manual   │ Manual   │ (.)      │
+│ Currying     │ Manual     │ partial  │ Closures │ Closures │ Auto     │
+│ Pipe         │ Proposed   │ -        │ -        │ -        │ & / $    │
+│              │ (|>)       │          │          │          │          │
+│ Lazy eval    │ Generator  │ Iterator │ Iterator │ -        │ Default  │
+│ Pattern match│ switch/if  │ match    │ match    │ switch   │ case     │
+│ Closures     │ Arrow Fn   │ lambda   │ |x| expr │ func lit │ \x->expr │
+│ Decorators   │ @experim.  │ @standard│ Macros   │ -        │ HoF      │
+│ Zero-cost    │ No         │ No       │ Yes      │ Partial  │ No       │
 └──────────────┴────────────┴──────────┴──────────┴──────────┴──────────┘
 ```
 
 ---
 
-## 12. アンチパターンと注意点
+## 12. Anti-Patterns and Caveats
 
-### 12.1 避けるべきパターン
+### 12.1 Patterns to Avoid
 
 ```typescript
-// アンチパターン 1: 副作用のある map
-// BAD: map で副作用を実行
+// Anti-pattern 1: map with side effects
+// BAD: Executing side effects in map
 users.map(u => {
-    sendEmail(u.email);  // 副作用！
+    sendEmail(u.email);  // Side effect!
     return u.name;
 });
 
-// GOOD: forEach で副作用、map で変換を分離
+// GOOD: Separate side effects with forEach, transformation with map
 users.forEach(u => sendEmail(u.email));
 const names = users.map(u => u.name);
 
-// アンチパターン 2: 不必要な中間配列
-// BAD: 大量データで中間配列を多数生成
+// Anti-pattern 2: Unnecessary intermediate arrays
+// BAD: Generating many intermediate arrays with large data
 const result = hugeArray
-    .map(transform1)    // 中間配列 1
-    .filter(predicate1) // 中間配列 2
-    .map(transform2)    // 中間配列 3
-    .filter(predicate2) // 中間配列 4
+    .map(transform1)    // Intermediate array 1
+    .filter(predicate1) // Intermediate array 2
+    .map(transform2)    // Intermediate array 3
+    .filter(predicate2) // Intermediate array 4
     .reduce(aggregate, init);
 
-// GOOD: reduce で一括処理
+// GOOD: Process in a single reduce
 const result2 = hugeArray.reduce((acc, item) => {
     const t1 = transform1(item);
     if (!predicate1(t1)) return acc;
@@ -2121,8 +2128,8 @@ const result2 = hugeArray.reduce((acc, item) => {
     return aggregate(acc, t2);
 }, init);
 
-// アンチパターン 3: 過度なポイントフリー
-// BAD: 読めない
+// Anti-pattern 3: Excessive point-free style
+// BAD: Unreadable
 const processData = compose(
     sortBy(prop("score")),
     map(over(lensProp("name"), toUpper)),
@@ -2130,7 +2137,7 @@ const processData = compose(
     uniqBy(prop("id")),
 );
 
-// GOOD: 適度に名前をつける
+// GOOD: Name things appropriately
 const isEligible = (u: User) => u.age > 18 && u.active;
 const normalizeName = (u: User) => ({ ...u, name: u.name.toUpperCase() });
 const processData = (users: User[]) =>
@@ -2139,18 +2146,18 @@ const processData = (users: User[]) =>
         .map(normalizeName)
         .sort((a, b) => b.score - a.score);
 
-// アンチパターン 4: reduce の乱用
-// BAD: find で十分なのに reduce を使う
+// Anti-pattern 4: Overuse of reduce
+// BAD: Using reduce when find would suffice
 const firstEven = numbers.reduce<number | null>(
     (found, n) => found !== null ? found : (n % 2 === 0 ? n : null),
     null
 );
 
-// GOOD: find を使う
+// GOOD: Use find
 const firstEven2 = numbers.find(n => n % 2 === 0);
 
-// アンチパターン 5: 深いネスト
-// BAD: 高階関数のネストが深すぎる
+// Anti-pattern 5: Deep nesting
+// BAD: Higher-order function nesting is too deep
 const result3 = arr1.flatMap(a =>
     arr2.filter(b => b.id === a.id).map(b =>
         arr3.filter(c => c.key === b.key).map(c => ({
@@ -2159,7 +2166,7 @@ const result3 = arr1.flatMap(a =>
     )
 );
 
-// GOOD: 処理を分割して名前をつける
+// GOOD: Split processing and name things
 const lookup2 = new Map(arr2.map(b => [b.id, b]));
 const lookup3 = new Map(arr3.map(c => [c.key, c]));
 const result4 = arr1
@@ -2172,23 +2179,23 @@ const result4 = arr1
     .filter(Boolean);
 ```
 
-### 12.2 高階関数の選択ガイド
+### 12.2 Higher-Order Function Selection Guide
 
 ```
-やりたいこと                    → 使うべき高階関数
+What you want to do                → Higher-order function to use
 ─────────────────────────────────────────────────
-各要素を変換                    → map
-条件に合う要素を選択            → filter
-全要素を1つの値に集約           → reduce
-最初に条件を満たす要素を取得    → find
-条件を満たす要素が存在するか    → some
-全要素が条件を満たすか          → every
-ネストした配列を平坦化+変換     → flatMap
-各要素に副作用を実行            → forEach
-条件で二分割                    → partition（自前実装 or lodash）
-グループ化                      → groupBy（Object.groupBy / reduce）
-重複排除                        → [...new Set(arr)] / reduce
-ソート                          → sort（比較関数を渡す）
+Transform each element             → map
+Select elements matching a condition→ filter
+Aggregate all elements into one    → reduce
+Get first element matching condition→ find
+Check if any element matches       → some
+Check if all elements match        → every
+Flatten nested arrays + transform  → flatMap
+Execute side effects on each element→ forEach
+Split into two groups by condition → partition (custom or lodash)
+Group by key                       → groupBy (Object.groupBy / reduce)
+Remove duplicates                  → [...new Set(arr)] / reduce
+Sort                               → sort (pass a comparison function)
 ```
 
 ---
@@ -2196,48 +2203,48 @@ const result4 = arr1
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important aspect. Understanding deepens not just through theory but by actually writing code and verifying how it works.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently applied in everyday development work. It is particularly important during code reviews and architecture design.
 
 ---
 
-## まとめ
+## Summary
 
-| 高階関数 | 型シグネチャ | 用途 |
+| Higher-Order Function | Type Signature | Purpose |
 |---------|------------|------|
-| map | (A->B) -> [A] -> [B] | 要素の変換 |
-| filter | (A->Bool) -> [A] -> [A] | 要素の選択 |
-| reduce | (B,A->B) -> B -> [A] -> B | 集約 |
-| flatMap | (A->[B]) -> [A] -> [B] | 変換+平坦化 |
-| compose | (B->C, A->B) -> (A->C) | 関数合成 |
-| curry | ((A,B)->C) -> A -> B -> C | カリー化 |
-| partial | ((A,B)->C, A) -> (B->C) | 部分適用 |
+| map | (A->B) -> [A] -> [B] | Element transformation |
+| filter | (A->Bool) -> [A] -> [A] | Element selection |
+| reduce | (B,A->B) -> B -> [A] -> B | Aggregation |
+| flatMap | (A->[B]) -> [A] -> [B] | Transform + flatten |
+| compose | (B->C, A->B) -> (A->C) | Function composition |
+| curry | ((A,B)->C) -> A -> B -> C | Currying |
+| partial | ((A,B)->C, A) -> (B->C) | Partial application |
 
-高階関数を効果的に使うための原則:
+Principles for using higher-order functions effectively:
 
-1. **適切な抽象化レベル**: 単純な処理は map/filter/find で、複雑な集約は reduce で
-2. **可読性優先**: ポイントフリーや過度なチェーンより、適切に名前をつけた関数を使う
-3. **パフォーマンス意識**: 大量データでは中間配列の生成を抑制する
-4. **副作用の分離**: map/filter/reduce は純粋関数で、副作用は forEach で
-5. **型安全**: TypeScript のジェネリクスを活用して型推論を効かせる
-6. **テスト容易性**: 小さな純粋関数に分割し、個別にテスト可能にする
-
----
-
-## 次に読むべきガイド
+1. **Appropriate level of abstraction**: Use map/filter/find for simple operations, reduce for complex aggregations
+2. **Prioritize readability**: Use appropriately named functions over point-free or excessive chaining
+3. **Be performance-aware**: Suppress intermediate array generation for large datasets
+4. **Separate side effects**: Use pure functions in map/filter/reduce, forEach for side effects
+5. **Type safety**: Leverage TypeScript generics to enable type inference
+6. **Testability**: Split into small pure functions that can be tested individually
 
 ---
 
-## 参考文献
+## Recommended Next Guides
+
+---
+
+## References
 1. Bird, R. "Thinking Functionally with Haskell." Cambridge, 2014.
 2. Fogus, M. "Functional JavaScript." O'Reilly, 2013.
 3. Frisby, B. "Professor Frisby's Mostly Adequate Guide to Functional Programming." 2015.

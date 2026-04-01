@@ -1,188 +1,191 @@
-# イテレータとジェネレータ
+# Iterators and Generators
 
-> イテレータは「コレクションの要素を1つずつ取り出す」抽象化であり、遅延評価により無限シーケンスやメモリ効率の良い処理を可能にする。ジェネレータは「実行を中断・再開できる関数」として、イテレータを手軽に作成するための構文糖衣である。本章では、これらの概念を基礎から応用まで体系的に解説する。
-
----
-
-## この章で学ぶこと
-
-- [ ] イテレータパターンの設計意図と仕組みを理解する
-- [ ] 各言語におけるイテレータプロトコルの違いを把握する
-- [ ] ジェネレータの動作原理（コルーチンとの関係）を理解する
-- [ ] 遅延評価と正格評価のトレードオフを判断できる
-- [ ] イテレータアダプタを組み合わせて宣言的なデータ処理パイプラインを構築できる
-- [ ] 非同期イテレータの適用場面を理解する
-- [ ] 無限シーケンスを安全に扱うテクニックを習得する
-
-
-## 前提知識
-
-このガイドを読む前に、以下の知識があると理解が深まります:
-
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [エラーハンドリング](./02-error-handling.md) の内容を理解していること
+> An iterator is an abstraction for "retrieving elements from a collection one at a time," enabling infinite sequences and memory-efficient processing through lazy evaluation. A generator is "a function whose execution can be suspended and resumed," serving as syntactic sugar for conveniently creating iterators. This chapter provides a systematic explanation of these concepts from fundamentals to advanced applications.
 
 ---
 
-## 目次
+## What You Will Learn in This Chapter
 
-1. [イテレータパターンの本質](#1-イテレータパターンの本質)
-2. [各言語のイテレータプロトコル](#2-各言語のイテレータプロトコル)
-3. [イテレータアダプタと遅延変換チェーン](#3-イテレータアダプタと遅延変換チェーン)
-4. [ジェネレータの動作原理](#4-ジェネレータの動作原理)
-5. [遅延評価 vs 正格評価](#5-遅延評価-vs-正格評価)
-6. [非同期イテレータとストリーム](#6-非同期イテレータとストリーム)
-7. [実践パターン集](#7-実践パターン集)
-8. [アンチパターンと落とし穴](#8-アンチパターンと落とし穴)
-9. [パフォーマンス特性と最適化](#9-パフォーマンス特性と最適化)
-10. [演習問題](#10-演習問題)
-11. [FAQ（よくある質問）](#11-faqよくある質問)
-12. [まとめ](#12-まとめ)
-13. [参考文献](#13-参考文献)
+- [ ] Understand the design intent and mechanism of the iterator pattern
+- [ ] Grasp the differences in iterator protocols across languages
+- [ ] Understand how generators work (relationship with coroutines)
+- [ ] Make informed tradeoff decisions between lazy and eager evaluation
+- [ ] Build declarative data processing pipelines by combining iterator adapters
+- [ ] Understand the use cases for async iterators
+- [ ] Master techniques for safely working with infinite sequences
+
+
+## Prerequisites
+
+Before reading this guide, the following knowledge will help deepen your understanding:
+
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Familiarity with the content of [Error Handling](./02-error-handling.md)
 
 ---
 
-## 1. イテレータパターンの本質
+## Table of Contents
 
-### 1.1 デザインパターンとしてのイテレータ
+1. [The Essence of the Iterator Pattern](#1-the-essence-of-the-iterator-pattern)
+2. [Iterator Protocols Across Languages](#2-iterator-protocols-across-languages)
+3. [Iterator Adapters and Lazy Transformation Chains](#3-iterator-adapters-and-lazy-transformation-chains)
+4. [How Generators Work](#4-how-generators-work)
+5. [Lazy Evaluation vs Eager Evaluation](#5-lazy-evaluation-vs-eager-evaluation)
+6. [Async Iterators and Streams](#6-async-iterators-and-streams)
+7. [Practical Patterns](#7-practical-patterns)
+8. [Anti-Patterns and Pitfalls](#8-anti-patterns-and-pitfalls)
+9. [Performance Characteristics and Optimization](#9-performance-characteristics-and-optimization)
+10. [Exercises](#10-exercises)
+11. [FAQ (Frequently Asked Questions)](#11-faqfrequently-asked-questions)
+12. [Summary](#12-summary)
+13. [References](#13-references)
 
-GoF（Gang of Four）のデザインパターンにおいて、イテレータパターンは**振る舞いパターン（Behavioral Pattern）**に分類される。その目的は「コレクションの内部表現を公開することなく、要素に順次アクセスする手段を提供すること」である。
+---
+
+## 1. The Essence of the Iterator Pattern
+
+### 1.1 The Iterator as a Design Pattern
+
+In the GoF (Gang of Four) design patterns, the iterator pattern is classified as a **Behavioral Pattern**. Its purpose is to "provide a means to sequentially access elements of a collection without exposing its internal representation."
 
 ```
 +-------------------------------------------------------------+
-|  イテレータパターンの位置づけ                                   |
+|  Position of the Iterator Pattern                            |
 +-------------------------------------------------------------+
 |                                                             |
-|  クライアントコード                                           |
+|  Client Code                                                |
 |       |                                                     |
 |       | next() / hasNext()                                  |
 |       v                                                     |
 |  +------------------+                                       |
-|  | Iterator         |  <--- 統一インターフェース               |
+|  | Iterator         |  <--- Unified Interface               |
 |  | - next()         |                                       |
 |  | - hasNext()      |                                       |
 |  +------------------+                                       |
 |       ^        ^        ^                                   |
 |       |        |        |                                   |
 |  +--------+ +--------+ +--------+                           |
-|  | Array  | | Tree   | | Graph  |   <--- 異なる内部構造      |
-|  |Iterator| |Iterator| |Iterator|                           |
+|  | Array  | | Tree   | | Graph  |   <--- Different internal |
+|  |Iterator| |Iterator| |Iterator|        structures         |
 |  +--------+ +--------+ +--------+                           |
 |                                                             |
-|  要点: クライアントは内部構造を知らずに走査できる              |
+|  Key point: Clients can traverse without knowing internals  |
 +-------------------------------------------------------------+
 ```
 
-この抽象化によって得られる恩恵は4つある。
+This abstraction provides four benefits.
 
-| 恩恵 | 説明 | 具体例 |
-|------|------|--------|
-| **カプセル化** | コレクションの内部構造を隠蔽する | 配列・リンクリスト・ツリーを同じインターフェースで走査 |
-| **統一アクセス** | 異なるデータ構造に対して同じループ構文を使用できる | `for x in collection` がどのコレクションにも適用可能 |
-| **遅延評価** | 要素を必要な時に1つずつ生成する | 100万行のファイルを1行ずつ処理 |
-| **合成可能性** | イテレータ同士を組み合わせてパイプラインを構築できる | `filter -> map -> take -> collect` |
+| Benefit | Description | Example |
+|---------|-------------|---------|
+| **Encapsulation** | Hides the internal structure of a collection | Traverse arrays, linked lists, and trees through the same interface |
+| **Uniform Access** | Use the same loop syntax for different data structures | `for x in collection` works for any collection |
+| **Lazy Evaluation** | Generate elements one at a time as needed | Process a million-line file one line at a time |
+| **Composability** | Combine iterators to build pipelines | `filter -> map -> take -> collect` |
 
-### 1.2 内部イテレータと外部イテレータ
+### 1.2 Internal Iterators and External Iterators
 
-イテレータには、制御の主体がどちら側にあるかによって2種類の設計がある。
+There are two types of iterator designs, depending on which side holds control.
 
 ```
 +-----------------------------------------------+
-|  外部イテレータ（Pull 型）                       |
+|  External Iterator (Pull-based)                |
 +-----------------------------------------------+
 |                                               |
-|  クライアント:  "次をくれ" --> イテレータ        |
-|  イテレータ:    <-- 要素を返す                   |
+|  Client:   "Give me the next" --> Iterator    |
+|  Iterator: <-- Returns an element             |
 |                                               |
-|  制御: クライアント側                            |
-|  例:   Python の next(), Rust の .next()       |
-|  利点: クライアントが走査タイミングを制御         |
-|        2つのイテレータを交互に読むことも可能      |
+|  Control: Client side                         |
+|  Examples: Python's next(), Rust's .next()    |
+|  Advantage: Client controls traversal timing  |
+|             Can alternate between two iterators|
 +-----------------------------------------------+
 
 +-----------------------------------------------+
-|  内部イテレータ（Push 型）                       |
+|  Internal Iterator (Push-based)                |
 +-----------------------------------------------+
 |                                               |
-|  クライアント:  クロージャを渡す --> コレクション |
-|  コレクション:  各要素にクロージャを適用          |
+|  Client:     Passes a closure --> Collection  |
+|  Collection: Applies closure to each element  |
 |                                               |
-|  制御: コレクション側                            |
-|  例:   Ruby の each, JS の forEach             |
-|  利点: 実装がシンプル、並列化しやすい            |
+|  Control: Collection side                     |
+|  Examples: Ruby's each, JS's forEach          |
+|  Advantage: Simpler implementation,           |
+|             easier to parallelize             |
 +-----------------------------------------------+
 ```
 
-**比較表: 内部イテレータ vs 外部イテレータ**
+**Comparison: Internal vs External Iterators**
 
-| 特性 | 外部イテレータ（Pull） | 内部イテレータ（Push） |
-|------|----------------------|----------------------|
-| 制御の主体 | クライアント | コレクション |
-| 走査の中断 | 自由に可能 | break/例外で中断 |
-| 複数イテレータの交互使用 | 容易 | 困難 |
-| 実装の複雑さ | 状態管理が必要 | 比較的シンプル |
-| 並列化 | 手動で実装 | コレクション側で最適化可能 |
-| 代表例 | Python `__next__`, Rust `Iterator` | Ruby `each`, JS `forEach` |
-| 遅延評価との相性 | 自然に遅延 | 基本的に正格 |
+| Property | External Iterator (Pull) | Internal Iterator (Push) |
+|----------|-------------------------|--------------------------|
+| Control | Client | Collection |
+| Interrupting traversal | Freely possible | Interrupt via break/exception |
+| Alternating multiple iterators | Easy | Difficult |
+| Implementation complexity | Requires state management | Relatively simple |
+| Parallelization | Manual implementation | Collection can optimize |
+| Representative examples | Python `__next__`, Rust `Iterator` | Ruby `each`, JS `forEach` |
+| Affinity with lazy evaluation | Naturally lazy | Basically eager |
 
 ```python
-# 外部イテレータの例（Pull型）
+# External iterator example (Pull-based)
 it = iter([1, 2, 3, 4, 5])
-a = next(it)  # 1 --- クライアントが主導
-b = next(it)  # 2 --- 好きなタイミングで取得
-# 残りの 3, 4, 5 はまだ「取り出されていない」
+a = next(it)  # 1 --- Client drives
+b = next(it)  # 2 --- Retrieves at desired timing
+# Remaining 3, 4, 5 have not been "pulled out" yet
 
-# 内部イテレータの例（Push型）
+# Internal iterator example (Push-based)
 [1, 2, 3, 4, 5].forEach(x => console.log(x))
-# コレクション側がすべての要素を走査する
-# クライアントは「各要素に何をするか」だけを指定
+# The collection traverses all elements
+# The client only specifies "what to do with each element"
 ```
 
-### 1.3 イテレータプロトコルの共通構造
+### 1.3 Common Structure of Iterator Protocols
 
-すべての言語のイテレータプロトコルは、根本的に同じ構造を持つ。
+All iterator protocols across languages share the same fundamental structure.
 
 ```
 +-----------------------------------------------------------+
-|  イテレータプロトコルの共通構造                               |
+|  Common Structure of Iterator Protocols                    |
 +-----------------------------------------------------------+
 |                                                           |
-|  状態: current_position, underlying_collection            |
+|  State: current_position, underlying_collection           |
 |                                                           |
-|  操作:                                                     |
+|  Operation:                                               |
 |  +-----------------------+                                |
 |  | next()                |                                |
-|  | ┌──────────────────┐  |                                |
-|  | │ 要素がある?       │  |                                |
-|  | │   Yes → (値, 継続)│  |  ← "まだ続きがある" を示す     |
-|  | │   No  → 終了通知  │  |  ← "もう要素がない" を示す     |
-|  | └──────────────────┘  |                                |
+|  | +------------------+  |                                |
+|  | | Has elements?    |  |                                |
+|  | |   Yes -> (value, |  |  <- Indicates "more to come"  |
+|  | |          continue)|  |                               |
+|  | |   No  -> end     |  |  <- Indicates "no more"       |
+|  | |          signal   |  |                               |
+|  | +------------------+  |                                |
 |  +-----------------------+                                |
 |                                                           |
-|  終了通知の実現方法:                                        |
-|    Python:  StopIteration 例外                             |
-|    Rust:    Option<T> の None                              |
-|    Java:    hasNext() + next() の2メソッド方式             |
-|    JS:      { value, done: true/false } オブジェクト       |
-|    C++:     end() イテレータとの比較                        |
+|  How end is signaled:                                     |
+|    Python:  StopIteration exception                       |
+|    Rust:    Option<T>'s None                              |
+|    Java:    Two-method approach: hasNext() + next()       |
+|    JS:      { value, done: true/false } object            |
+|    C++:     Comparison with end() iterator                |
 +-----------------------------------------------------------+
 ```
 
 ---
 
-## 2. 各言語のイテレータプロトコル
+## 2. Iterator Protocols Across Languages
 
-### 2.1 Python: `__iter__` / `__next__` プロトコル
+### 2.1 Python: `__iter__` / `__next__` Protocol
 
-Python のイテレータプロトコルは、2つのダンダーメソッドで構成される。
+Python's iterator protocol consists of two dunder methods:
 
-- `__iter__()`: イテレータオブジェクト自身を返す
-- `__next__()`: 次の要素を返すか、要素がなければ `StopIteration` を送出する
+- `__iter__()`: Returns the iterator object itself
+- `__next__()`: Returns the next element, or raises `StopIteration` if there are no more elements
 
 ```python
 class Countdown:
-    """カウントダウンイテレータの実装例"""
+    """Implementation example of a countdown iterator"""
 
     def __init__(self, start):
         self.current = start
@@ -196,42 +199,42 @@ class Countdown:
         self.current -= 1
         return self.current + 1
 
-# 使用例
+# Usage
 for n in Countdown(5):
     print(n)  # 5, 4, 3, 2, 1
 
-# for ループの内部動作を展開すると:
-it = iter(Countdown(5))   # __iter__() を呼ぶ
+# Expanding the internal behavior of the for loop:
+it = iter(Countdown(5))   # Calls __iter__()
 while True:
     try:
-        n = next(it)      # __next__() を呼ぶ
+        n = next(it)      # Calls __next__()
         print(n)
     except StopIteration:
-        break             # 終了
+        break             # End
 ```
 
-Python ではイテラブル（`__iter__` を持つ）とイテレータ（`__iter__` + `__next__` を持つ）を区別する。リストはイテラブルだがイテレータではない。`iter()` を呼ぶことでイテレータを取得する。
+Python distinguishes between iterables (which have `__iter__`) and iterators (which have both `__iter__` and `__next__`). A list is iterable but not an iterator. You obtain an iterator by calling `iter()`.
 
 ```python
-# イテラブルとイテレータの違い
+# Difference between iterable and iterator
 lst = [1, 2, 3]
-print(type(lst))         # <class 'list'> --- イテラブル
+print(type(lst))         # <class 'list'> --- Iterable
 it = iter(lst)
-print(type(it))          # <class 'list_iterator'> --- イテレータ
+print(type(it))          # <class 'list_iterator'> --- Iterator
 
-# イテラブルは何度でもイテレータを生成できる
-for x in lst: pass  # 1回目
-for x in lst: pass  # 2回目（問題なく動作）
+# An iterable can generate iterators any number of times
+for x in lst: pass  # 1st time
+for x in lst: pass  # 2nd time (works without issues)
 
-# イテレータは使い切ると空になる
+# An iterator becomes empty once exhausted
 it = iter(lst)
 list(it)  # [1, 2, 3]
-list(it)  # [] --- 使い切った後は空
+list(it)  # [] --- Empty after exhaustion
 ```
 
-### 2.2 Rust: `Iterator` トレイト
+### 2.2 Rust: The `Iterator` Trait
 
-Rust のイテレータは `Iterator` トレイトを実装することで定義される。終了は `Option<Self::Item>` の `None` で表現される。
+Rust iterators are defined by implementing the `Iterator` trait. Termination is represented by `None` of `Option<Self::Item>`.
 
 ```rust
 struct Countdown {
@@ -258,50 +261,50 @@ impl Iterator for Countdown {
 }
 
 fn main() {
-    // for ループで使用
+    // Using with a for loop
     for n in Countdown::new(5) {
         println!("{}", n);  // 5, 4, 3, 2, 1
     }
 
-    // IntoIterator トレイト: for ループの糖衣構文
+    // IntoIterator trait: syntactic sugar for the for loop
     // for item in collection { ... }
-    // は以下と等価:
+    // is equivalent to:
     // let mut iter = collection.into_iter();
     // while let Some(item) = iter.next() { ... }
 }
 ```
 
-Rust のイテレータシステムは3種類の所有権モデルを持つ。
+Rust's iterator system has three ownership models.
 
 ```rust
 let v = vec![1, 2, 3];
 
-// 1. iter(): 不変参照のイテレータ (&T)
+// 1. iter(): Iterator of immutable references (&T)
 for val in v.iter() {
-    // val は &i32 型
+    // val is of type &i32
     println!("{}", val);
 }
-// v はまだ使える
+// v is still usable
 
-// 2. iter_mut(): 可変参照のイテレータ (&mut T)
+// 2. iter_mut(): Iterator of mutable references (&mut T)
 let mut v2 = vec![1, 2, 3];
 for val in v2.iter_mut() {
-    // val は &mut i32 型
+    // val is of type &mut i32
     *val *= 2;
 }
-// v2 は [2, 4, 6] に変更された
+// v2 has been modified to [2, 4, 6]
 
-// 3. into_iter(): 所有権を移動するイテレータ (T)
+// 3. into_iter(): Iterator that moves ownership (T)
 for val in v.into_iter() {
-    // val は i32 型（所有権が移動）
+    // val is of type i32 (ownership moved)
     println!("{}", val);
 }
-// v はもう使えない（所有権が移動した）
+// v can no longer be used (ownership has been moved)
 ```
 
-### 2.3 JavaScript: `Symbol.iterator` プロトコル
+### 2.3 JavaScript: `Symbol.iterator` Protocol
 
-JavaScript のイテレータプロトコルは `Symbol.iterator` メソッドと `{ value, done }` オブジェクトで構成される。
+JavaScript's iterator protocol is composed of the `Symbol.iterator` method and `{ value, done }` objects.
 
 ```javascript
 class Countdown {
@@ -322,19 +325,19 @@ class Countdown {
     }
 }
 
-// for-of ループで使用
+// Using with for-of loop
 for (const n of new Countdown(5)) {
     console.log(n);  // 5, 4, 3, 2, 1
 }
 
-// スプレッド構文でも使用可能
+// Also works with spread syntax
 const arr = [...new Countdown(5)];  // [5, 4, 3, 2, 1]
 
-// 分割代入でも使用可能
+// Also works with destructuring
 const [a, b, c] = new Countdown(5);  // a=5, b=4, c=3
 ```
 
-### 2.4 Java: `Iterator<T>` / `Iterable<T>` インターフェース
+### 2.4 Java: `Iterator<T>` / `Iterable<T>` Interfaces
 
 ```java
 import java.util.Iterator;
@@ -364,133 +367,133 @@ class Countdown implements Iterable<Integer> {
     }
 }
 
-// 拡張 for ループで使用
+// Using with enhanced for loop
 for (int n : new Countdown(5)) {
     System.out.println(n);  // 5, 4, 3, 2, 1
 }
 ```
 
-### 2.5 各言語のプロトコル比較
+### 2.5 Protocol Comparison Across Languages
 
-| 言語 | イテラブル | イテレータ | 終了の表現 | for ループ |
-|------|----------|----------|-----------|-----------|
-| **Python** | `__iter__()` | `__next__()` | `StopIteration` 例外 | `for x in iterable:` |
+| Language | Iterable | Iterator | End Signaling | for Loop |
+|----------|----------|----------|---------------|----------|
+| **Python** | `__iter__()` | `__next__()` | `StopIteration` exception | `for x in iterable:` |
 | **Rust** | `IntoIterator` | `Iterator::next()` | `Option::None` | `for x in iterable {}` |
 | **JavaScript** | `[Symbol.iterator]()` | `next()` | `{ done: true }` | `for (x of iterable)` |
 | **Java** | `Iterable<T>` | `Iterator<T>` | `hasNext() == false` | `for (T x : iterable)` |
 | **C++** | `begin()` / `end()` | `operator++` / `operator*` | `iter == end()` | `for (auto x : container)` |
 | **C#** | `IEnumerable<T>` | `IEnumerator<T>` | `MoveNext() == false` | `foreach (var x in collection)` |
-| **Go** | なし（channelで代用） | なし | channel close | `for x := range ch` |
+| **Go** | None (channels as substitute) | None | channel close | `for x := range ch` |
 
 ---
 
-## 3. イテレータアダプタと遅延変換チェーン
+## 3. Iterator Adapters and Lazy Transformation Chains
 
-### 3.1 アダプタパターンの概念
+### 3.1 The Concept of Adapter Patterns
 
-イテレータアダプタは「イテレータを受け取り、変換されたイテレータを返す」関数である。重要な点は、アダプタは**遅延評価**であり、チェーンを組み立てた時点では何も実行されないことである。最終的に要素を消費する操作（`collect`, `sum`, `for` ループなど）が呼ばれた時に初めて、パイプライン全体が要素単位で実行される。
+Iterator adapters are "functions that take an iterator and return a transformed iterator." The important point is that adapters are **lazily evaluated** -- nothing executes when the chain is assembled. Only when a terminal operation (`collect`, `sum`, `for` loop, etc.) is called does the entire pipeline execute element by element.
 
 ```
 +-------------------------------------------------------------+
-|  イテレータアダプタチェーンの実行モデル                          |
+|  Execution Model of Iterator Adapter Chains                  |
 +-------------------------------------------------------------+
 |                                                             |
 |  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]                           |
 |       |                                                     |
 |       v                                                     |
-|  filter(n % 2 == 0)  --- 偶数のみ通す                       |
+|  filter(n % 2 == 0)  --- Pass only even numbers             |
 |       |                                                     |
 |       v                                                     |
-|  map(n * n)           --- 二乗する                           |
+|  map(n * n)           --- Square                             |
 |       |                                                     |
 |       v                                                     |
-|  take(3)              --- 最初の3個で停止                     |
+|  take(3)              --- Stop after first 3                 |
 |       |                                                     |
 |       v                                                     |
-|  collect()            --- 結果を収集                          |
+|  collect()            --- Collect results                    |
 |                                                             |
-|  要素ごとの実行順序:                                          |
-|  1 -> filter(奇数=棄却)                                      |
-|  2 -> filter(偶数=通過) -> map(4) -> take(1個目) -> [4]      |
-|  3 -> filter(奇数=棄却)                                      |
-|  4 -> filter(偶数=通過) -> map(16) -> take(2個目) -> [4,16]  |
-|  5 -> filter(奇数=棄却)                                      |
-|  6 -> filter(偶数=通過) -> map(36) -> take(3個目) -> [4,16,36]|
-|  7以降は処理されない（take(3) が満たされた）                   |
+|  Per-element execution order:                                |
+|  1 -> filter(odd=reject)                                     |
+|  2 -> filter(even=pass) -> map(4) -> take(1st) -> [4]       |
+|  3 -> filter(odd=reject)                                     |
+|  4 -> filter(even=pass) -> map(16) -> take(2nd) -> [4,16]   |
+|  5 -> filter(odd=reject)                                     |
+|  6 -> filter(even=pass) -> map(36) -> take(3rd) -> [4,16,36]|
+|  7 onward is not processed (take(3) satisfied)               |
 |                                                             |
-|  => 結果: [4, 16, 36]                                       |
-|  => 10要素中 6要素しか見ていない（短絡評価）                   |
+|  => Result: [4, 16, 36]                                     |
+|  => Only 6 out of 10 elements examined (short-circuit)       |
 +-------------------------------------------------------------+
 ```
 
-### 3.2 Rust のイテレータアダプタ
+### 3.2 Rust's Iterator Adapters
 
-Rust はイテレータアダプタが最も充実している言語の一つである。すべてのアダプタはゼロコスト抽象化として、コンパイル時にインライン展開される。
+Rust is one of the languages with the most extensive iterator adapter support. All adapters are zero-cost abstractions, inlined at compile time.
 
 ```rust
-// 基本的なアダプタチェーン
+// Basic adapter chain
 let result: Vec<i32> = (1..=100)
-    .filter(|n| n % 3 == 0)      // 3の倍数
-    .map(|n| n * n)               // 二乗
-    .take(5)                      // 最初の5個
+    .filter(|n| n % 3 == 0)      // Multiples of 3
+    .map(|n| n * n)               // Square
+    .take(5)                      // First 5
     .collect();
 // => [9, 36, 81, 144, 225]
 
-// 重要: collect() を呼ぶまで何も実行されない（遅延評価）
-// 各要素は filter -> map -> take のパイプラインを1つずつ通過する
+// Important: Nothing executes until collect() is called (lazy evaluation)
+// Each element passes through the filter -> map -> take pipeline one at a time
 ```
 
-**主要な変換アダプタ（遅延）:**
+**Key transformation adapters (lazy):**
 
 ```rust
 let v = vec![1, 2, 3, 4, 5];
 
-// map: 各要素を変換
+// map: Transform each element
 v.iter().map(|x| x * 2);                    // [2, 4, 6, 8, 10]
 
-// filter: 条件を満たす要素のみ残す
+// filter: Keep only elements satisfying the condition
 v.iter().filter(|x| **x > 2);               // [3, 4, 5]
 
-// filter_map: filter と map を同時に（None を除去）
+// filter_map: Simultaneous filter and map (removes None values)
 v.iter().filter_map(|x| {
     if *x > 2 { Some(x * 10) } else { None }
 }); // [30, 40, 50]
 
-// take / skip: 先頭N個を取得 / スキップ
+// take / skip: Take/skip the first N elements
 v.iter().take(3);                            // [1, 2, 3]
 v.iter().skip(2);                            // [3, 4, 5]
 
-// take_while / skip_while: 条件による取得/スキップ
+// take_while / skip_while: Take/skip based on condition
 v.iter().take_while(|x| **x < 4);           // [1, 2, 3]
 v.iter().skip_while(|x| **x < 4);           // [4, 5]
 
-// enumerate: インデックスを付与
+// enumerate: Add indices
 v.iter().enumerate();                        // [(0,1), (1,2), (2,3), ...]
 
-// zip: 2つのイテレータを結合
+// zip: Combine two iterators
 v.iter().zip(vec![10, 20, 30].iter());       // [(1,10), (2,20), (3,30)]
 
-// chain: イテレータを連結
+// chain: Concatenate iterators
 v.iter().chain(vec![6, 7].iter());           // [1,2,3,4,5,6,7]
 
-// flat_map: 要素をイテレータに展開して平坦化
+// flat_map: Expand elements into iterators and flatten
 v.iter().flat_map(|x| vec![*x, *x * 10]);   // [1,10,2,20,3,30,4,40,5,50]
 
-// flatten: ネストしたイテレータを平坦化
+// flatten: Flatten nested iterators
 vec![vec![1,2], vec![3,4]].into_iter().flatten(); // [1,2,3,4]
 
-// peekable: 次の要素を消費せずに覗く
+// peekable: Peek at the next element without consuming
 let mut it = v.iter().peekable();
-assert_eq!(it.peek(), Some(&&1));            // 覗くだけ
-assert_eq!(it.next(), Some(&1));             // 消費
+assert_eq!(it.peek(), Some(&&1));            // Just peek
+assert_eq!(it.next(), Some(&1));             // Consume
 
-// scan: 状態を持つ変換（累積和など）
+// scan: Stateful transformation (e.g., cumulative sum)
 v.iter().scan(0, |acc, x| {
     *acc += x;
     Some(*acc)
 }); // [1, 3, 6, 10, 15]
 
-// inspect: デバッグ用（要素を変更せずに副作用を実行）
+// inspect: For debugging (execute side effects without modifying elements)
 v.iter()
     .inspect(|x| println!("before filter: {}", x))
     .filter(|x| **x > 2)
@@ -498,57 +501,57 @@ v.iter()
     .collect::<Vec<_>>();
 ```
 
-**主要な消費アダプタ（正格/終端操作）:**
+**Key consuming adapters (eager/terminal operations):**
 
 ```rust
 let v = vec![1, 2, 3, 4, 5];
 
-// collect: コレクションに変換
+// collect: Convert to a collection
 let vec: Vec<_> = v.iter().collect();
 let set: HashSet<_> = v.iter().collect();
 let s: String = vec!['a', 'b', 'c'].into_iter().collect();
 
-// sum / product: 合計 / 積
+// sum / product: Total / product
 let total: i32 = v.iter().sum();             // 15
 let product: i32 = v.iter().product();       // 120
 
-// count: 要素数
+// count: Number of elements
 v.iter().count();                             // 5
 
-// any / all: 条件判定
+// any / all: Condition checking
 v.iter().any(|x| *x > 3);                   // true
 v.iter().all(|x| *x > 0);                   // true
 
-// find: 条件を満たす最初の要素
+// find: First element satisfying the condition
 v.iter().find(|x| **x > 3);                 // Some(&4)
 
-// position: 条件を満たす最初のインデックス
+// position: Index of the first element satisfying the condition
 v.iter().position(|x| *x > 3);              // Some(3)
 
-// min / max: 最小/最大
+// min / max: Minimum/maximum
 v.iter().min();                               // Some(&1)
 v.iter().max();                               // Some(&5)
 
-// fold: 畳み込み（reduce の一般化）
+// fold: Fold (generalization of reduce)
 v.iter().fold(0, |acc, x| acc + x);          // 15
 
-// reduce: 初期値なしの畳み込み
+// reduce: Fold without initial value
 v.iter().copied().reduce(|a, b| a + b);      // Some(15)
 
-// for_each: 各要素に副作用を実行
+// for_each: Execute side effects for each element
 v.iter().for_each(|x| println!("{}", x));
 ```
 
-### 3.3 Python のイテレータツール
+### 3.3 Python's Iterator Tools
 
-Python は組み込み関数と `itertools` モジュールでイテレータ操作を提供する。
+Python provides iterator operations through built-in functions and the `itertools` module.
 
 ```python
 import itertools
 
 data = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
-# 組み込み関数によるイテレータ操作
+# Iterator operations via built-in functions
 list(map(lambda x: x ** 2, data))              # [1, 4, 9, 16, 25, ...]
 list(filter(lambda x: x % 2 == 0, data))       # [2, 4, 6, 8, 10]
 list(zip(data, range(10, 20)))                  # [(1,10), (2,11), ...]
@@ -560,141 +563,142 @@ max(data)                                       # 10
 any(x > 5 for x in data)                       # True
 all(x > 0 for x in data)                       # True
 
-# itertools による高度な操作
+# Advanced operations via itertools
 list(itertools.chain([1,2], [3,4], [5,6]))      # [1,2,3,4,5,6]
 list(itertools.islice(range(100), 5, 10))       # [5,6,7,8,9]
 list(itertools.takewhile(lambda x: x < 5, data))  # [1,2,3,4]
 list(itertools.dropwhile(lambda x: x < 5, data))  # [5,6,...,10]
 list(itertools.accumulate(data))                 # [1,3,6,10,15,...]
 
-# groupby: 連続する同じキーの要素をグループ化
+# groupby: Group consecutive elements with the same key
 sorted_data = sorted(data, key=lambda x: x % 3)
 for key, group in itertools.groupby(sorted_data, key=lambda x: x % 3):
     print(f"key={key}: {list(group)}")
 
-# product / permutations / combinations: 組み合わせ生成
+# product / permutations / combinations: Combinatorial generation
 list(itertools.product('AB', '12'))         # [('A','1'),('A','2'),('B','1'),('B','2')]
 list(itertools.permutations('ABC', 2))      # [('A','B'),('A','C'),('B','A'),...]
 list(itertools.combinations('ABCD', 2))     # [('A','B'),('A','C'),...]
 
-# tee: イテレータを複製
+# tee: Duplicate an iterator
 it1, it2 = itertools.tee(iter(data), 2)
-# it1 と it2 は独立して走査できる
+# it1 and it2 can traverse independently
 ```
 
 ---
 
-## 4. ジェネレータの動作原理
+## 4. How Generators Work
 
-### 4.1 ジェネレータとは何か
+### 4.1 What is a Generator?
 
-ジェネレータは「実行を中断（yield）し、後で再開できる関数」である。通常の関数が「呼び出し -> 実行 -> 値を返す」の一方通行であるのに対し、ジェネレータは「呼び出し -> yield で値を返して中断 -> 再開 -> yield -> ... -> 終了」というサイクルを繰り返す。
+A generator is "a function that can suspend (yield) and later resume execution." While a regular function follows a one-way path of "call -> execute -> return value," a generator repeats the cycle of "call -> yield value and suspend -> resume -> yield -> ... -> end."
 
 ```
 +-------------------------------------------------------------+
-|  通常の関数 vs ジェネレータ関数                                |
+|  Regular Function vs Generator Function                      |
 +-------------------------------------------------------------+
 |                                                             |
-|  通常の関数:                                                 |
-|  call() ──> [実行開始] ──> [処理] ──> return 値 ──> 終了     |
-|         呼び出し元に                                         |
-|         制御が戻る                                           |
+|  Regular function:                                           |
+|  call() --> [start] --> [process] --> return value --> end   |
+|         Control returns                                     |
+|         to caller                                           |
 |                                                             |
-|  ジェネレータ関数:                                            |
-|  call() ──> ジェネレータオブジェクトを生成（まだ実行しない）    |
+|  Generator function:                                         |
+|  call() --> Creates a generator object (not yet executed)    |
 |                                                             |
-|  next() ──> [実行開始] ──> yield 値1 ──> 中断（状態を保持）  |
-|         呼び出し元に                  ^                      |
-|         制御が戻る                    |                      |
-|                                       |                      |
-|  next() ──> [再開] ──> [処理] ──> yield 値2 ──> 中断        |
-|         呼び出し元に                  ^                      |
-|         制御が戻る                    |                      |
-|                                       |                      |
-|  next() ──> [再開] ──> [処理] ──> return ──> StopIteration  |
+|  next() --> [start] --> yield value1 --> suspend (state kept)|
+|         Control returns              ^                      |
+|         to caller                    |                      |
+|                                      |                      |
+|  next() --> [resume] --> [process] --> yield value2 --> suspend|
+|         Control returns              ^                      |
+|         to caller                    |                      |
+|                                      |                      |
+|  next() --> [resume] --> [process] --> return --> StopIteration|
 |                                                             |
-|  保持される状態: ローカル変数、実行位置（プログラムカウンタ）   |
+|  Preserved state: local variables, execution position       |
+|  (program counter)                                          |
 +-------------------------------------------------------------+
 ```
 
-### 4.2 Python のジェネレータ
+### 4.2 Python Generators
 
 ```python
-# 基本的なジェネレータ
+# Basic generator
 def fibonacci():
-    """フィボナッチ数列を無限に生成するジェネレータ"""
+    """Generator that infinitely produces Fibonacci numbers"""
     a, b = 0, 1
     while True:
-        yield a           # 値を返して中断
-        a, b = b, a + b   # 再開時にここから続行
+        yield a           # Return value and suspend
+        a, b = b, a + b   # Continue from here on resume
 
-# 使用例: 無限シーケンスだが、必要な分だけ生成
+# Usage: Infinite sequence, but only generates what's needed
 fib = fibonacci()
 for _ in range(10):
     print(next(fib))  # 0, 1, 1, 2, 3, 5, 8, 13, 21, 34
 
-# ジェネレータ式（内包表記のジェネレータ版）
-# リスト内包表記との比較
-squares_list = [x**2 for x in range(1_000_000)]  # メモリに全要素を保持
-squares_gen  = (x**2 for x in range(1_000_000))  # 1要素ずつ生成（省メモリ）
+# Generator expression (generator version of comprehension)
+# Comparison with list comprehension
+squares_list = [x**2 for x in range(1_000_000)]  # Holds all elements in memory
+squares_gen  = (x**2 for x in range(1_000_000))  # Generates one element at a time (memory-efficient)
 
-# ジェネレータ式はメモリフットプリントが極めて小さい
+# Generator expressions have an extremely small memory footprint
 import sys
-print(sys.getsizeof(squares_list))  # 約 8.5 MB
-print(sys.getsizeof(squares_gen))   # 約 200 バイト（固定）
+print(sys.getsizeof(squares_list))  # Approximately 8.5 MB
+print(sys.getsizeof(squares_gen))   # Approximately 200 bytes (constant)
 ```
 
-### 4.3 yield from: サブジェネレータ委譲
+### 4.3 yield from: Sub-Generator Delegation
 
 ```python
-# yield from を使わない場合
+# Without yield from
 def chain_v1(*iterables):
     for it in iterables:
         for item in it:
             yield item
 
-# yield from を使う場合（等価だがより効率的）
+# With yield from (equivalent but more efficient)
 def chain_v2(*iterables):
     for it in iterables:
         yield from it
 
 list(chain_v2([1, 2], [3, 4], [5, 6]))  # [1, 2, 3, 4, 5, 6]
 
-# yield from は再帰的なジェネレータに特に有用
+# yield from is particularly useful for recursive generators
 def flatten(nested):
-    """ネストしたリストを平坦化する"""
+    """Flatten a nested list"""
     for item in nested:
         if isinstance(item, (list, tuple)):
-            yield from flatten(item)  # 再帰的に委譲
+            yield from flatten(item)  # Recursively delegate
         else:
             yield item
 
 list(flatten([1, [2, [3, 4], 5], [6, 7]]))  # [1, 2, 3, 4, 5, 6, 7]
 ```
 
-### 4.4 send() による双方向通信
+### 4.4 Bidirectional Communication with send()
 
-ジェネレータは `send()` メソッドを使って、呼び出し側からジェネレータに値を送り込むこともできる。
+Generators can also receive values from the caller using the `send()` method.
 
 ```python
 def accumulator():
-    """送り込まれた値を累積するジェネレータ"""
+    """Generator that accumulates sent values"""
     total = 0
     while True:
-        value = yield total    # total を返し、send された値を value に受け取る
+        value = yield total    # Return total and receive the sent value into value
         if value is None:
             break
         total += value
 
 acc = accumulator()
-next(acc)            # 0 （ジェネレータを最初の yield まで進める）
-acc.send(10)         # 10（total = 0 + 10）
-acc.send(20)         # 30（total = 10 + 20）
-acc.send(5)          # 35（total = 30 + 5）
+next(acc)            # 0 (Advance the generator to the first yield)
+acc.send(10)         # 10 (total = 0 + 10)
+acc.send(20)         # 30 (total = 10 + 20)
+acc.send(5)          # 35 (total = 30 + 5)
 
-# 実用例: コルーチンとしてのジェネレータ（移動平均の計算）
+# Practical example: Generator as a coroutine (moving average calculation)
 def moving_average(window_size):
-    """移動平均を計算するコルーチン"""
+    """Coroutine that calculates the moving average"""
     window = []
     average = None
     while True:
@@ -705,17 +709,17 @@ def moving_average(window_size):
         average = sum(window) / len(window)
 
 ma = moving_average(3)
-next(ma)         # None（初期化）
+next(ma)         # None (initialization)
 ma.send(10)      # 10.0
 ma.send(20)      # 15.0
 ma.send(30)      # 20.0
-ma.send(40)      # 30.0（窓: [20, 30, 40]）
+ma.send(40)      # 30.0 (window: [20, 30, 40])
 ```
 
-### 4.5 JavaScript のジェネレータ
+### 4.5 JavaScript Generators
 
 ```javascript
-// function* でジェネレータ関数を定義
+// Define a generator function with function*
 function* fibonacci() {
     let a = 0, b = 1;
     while (true) {
@@ -729,7 +733,7 @@ console.log(fib.next());  // { value: 0, done: false }
 console.log(fib.next());  // { value: 1, done: false }
 console.log(fib.next());  // { value: 1, done: false }
 
-// ヘルパージェネレータ: take
+// Helper generator: take
 function* take(iter, n) {
     let count = 0;
     for (const item of iter) {
@@ -738,16 +742,16 @@ function* take(iter, n) {
     }
 }
 
-// for-of で消費
+// Consume with for-of
 for (const n of take(fibonacci(), 10)) {
     console.log(n);  // 0, 1, 1, 2, 3, 5, 8, 13, 21, 34
 }
 
-// yield* でサブジェネレータ委譲
+// Delegate with yield*
 function* flatten(arr) {
     for (const item of arr) {
         if (Array.isArray(item)) {
-            yield* flatten(item);  // 再帰的に委譲
+            yield* flatten(item);  // Recursively delegate
         } else {
             yield item;
         }
@@ -757,7 +761,7 @@ function* flatten(arr) {
 console.log([...flatten([1, [2, [3, 4], 5], [6, 7]])]);
 // [1, 2, 3, 4, 5, 6, 7]
 
-// send に相当する機能: next(value)
+// Equivalent of send: next(value)
 function* accumulator() {
     let total = 0;
     while (true) {
@@ -767,117 +771,118 @@ function* accumulator() {
 }
 
 const acc = accumulator();
-acc.next();        // { value: 0, done: false } -- 初期化
+acc.next();        // { value: 0, done: false } -- Initialization
 acc.next(10);      // { value: 10, done: false }
 acc.next(20);      // { value: 30, done: false }
 acc.next(5);       // { value: 35, done: false }
 ```
 
-### 4.6 ジェネレータとコルーチンの関係
+### 4.6 Relationship Between Generators and Coroutines
 
-ジェネレータは「セミコルーチン（semi-coroutine）」とも呼ばれる。完全なコルーチンが任意の相手に制御を譲れるのに対し、ジェネレータは呼び出し元にのみ制御を戻す。
+Generators are also called "semi-coroutines." While full coroutines can yield control to any other coroutine, generators can only return control to their caller.
 
 ```
 +-------------------------------------------------------------+
-|  コルーチンの分類                                              |
+|  Classification of Coroutines                                |
 +-------------------------------------------------------------+
 |                                                             |
-|  対称コルーチン（Symmetric Coroutine）                       |
-|    - 任意のコルーチンに制御を譲れる                           |
-|    - A -> B -> C -> A のように自由に遷移                     |
-|    - 例: Lua のコルーチン、Go の goroutine（近い）           |
+|  Symmetric Coroutine                                        |
+|    - Can yield control to any coroutine                     |
+|    - Free transitions like A -> B -> C -> A                 |
+|    - Examples: Lua coroutines, Go goroutines (similar)      |
 |                                                             |
-|  非対称コルーチン（Asymmetric Coroutine / Semi-Coroutine）   |
-|    - 呼び出し元にのみ制御を戻す                              |
-|    - 呼び出し元 <-> ジェネレータ の往復のみ                   |
-|    - 例: Python / JavaScript のジェネレータ                  |
+|  Asymmetric Coroutine (Semi-Coroutine)                      |
+|    - Can only return control to the caller                  |
+|    - Only round-trips between caller <-> generator          |
+|    - Examples: Python / JavaScript generators               |
 |                                                             |
 |  +------------------+    +------------------+               |
-|  | 呼び出し元       |    | ジェネレータ      |               |
-|  |                  |--->|  実行...          |               |
-|  |                  |    |  yield 値         |               |
-|  |  値を受け取る    |<---|                   |               |
-|  |  ...             |    |  (中断中)         |               |
-|  |  next()          |--->|  再開...          |               |
-|  |                  |    |  yield 値         |               |
-|  |  値を受け取る    |<---|                   |               |
+|  | Caller           |    | Generator        |               |
+|  |                  |--->|  Executing...    |               |
+|  |                  |    |  yield value     |               |
+|  |  Receives value  |<---|                  |               |
+|  |  ...             |    |  (suspended)     |               |
+|  |  next()          |--->|  Resumes...      |               |
+|  |                  |    |  yield value     |               |
+|  |  Receives value  |<---|                  |               |
 |  +------------------+    +------------------+               |
 +-------------------------------------------------------------+
 ```
 
-Python の `async/await` 構文は、実はジェネレータの上に構築されている。歴史的に、Python 3.4 以前は `@asyncio.coroutine` デコレータと `yield from` でコルーチンを実現していた。Python 3.5 で `async def` / `await` が導入され、構文的に分離されたが、内部的にはジェネレータと同じ中断・再開メカニズムを使用している。
+Python's `async/await` syntax is actually built on top of generators. Historically, before Python 3.4, coroutines were implemented using the `@asyncio.coroutine` decorator and `yield from`. Python 3.5 introduced `async def` / `await`, separating them syntactically, but internally they use the same suspend/resume mechanism as generators.
 
 ---
 
-## 5. 遅延評価 vs 正格評価
+## 5. Lazy Evaluation vs Eager Evaluation
 
-### 5.1 評価戦略の基本概念
+### 5.1 Fundamental Concepts of Evaluation Strategies
 
-プログラミング言語における式の評価タイミングには、大きく分けて2つの戦略がある。
+There are broadly two strategies for when expressions in a programming language are evaluated.
 
 ```
 +-------------------------------------------------------------+
-|  正格評価（Eager / Strict Evaluation）                        |
+|  Eager / Strict Evaluation                                   |
 +-------------------------------------------------------------+
 |                                                             |
-|  式が定義された時点で即座に評価される                          |
+|  Expressions are evaluated immediately when defined          |
 |                                                             |
-|  例: result = [x*2 for x in range(1000000)]                 |
+|  Example: result = [x*2 for x in range(1000000)]           |
 |                                                             |
-|  1. range(1000000) で 0~999999 を生成                        |
-|  2. 各要素に x*2 を適用                                      |
-|  3. 結果の 100万要素のリストをメモリに保持                    |
+|  1. range(1000000) generates 0 to 999999                    |
+|  2. Applies x*2 to each element                             |
+|  3. Holds the resulting 1 million elements in memory         |
 |                                                             |
-|  メモリ使用量: O(N)                                          |
-|  計算コスト: 全要素を前もって処理                              |
-|  利点: 予測可能、デバッグしやすい                              |
+|  Memory usage: O(N)                                          |
+|  Computation cost: All elements processed upfront            |
+|  Advantage: Predictable, easier to debug                     |
 +-------------------------------------------------------------+
 
 +-------------------------------------------------------------+
-|  遅延評価（Lazy Evaluation）                                  |
+|  Lazy Evaluation                                             |
 +-------------------------------------------------------------+
 |                                                             |
-|  値が実際に必要になるまで評価を遅延させる                      |
+|  Evaluation is deferred until the value is actually needed   |
 |                                                             |
-|  例: result = (x*2 for x in range(1000000))                 |
+|  Example: result = (x*2 for x in range(1000000))           |
 |                                                             |
-|  1. ジェネレータオブジェクトを生成（まだ何も計算しない）       |
-|  2. next() が呼ばれるたびに 1要素ずつ計算                     |
-|  3. 使わなかった要素は計算もメモリ確保もされない               |
+|  1. Creates a generator object (nothing computed yet)        |
+|  2. Computes one element at a time when next() is called     |
+|  3. Unused elements are never computed or allocated           |
 |                                                             |
-|  メモリ使用量: O(1)                                          |
-|  計算コスト: 必要な分だけ処理                                  |
-|  利点: 無限データ構造、省メモリ、不要な計算の回避               |
+|  Memory usage: O(1)                                          |
+|  Computation cost: Only processes what's needed              |
+|  Advantage: Infinite data structures, memory-efficient,      |
+|             avoids unnecessary computation                   |
 +-------------------------------------------------------------+
 ```
 
-### 5.2 各言語の評価戦略
+### 5.2 Evaluation Strategies by Language
 
-| 言語 | デフォルト評価 | 遅延評価の手段 | 正格化の手段 |
-|------|-------------|--------------|------------|
-| **Haskell** | 遅延 | デフォルト | `seq`, `deepseq`, `BangPatterns` |
-| **Rust** | 正格 | `Iterator` チェーン | `collect()`, `sum()`, `for` |
-| **Python** | 正格 | ジェネレータ, `itertools` | `list()`, `tuple()` |
-| **JavaScript** | 正格 | ジェネレータ | `Array.from()`, スプレッド `[...]` |
-| **Scala** | 正格 | `LazyList`, `View` | `.toList`, `.toVector` |
-| **C#** | 正格 | `IEnumerable<T>` (LINQ) | `.ToList()`, `.ToArray()` |
-| **Kotlin** | 正格 | `Sequence<T>` | `.toList()` |
-| **Java** | 正格 | `Stream<T>` | `.collect()`, `.toList()` |
+| Language | Default Evaluation | Lazy Evaluation Mechanism | Eager Evaluation Mechanism |
+|----------|-------------------|--------------------------|---------------------------|
+| **Haskell** | Lazy | Default | `seq`, `deepseq`, `BangPatterns` |
+| **Rust** | Eager | `Iterator` chains | `collect()`, `sum()`, `for` |
+| **Python** | Eager | Generators, `itertools` | `list()`, `tuple()` |
+| **JavaScript** | Eager | Generators | `Array.from()`, spread `[...]` |
+| **Scala** | Eager | `LazyList`, `View` | `.toList`, `.toVector` |
+| **C#** | Eager | `IEnumerable<T>` (LINQ) | `.ToList()`, `.ToArray()` |
+| **Kotlin** | Eager | `Sequence<T>` | `.toList()` |
+| **Java** | Eager | `Stream<T>` | `.collect()`, `.toList()` |
 
-### 5.3 遅延評価の利点と注意点
+### 5.3 Advantages and Caveats of Lazy Evaluation
 
-**利点1: 無限シーケンスの表現**
+**Advantage 1: Representing Infinite Sequences**
 
 ```python
 def natural_numbers():
-    """自然数を無限に生成"""
+    """Infinitely generates natural numbers"""
     n = 1
     while True:
         yield n
         n += 1
 
 def primes():
-    """素数を無限に生成（エラトステネスの篩の変形）"""
+    """Infinitely generates primes (variant of the Sieve of Eratosthenes)"""
     yield 2
     composites = {}
     n = 3
@@ -891,38 +896,38 @@ def primes():
             del composites[n]
         n += 2
 
-# 最初の20個の素数を取得
+# Get the first 20 primes
 from itertools import islice
 print(list(islice(primes(), 20)))
 # [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71]
 ```
 
-**利点2: パイプライン処理の効率化**
+**Advantage 2: Efficient Pipeline Processing**
 
 ```rust
-// 遅延評価により、take(5) の条件が満たされた時点で処理が停止する
-// 10万要素すべてを処理する必要がない
+// Due to lazy evaluation, processing stops once the take(5) condition is met
+// No need to process all 100,000 elements
 let result: Vec<i32> = (1..=100_000)
-    .filter(|n| is_prime(*n))    // 素数のみ
-    .map(|n| n * n)              // 二乗
-    .take(5)                     // 最初の5個で停止！
+    .filter(|n| is_prime(*n))    // Primes only
+    .map(|n| n * n)              // Square
+    .take(5)                     // Stop at the first 5!
     .collect();
-// is_prime は最初の5つの素数が見つかるまでしか呼ばれない
+// is_prime is only called until the first 5 primes are found
 // => [4, 9, 25, 49, 121]
 ```
 
-**注意点1: 副作用との相性**
+**Caveat 1: Interaction with Side Effects**
 
 ```python
-# 危険: 遅延評価と副作用の組み合わせ
+# Danger: Combining lazy evaluation with side effects
 def log_and_double(x):
-    print(f"Processing: {x}")  # 副作用
+    print(f"Processing: {x}")  # Side effect
     return x * 2
 
 gen = (log_and_double(x) for x in range(5))
-# この時点では何も出力されない！
+# Nothing is output at this point!
 
-# ジェネレータを消費して初めて副作用が発生する
+# Side effects only occur when the generator is consumed
 result = list(gen)
 # Processing: 0
 # Processing: 1
@@ -931,93 +936,93 @@ result = list(gen)
 # Processing: 4
 ```
 
-**注意点2: 複数回の走査**
+**Caveat 2: Multiple Traversals**
 
 ```python
 gen = (x ** 2 for x in range(5))
 
-# 1回目の走査
-print(sum(gen))   # 30（0 + 1 + 4 + 9 + 16）
+# First traversal
+print(sum(gen))   # 30 (0 + 1 + 4 + 9 + 16)
 
-# 2回目の走査（空！ジェネレータは使い切りである）
-print(sum(gen))   # 0 --- よくあるバグ
+# Second traversal (empty! Generators are single-use)
+print(sum(gen))   # 0 --- A common bug
 ```
 
-### 5.4 Haskell の遅延評価
+### 5.4 Haskell's Lazy Evaluation
 
-Haskell はデフォルトで遅延評価を採用する唯一の主要言語である。
+Haskell is the only major language that adopts lazy evaluation by default.
 
 ```haskell
--- 無限リストが自然に書ける
+-- Infinite lists can be written naturally
 naturals = [1..]                    -- [1, 2, 3, 4, ...]
 evens    = [2, 4..]                 -- [2, 4, 6, 8, ...]
-fibs     = 0 : 1 : zipWith (+) fibs (tail fibs)  -- フィボナッチ数列
+fibs     = 0 : 1 : zipWith (+) fibs (tail fibs)  -- Fibonacci sequence
 
--- 必要な分だけ取得
+-- Take only what's needed
 take 10 fibs    -- [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]
 take 5 naturals -- [1, 2, 3, 4, 5]
 
--- 無限リストを使ったエレガントな表現
--- 「最初の10個の素数」
+-- Elegant expressions enabled by infinite lists
+-- "The first 10 primes"
 take 10 [n | n <- [2..], isPrime n]
 
--- 遅延評価があるからこそ可能な定義
--- ones = 1 : ones  -- [1, 1, 1, 1, ...] 無限に1が続くリスト
+-- Definitions possible only because of lazy evaluation
+-- ones = 1 : ones  -- [1, 1, 1, 1, ...] An infinite list of 1s
 ```
 
 ---
 
-## 6. 非同期イテレータとストリーム
+## 6. Async Iterators and Streams
 
-### 6.1 非同期イテレータの動機
+### 6.1 Motivation for Async Iterators
 
-通常のイテレータは同期的に値を生成する。しかし、以下のようなケースでは非同期に値が到着する。
+Regular iterators produce values synchronously. However, values arrive asynchronously in cases like:
 
-- ネットワークからのデータストリーム
-- ファイルの行ごとの読み取り
-- データベースのカーソルからの行取得
-- WebSocket のメッセージ受信
-- ページネーションされた API のレスポンス
+- Data streams from a network
+- Line-by-line file reading
+- Row fetching from a database cursor
+- WebSocket message reception
+- Responses from paginated APIs
 
-これらを扱うために、非同期イテレータ（Async Iterator）が必要になる。
+Async iterators are needed to handle these cases.
 
 ```
 +-------------------------------------------------------------+
-|  同期イテレータ vs 非同期イテレータ                            |
+|  Synchronous Iterator vs Async Iterator                      |
 +-------------------------------------------------------------+
 |                                                             |
-|  同期イテレータ:                                              |
-|  next() --> 値がすぐに返る（ブロッキング）                    |
-|  next() --> 値がすぐに返る                                    |
-|  next() --> 終了                                              |
+|  Synchronous iterator:                                       |
+|  next() --> Value returned immediately (blocking)            |
+|  next() --> Value returned immediately                       |
+|  next() --> End                                              |
 |                                                             |
-|  非同期イテレータ:                                            |
-|  next() --> Future/Promise を返す                            |
-|         --> await で値の到着を待つ（ノンブロッキング）          |
-|  next() --> Future/Promise を返す                            |
-|         --> await で値の到着を待つ                            |
-|  next() --> 終了                                              |
+|  Async iterator:                                             |
+|  next() --> Returns a Future/Promise                         |
+|         --> Await the value (non-blocking)                   |
+|  next() --> Returns a Future/Promise                         |
+|         --> Await the value                                  |
+|  next() --> End                                              |
 |                                                             |
-|  待っている間、他のタスクを実行できる                          |
+|  Other tasks can execute while waiting                       |
 +-------------------------------------------------------------+
 ```
 
-### 6.2 JavaScript の非同期イテレータ
+### 6.2 JavaScript Async Iterators
 
 ```javascript
-// async function* で非同期ジェネレータ
+// Async generator with async function*
 async function* fetchPages(baseUrl) {
     let page = 1;
     while (true) {
         const response = await fetch(`${baseUrl}?page=${page}`);
         const data = await response.json();
         if (data.items.length === 0) break;
-        yield data.items;       // 各ページのデータを yield
+        yield data.items;       // Yield each page's data
         page++;
     }
 }
 
-// for await ... of で消費
+// Consume with for await...of
 async function processAllUsers(url) {
     for await (const users of fetchPages(url)) {
         for (const user of users) {
@@ -1026,7 +1031,7 @@ async function processAllUsers(url) {
     }
 }
 
-// Symbol.asyncIterator プロトコル
+// Symbol.asyncIterator protocol
 class EventStream {
     constructor(eventSource) {
         this.source = eventSource;
@@ -1049,7 +1054,7 @@ class EventStream {
     }
 }
 
-// 非同期ジェネレータのユーティリティ
+// Async generator utilities
 async function* asyncMap(asyncIter, fn) {
     for await (const item of asyncIter) {
         yield fn(item);
@@ -1072,7 +1077,7 @@ async function* asyncTake(asyncIter, n) {
     }
 }
 
-// 組み合わせて使用
+// Combined usage
 const activeUsers = asyncFilter(
     asyncMap(
         fetchPages("/api/users"),
@@ -1082,15 +1087,15 @@ const activeUsers = asyncFilter(
 );
 ```
 
-### 6.3 Python の非同期ジェネレータ
+### 6.3 Python Async Generators
 
 ```python
 import aiohttp
 import asyncio
 
-# async def + yield = 非同期ジェネレータ
+# async def + yield = async generator
 async def fetch_pages(base_url):
-    """ページネーションされたAPIからデータを非同期に取得"""
+    """Asynchronously fetch data from a paginated API"""
     page = 1
     async with aiohttp.ClientSession() as session:
         while True:
@@ -1101,7 +1106,7 @@ async def fetch_pages(base_url):
                 yield data["items"]
                 page += 1
 
-# async for で消費
+# Consume with async for
 async def process_all_users():
     async for users in fetch_pages("https://api.example.com/users"):
         for user in users:
@@ -1109,7 +1114,7 @@ async def process_all_users():
 
 asyncio.run(process_all_users())
 
-# 非同期内包表記
+# Async comprehension
 async def get_active_users():
     return [
         user
@@ -1118,7 +1123,7 @@ async def get_active_users():
         if user.get("active")
     ]
 
-# 非同期ジェネレータの aclose() による明示的クリーンアップ
+# Explicit cleanup with aclose() for async generators
 async def resource_stream():
     resource = await acquire_resource()
     try:
@@ -1128,27 +1133,27 @@ async def resource_stream():
                 break
             yield data
     finally:
-        await resource.release()  # クリーンアップが保証される
+        await resource.release()  # Cleanup is guaranteed
 
-# aclose() で途中終了してもクリーンアップが実行される
+# Cleanup executes even on early termination with aclose()
 stream = resource_stream()
 first_item = await stream.__anext__()
-await stream.aclose()  # finally ブロックが実行される
+await stream.aclose()  # The finally block executes
 ```
 
-### 6.4 Rust の Stream（非同期イテレータ）
+### 6.4 Rust Streams (Async Iterators)
 
 ```rust
 use tokio_stream::{self, StreamExt};
 use tokio::time::{self, Duration};
 
-// Stream は非同期版 Iterator
-// poll_next() が Future を返す
+// Stream is the async version of Iterator
+// poll_next() returns a Future
 
-// tokio_stream を使った例
+// Example using tokio_stream
 #[tokio::main]
 async fn main() {
-    // 基本的な Stream の作成と消費
+    // Creating and consuming a basic Stream
     let mut stream = tokio_stream::iter(vec![1, 2, 3, 4, 5])
         .filter(|n| *n % 2 == 0)
         .map(|n| n * 10);
@@ -1157,12 +1162,12 @@ async fn main() {
         println!("{}", value);  // 20, 40
     }
 
-    // インターバルストリーム
+    // Interval stream
     let mut interval = tokio_stream::wrappers::IntervalStream::new(
         time::interval(Duration::from_secs(1))
     );
 
-    // 最初の5回だけ処理
+    // Process only the first 5 ticks
     let mut count = 0;
     while let Some(_tick) = interval.next().await {
         count += 1;
@@ -1171,8 +1176,8 @@ async fn main() {
     }
 }
 
-// async-stream クレートを使ったストリーム生成
-// （Rust にはまだネイティブの async ジェネレータ構文がない）
+// Stream generation using the async-stream crate
+// (Rust does not yet have native async generator syntax)
 use async_stream::stream;
 
 fn countdown(from: u32) -> impl tokio_stream::Stream<Item = u32> {
@@ -1185,57 +1190,57 @@ fn countdown(from: u32) -> impl tokio_stream::Stream<Item = u32> {
 }
 ```
 
-### 6.5 非同期イテレータの比較
+### 6.5 Async Iterator Comparison
 
-| 特性 | JavaScript | Python | Rust |
-|------|-----------|--------|------|
-| 構文 | `async function*` | `async def` + `yield` | `async-stream` クレート |
-| 消費 | `for await...of` | `async for` | `while let Some(x) = stream.next().await` |
-| プロトコル | `Symbol.asyncIterator` | `__aiter__` / `__anext__` | `Stream` トレイト |
-| 委譲 | `yield*` | `async for` + `yield` | なし（手動） |
-| ネイティブ対応 | ES2018 | Python 3.6 | 未安定（nightly） |
-| エラー処理 | `try-catch` | `try-except` | `Result<Option<T>>` |
+| Property | JavaScript | Python | Rust |
+|----------|-----------|--------|------|
+| Syntax | `async function*` | `async def` + `yield` | `async-stream` crate |
+| Consumption | `for await...of` | `async for` | `while let Some(x) = stream.next().await` |
+| Protocol | `Symbol.asyncIterator` | `__aiter__` / `__anext__` | `Stream` trait |
+| Delegation | `yield*` | `async for` + `yield` | None (manual) |
+| Native support | ES2018 | Python 3.6 | Unstable (nightly) |
+| Error handling | `try-catch` | `try-except` | `Result<Option<T>>` |
 
 ---
 
-## 7. 実践パターン集
+## 7. Practical Patterns
 
-### 7.1 パイプラインパターン
+### 7.1 Pipeline Pattern
 
-データ処理のパイプラインをイテレータで構築する。Unix パイプの概念をプログラム内で実現する。
+Build data processing pipelines with iterators, implementing the Unix pipe concept within a program.
 
 ```python
 import csv
 from typing import Iterator, Dict, Any
 
 def read_csv(filename: str) -> Iterator[Dict[str, str]]:
-    """CSVファイルを1行ずつ読み取るジェネレータ"""
+    """Generator that reads a CSV file one row at a time"""
     with open(filename) as f:
         reader = csv.DictReader(f)
         for row in reader:
             yield row
-    # ファイルは自動的にクローズされる
+    # File is automatically closed
 
 def parse_numbers(rows: Iterator[Dict]) -> Iterator[Dict]:
-    """数値フィールドを変換"""
+    """Convert numeric fields"""
     for row in rows:
         row["age"] = int(row["age"])
         row["salary"] = float(row["salary"])
         yield row
 
 def filter_by_age(rows: Iterator[Dict], min_age: int) -> Iterator[Dict]:
-    """年齢でフィルタ"""
+    """Filter by age"""
     for row in rows:
         if row["age"] >= min_age:
             yield row
 
 def top_n(rows: Iterator[Dict], n: int, key: str) -> list:
-    """上位N件を取得（ヒープを使用してメモリ効率的に）"""
+    """Get the top N entries (memory-efficient using a heap)"""
     import heapq
     return heapq.nlargest(n, rows, key=lambda r: r[key])
 
-# パイプラインの構築と実行
-# 100万行のCSVでもメモリ使用量は一定
+# Building and executing the pipeline
+# Memory usage remains constant even for a million-row CSV
 pipeline = read_csv("employees.csv")
 pipeline = parse_numbers(pipeline)
 pipeline = filter_by_age(pipeline, 30)
@@ -1245,9 +1250,9 @@ for emp in top_earners:
     print(f"{emp['name']}: ${emp['salary']:,.0f}")
 ```
 
-### 7.2 ウィンドウ処理パターン
+### 7.2 Windowing Pattern
 
-時系列データや連続データに対して、固定幅のウィンドウをスライドさせながら処理する。
+Process time-series or continuous data by sliding a fixed-width window.
 
 ```python
 from collections import deque
@@ -1257,7 +1262,7 @@ import itertools
 T = TypeVar('T')
 
 def sliding_window(iterable, size: int) -> Iterator[Tuple]:
-    """スライディングウィンドウ"""
+    """Sliding window"""
     it = iter(iterable)
     window = deque(itertools.islice(it, size), maxlen=size)
     if len(window) == size:
@@ -1266,7 +1271,7 @@ def sliding_window(iterable, size: int) -> Iterator[Tuple]:
         window.append(item)
         yield tuple(window)
 
-# 使用例: 移動平均
+# Usage: Moving average
 data = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
 for window in sliding_window(data, 3):
     avg = sum(window) / len(window)
@@ -1277,7 +1282,7 @@ for window in sliding_window(data, 3):
 # ...
 
 def chunked(iterable, size: int) -> Iterator[list]:
-    """イテラブルを固定サイズのチャンクに分割"""
+    """Split an iterable into fixed-size chunks"""
     it = iter(iterable)
     while True:
         chunk = list(itertools.islice(it, size))
@@ -1285,14 +1290,14 @@ def chunked(iterable, size: int) -> Iterator[list]:
             break
         yield chunk
 
-# 使用例: バッチ処理
+# Usage: Batch processing
 for batch in chunked(range(100), 10):
-    process_batch(batch)  # 10件ずつ処理
+    process_batch(batch)  # Process 10 at a time
 ```
 
-### 7.3 ツリー走査パターン
+### 7.3 Tree Traversal Pattern
 
-再帰的なデータ構造をイテレータ/ジェネレータで平坦に走査する。
+Traverse recursive data structures flat using iterators/generators.
 
 ```python
 class TreeNode:
@@ -1301,19 +1306,19 @@ class TreeNode:
         self.children = children or []
 
 def dfs_preorder(node: TreeNode) -> Iterator:
-    """深さ優先探索（前順）をジェネレータで実装"""
+    """Depth-first search (preorder) implemented with a generator"""
     yield node.value
     for child in node.children:
         yield from dfs_preorder(child)
 
 def dfs_postorder(node: TreeNode) -> Iterator:
-    """深さ優先探索（後順）"""
+    """Depth-first search (postorder)"""
     for child in node.children:
         yield from dfs_postorder(child)
     yield node.value
 
 def bfs(node: TreeNode) -> Iterator:
-    """幅優先探索をジェネレータで実装"""
+    """Breadth-first search implemented with a generator"""
     from collections import deque
     queue = deque([node])
     while queue:
@@ -1321,7 +1326,7 @@ def bfs(node: TreeNode) -> Iterator:
         yield current.value
         queue.extend(current.children)
 
-# ツリー構築
+# Build tree
 tree = TreeNode(1, [
     TreeNode(2, [TreeNode(4), TreeNode(5)]),
     TreeNode(3, [TreeNode(6), TreeNode(7)])
@@ -1332,21 +1337,21 @@ print(list(dfs_postorder(tree)))  # [4, 5, 2, 6, 7, 3, 1]
 print(list(bfs(tree)))            # [1, 2, 3, 4, 5, 6, 7]
 ```
 
-### 7.4 状態機械パターン
+### 7.4 State Machine Pattern
 
-ジェネレータを使って状態機械（State Machine）をシンプルに表現する。
+Use generators to express state machines simply.
 
 ```python
 def lexer(text: str):
-    """簡易的なトークナイザを状態機械で実装"""
+    """Simple tokenizer implemented as a state machine"""
     i = 0
     while i < len(text):
-        # 空白をスキップ
+        # Skip whitespace
         if text[i].isspace():
             i += 1
             continue
 
-        # 数値トークン
+        # Number token
         if text[i].isdigit():
             start = i
             while i < len(text) and text[i].isdigit():
@@ -1354,7 +1359,7 @@ def lexer(text: str):
             yield ("NUMBER", text[start:i])
             continue
 
-        # 識別子トークン
+        # Identifier token
         if text[i].isalpha():
             start = i
             while i < len(text) and text[i].isalnum():
@@ -1362,7 +1367,7 @@ def lexer(text: str):
             yield ("IDENT", text[start:i])
             continue
 
-        # 演算子トークン
+        # Operator token
         if text[i] in "+-*/=<>":
             yield ("OP", text[i])
             i += 1
@@ -1370,7 +1375,7 @@ def lexer(text: str):
 
         raise ValueError(f"Unexpected character: {text[i]}")
 
-# 使用例
+# Usage
 for token_type, value in lexer("x = 42 + y * 3"):
     print(f"{token_type}: {value}")
 # IDENT: x
@@ -1382,16 +1387,16 @@ for token_type, value in lexer("x = 42 + y * 3"):
 # NUMBER: 3
 ```
 
-### 7.5 リソース管理パターン
+### 7.5 Resource Management Pattern
 
-ジェネレータとコンテキストマネージャを組み合わせて、リソースの確実な解放を保証する。
+Combine generators with context managers to guarantee reliable resource cleanup.
 
 ```python
 from contextlib import contextmanager
 
 @contextmanager
 def managed_cursor(connection):
-    """データベースカーソルのライフサイクルを管理"""
+    """Manage the lifecycle of a database cursor"""
     cursor = connection.cursor()
     try:
         yield cursor
@@ -1399,7 +1404,7 @@ def managed_cursor(connection):
         cursor.close()
 
 def query_rows(connection, sql, params=None):
-    """大量の行を1行ずつ取得するジェネレータ"""
+    """Generator that fetches large result sets one row at a time"""
     with managed_cursor(connection) as cursor:
         cursor.execute(sql, params or ())
         while True:
@@ -1407,23 +1412,23 @@ def query_rows(connection, sql, params=None):
             if row is None:
                 break
             yield row
-    # with ブロックを抜けると cursor.close() が呼ばれる
+    # cursor.close() is called when exiting the with block
 
-# 100万行のクエリ結果をメモリ効率的に処理
+# Process a million-row query result memory-efficiently
 for row in query_rows(conn, "SELECT * FROM large_table"):
     process_row(row)
-# イテレーション途中で break しても、カーソルは確実にクローズされる
+# Even if you break mid-iteration, the cursor is reliably closed
 ```
 
 ---
 
-## 8. アンチパターンと落とし穴
+## 8. Anti-Patterns and Pitfalls
 
-### 8.1 アンチパターン1: ジェネレータの二重消費
+### 8.1 Anti-Pattern 1: Double Consumption of Generators
 
 ```python
 # =========================================
-# ANTI-PATTERN: ジェネレータの二重消費
+# ANTI-PATTERN: Double consumption of a generator
 # =========================================
 
 def get_numbers():
@@ -1431,106 +1436,106 @@ def get_numbers():
 
 numbers = get_numbers()
 
-# 1回目: 正しく動作
+# First time: works correctly
 total = sum(numbers)          # 45
 
-# 2回目: 空のジェネレータ！ 値は 0 になる
+# Second time: empty generator! Value becomes 0
 average = total / sum(numbers) if sum(numbers) > 0 else 0
-# ZeroDivisionError or 想定外の結果
+# ZeroDivisionError or unexpected result
 
 # -----------------------------------------
-# 修正方法1: リストに変換して再利用
+# Fix 1: Convert to list for reuse
 # -----------------------------------------
-numbers = list(get_numbers())  # メモリに全要素を保持
+numbers = list(get_numbers())  # Hold all elements in memory
 total = sum(numbers)           # 45
 average = total / len(numbers) # 4.5
 
 # -----------------------------------------
-# 修正方法2: itertools.tee で複製
+# Fix 2: Duplicate with itertools.tee
 # -----------------------------------------
 import itertools
 nums1, nums2 = itertools.tee(get_numbers(), 2)
 total = sum(nums1)
 count = sum(1 for _ in nums2)
 average = total / count  # 4.5
-# 注意: tee は内部にバッファを持つため、大きなイテレータには不向き
+# Note: tee uses an internal buffer, so it's not suitable for large iterators
 
 # -----------------------------------------
-# 修正方法3: イテラブルクラスを定義（推奨）
+# Fix 3: Define an iterable class (recommended)
 # -----------------------------------------
 class NumberRange:
-    """何度でもイテレートできるイテラブル"""
+    """An iterable that can be iterated any number of times"""
     def __iter__(self):
         yield from range(10)
 
 numbers = NumberRange()
-total = sum(numbers)           # 45（1回目）
-average = total / sum(1 for _ in numbers)  # 4.5（2回目も動作）
+total = sum(numbers)           # 45 (1st time)
+average = total / sum(1 for _ in numbers)  # 4.5 (2nd time works too)
 ```
 
-### 8.2 アンチパターン2: 遅延評価とクロージャ変数の罠
+### 8.2 Anti-Pattern 2: Lazy Evaluation and Closure Variable Trap
 
 ```python
 # =========================================
-# ANTI-PATTERN: ループ変数のクロージャキャプチャ
+# ANTI-PATTERN: Closure capture of loop variables
 # =========================================
 
-# 期待: [0, 1, 4, 9, 16] を生成するジェネレータのリスト
+# Expected: A list of generators producing [0, 1, 4, 9, 16]
 generators = [lambda: i ** 2 for i in range(5)]
 
-# 全てが 16 を返す！（i は最終値 4 を参照している）
+# All return 16! (i references the final value 4)
 results = [g() for g in generators]
 print(results)  # [16, 16, 16, 16, 16]
 
 # -----------------------------------------
-# 修正方法1: デフォルト引数でキャプチャ
+# Fix 1: Capture the value with a default argument
 # -----------------------------------------
 generators = [lambda i=i: i ** 2 for i in range(5)]
 results = [g() for g in generators]
 print(results)  # [0, 1, 4, 9, 16]
 
 # -----------------------------------------
-# 修正方法2: ジェネレータ式を使う
+# Fix 2: Use a generator expression
 # -----------------------------------------
 gen = (i ** 2 for i in range(5))
 print(list(gen))  # [0, 1, 4, 9, 16]
 ```
 
-### 8.3 アンチパターン3: 不要な中間リストの生成
+### 8.3 Anti-Pattern 3: Unnecessary Intermediate List Creation
 
 ```python
 # =========================================
-# ANTI-PATTERN: 不要な中間リストの生成
+# ANTI-PATTERN: Unnecessary intermediate list creation
 # =========================================
 
-# 悪い例: 各ステップでリストを全生成
+# Bad example: Full list generated at each step
 data = list(range(1_000_000))
-filtered = [x for x in data if x % 2 == 0]        # 50万要素のリスト
-mapped   = [x ** 2 for x in filtered]              # 50万要素のリスト
-result   = [x for x in mapped if x > 1000]         # さらにリスト
+filtered = [x for x in data if x % 2 == 0]        # 500K element list
+mapped   = [x ** 2 for x in filtered]              # 500K element list
+result   = [x for x in mapped if x > 1000]         # Another list
 final    = sum(result)
-# メモリ: 元データ + filtered + mapped + result = 約4倍
+# Memory: original data + filtered + mapped + result = ~4x
 
 # -----------------------------------------
-# 修正: ジェネレータ式でパイプライン化
+# Fix: Pipeline with generator expressions
 # -----------------------------------------
-data = range(1_000_000)                             # range は遅延
-filtered = (x for x in data if x % 2 == 0)         # ジェネレータ
-mapped   = (x ** 2 for x in filtered)               # ジェネレータ
-result   = (x for x in mapped if x > 1000)          # ジェネレータ
-final    = sum(result)                               # ここで初めて計算
-# メモリ: O(1) --- 中間リストなし
+data = range(1_000_000)                             # range is lazy
+filtered = (x for x in data if x % 2 == 0)         # Generator
+mapped   = (x ** 2 for x in filtered)               # Generator
+result   = (x for x in mapped if x > 1000)          # Generator
+final    = sum(result)                               # Computation happens here
+# Memory: O(1) --- no intermediate lists
 ```
 
-### 8.4 アンチパターン4: ジェネレータ内での例外処理の見落とし
+### 8.4 Anti-Pattern 4: Missing Exception Handling in Generators
 
 ```python
 # =========================================
-# ANTI-PATTERN: ジェネレータの finally が実行されない場合
+# ANTI-PATTERN: Generator's finally not executing
 # =========================================
 
 def file_lines(path):
-    """ファイルを1行ずつ読むジェネレータ"""
+    """Generator that reads a file line by line"""
     f = open(path)
     try:
         for line in f:
@@ -1539,44 +1544,44 @@ def file_lines(path):
         f.close()
         print("File closed")
 
-# 問題: ジェネレータが途中で放棄されると...
+# Problem: When a generator is abandoned midway...
 gen = file_lines("data.txt")
 first_line = next(gen)
-# gen が GC されるまで finally は実行されない
-# CPython では参照カウントにより即座に GC されるが、
-# PyPy や他の実装では遅延する可能性がある
+# finally is not executed until gen is garbage collected
+# CPython's reference counting GCs immediately, but
+# PyPy and other implementations may delay
 
 # -----------------------------------------
-# 修正: close() を明示的に呼ぶ、またはコンテキストマネージャを使用
+# Fix: Call close() explicitly, or use a context manager
 # -----------------------------------------
 
-# 方法1: close() を明示的に呼ぶ
+# Method 1: Call close() explicitly
 gen = file_lines("data.txt")
 first_line = next(gen)
-gen.close()  # finally ブロックが実行される
+gen.close()  # The finally block executes
 
-# 方法2: contextlib.closing を使用
+# Method 2: Use contextlib.closing
 from contextlib import closing
 with closing(file_lines("data.txt")) as lines:
     first_line = next(lines)
-# with ブロックを抜けると close() が自動的に呼ばれる
+# close() is automatically called when exiting the with block
 ```
 
 ---
 
-## 9. パフォーマンス特性と最適化
+## 9. Performance Characteristics and Optimization
 
-### 9.1 イテレータのゼロコスト抽象化（Rust）
+### 9.1 Zero-Cost Abstraction of Iterators (Rust)
 
-Rust のイテレータチェーンは、コンパイル時にインライン展開され、手書きのループと同等のマシンコードを生成する。これを「ゼロコスト抽象化（Zero-Cost Abstraction）」と呼ぶ。
+Rust iterator chains are inlined at compile time, generating machine code equivalent to hand-written loops. This is called "Zero-Cost Abstraction."
 
 ```rust
-// イテレータチェーン版
+// Iterator chain version
 let sum: i32 = (0..1000)
     .filter(|n| n % 3 == 0 || n % 5 == 0)
     .sum();
 
-// 手書きのループ版（同等のパフォーマンス）
+// Hand-written loop version (equivalent performance)
 let mut sum = 0;
 for n in 0..1000 {
     if n % 3 == 0 || n % 5 == 0 {
@@ -1584,169 +1589,176 @@ for n in 0..1000 {
     }
 }
 
-// コンパイラが生成するマシンコードはほぼ同一
-// イテレータ版はむしろ境界チェックの省略により高速な場合もある
+// The compiler generates nearly identical machine code
+// The iterator version may even be faster due to eliding bounds checks
 ```
 
 ```
 +-------------------------------------------------------------+
-|  Rust イテレータのコンパイル過程                               |
+|  Rust Iterator Compilation Process                           |
 +-------------------------------------------------------------+
 |                                                             |
-|  ソースコード                                                |
+|  Source code                                                 |
 |    (0..1000).filter(...).map(...).sum()                      |
 |         |                                                   |
-|    モノモーフィゼーション（型の具体化）                        |
+|    Monomorphization (type specialization)                    |
 |         |                                                   |
-|    インライン展開（関数呼び出しを展開）                        |
+|    Inlining (expand function calls)                          |
 |         |                                                   |
-|    LLVM 最適化パス                                           |
+|    LLVM optimization passes                                  |
 |         |                                                   |
-|    手書きループと同等のマシンコード                            |
+|    Machine code equivalent to hand-written loops             |
 |         |                                                   |
-|  重要: 実行時のヒープ割り当ては一切発生しない                  |
-|  重要: 仮想関数呼び出し（vtable）も発生しない                  |
+|  Important: No heap allocations at runtime                   |
+|  Important: No virtual function calls (vtable) either        |
 +-------------------------------------------------------------+
 ```
 
-### 9.2 メモリ使用量の比較
+### 9.2 Memory Usage Comparison
 
-以下は、100万件のデータを処理する場合のメモリ使用量の比較を示す。
+The following compares memory usage when processing 1 million data items.
 
-| 処理方法 | メモリ使用量 | 説明 |
-|---------|------------|------|
-| 全要素をリストに保持 | O(N) -- 約 8MB | `list(range(1_000_000))` |
-| ジェネレータパイプライン | O(1) -- 約 200B | `(x for x in range(1_000_000))` |
-| `itertools` チェーン | O(1) -- 約 400B | `itertools.chain(...)` |
-| `map`/`filter` (Python 3) | O(1) -- 約 200B | `map(fn, range(1_000_000))` |
-| Rust イテレータ | O(1) -- スタック上 | `(0..1_000_000).filter(...)` |
+| Approach | Memory Usage | Description |
+|----------|-------------|-------------|
+| Hold all elements in a list | O(N) -- ~8MB | `list(range(1_000_000))` |
+| Generator pipeline | O(1) -- ~200B | `(x for x in range(1_000_000))` |
+| `itertools` chain | O(1) -- ~400B | `itertools.chain(...)` |
+| `map`/`filter` (Python 3) | O(1) -- ~200B | `map(fn, range(1_000_000))` |
+| Rust iterator | O(1) -- on stack | `(0..1_000_000).filter(...)` |
 
-### 9.3 イテレータの計算複雑度
+### 9.3 Computational Complexity of Iterator Operations
 
 ```
 +-------------------------------------------------------------+
-|  主要なイテレータ操作の計算複雑度                               |
+|  Computational Complexity of Key Iterator Operations         |
 +-------------------------------------------------------------+
 |                                                             |
-|  操作              | 時間複雑度  | 空間複雑度  | 備考          |
-|  -------------------|------------|------------|---------------|
-|  map                | O(1)/要素  | O(1)       | 遅延           |
-|  filter             | O(1)/要素  | O(1)       | 遅延           |
-|  take(n)            | O(1)/要素  | O(1)       | 遅延,短絡      |
-|  skip(n)            | O(n) 初回  | O(1)       | 遅延           |
-|  zip                | O(1)/要素  | O(1)       | 遅延           |
-|  chain              | O(1)/要素  | O(1)       | 遅延           |
-|  enumerate          | O(1)/要素  | O(1)       | 遅延           |
-|  collect            | O(N)       | O(N)       | 正格化         |
-|  sum                | O(N)       | O(1)       | 終端操作       |
-|  count              | O(N)       | O(1)       | 終端操作       |
-|  find               | O(N) 最悪  | O(1)       | 短絡可能       |
-|  any/all            | O(N) 最悪  | O(1)       | 短絡可能       |
-|  sort_by            | O(N log N) | O(N)       | 全要素必要     |
-|  group_by           | O(N)       | O(N)       | 全要素必要     |
-|  tee (Python)       | O(1)/要素  | O(N) 最悪  | 差分をバッファ |
+|  Operation        | Time        | Space       | Notes       |
+|  -----------------|-------------|-------------|-------------|
+|  map              | O(1)/elem   | O(1)        | Lazy        |
+|  filter           | O(1)/elem   | O(1)        | Lazy        |
+|  take(n)          | O(1)/elem   | O(1)        | Lazy,       |
+|                   |             |             | short-circuit|
+|  skip(n)          | O(n) first  | O(1)        | Lazy        |
+|  zip              | O(1)/elem   | O(1)        | Lazy        |
+|  chain            | O(1)/elem   | O(1)        | Lazy        |
+|  enumerate        | O(1)/elem   | O(1)        | Lazy        |
+|  collect          | O(N)        | O(N)        | Eagerly     |
+|                   |             |             | materializes|
+|  sum              | O(N)        | O(1)        | Terminal    |
+|  count            | O(N)        | O(1)        | Terminal    |
+|  find             | O(N) worst  | O(1)        | Can         |
+|                   |             |             | short-circuit|
+|  any/all          | O(N) worst  | O(1)        | Can         |
+|                   |             |             | short-circuit|
+|  sort_by          | O(N log N)  | O(N)        | Needs all   |
+|                   |             |             | elements    |
+|  group_by         | O(N)        | O(N)        | Needs all   |
+|                   |             |             | elements    |
+|  tee (Python)     | O(1)/elem   | O(N) worst  | Buffers     |
+|                   |             |             | differences |
 +-------------------------------------------------------------+
 ```
 
-### 9.4 パフォーマンス最適化のベストプラクティス
+### 9.4 Performance Optimization Best Practices
 
 ```python
-# 最適化1: ジェネレータ式 vs リスト内包表記
-# 結果をすべて必要としない場合はジェネレータ式を使う
+# Optimization 1: Generator expressions vs list comprehensions
+# Use generator expressions when you don't need all results
 
-# 悪い例（不要な中間リスト）
+# Bad example (unnecessary intermediate list)
 has_error = any([line.startswith("ERROR") for line in open("log.txt")])
-# "ERROR" が見つかっても残り全行を処理してしまう
+# Even if "ERROR" is found, all remaining lines are processed
 
-# 良い例（ジェネレータ式 + 短絡評価）
+# Good example (generator expression + short-circuit evaluation)
 has_error = any(line.startswith("ERROR") for line in open("log.txt"))
-# "ERROR" が見つかった時点で停止
+# Stops as soon as "ERROR" is found
 
-# 最適化2: itertools は C 実装なので高速
+# Optimization 2: itertools is implemented in C and is fast
 import itertools
 
-# 遅い（Python ループ）
+# Slow (Python loop)
 def my_chain(*iterables):
     for it in iterables:
         yield from it
 
-# 速い（C 実装）
+# Fast (C implementation)
 itertools.chain(*iterables)
 
-# 最適化3: 大量データには sorted() よりも heapq.nlargest()
+# Optimization 3: Use heapq.nlargest() instead of sorted() for large data
 import heapq
 
-# 全件ソートは O(N log N)
+# Full sort is O(N log N)
 top_10 = sorted(huge_data, key=extract_key, reverse=True)[:10]
 
-# ヒープは O(N log K) で K が小さい場合に高速
+# Heap is O(N log K), faster when K is small
 top_10 = heapq.nlargest(10, huge_data, key=extract_key)
 ```
 
 ```rust
-// Rust での最適化テクニック
+// Optimization techniques in Rust
 
-// 最適化1: collect のヒント
-// サイズが分かっている場合は、Vec の容量を事前確保
+// Optimization 1: Hints for collect
+// Pre-allocate Vec capacity when size is known
 let result: Vec<i32> = Vec::with_capacity(1000);
-let result: Vec<i32> = (0..1000).collect();  // size_hint を活用して自動確保
+let result: Vec<i32> = (0..1000).collect();  // Auto-allocates using size_hint
 
-// 最適化2: 不要なクローンを避ける
-// 悪い例
+// Optimization 2: Avoid unnecessary clones
+// Bad example
 let names: Vec<String> = people.iter()
-    .map(|p| p.name.clone())  // 毎回クローン
+    .map(|p| p.name.clone())  // Clone every time
     .collect();
 
-// 良い例（参照で十分な場合）
+// Good example (when references suffice)
 let names: Vec<&str> = people.iter()
-    .map(|p| p.name.as_str())  // 参照のみ
+    .map(|p| p.name.as_str())  // References only
     .collect();
 
-// 最適化3: flat_map vs flatten
-// flat_map は map + flatten を1ステップで行い、中間イテレータを省略
+// Optimization 3: flat_map vs flatten
+// flat_map performs map + flatten in one step, skipping intermediate iterators
 let result: Vec<i32> = data.iter()
-    .flat_map(|row| row.iter().copied())  // 効率的
+    .flat_map(|row| row.iter().copied())  // Efficient
     .collect();
 ```
 
 ---
 
-## 10. 演習問題
+## 10. Exercises
 
-### 10.1 基礎レベル（Beginner）
+### 10.1 Beginner Level
 
-**演習 B-1: カスタムイテレータの実装**
+**Exercise B-1: Implementing a Custom Iterator**
 
-指定された範囲の偶数のみを生成するイテレータを実装せよ。
+Implement an iterator that generates only even numbers within a specified range.
 
 ```python
 class EvenRange:
-    """偶数のみを生成するイテレータ"""
+    """Iterator that generates only even numbers"""
     def __init__(self, start, end):
-        # TODO: 実装
+        # TODO: Implement
         pass
 
     def __iter__(self):
-        # TODO: 実装
+        # TODO: Implement
         pass
 
     def __next__(self):
-        # TODO: 実装
+        # TODO: Implement
         pass
 
-# テスト
+# Test
 assert list(EvenRange(1, 10)) == [2, 4, 6, 8]
 assert list(EvenRange(0, 6)) == [0, 2, 4]
 assert list(EvenRange(7, 8)) == [8]
 ```
 
 <details>
-<summary>解答例（クリックで展開）</summary>
+<summary>Solution (click to expand)</summary>
 
 ```python
 class EvenRange:
     def __init__(self, start, end):
-        # start を最初の偶数に調整
+        # Adjust start to the first even number
         self.current = start if start % 2 == 0 else start + 1
         self.end = end
 
@@ -1760,7 +1772,7 @@ class EvenRange:
         self.current += 2
         return value
 
-# 別解: ジェネレータ関数（よりシンプル）
+# Alternative: Generator function (simpler)
 def even_range(start, end):
     n = start if start % 2 == 0 else start + 1
     while n < end:
@@ -1770,17 +1782,17 @@ def even_range(start, end):
 
 </details>
 
-**演習 B-2: ジェネレータによる FizzBuzz**
+**Exercise B-2: FizzBuzz with Generators**
 
-ジェネレータを使って FizzBuzz シーケンスを生成せよ。
+Generate a FizzBuzz sequence using generators.
 
 ```python
 def fizzbuzz(n):
-    """1 から n までの FizzBuzz を生成するジェネレータ"""
-    # TODO: 実装
+    """Generator that produces FizzBuzz from 1 to n"""
+    # TODO: Implement
     pass
 
-# テスト
+# Test
 result = list(fizzbuzz(15))
 assert result == [
     1, 2, "Fizz", 4, "Buzz", "Fizz", 7, 8, "Fizz", "Buzz",
@@ -1789,7 +1801,7 @@ assert result == [
 ```
 
 <details>
-<summary>解答例（クリックで展開）</summary>
+<summary>Solution (click to expand)</summary>
 
 ```python
 def fizzbuzz(n):
@@ -1806,15 +1818,15 @@ def fizzbuzz(n):
 
 </details>
 
-### 10.2 中級レベル（Intermediate）
+### 10.2 Intermediate Level
 
-**演習 I-1: イテレータアダプタの自作**
+**Exercise I-1: Building Custom Iterator Adapters**
 
-Python で Rust 風のイテレータアダプタを実装せよ。
+Implement Rust-style iterator adapters in Python.
 
 ```python
 class LazyIter:
-    """遅延評価のイテレータラッパー"""
+    """Lazy evaluation iterator wrapper"""
 
     def __init__(self, iterable):
         self._iter = iter(iterable)
@@ -1826,34 +1838,34 @@ class LazyIter:
         return next(self._iter)
 
     def map(self, fn):
-        # TODO: 新しい LazyIter を返す
+        # TODO: Return a new LazyIter
         pass
 
     def filter(self, pred):
-        # TODO: 新しい LazyIter を返す
+        # TODO: Return a new LazyIter
         pass
 
     def take(self, n):
-        # TODO: 新しい LazyIter を返す
+        # TODO: Return a new LazyIter
         pass
 
     def enumerate(self):
-        # TODO: 新しい LazyIter を返す
+        # TODO: Return a new LazyIter
         pass
 
     def collect(self):
-        # TODO: リストに変換
+        # TODO: Convert to list
         pass
 
     def sum(self):
-        # TODO: 合計を計算
+        # TODO: Calculate total
         pass
 
     def any(self, pred):
-        # TODO: いずれかが条件を満たすか
+        # TODO: Check if any element satisfies the condition
         pass
 
-# テスト
+# Test
 result = (LazyIter(range(100))
     .filter(lambda x: x % 3 == 0)
     .map(lambda x: x * x)
@@ -1864,7 +1876,7 @@ assert result == [0, 9, 36, 81, 144]
 ```
 
 <details>
-<summary>解答例（クリックで展開）</summary>
+<summary>Solution (click to expand)</summary>
 
 ```python
 class LazyIter:
@@ -1918,25 +1930,25 @@ class LazyIter:
 
 </details>
 
-**演習 I-2: 無限シーケンスの合成**
+**Exercise I-2: Composing Infinite Sequences**
 
-以下の無限シーケンスをジェネレータで実装せよ。
+Implement the following infinite sequence with generators.
 
 ```python
 def collatz(n):
-    """コラッツ数列を生成
-    n が偶数なら n/2、奇数なら 3n+1 を繰り返す。1 に到達したら終了。
+    """Generate the Collatz sequence.
+    If n is even, divide by 2; if odd, compute 3n+1. Stop when 1 is reached.
     """
-    # TODO: 実装
+    # TODO: Implement
     pass
 
-# テスト
+# Test
 assert list(collatz(6)) == [6, 3, 10, 5, 16, 8, 4, 2, 1]
 assert list(collatz(1)) == [1]
 ```
 
 <details>
-<summary>解答例（クリックで展開）</summary>
+<summary>Solution (click to expand)</summary>
 
 ```python
 def collatz(n):
@@ -1951,48 +1963,48 @@ def collatz(n):
 
 </details>
 
-### 10.3 上級レベル（Advanced）
+### 10.3 Advanced Level
 
-**演習 A-1: 非同期パイプライン**
+**Exercise A-1: Async Pipeline**
 
-非同期ジェネレータを使って、複数のデータソースからの入力を統合するパイプラインを構築せよ。
+Build a pipeline that merges inputs from multiple data sources using async generators.
 
 ```python
 import asyncio
 
 async def merge(*async_iterables):
-    """複数の非同期イテラブルをマージし、到着順に yield する"""
-    # TODO: 実装
-    # ヒント: asyncio.Queue と asyncio.create_task を使う
+    """Merge multiple async iterables and yield in arrival order"""
+    # TODO: Implement
+    # Hint: Use asyncio.Queue and asyncio.create_task
     pass
 
-# テスト用の非同期ジェネレータ
+# Test async generators
 async def delayed_range(name, start, end, delay):
     for i in range(start, end):
         await asyncio.sleep(delay)
         yield (name, i)
 
-# 使用例
+# Usage
 async def main():
     async for source, value in merge(
         delayed_range("A", 0, 5, 0.3),
         delayed_range("B", 10, 15, 0.5),
     ):
         print(f"{source}: {value}")
-    # 到着順に出力される
+    # Output in arrival order
 
 asyncio.run(main())
 ```
 
 <details>
-<summary>解答例（クリックで展開）</summary>
+<summary>Solution (click to expand)</summary>
 
 ```python
 import asyncio
 
 async def merge(*async_iterables):
     queue = asyncio.Queue()
-    sentinel = object()  # 終了マーカー
+    sentinel = object()  # End marker
     active = len(async_iterables)
 
     async def producer(ait):
@@ -2003,17 +2015,17 @@ async def merge(*async_iterables):
         if active == 0:
             await queue.put(sentinel)
 
-    # すべてのプロデューサーを起動
+    # Start all producers
     tasks = [asyncio.create_task(producer(ait)) for ait in async_iterables]
 
-    # キューから読み出し
+    # Read from the queue
     while True:
         item = await queue.get()
         if item is sentinel:
             break
         yield item
 
-    # タスクの完了を待つ
+    # Wait for tasks to complete
     await asyncio.gather(*tasks)
 ```
 
@@ -2021,18 +2033,18 @@ async def merge(*async_iterables):
 
 ---
 
-## 11. FAQ（よくある質問）
+## 11. FAQ (Frequently Asked Questions)
 
-### Q1: イテレータとジェネレータの違いは何か？
+### Q1: What is the difference between iterators and generators?
 
-**A:** イテレータは「要素を1つずつ取得するためのインターフェース/プロトコル」であり、ジェネレータはそのイテレータを簡単に作成するための「構文糖衣」である。
+**A:** An iterator is an "interface/protocol for retrieving elements one at a time," and a generator is "syntactic sugar" for easily creating that iterator.
 
-- **イテレータ**: `__iter__` / `__next__`（Python）や `Iterator` トレイト（Rust）を明示的に実装したオブジェクト。状態管理を手動で行う必要がある。
-- **ジェネレータ**: `yield` キーワードを含む関数。呼び出すとイテレータオブジェクトが自動的に生成される。状態（ローカル変数や実行位置）はランタイムが管理する。
+- **Iterator**: An object that explicitly implements `__iter__` / `__next__` (Python) or the `Iterator` trait (Rust). State management must be done manually.
+- **Generator**: A function containing the `yield` keyword. Calling it automatically produces an iterator object. State (local variables and execution position) is managed by the runtime.
 
 ```python
-# 同じ機能をイテレータとジェネレータで実装した比較
-# イテレータ版: 13行
+# Comparison of the same functionality implemented as an iterator and a generator
+# Iterator version: 13 lines
 class RangeIterator:
     def __init__(self, n):
         self.n = n
@@ -2046,41 +2058,41 @@ class RangeIterator:
         self.current += 1
         return value
 
-# ジェネレータ版: 3行
+# Generator version: 3 lines
 def range_generator(n):
     for i in range(n):
         yield i
 ```
 
-### Q2: ジェネレータはいつ使うべきか？
+### Q2: When should generators be used?
 
-**A:** 以下のケースでジェネレータが特に有用である。
+**A:** Generators are particularly useful in the following cases.
 
-| ケース | 理由 |
-|--------|------|
-| 大量データの逐次処理 | メモリに全要素を保持しなくてよい |
-| 無限シーケンスの表現 | リストでは不可能 |
-| 複雑な走査ロジック | 状態機械の代わりにシンプルに書ける |
-| パイプライン処理 | 中間結果を蓄積せずに流せる |
-| コルーチン的な処理 | `send()` / `yield` による双方向通信 |
+| Case | Reason |
+|------|--------|
+| Sequential processing of large data | No need to hold all elements in memory |
+| Representing infinite sequences | Impossible with lists |
+| Complex traversal logic | Can be written more simply than state machines |
+| Pipeline processing | Stream without accumulating intermediate results |
+| Coroutine-like processing | Bidirectional communication via `send()` / `yield` |
 
-逆に、以下の場合は通常のリストが適切である。
+Conversely, regular lists are appropriate when:
 
-- 要素に複数回アクセスする必要がある場合
-- ランダムアクセス（インデックス指定）が必要な場合
-- 要素数が少なく、メモリ消費が問題にならない場合
-- `len()` や `reversed()` などのシーケンス操作が必要な場合
+- Multiple accesses to elements are needed
+- Random access (index-based) is needed
+- The number of elements is small and memory is not a concern
+- Sequence operations like `len()` or `reversed()` are needed
 
-### Q3: Rust にはなぜ `yield` がないのか？
+### Q3: Why doesn't Rust have `yield`?
 
-**A:** 2024年時点で Rust にはネイティブのジェネレータ構文（`yield`）が安定版に存在しない。これにはいくつかの理由がある。
+**A:** As of 2024, Rust does not have native generator syntax (`yield`) in stable releases. There are several reasons for this:
 
-1. **所有権と借用**: ジェネレータが `yield` で中断している間、ローカル変数の参照が有効であり続ける必要がある。これは Rust の借用チェッカーと複雑に相互作用する（自己参照構造体の問題）。
-2. **Pin と Unpin**: 中断中のジェネレータはメモリ上で移動できない（自己参照のため）。これは `Pin<T>` の概念が必要になり、`async/await` の実装でも同じ問題に直面した。
-3. **代替手段の存在**: Rust ではイテレータトレイトを直接実装するか、`async-stream` クレートなどで代用できる。
+1. **Ownership and borrowing**: While a generator is suspended at `yield`, references to local variables must remain valid. This interacts complexly with Rust's borrow checker (the self-referential struct problem).
+2. **Pin and Unpin**: A suspended generator cannot be moved in memory (due to self-references). This requires the `Pin<T>` concept, the same problem encountered in the `async/await` implementation.
+3. **Availability of alternatives**: In Rust, you can implement the Iterator trait directly or use crates like `async-stream` as substitutes.
 
 ```rust
-// Rust nightly では gen ブロックが実験的に使用可能
+// On Rust nightly, gen blocks are experimentally available
 #![feature(gen_blocks)]
 
 fn fibonacci() -> impl Iterator<Item = u64> {
@@ -2094,102 +2106,102 @@ fn fibonacci() -> impl Iterator<Item = u64> {
 }
 ```
 
-### Q4: `itertools.tee()` はなぜメモリを消費するのか？
+### Q4: Why does `itertools.tee()` consume memory?
 
-**A:** `tee()` は元のイテレータから取得した値を内部バッファに保持する。2つの複製されたイテレータの消費ペースが異なると、先に進んだ方が取得した値を後発の方のためにバッファに蓄積する。
+**A:** `tee()` retains values obtained from the original iterator in an internal buffer. When the two duplicated iterators consume at different rates, the one that has advanced further accumulates values in the buffer for the one that lags behind.
 
 ```
 tee(iter, 2) -> (it1, it2)
 
-it1 が 1000 要素先に進み、it2 がまだ 0 要素の場合:
--> 1000 要素分のバッファがメモリに保持される
+If it1 has advanced 1000 elements and it2 is still at 0:
+-> 1000 elements worth of buffer held in memory
 
-両方が同じペースで消費される場合:
--> バッファは最小限で済む
+If both consume at the same pace:
+-> Buffer remains minimal
 ```
 
-大量データに対して `tee()` を使う場合は、2つのイテレータを「交互に」消費することを心がけるか、リストへの変換を検討すべきである。
+When using `tee()` with large data, make sure to consume both iterators "alternately," or consider converting to a list instead.
 
-### Q5: for ループ内で yield するとどうなるか？
+### Q5: What happens when yield is used inside a for loop?
 
-**A:** `yield` を含む関数はジェネレータ関数になる。`for` ループ内で `yield` することで、ループの各反復で値を1つずつ返すジェネレータが作れる。これは非常に一般的なパターンである。
+**A:** A function containing `yield` becomes a generator function. By using `yield` inside a `for` loop, you create a generator that returns one value per loop iteration. This is a very common pattern.
 
 ```python
 def filtered_lines(filename, keyword):
-    """ファイルからキーワードを含む行だけを yield する"""
+    """Yield only lines containing the keyword from a file"""
     with open(filename) as f:
-        for line in f:        # for ループ
+        for line in f:        # for loop
             if keyword in line:
-                yield line    # 各反復で条件を満たす行を返す
+                yield line    # Return matching lines per iteration
 
-# 使う側
+# Consumer side
 for line in filtered_lines("access.log", "ERROR"):
     print(line)
 ```
 
-### Q6: JavaScript で同期的な sleep をジェネレータで実現できるか？
+### Q6: Can generators implement synchronous sleep in JavaScript?
 
-**A:** ジェネレータ自体は同期的な sleep を実現するものではない。ただし、ジェネレータを使って非同期処理のフローを同期的に「見せる」ことは可能であり、これが `async/await` 以前のライブラリ（`co`, `bluebird` など）のアプローチであった。現在は `async/await` を使うべきである。
+**A:** Generators themselves do not implement synchronous sleep. However, it is possible to make async processing "appear" synchronous using generators, which was the approach taken by libraries (`co`, `bluebird`, etc.) before `async/await`. Today, `async/await` should be used instead.
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point in learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the basics and jumping to advanced topics. We recommend thoroughly understanding the fundamental concepts explained in this guide before moving to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently used in everyday development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## 12. まとめ
+## 12. Summary
 
-### 12.1 概念マップ
+### 12.1 Concept Map
 
 ```
 +-------------------------------------------------------------+
-|  イテレータとジェネレータの概念マップ                           |
+|  Concept Map of Iterators and Generators                     |
 +-------------------------------------------------------------+
 |                                                             |
-|  データ構造                                                   |
+|  Data Structures                                             |
 |    |                                                        |
-|    +-- Iterable（反復可能）                                  |
+|    +-- Iterable                                             |
 |         |                                                   |
-|         +-- Iterator（イテレータ）                           |
+|         +-- Iterator                                        |
 |         |    |                                               |
-|         |    +-- 外部（Pull型）: next() で取得               |
+|         |    +-- External (Pull): Retrieve with next()      |
 |         |    |                                               |
-|         |    +-- 内部（Push型）: each/forEach                |
+|         |    +-- Internal (Push): each/forEach              |
 |         |                                                   |
-|         +-- Generator（ジェネレータ）                        |
+|         +-- Generator                                       |
 |              |                                               |
-|              +-- yield で中断/再開                            |
+|              +-- Suspend/resume with yield                   |
 |              |                                               |
-|              +-- send() で双方向通信                          |
+|              +-- Bidirectional communication with send()     |
 |              |                                               |
-|              +-- yield from / yield* で委譲                  |
+|              +-- Delegate with yield from / yield*           |
 |                                                             |
-|  評価戦略                                                     |
+|  Evaluation Strategies                                       |
 |    |                                                        |
-|    +-- 正格（Eager）: 即座にすべて計算                        |
+|    +-- Eager: Compute everything immediately                |
 |    |                                                        |
-|    +-- 遅延（Lazy）: 必要な時にだけ計算                       |
+|    +-- Lazy: Compute only when needed                       |
 |                                                             |
-|  アダプタ                                                     |
+|  Adapters                                                    |
 |    |                                                        |
-|    +-- 変換: map, filter, take, skip, zip, chain, ...       |
+|    +-- Transform: map, filter, take, skip, zip, chain, ...  |
 |    |                                                        |
-|    +-- 終端: collect, sum, count, any, all, find, fold      |
+|    +-- Terminal: collect, sum, count, any, all, find, fold   |
 |                                                             |
-|  非同期                                                       |
+|  Async                                                       |
 |    |                                                        |
 |    +-- Async Iterator: await + next()                       |
 |    |                                                        |
@@ -2199,63 +2211,63 @@ for line in filtered_lines("access.log", "ERROR"):
 +-------------------------------------------------------------+
 ```
 
-### 12.2 重要ポイントの整理
+### 12.2 Key Points Summary
 
-| 概念 | 核心 | 典型的なユースケース | 代表言語 |
-|------|------|-------------------|---------|
-| イテレータ | 要素を1つずつ取得する統一インターフェース | コレクションの走査 | 全言語 |
-| アダプタ | 遅延変換のチェーン | データ処理パイプライン | Rust, Python, JS |
-| ジェネレータ | yield で中断・再開する関数 | 無限シーケンス、状態機械 | Python, JS |
-| 遅延評価 | 必要な時にだけ計算する | 大量データ処理、無限シーケンス | Haskell, Rust iter |
-| 非同期イテレータ | await + yield | ネットワークストリーム | Python, JS, Rust |
-| send/双方向 | 呼び出し元とジェネレータ間で値を交換 | コルーチン、状態制御 | Python, JS |
+| Concept | Core Idea | Typical Use Case | Representative Languages |
+|---------|-----------|------------------|-------------------------|
+| Iterator | Unified interface for retrieving elements one at a time | Collection traversal | All languages |
+| Adapter | Chain of lazy transformations | Data processing pipelines | Rust, Python, JS |
+| Generator | Function that suspends/resumes with yield | Infinite sequences, state machines | Python, JS |
+| Lazy Evaluation | Compute only when needed | Large data processing, infinite sequences | Haskell, Rust iter |
+| Async Iterator | await + yield | Network streams | Python, JS, Rust |
+| send/Bidirectional | Exchange values between caller and generator | Coroutines, state control | Python, JS |
 
-### 12.3 言語選択ガイド
+### 12.3 Language Selection Guide
 
-| 目的 | 推奨言語/手段 | 理由 |
-|------|-------------|------|
-| 高パフォーマンスのイテレータ処理 | Rust | ゼロコスト抽象化 |
-| 手軽なジェネレータ | Python | 構文が最もシンプル |
-| 関数型イテレータ操作 | Haskell / Scala | 遅延評価がデフォルト |
-| フロントエンドのストリーム処理 | JavaScript | async generator + for await |
-| 大規模データパイプライン | Python + itertools | 豊富な組み合わせ関数 |
-| 型安全なストリーム処理 | Rust + tokio_stream | コンパイル時保証 |
-
----
-
-## 次に読むべきガイド
-
+| Purpose | Recommended Language/Approach | Reason |
+|---------|-------------------------------|--------|
+| High-performance iterator processing | Rust | Zero-cost abstraction |
+| Easy generators | Python | Simplest syntax |
+| Functional iterator operations | Haskell / Scala | Lazy evaluation by default |
+| Frontend stream processing | JavaScript | async generator + for await |
+| Large-scale data pipelines | Python + itertools | Rich combination functions |
+| Type-safe stream processing | Rust + tokio_stream | Compile-time guarantees |
 
 ---
 
-## 13. 参考文献
+## Suggested Next Reading
 
-### 書籍
-
-1. **Gamma, E., Helm, R., Johnson, R., & Vlissides, J.** "Design Patterns: Elements of Reusable Object-Oriented Software." Addison-Wesley, 1994. -- GoF デザインパターンにおけるイテレータパターンの原典。
-2. **Klabnik, S. & Nichols, C.** "The Rust Programming Language." No Starch Press, 2019. -- 第13章「関数型言語の機能: イテレータとクロージャ」でイテレータの詳細を解説。
-3. **Beazley, D. & Jones, B.K.** "Python Cookbook, 3rd Edition." O'Reilly Media, 2013. -- 第4章「イテレータとジェネレータ」で実践的なレシピを多数掲載。
-
-### 公式ドキュメント・仕様
-
-4. **"Iterator trait - Rust Standard Library Documentation."** doc.rust-lang.org. -- Rust のイテレータトレイトの公式リファレンス。75以上のメソッドが解説されている。
-5. **"PEP 255 -- Simple Generators."** python.org, 2001. -- Python にジェネレータを導入した提案書。設計の背景と根拠が記載されている。
-6. **"PEP 380 -- Syntax for Delegating to a Subgenerator."** python.org, 2009. -- `yield from` 構文を導入した提案書。
-7. **"PEP 525 -- Asynchronous Generators."** python.org, 2016. -- 非同期ジェネレータ（`async def` + `yield`）を導入した提案書。
-8. **"MDN Web Docs: Iterators and generators."** developer.mozilla.org. -- JavaScript のイテレータとジェネレータの包括的ガイド。
-
-### 論文・技術記事
-
-9. **Hutton, G.** "A Tutorial on the Universality and Expressiveness of Fold." Journal of Functional Programming, 1999. -- fold（畳み込み）の数学的基礎と表現力に関する古典的論文。
-10. **Kiselyov, O., Shan, C., Friedman, D., & Sabry, A.** "Backtracking, Interleaving, and Terminating Monad Transformers." ICFP, 2005. -- 遅延評価とストリーム処理の理論的基礎。
 
 ---
 
-> **本章のキーメッセージ:** イテレータとジェネレータは「データの流れ」を抽象化する強力なツールである。遅延評価により、必要な分だけ計算し、メモリを節約し、無限のデータ構造も扱える。これらの概念を理解することで、宣言的で合成可能なデータ処理パイプラインを構築できるようになる。
+## 13. References
+
+### Books
+
+1. **Gamma, E., Helm, R., Johnson, R., & Vlissides, J.** "Design Patterns: Elements of Reusable Object-Oriented Software." Addison-Wesley, 1994. -- The original source for the iterator pattern in GoF design patterns.
+2. **Klabnik, S. & Nichols, C.** "The Rust Programming Language." No Starch Press, 2019. -- Chapter 13 "Functional Language Features: Iterators and Closures" provides detailed coverage of iterators.
+3. **Beazley, D. & Jones, B.K.** "Python Cookbook, 3rd Edition." O'Reilly Media, 2013. -- Chapter 4 "Iterators and Generators" contains numerous practical recipes.
+
+### Official Documentation and Specifications
+
+4. **"Iterator trait - Rust Standard Library Documentation."** doc.rust-lang.org. -- Official reference for the Rust Iterator trait. Over 75 methods documented.
+5. **"PEP 255 -- Simple Generators."** python.org, 2001. -- The proposal that introduced generators to Python. Contains design rationale and background.
+6. **"PEP 380 -- Syntax for Delegating to a Subgenerator."** python.org, 2009. -- The proposal that introduced the `yield from` syntax.
+7. **"PEP 525 -- Asynchronous Generators."** python.org, 2016. -- The proposal that introduced async generators (`async def` + `yield`).
+8. **"MDN Web Docs: Iterators and generators."** developer.mozilla.org. -- Comprehensive guide to JavaScript iterators and generators.
+
+### Papers and Technical Articles
+
+9. **Hutton, G.** "A Tutorial on the Universality and Expressiveness of Fold." Journal of Functional Programming, 1999. -- A classic paper on the mathematical foundations and expressiveness of fold.
+10. **Kiselyov, O., Shan, C., Friedman, D., & Sabry, A.** "Backtracking, Interleaving, and Terminating Monad Transformers." ICFP, 2005. -- Theoretical foundations of lazy evaluation and stream processing.
 
 ---
 
-## 参考文献
+> **Key Message of This Chapter:** Iterators and generators are powerful tools for abstracting "the flow of data." Through lazy evaluation, they compute only what is needed, conserve memory, and can handle infinite data structures. Understanding these concepts enables you to build declarative, composable data processing pipelines.
 
-- [MDN Web Docs](https://developer.mozilla.org/) - Web技術のリファレンス
-- [Wikipedia](https://ja.wikipedia.org/) - 技術概念の概要
+---
+
+## References
+
+- [MDN Web Docs](https://developer.mozilla.org/) - Web technology reference
+- [Wikipedia](https://en.wikipedia.org/) - Overview of technical concepts

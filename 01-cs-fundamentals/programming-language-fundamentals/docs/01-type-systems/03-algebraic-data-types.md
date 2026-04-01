@@ -1,67 +1,67 @@
-# 代数的データ型（Algebraic Data Types）
+# Algebraic Data Types (ADTs)
 
-> ADT は「直積型（AND）と直和型（OR）の組み合わせ」でデータを正確にモデリングする手法。不正な状態を型で表現不可能にする。
+> ADTs are a technique for precisely modeling data through "combinations of product types (AND) and sum types (OR)." They make invalid states unrepresentable at the type level.
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] 直積型と直和型の概念を理解する
-- [ ] パターンマッチとの組み合わせを活用できる
-- [ ] 「不正な状態を表現不可能にする」設計ができる
-- [ ] Null 問題と Option/Maybe 型の意義を理解する
-- [ ] 実務でのドメインモデリングに ADT を活用できる
-- [ ] 再帰的データ型とジェネリック ADT を実装できる
-- [ ] 各言語の ADT サポートの違いを把握する
+- [ ] Understand the concepts of product types and sum types
+- [ ] Use pattern matching in combination with ADTs effectively
+- [ ] Design systems that "make invalid states unrepresentable"
+- [ ] Understand the null problem and the significance of Option/Maybe types
+- [ ] Apply ADTs to domain modeling in practice
+- [ ] Implement recursive data types and generic ADTs
+- [ ] Understand the differences in ADT support across languages
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [ジェネリクスと多態性（Polymorphism）](./02-generics-and-polymorphism.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Familiarity with the content in [Generics and Polymorphism](./02-generics-and-polymorphism.md)
 
 ---
 
-## 1. 直積型（Product Types）
+## 1. Product Types
 
 ```
-直積型 = 「AかつB」（AND）
-  → 全てのフィールドを同時に持つ
+Product Type = "A and B" (AND)
+  -> Holds all fields simultaneously
 
-  構造体 / レコード / タプル / クラス
+  Structs / Records / Tuples / Classes
 
-  なぜ「積」と呼ぶか:
-    型 A が a 通り、型 B が b 通りの値を持つとき
-    (A, B) は a × b 通りの値を持つ
-    例: (Bool, Bool) = 2 × 2 = 4 通り
+  Why "product"?
+    If type A has a possible values and type B has b possible values,
+    (A, B) has a * b possible values.
+    Example: (Bool, Bool) = 2 * 2 = 4 possible values
         (True, True), (True, False), (False, True), (False, False)
 ```
 
 ### Rust
 
 ```rust
-// Rust: 構造体（直積型）
+// Rust: Struct (product type)
 struct User {
     name: String,      // AND
     age: u32,          // AND
     email: String,     // AND
 }
-// User = String × u32 × String
-// 取りうる値の数 = name の値の数 × age の値の数 × email の値の数
+// User = String * u32 * String
+// Number of possible values = number of name values * number of age values * number of email values
 
-// タプル（無名の直積型）
+// Tuple (unnamed product type)
 let point: (f64, f64) = (3.0, 4.0);
 
-// タプル構造体（名前付きタプル）
+// Tuple struct (named tuple)
 struct Color(u8, u8, u8);
 let red = Color(255, 0, 0);
 println!("R: {}", red.0);
 
-// ニュータイプパターン（単一フィールドのタプル構造体）
+// Newtype pattern (single-field tuple struct)
 struct UserId(u64);
 struct OrderId(u64);
-// UserId と OrderId は異なる型 → 混同できない
+// UserId and OrderId are different types -> cannot be confused
 
 fn get_user(id: UserId) -> Option<User> { /* ... */ }
 fn get_order(id: OrderId) -> Option<Order> { /* ... */ }
@@ -69,13 +69,13 @@ fn get_order(id: OrderId) -> Option<Order> { /* ... */ }
 let user_id = UserId(42);
 let order_id = OrderId(42);
 get_user(user_id);    // OK
-// get_user(order_id); // コンパイルエラー: 型が違う
+// get_user(order_id); // Compile error: type mismatch
 
-// ユニット構造体（フィールドなし）
+// Unit struct (no fields)
 struct Marker;
-// サイズ 0。型レベルのマーカーとして使う
+// Size 0. Used as a type-level marker.
 
-// 構造体の更新構文
+// Struct update syntax
 struct Config {
     host: String,
     port: u16,
@@ -99,25 +99,25 @@ impl Config {
 let config = Config {
     port: 3000,
     debug: true,
-    ..Config::default()  // 残りのフィールドはデフォルト値
+    ..Config::default()  // Remaining fields use default values
 };
 ```
 
 ### TypeScript
 
 ```typescript
-// TypeScript: インターフェース（直積型）
+// TypeScript: Interface (product type)
 interface User {
     name: string;     // AND
     age: number;      // AND
     email: string;    // AND
 }
 
-// タプル型
+// Tuple type
 type Point = [number, number];
-type RGB = [r: number, g: number, b: number]; // ラベル付きタプル
+type RGB = [r: number, g: number, b: number]; // Labeled tuple
 
-// ブランド型（ニュータイプパターンの TypeScript 版）
+// Branded type (TypeScript version of the newtype pattern)
 type UserId = string & { readonly __brand: unique symbol };
 type OrderId = string & { readonly __brand: unique symbol };
 
@@ -135,9 +135,9 @@ function getOrder(id: OrderId): Order | null { /* ... */ return null; }
 const userId = createUserId("u-123");
 const orderId = createOrderId("o-456");
 getUser(userId);    // OK
-// getUser(orderId); // 型エラー
+// getUser(orderId); // Type error
 
-// レコード型
+// Record type
 type Config = {
     readonly host: string;
     readonly port: number;
@@ -146,10 +146,10 @@ type Config = {
     readonly debug: boolean;
 };
 
-// Readonly ユーティリティ型
+// Readonly utility type
 type ReadonlyConfig = Readonly<Config>;
 
-// 交差型による直積の合成
+// Product composition via intersection types
 type HasId = { id: string };
 type HasTimestamps = { createdAt: Date; updatedAt: Date };
 type HasSoftDelete = { deletedAt: Date | null };
@@ -161,84 +161,84 @@ type SoftDeletableEntity = Entity & HasSoftDelete;
 ### Haskell
 
 ```haskell
--- Haskell: data 宣言による直積型
+-- Haskell: Product type via data declaration
 data User = User
     { userName  :: String
     , userAge   :: Int
     , userEmail :: String
     }
--- レコード構文で自動的にフィールドアクセサ関数が生成される
+-- Record syntax automatically generates field accessor functions
 
--- タプル
+-- Tuple
 type Point = (Double, Double)
 
--- newtype（ゼロコストの型ラッパー）
+-- newtype (zero-cost type wrapper)
 newtype UserId = UserId Int deriving (Eq, Ord, Show)
 newtype OrderId = OrderId Int deriving (Eq, Ord, Show)
--- newtype は実行時にはラップなし（コンパイル時のみの区別）
+-- newtype has no wrapping at runtime (distinction is compile-time only)
 ```
 
-### 直積型の値の数と情報量
+### Number of Values and Information Content of Product Types
 
 ```
-型の代数:
+Type algebra:
 
-  Void（値なし）      = 0
-  Unit / ()           = 1
-  Bool                = 2
-  u8 / byte           = 256
-  (Bool, Bool)        = 2 × 2 = 4
-  (Bool, u8)          = 2 × 256 = 512
-  (u8, u8)            = 256 × 256 = 65,536
-  (Bool, Bool, Bool)  = 2 × 2 × 2 = 8
+  Void (no values)      = 0
+  Unit / ()             = 1
+  Bool                  = 2
+  u8 / byte             = 256
+  (Bool, Bool)          = 2 * 2 = 4
+  (Bool, u8)            = 2 * 256 = 512
+  (u8, u8)              = 256 * 256 = 65,536
+  (Bool, Bool, Bool)    = 2 * 2 * 2 = 8
 
-  直積型の情報量（ビット数）:
-    log₂(a × b) = log₂(a) + log₂(b)
-    つまり、フィールドを増やすと情報量が「加算」される
+  Information content (bits) of a product type:
+    log2(a * b) = log2(a) + log2(b)
+    In other words, adding fields "adds" information content.
 ```
 
 ---
 
-## 2. 直和型（Sum Types / Tagged Unions）
+## 2. Sum Types (Tagged Unions)
 
 ```
-直和型 = 「AまたはB」（OR）
-  → 複数の候補のうち1つだけを持つ
+Sum Type = "A or B" (OR)
+  -> Holds exactly one of several alternatives
 
-  列挙型 / ユニオン型 / バリアント
+  Enums / Union types / Variants
 
-  なぜ「和」と呼ぶか:
-    型 A が a 通り、型 B が b 通りの値を持つとき
-    A | B は a + b 通りの値を持つ
-    例: Bool | Unit = 2 + 1 = 3 通り
+  Why "sum"?
+    If type A has a possible values and type B has b possible values,
+    A | B has a + b possible values.
+    Example: Bool | Unit = 2 + 1 = 3 possible values
         True, False, ()
 ```
 
 ### Rust
 
 ```rust
-// Rust: enum（直和型の最も洗練された形）
+// Rust: enum (the most refined form of sum types)
 enum Shape {
-    Circle(f64),                    // 半径
-    Rectangle(f64, f64),            // 幅, 高さ
-    Triangle(f64, f64, f64),        // 3辺
+    Circle(f64),                    // radius
+    Rectangle(f64, f64),            // width, height
+    Triangle(f64, f64, f64),        // 3 sides
 }
 // Shape = Circle(f64) + Rectangle(f64, f64) + Triangle(f64, f64, f64)
-// いずれか1つだけ
+// Exactly one of these
 
-// Option: 「値があるかないか」を型で表現
+// Option: Representing "presence or absence of a value" at the type level
 enum Option<T> {
     Some(T),
     None,
 }
 
-// Result: 「成功か失敗か」を型で表現
+// Result: Representing "success or failure" at the type level
 enum Result<T, E> {
     Ok(T),
     Err(E),
 }
 
-// 名前付きフィールドを持つバリアント
+// Variants with named fields
 enum Event {
     Click { x: f64, y: f64, button: MouseButton },
     KeyPress { key: char, modifiers: Modifiers },
@@ -260,7 +260,7 @@ struct Modifiers {
     meta: bool,
 }
 
-// 再帰的な直和型（木構造）
+// Recursive sum type (tree structure)
 enum BinaryTree<T> {
     Leaf(T),
     Node {
@@ -307,7 +307,7 @@ impl<T: Ord + Clone> BinaryTree<T> {
     }
 }
 
-// JSON 値の表現
+// JSON value representation
 enum JsonValue {
     Null,
     Bool(bool),
@@ -321,13 +321,13 @@ enum JsonValue {
 ### TypeScript
 
 ```typescript
-// TypeScript: ユニオン型 + 判別フィールド
+// TypeScript: Union type + discriminant field
 type Shape =
     | { kind: "circle"; radius: number }
     | { kind: "rectangle"; width: number; height: number }
     | { kind: "triangle"; a: number; b: number; c: number };
 
-// 判別ユニオン（Discriminated Union）
+// Discriminated union
 function area(shape: Shape): number {
     switch (shape.kind) {
         case "circle":
@@ -341,7 +341,7 @@ function area(shape: Shape): number {
     }
 }
 
-// イベント型の定義
+// Event type definition
 type UIEvent =
     | { type: "click"; x: number; y: number; button: "left" | "right" | "middle" }
     | { type: "keypress"; key: string; modifiers: { shift: boolean; ctrl: boolean; alt: boolean } }
@@ -369,7 +369,7 @@ function handleEvent(event: UIEvent): void {
     }
 }
 
-// JSON 値の型定義
+// JSON value type definition
 type JsonValue =
     | null
     | boolean
@@ -378,7 +378,7 @@ type JsonValue =
     | JsonValue[]
     | { [key: string]: JsonValue };
 
-// 再帰的な式の木（AST）
+// Recursive expression tree (AST)
 type Expr =
     | { type: "literal"; value: number }
     | { type: "variable"; name: string }
@@ -424,7 +424,7 @@ function evaluate(expr: Expr, env: Record<string, number>): number {
 ### Haskell
 
 ```haskell
--- Haskell: data 宣言（ADTの本家）
+-- Haskell: data declaration (the original home of ADTs)
 data Shape
     = Circle Double
     | Rectangle Double Double
@@ -436,31 +436,31 @@ area (Rectangle w h)   = w * h
 area (Triangle a b c)  = let s = (a + b + c) / 2
                           in sqrt (s * (s-a) * (s-b) * (s-c))
 
--- 再帰的なデータ型
+-- Recursive data type
 data List a = Nil | Cons a (List a)
   deriving (Show, Eq)
 
--- 使用例
+-- Usage example
 myList :: List Int
 myList = Cons 1 (Cons 2 (Cons 3 Nil))
 
--- リストの長さ
+-- Length of a list
 length' :: List a -> Int
 length' Nil         = 0
 length' (Cons _ xs) = 1 + length' xs
 
--- リストの畳み込み
+-- Folding a list
 foldList :: (a -> b -> b) -> b -> List a -> b
 foldList _ acc Nil         = acc
 foldList f acc (Cons x xs) = f x (foldList f acc xs)
 
--- 二分木
+-- Binary tree
 data Tree a
     = Empty
     | Branch (Tree a) a (Tree a)
   deriving (Show, Eq)
 
--- 木の挿入
+-- Tree insertion
 insert :: (Ord a) => a -> Tree a -> Tree a
 insert x Empty = Branch Empty x Empty
 insert x (Branch left val right)
@@ -468,7 +468,7 @@ insert x (Branch left val right)
     | x > val   = Branch left val (insert x right)
     | otherwise  = Branch left val right
 
--- 木の探索
+-- Tree search
 search :: (Ord a) => a -> Tree a -> Bool
 search _ Empty = False
 search x (Branch left val right)
@@ -476,7 +476,7 @@ search x (Branch left val right)
     | x < val   = search x left
     | otherwise  = search x right
 
--- JSON 値
+-- JSON value
 data JsonValue
     = JsonNull
     | JsonBool Bool
@@ -486,7 +486,7 @@ data JsonValue
     | JsonObject [(String, JsonValue)]
   deriving (Show, Eq)
 
--- JSON の表示
+-- JSON display
 showJson :: JsonValue -> String
 showJson JsonNull        = "null"
 showJson (JsonBool True) = "true"
@@ -497,10 +497,10 @@ showJson (JsonArray xs)  = "[" ++ intercalate ", " (map showJson xs) ++ "]"
 showJson (JsonObject ps) = "{" ++ intercalate ", " (map showPair ps) ++ "}"
   where showPair (k, v) = "\"" ++ k ++ "\": " ++ showJson v
 
--- Either: 2つの型のどちらかを持つ
+-- Either: Holds one of two types
 data Either a b = Left a | Right b
 
--- 慣例: Left はエラー、Right は成功
+-- Convention: Left is error, Right is success
 safeDivide :: Double -> Double -> Either String Double
 safeDivide _ 0 = Left "Division by zero"
 safeDivide x y = Right (x / y)
@@ -509,9 +509,9 @@ safeDivide x y = Right (x / y)
 ### Go
 
 ```go
-// Go: インターフェースで直和型を模倣（sealed interface パターン）
+// Go: Simulating sum types with interfaces (sealed interface pattern)
 type Shape interface {
-    isShape()  // プライベートメソッドで外部からの実装を防止
+    isShape()  // Private method prevents external implementation
     Area() float64
 }
 
@@ -545,7 +545,7 @@ func (t Triangle) Area() float64 {
     return math.Sqrt(s * (s - t.A) * (s - t.B) * (s - t.C))
 }
 
-// 型スイッチ（パターンマッチの代替）
+// Type switch (alternative to pattern matching)
 func describe(s Shape) string {
     switch v := s.(type) {
     case Circle:
@@ -562,22 +562,22 @@ func describe(s Shape) string {
 
 ---
 
-## 3. パターンマッチ
+## 3. Pattern Matching
 
-### Rust の高度なパターンマッチ
+### Advanced Pattern Matching in Rust
 
 ```rust
-// Rust: match による網羅的パターンマッチ
+// Rust: Exhaustive pattern matching with match
 fn describe(shape: &Shape) -> String {
     match shape {
         Shape::Circle(r) => format!("Circle with radius {}", r),
         Shape::Rectangle(w, h) => format!("{}x{} rectangle", w, h),
         Shape::Triangle(a, b, c) => format!("Triangle ({}, {}, {})", a, b, c),
     }
-    // 全バリアントを処理しないとコンパイルエラー（網羅性チェック）
+    // Compile error if not all variants are handled (exhaustiveness check)
 }
 
-// Option のパターンマッチ
+// Pattern matching on Option
 fn greet(name: Option<&str>) -> String {
     match name {
         Some(n) => format!("Hello, {}!", n),
@@ -585,18 +585,18 @@ fn greet(name: Option<&str>) -> String {
     }
 }
 
-// if let（単一パターン）
+// if let (single pattern)
 if let Some(name) = get_name() {
     println!("Found: {}", name);
 }
 
-// while let（ループとパターンマッチの組み合わせ）
+// while let (combining loops and pattern matching)
 let mut stack = vec![1, 2, 3];
 while let Some(top) = stack.pop() {
     println!("{}", top);
 }
 
-// let else（Rust 1.65+）
+// let else (Rust 1.65+)
 fn process_input(input: &str) -> Result<u32, String> {
     let Ok(number) = input.parse::<u32>() else {
         return Err(format!("Failed to parse: {}", input));
@@ -604,7 +604,7 @@ fn process_input(input: &str) -> Result<u32, String> {
     Ok(number * 2)
 }
 
-// ネストしたパターン
+// Nested patterns
 match result {
     Ok(Some(value)) if value > 0 => println!("Positive: {}", value),
     Ok(Some(value)) => println!("Non-positive: {}", value),
@@ -612,7 +612,7 @@ match result {
     Err(e) => println!("Error: {}", e),
 }
 
-// 構造体のパターンマッチ
+// Struct pattern matching
 struct Point { x: f64, y: f64 }
 
 fn classify_point(p: &Point) -> &str {
@@ -625,25 +625,25 @@ fn classify_point(p: &Point) -> &str {
     }
 }
 
-// 範囲パターン
+// Range patterns
 fn classify_age(age: u32) -> &'static str {
     match age {
-        0..=2 => "乳児",
-        3..=5 => "幼児",
-        6..=11 => "小学生",
-        12..=14 => "中学生",
-        15..=17 => "高校生",
-        18..=64 => "成人",
-        65.. => "高齢者",
+        0..=2 => "infant",
+        3..=5 => "toddler",
+        6..=11 => "elementary school",
+        12..=14 => "middle school",
+        15..=17 => "high school",
+        18..=64 => "adult",
+        65.. => "senior",
     }
 }
 
-// OR パターン
+// OR patterns
 fn is_vowel(c: char) -> bool {
     matches!(c, 'a' | 'e' | 'i' | 'o' | 'u' | 'A' | 'E' | 'I' | 'O' | 'U')
 }
 
-// バインディング（@ パターン）
+// Binding (@ pattern)
 fn classify_number(n: i32) -> String {
     match n {
         n @ 1..=9 => format!("small positive: {}", n),
@@ -654,7 +654,7 @@ fn classify_number(n: i32) -> String {
     }
 }
 
-// スライスパターン
+// Slice patterns
 fn describe_slice(slice: &[i32]) -> String {
     match slice {
         [] => "empty".to_string(),
@@ -663,7 +663,7 @@ fn describe_slice(slice: &[i32]) -> String {
     }
 }
 
-// 参照パターン
+// Reference patterns
 fn process_references(values: &[Option<String>]) {
     for value in values {
         match value {
@@ -675,16 +675,16 @@ fn process_references(values: &[Option<String>]) {
 }
 ```
 
-### TypeScript の網羅性チェック
+### Exhaustiveness Checking in TypeScript
 
 ```typescript
-// TypeScript: exhaustiveness check（網羅性チェック）
+// TypeScript: Exhaustiveness check
 type Shape =
     | { kind: "circle"; radius: number }
     | { kind: "rectangle"; width: number; height: number }
     | { kind: "triangle"; a: number; b: number; c: number };
 
-// never を使った網羅性チェック
+// Exhaustiveness check using never
 function assertNever(x: never): never {
     throw new Error(`Unexpected value: ${x}`);
 }
@@ -700,11 +700,11 @@ function area(shape: Shape): number {
             return Math.sqrt(s * (s-shape.a) * (s-shape.b) * (s-shape.c));
         }
         default:
-            return assertNever(shape); // 新しい kind を追加したらコンパイルエラー
+            return assertNever(shape); // Compile error if a new kind is added
     }
 }
 
-// 型ガード関数
+// Type guard functions
 function isCircle(shape: Shape): shape is Extract<Shape, { kind: "circle" }> {
     return shape.kind === "circle";
 }
@@ -713,63 +713,63 @@ function isRectangle(shape: Shape): shape is Extract<Shape, { kind: "rectangle" 
     return shape.kind === "rectangle";
 }
 
-// カスタム型ガード
+// Custom type guard
 function hasLength(value: unknown): value is { length: number } {
     return typeof value === "object" && value !== null && "length" in value;
 }
 
-// in 演算子による型の絞り込み
+// Type narrowing with the in operator
 type Fish = { swim: () => void };
 type Bird = { fly: () => void };
 type Pet = Fish | Bird;
 
 function move(pet: Pet): void {
     if ("swim" in pet) {
-        pet.swim(); // Fish として扱われる
+        pet.swim(); // Treated as Fish
     } else {
-        pet.fly();  // Bird として扱われる
+        pet.fly();  // Treated as Bird
     }
 }
 ```
 
-### Haskell のパターンマッチ
+### Pattern Matching in Haskell
 
 ```haskell
--- Haskell: 高度なパターンマッチ
+-- Haskell: Advanced pattern matching
 
--- ガード条件
+-- Guard conditions
 bmi :: Double -> String
 bmi x
-    | x < 18.5  = "やせ型"
-    | x < 25.0  = "普通体重"
-    | x < 30.0  = "肥満(1度)"
-    | otherwise  = "肥満(2度以上)"
+    | x < 18.5  = "Underweight"
+    | x < 25.0  = "Normal weight"
+    | x < 30.0  = "Overweight"
+    | otherwise  = "Obese"
 
--- as パターン（全体と部分を同時に束縛）
+-- As pattern (bind both the whole and parts simultaneously)
 firstLetter :: String -> String
-firstLetter ""         = "空文字列"
-firstLetter all@(x:_)  = "'" ++ all ++ "' の先頭は '" ++ [x] ++ "'"
+firstLetter ""         = "Empty string"
+firstLetter all@(x:_)  = "'" ++ all ++ "' starts with '" ++ [x] ++ "'"
 
--- ビューパターン（GHC拡張）
+-- View patterns (GHC extension)
 -- {-# LANGUAGE ViewPatterns #-}
 -- isEven :: Int -> Bool
--- process (isEven -> True) = "偶数"
--- process _                = "奇数"
+-- process (isEven -> True) = "Even"
+-- process _                = "Odd"
 
--- case 式
+-- case expression
 describeList :: [a] -> String
 describeList xs = "The list is " ++ case xs of
     []  -> "empty."
     [_] -> "a singleton."
     _   -> "a longer list of " ++ show (length xs) ++ " elements."
 
--- where 句との組み合わせ
+-- Combining with where clause
 calcTriangleType :: Double -> Double -> Double -> String
 calcTriangleType a b c
-    | a == b && b == c = "正三角形"
-    | a == b || b == c || a == c = "二等辺三角形"
-    | isRight = "直角三角形"
-    | otherwise = "不等辺三角形"
+    | a == b && b == c = "Equilateral triangle"
+    | a == b || b == c || a == c = "Isosceles triangle"
+    | isRight = "Right triangle"
+    | otherwise = "Scalene triangle"
   where
     sides = sort [a, b, c]
     isRight = abs (sides!!0^2 + sides!!1^2 - sides!!2^2) < 1e-10
@@ -777,43 +777,43 @@ calcTriangleType a b c
 
 ---
 
-## 4. 「不正な状態を表現不可能にする」
+## 4. "Making Invalid States Unrepresentable"
 
-### 悪い設計（不正な状態が可能）
+### Bad Design (Invalid States Are Possible)
 
 ```typescript
-// 不正な状態が表現可能
+// Invalid states are representable
 interface Connection {
     status: "disconnected" | "connecting" | "connected" | "error";
-    socket?: WebSocket;       // connected の時だけ存在
-    error?: Error;            // error の時だけ存在
-    retryCount?: number;      // error の時だけ意味がある
+    socket?: WebSocket;       // Only exists when connected
+    error?: Error;            // Only exists when error
+    retryCount?: number;      // Only meaningful when error
 }
 
-// 問題: status: "disconnected" なのに socket がある状態が作れてしまう
+// Problem: A state where status is "disconnected" but socket exists can be created
 const invalid: Connection = {
     status: "disconnected",
-    socket: new WebSocket("ws://..."),  // 不正だが型エラーにならない
+    socket: new WebSocket("ws://..."),  // Invalid, but no type error
 };
 
-// 別の問題: Optional フィールドの組み合わせ爆発
-// socket の有無 × error の有無 × retryCount の有無 = 8 通り
-// 有効な組み合わせは 4 通りだけ → 4 通りが不正な状態
+// Another problem: Combinatorial explosion of optional fields
+// socket presence * error presence * retryCount presence = 8 combinations
+// Only 4 are valid -> 4 combinations are invalid states
 ```
 
-### 良い設計（不正な状態が表現不可能）
+### Good Design (Invalid States Are Unrepresentable)
 
 ```typescript
-// 不正な状態が型で表現できない
+// Invalid states cannot be expressed at the type level
 type Connection =
     | { status: "disconnected" }
     | { status: "connecting" }
     | { status: "connected"; socket: WebSocket }
     | { status: "error"; error: Error; retryCount: number };
 
-// status: "disconnected" に socket を持たせることが型レベルで不可能
+// Adding a socket to status: "disconnected" is impossible at the type level
 
-// 状態遷移関数も型安全に
+// State transition functions are also type-safe
 function connect(conn: Extract<Connection, { status: "disconnected" }>): Extract<Connection, { status: "connecting" }> {
     return { status: "connecting" };
 }
@@ -835,7 +835,7 @@ function onError(
 ```
 
 ```rust
-// Rust: enum で状態遷移を厳密にモデリング
+// Rust: Strict state transition modeling with enum
 enum ConnectionState {
     Disconnected,
     Connecting,
@@ -843,18 +843,18 @@ enum ConnectionState {
     Error { error: io::Error, retry_count: u32 },
 }
 
-// Connected 状態でしか socket にアクセスできない
+// Socket can only be accessed in the Connected state
 fn send_data(state: &ConnectionState, data: &[u8]) -> Result<(), String> {
     match state {
         ConnectionState::Connected { socket } => {
-            // socket を安全に使用
+            // Safely use socket
             Ok(())
         }
         _ => Err("Not connected".to_string()),
     }
 }
 
-// 型状態パターンによるさらに厳密な表現
+// Even stricter representation using the typestate pattern
 struct Disconnected;
 struct Connecting;
 struct Connected { socket: TcpStream }
@@ -902,20 +902,20 @@ impl Connection<Connected> {
         }
     }
 }
-// Connected 状態でのみ send が呼べる → コンパイル時に保証
+// send can only be called in the Connected state -> guaranteed at compile time
 ```
 
-### 実践例: API レスポンス
+### Practical Example: API Response
 
 ```typescript
-// ローディング状態を ADT で表現
+// Representing loading state with ADTs
 type AsyncData<T, E = Error> =
     | { state: "idle" }
     | { state: "loading"; abortController?: AbortController }
     | { state: "success"; data: T; fetchedAt: Date }
     | { state: "error"; error: E; retryCount: number };
 
-// ヘルパー関数
+// Helper functions
 function idle<T>(): AsyncData<T> {
     return { state: "idle" };
 }
@@ -932,7 +932,7 @@ function error<T>(err: Error, retryCount: number = 0): AsyncData<T> {
     return { state: "error", error: err, retryCount };
 }
 
-// React コンポーネントでの使用
+// Usage in a React component
 function renderUser(user: AsyncData<User>) {
     switch (user.state) {
         case "idle":
@@ -946,7 +946,7 @@ function renderUser(user: AsyncData<User>) {
     }
 }
 
-// マップ関数
+// Map function
 function mapAsyncData<T, U, E = Error>(
     data: AsyncData<T, E>,
     fn: (value: T) => U
@@ -958,30 +958,30 @@ function mapAsyncData<T, U, E = Error>(
 }
 ```
 
-### 実践例: フォームバリデーション
+### Practical Example: Form Validation
 
 ```typescript
-// フォームフィールドの状態
+// Form field state
 type FieldState<T> =
     | { status: "pristine" }
     | { status: "touched"; value: T }
     | { status: "valid"; value: T }
     | { status: "invalid"; value: T; errors: string[] };
 
-// フォーム全体の状態
+// Overall form state
 type FormState<T extends Record<string, unknown>> = {
     fields: { [K in keyof T]: FieldState<T[K]> };
     submitted: boolean;
 };
 
-// フォームがsubmit可能かどうかの判定
+// Determine whether the form can be submitted
 function canSubmit<T extends Record<string, unknown>>(form: FormState<T>): boolean {
     return Object.values(form.fields).every(
         (field) => (field as FieldState<unknown>).status === "valid"
     );
 }
 
-// バリデーション規則の ADT
+// Validation rule ADT
 type ValidationRule<T> =
     | { type: "required"; message: string }
     | { type: "minLength"; min: number; message: string }
@@ -1024,10 +1024,10 @@ function validateField<T>(value: T, rules: ValidationRule<T>[]): string[] {
 }
 ```
 
-### 実践例: 権限モデル
+### Practical Example: Permission Model
 
 ```rust
-// Rust: ADT による権限モデル
+// Rust: Permission model with ADTs
 enum Permission {
     Read,
     Write,
@@ -1078,31 +1078,31 @@ fn check_access(role: &Role, resource: &str, action: &Permission) -> AccessResul
 
 ---
 
-## 5. Null の問題と Option/Maybe
+## 5. The Null Problem and Option/Maybe
 
 ```
-「10億ドルの間違い」（Tony Hoare, null の発明者）
+"The Billion Dollar Mistake" (Tony Hoare, inventor of null)
 
-問題: null は型システムの穴
-  Java:    String name = null;  // NullPointerException の温床
+Problem: null is a hole in the type system
+  Java:    String name = null;  // A breeding ground for NullPointerException
   JS:      let x = null;       // TypeError: Cannot read property ...
-  C:       char *p = NULL;     // セグメンテーションフォルト
+  C:       char *p = NULL;     // Segmentation fault
 
-解決: Option型 / Maybe型
-  Rust:    Option<String>  → Some("Gaku") | None
-  Haskell: Maybe String    → Just "Gaku" | Nothing
-  Swift:   String?         → "Gaku" | nil
-  Scala:   Option[String]  → Some("Gaku") | None
-  Kotlin:  String?         → "Gaku" | null（コンパイラが追跡）
+Solution: Option type / Maybe type
+  Rust:    Option<String>  -> Some("Gaku") | None
+  Haskell: Maybe String    -> Just "Gaku" | Nothing
+  Swift:   String?         -> "Gaku" | nil
+  Scala:   Option[String]  -> Some("Gaku") | None
+  Kotlin:  String?         -> "Gaku" | null (tracked by the compiler)
 
-  値がないことを「型で明示」し、
-  パターンマッチで安全に処理を強制する
+  Explicitly indicate the absence of a value at the type level,
+  and force safe handling via pattern matching.
 ```
 
-### Rust の Option 詳細
+### Rust's Option in Detail
 
 ```rust
-// Rust: null がない。Option で明示
+// Rust: No null. Use Option to be explicit.
 fn find_user(id: u32) -> Option<User> {
     if id == 1 {
         Some(User { name: "Gaku".into(), age: 30 })
@@ -1111,80 +1111,80 @@ fn find_user(id: u32) -> Option<User> {
     }
 }
 
-// 使う側は None の可能性を必ず処理する
+// The caller must always handle the None possibility
 match find_user(1) {
     Some(user) => println!("Found: {}", user.name),
     None => println!("Not found"),
 }
 
-// メソッドチェーン
+// Method chaining
 let name = find_user(1)
     .map(|u| u.name)
     .unwrap_or("Unknown".into());
 
-// ? 演算子（エラー伝播）
+// ? operator (error propagation)
 fn get_user_name(id: u32) -> Option<String> {
-    let user = find_user(id)?;  // None なら早期リターン
+    let user = find_user(id)?;  // Early return if None
     Some(user.name)
 }
 
-// Option のコンビネータ群
+// Option combinator methods
 fn process_user(id: u32) {
     let user = find_user(id);
 
-    // map: Some の中身を変換
+    // map: Transform the contents of Some
     let name: Option<String> = user.as_ref().map(|u| u.name.clone());
 
-    // and_then (flatMap): ネストした Option を平坦化
+    // and_then (flatMap): Flatten nested Options
     let email: Option<String> = find_user(id)
         .and_then(|u| find_email(u.id));
 
-    // or_else: None の場合の代替
+    // or_else: Alternative when None
     let backup_user: Option<User> = find_user(id)
         .or_else(|| find_user_by_name("default"));
 
-    // filter: 条件を満たさなければ None
+    // filter: Returns None if condition is not met
     let adult: Option<User> = find_user(id)
         .filter(|u| u.age >= 18);
 
-    // zip: 2つの Option を組み合わせ
+    // zip: Combine two Options
     let pair: Option<(User, Config)> = find_user(id)
         .zip(load_config());
 
-    // unwrap_or_else: None の場合にクロージャで値を生成
+    // unwrap_or_else: Generate a value via closure when None
     let user_or_default: User = find_user(id)
         .unwrap_or_else(|| User::default());
 
-    // is_some, is_none: 存在チェック
+    // is_some, is_none: Existence check
     if find_user(id).is_some() {
         println!("User exists");
     }
 }
 
-// Option<Option<T>> のフラット化
+// Flattening Option<Option<T>>
 fn find_setting(key: &str) -> Option<Option<String>> {
-    // 設定キーが存在しない → None
-    // 設定キーが存在するが値が空 → Some(None)
-    // 設定キーが存在し値がある → Some(Some(value))
+    // Setting key does not exist -> None
+    // Setting key exists but value is empty -> Some(None)
+    // Setting key exists and has a value -> Some(Some(value))
     todo!()
 }
 
 let flat: Option<String> = find_setting("key").flatten();
 ```
 
-### Result との組み合わせ
+### Combining with Result
 
 ```rust
-// Option と Result の変換
+// Converting between Option and Result
 fn find_user_or_error(id: u32) -> Result<User, String> {
     find_user(id).ok_or(format!("User {} not found", id))
 }
 
 fn try_find_user(id: u32) -> Option<User> {
-    query_database(id).ok() // Result<User, DbError> → Option<User>
+    query_database(id).ok() // Result<User, DbError> -> Option<User>
 }
 
-// 複数の Option/Result を組み合わせるパターン
+// Pattern for combining multiple Option/Result values
 fn create_full_profile(user_id: u32) -> Result<FullProfile, String> {
     let user = find_user(user_id)
         .ok_or("User not found")?;
@@ -1196,7 +1196,7 @@ fn create_full_profile(user_id: u32) -> Result<FullProfile, String> {
     Ok(FullProfile { user, address, preferences })
 }
 
-// collect で Vec<Result<T, E>> → Result<Vec<T>, E>
+// collect to convert Vec<Result<T, E>> -> Result<Vec<T>, E>
 fn parse_all_numbers(inputs: &[&str]) -> Result<Vec<i32>, std::num::ParseIntError> {
     inputs.iter()
         .map(|s| s.parse::<i32>())
@@ -1204,33 +1204,33 @@ fn parse_all_numbers(inputs: &[&str]) -> Result<Vec<i32>, std::num::ParseIntErro
 }
 ```
 
-### 各言語の Null 安全性
+### Null Safety Across Languages
 
 ```kotlin
-// Kotlin: Null 安全性
+// Kotlin: Null safety
 fun findUser(id: Int): User? {
     return if (id == 1) User("Gaku", 30) else null
 }
 
-// 安全呼び出し演算子 (?.)
+// Safe call operator (?.)
 val name: String? = findUser(1)?.name
 
-// エルビス演算子 (?:)
+// Elvis operator (?:)
 val nameOrDefault: String = findUser(1)?.name ?: "Unknown"
 
-// 非 null アサーション (!!) — 危険
-val forceUnwrap: String = findUser(1)!!.name // NullPointerException の可能性
+// Non-null assertion (!!) -- dangerous
+val forceUnwrap: String = findUser(1)!!.name // Potential NullPointerException
 
-// let でスコープを限定
+// Scope limitation with let
 findUser(1)?.let { user ->
     println("Found: ${user.name}")
     println("Age: ${user.age}")
 }
 
-// スマートキャスト
+// Smart cast
 fun processUser(user: User?) {
     if (user != null) {
-        // ここでは user は User（非null）として扱われる
+        // Here user is treated as User (non-null)
         println(user.name)
     }
 }
@@ -1242,12 +1242,12 @@ func findUser(id: Int) -> User? {
     return id == 1 ? User(name: "Gaku", age: 30) : nil
 }
 
-// Optional バインディング
+// Optional binding
 if let user = findUser(id: 1) {
     print("Found: \(user.name)")
 }
 
-// guard let（早期リターン）
+// guard let (early return)
 func processUser(id: Int) -> String {
     guard let user = findUser(id: id) else {
         return "Not found"
@@ -1255,10 +1255,10 @@ func processUser(id: Int) -> String {
     return "User: \(user.name)"
 }
 
-// Optional チェイニング
+// Optional chaining
 let name = findUser(id: 1)?.name
 
-// nil 合体演算子
+// Nil coalescing operator
 let nameOrDefault = findUser(id: 1)?.name ?? "Unknown"
 
 // map / flatMap
@@ -1267,10 +1267,10 @@ let uppercaseName = findUser(id: 1).map { $0.name.uppercased() }
 
 ---
 
-## 6. 再帰的データ型
+## 6. Recursive Data Types
 
 ```rust
-// Rust: リンクリスト
+// Rust: Linked list
 enum List<T> {
     Cons(T, Box<List<T>>),
     Nil,
@@ -1306,7 +1306,7 @@ let list = List::new()
     .prepend(1);
 // 1 -> 2 -> 3 -> Nil
 
-// 式の木（インタープリタの核心）
+// Expression tree (core of an interpreter)
 enum Expr {
     Num(f64),
     Var(String),
@@ -1346,34 +1346,34 @@ fn eval(expr: &Expr, env: &HashMap<String, f64>) -> Result<f64, String> {
 
 ---
 
-## 7. ジェネリック ADT
+## 7. Generic ADTs
 
 ```haskell
--- Haskell: ファンクタとしてのジェネリック ADT
+-- Haskell: Generic ADTs as functors
 data Tree a = Leaf | Node (Tree a) a (Tree a)
 
--- Functor インスタンス
+-- Functor instance
 instance Functor Tree where
     fmap _ Leaf         = Leaf
     fmap f (Node l x r) = Node (fmap f l) (f x) (fmap f r)
 
--- 使用例: 木の全要素を2倍にする
+-- Usage: Double all elements in a tree
 doubleTree :: Tree Int -> Tree Int
 doubleTree = fmap (* 2)
 
--- Foldable インスタンス
+-- Foldable instance
 instance Foldable Tree where
     foldMap _ Leaf         = mempty
     foldMap f (Node l x r) = foldMap f l <> f x <> foldMap f r
 
--- 木の要素の合計
+-- Sum of tree elements
 sumTree :: Tree Int -> Int
-sumTree = sum  -- Foldable のおかげで sum がそのまま使える
+sumTree = sum  -- Works directly thanks to Foldable
 
--- Free モナド（ADT の究極形）
+-- Free monad (the ultimate form of ADTs)
 data Free f a = Pure a | Free (f (Free f a))
 
--- Free モナドで DSL を構築
+-- Building a DSL with the Free monad
 data ConsoleF next
     = ReadLine (String -> next)
     | PrintLine String next
@@ -1386,7 +1386,7 @@ readLine = Free (ReadLine Pure)
 printLine :: String -> Console ()
 printLine msg = Free (PrintLine msg (Pure ()))
 
--- DSL の使用例
+-- DSL usage example
 greetProgram :: Console ()
 greetProgram = do
     printLine "What is your name?"
@@ -1395,7 +1395,7 @@ greetProgram = do
 ```
 
 ```typescript
-// TypeScript: ジェネリック ADT
+// TypeScript: Generic ADTs
 type Tree<T> =
     | { type: "leaf" }
     | { type: "node"; left: Tree<T>; value: T; right: Tree<T> };
@@ -1427,7 +1427,7 @@ function foldTree<T, U>(tree: Tree<T>, leaf: U, node: (left: U, value: T, right:
     }
 }
 
-// 使用例
+// Usage
 const numTree: Tree<number> = {
     type: "node",
     left: { type: "node", left: { type: "leaf" }, value: 1, right: { type: "leaf" } },
@@ -1441,56 +1441,56 @@ const sum = foldTree(numTree, 0, (l, v, r) => l + v + r); // 6
 
 ---
 
-## 実践演習
+## Practical Exercises
 
-### 演習1: [基礎] -- 信号機をADTでモデリング
-交通信号機の状態（赤・黄・青）を Rust の enum または TypeScript の判別ユニオンで実装する。各状態に持続時間を持たせ、次の状態への遷移関数を実装する。
+### Exercise 1: [Basics] -- Modeling a Traffic Light with ADTs
+Implement traffic light states (red, yellow, green) using Rust enums or TypeScript discriminated unions. Give each state a duration and implement a transition function to the next state.
 
-### 演習2: [基礎] -- JSON パーサーの型定義
-JSON の値（null, bool, number, string, array, object）を ADT で定義し、以下の関数を実装する:
-- `stringify`: JsonValue → String
-- `get`: JsonValue → path → Option<JsonValue>
-- `merge`: JsonValue → JsonValue → JsonValue
+### Exercise 2: [Basics] -- Type Definition for a JSON Parser
+Define JSON values (null, bool, number, string, array, object) as ADTs and implement the following functions:
+- `stringify`: JsonValue -> String
+- `get`: JsonValue -> path -> Option<JsonValue>
+- `merge`: JsonValue -> JsonValue -> JsonValue
 
-### 演習3: [応用] -- 状態機械の実装
-HTTP リクエストの状態遷移（Idle → Sending → Success/Error → Idle）を ADT で実装し、不正な遷移を型で防止する。リトライロジックも含める。
+### Exercise 3: [Intermediate] -- State Machine Implementation
+Implement HTTP request state transitions (Idle -> Sending -> Success/Error -> Idle) with ADTs, preventing invalid transitions at the type level. Include retry logic.
 
-### 演習4: [応用] -- 式の評価器
-四則演算・変数・let 束縛をサポートする小さな式言語のインタープリタを ADT で実装する。
+### Exercise 4: [Intermediate] -- Expression Evaluator
+Implement an interpreter for a small expression language supporting arithmetic, variables, and let bindings using ADTs.
 
-### 演習5: [発展] -- 型安全なステートマシンライブラリ
-Rust の型状態パターンを使って、任意の状態遷移図を型レベルで表現できる汎用的なステートマシンライブラリを実装する。
+### Exercise 5: [Advanced] -- Type-Safe State Machine Library
+Use Rust's typestate pattern to implement a general-purpose state machine library that can represent arbitrary state transition diagrams at the type level.
 
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
+| Error | Cause | Solution |
 |--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Initialization error | Configuration file issues | Verify the configuration file path and format |
+| Timeout | Network latency / resource shortage | Adjust timeout values, add retry logic |
+| Out of memory | Data volume growth | Introduce batch processing, implement pagination |
+| Permission error | Insufficient access permissions | Verify the executing user's permissions, review settings |
+| Data inconsistency | Concurrent processing conflicts | Introduce locking mechanisms, manage transactions |
 
-### デバッグの手順
+### Debugging Procedure
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check the error message**: Read the stack trace and identify where the error occurs
+2. **Establish reproduction steps**: Reproduce the error with minimal code
+3. **Formulate hypotheses**: List possible causes
+4. **Verify step by step**: Use log output and debuggers to verify hypotheses
+5. **Fix and regression test**: After fixing, also run tests for related areas
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utility
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -1498,102 +1498,102 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs function inputs and outputs"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Call: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception: {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debug target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Issues
 
-パフォーマンス問題が発生した場合の診断手順:
+Diagnostic steps when performance issues occur:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify the bottleneck**: Measure using profiling tools
+2. **Check memory usage**: Verify presence of memory leaks
+3. **Check I/O waits**: Examine disk and network I/O conditions
+4. **Check concurrent connections**: Verify connection pool status
 
-| 問題の種類 | 診断ツール | 対策 |
+| Issue Type | Diagnostic Tool | Countermeasure |
 |-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| CPU load | cProfile, py-spy | Algorithm improvement, parallelization |
+| Memory leak | tracemalloc, objgraph | Proper release of references |
+| I/O bottleneck | strace, iostat | Asynchronous I/O, caching |
+| DB latency | EXPLAIN, slow query log | Indexing, query optimization |
 
 ---
 
-## 設計判断ガイド
+## Design Decision Guide
 
-### 選択基準マトリクス
+### Selection Criteria Matrix
 
-技術選択を行う際の判断基準を以下にまとめます。
+The following summarizes criteria for making technology choices.
 
-| 判断基準 | 重視する場合 | 妥協できる場合 |
+| Criterion | When Prioritized | When Compromisable |
 |---------|------------|-------------|
-| パフォーマンス | リアルタイム処理、大規模データ | 管理画面、バッチ処理 |
-| 保守性 | 長期運用、チーム開発 | プロトタイプ、短期プロジェクト |
-| スケーラビリティ | 成長が見込まれるサービス | 社内ツール、固定ユーザー |
-| セキュリティ | 個人情報、金融データ | 公開データ、社内利用 |
-| 開発速度 | MVP、市場投入スピード | 品質重視、ミッションクリティカル |
+| Performance | Real-time processing, large-scale data | Admin dashboards, batch processing |
+| Maintainability | Long-term operation, team development | Prototypes, short-term projects |
+| Scalability | Services expecting growth | Internal tools, fixed user base |
+| Security | Personal data, financial data | Public data, internal use |
+| Development speed | MVP, time-to-market | Quality-focused, mission-critical |
 
-### アーキテクチャパターンの選択
+### Choosing Architecture Patterns
 
 ```
-┌─────────────────────────────────────────────────┐
-│              アーキテクチャ選択フロー              │
-├─────────────────────────────────────────────────┤
-│                                                 │
-│  ① チーム規模は？                                │
-│    ├─ 小規模（1-5人）→ モノリス                   │
-│    └─ 大規模（10人+）→ ②へ                       │
-│                                                 │
-│  ② デプロイ頻度は？                               │
-│    ├─ 週1回以下 → モノリス + モジュール分割         │
-│    └─ 毎日/複数回 → ③へ                          │
-│                                                 │
-│  ③ チーム間の独立性は？                            │
-│    ├─ 高い → マイクロサービス                      │
-│    └─ 中程度 → モジュラーモノリス                   │
-│                                                 │
-└─────────────────────────────────────────────────┘
++---------------------------------------------------+
+|          Architecture Selection Flow               |
++---------------------------------------------------+
+|                                                    |
+|  (1) Team size?                                    |
+|    +-- Small (1-5) -> Monolith                     |
+|    +-- Large (10+) -> Go to (2)                    |
+|                                                    |
+|  (2) Deployment frequency?                         |
+|    +-- Once a week or less -> Monolith + modules   |
+|    +-- Daily / multiple times -> Go to (3)         |
+|                                                    |
+|  (3) Independence between teams?                   |
+|    +-- High -> Microservices                       |
+|    +-- Medium -> Modular monolith                  |
+|                                                    |
++---------------------------------------------------+
 ```
 
-### トレードオフの分析
+### Trade-off Analysis
 
-技術的な判断には必ずトレードオフが伴います。以下の観点で分析を行いましょう:
+Technical decisions always involve trade-offs. Analyze from the following perspectives:
 
-**1. 短期 vs 長期のコスト**
-- 短期的に速い方法が長期的には技術的負債になることがある
-- 逆に、過剰な設計は短期的なコストが高く、プロジェクトの遅延を招く
+**1. Short-term vs. Long-term Cost**
+- A fast short-term approach may become technical debt in the long run
+- Conversely, over-engineering has high short-term costs and can cause project delays
 
-**2. 一貫性 vs 柔軟性**
-- 統一された技術スタックは学習コストが低い
-- 多様な技術の採用は適材適所が可能だが、運用コストが増加
+**2. Consistency vs. Flexibility**
+- A unified technology stack has lower learning costs
+- Adopting diverse technologies allows best-fit choices but increases operational costs
 
-**3. 抽象化のレベル**
-- 高い抽象化は再利用性が高いが、デバッグが困難になる場合がある
-- 低い抽象化は直感的だが、コードの重複が発生しやすい
+**3. Level of Abstraction**
+- High abstraction offers high reusability but can make debugging more difficult
+- Low abstraction is intuitive but prone to code duplication
 
 ```python
-# 設計判断の記録テンプレート
+# Design decision recording template
 class ArchitectureDecisionRecord:
-    """ADR (Architecture Decision Record) の作成"""
+    """Creating an ADR (Architecture Decision Record)"""
 
     def __init__(self, title: str):
         self.title = title
@@ -1603,17 +1603,17 @@ class ArchitectureDecisionRecord:
         self.alternatives = []
 
     def set_context(self, context: str):
-        """背景と課題の記述"""
+        """Describe background and challenges"""
         self.context = context
         return self
 
     def set_decision(self, decision: str):
-        """決定内容の記述"""
+        """Describe the decision"""
         self.decision = decision
         return self
 
     def add_consequence(self, consequence: str, positive: bool = True):
-        """結果の追加"""
+        """Add a consequence"""
         self.consequences.append({
             'description': consequence,
             'type': 'positive' if positive else 'negative'
@@ -1621,7 +1621,7 @@ class ArchitectureDecisionRecord:
         return self
 
     def add_alternative(self, name: str, reason_rejected: str):
-        """却下した代替案の追加"""
+        """Add a rejected alternative"""
         self.alternatives.append({
             'name': name,
             'reason_rejected': reason_rejected
@@ -1629,15 +1629,15 @@ class ArchitectureDecisionRecord:
         return self
 
     def to_markdown(self) -> str:
-        """Markdown形式で出力"""
+        """Output in Markdown format"""
         md = f"# ADR: {self.title}\n\n"
-        md += f"## 背景\n{self.context}\n\n"
-        md += f"## 決定\n{self.decision}\n\n"
-        md += "## 結果\n"
+        md += f"## Background\n{self.context}\n\n"
+        md += f"## Decision\n{self.decision}\n\n"
+        md += "## Consequences\n"
         for c in self.consequences:
-            icon = "✅" if c['type'] == 'positive' else "⚠️"
-            md += f"- {icon} {c['description']}\n"
-        md += "\n## 却下した代替案\n"
+            icon = "+" if c['type'] == 'positive' else "!"
+            md += f"- [{icon}] {c['description']}\n"
+        md += "\n## Rejected Alternatives\n"
         for a in self.alternatives:
             md += f"- **{a['name']}**: {a['reason_rejected']}\n"
         return md
@@ -1647,52 +1647,52 @@ class ArchitectureDecisionRecord:
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point in learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the basics and jumping to advanced topics. We recommend thoroughly understanding the fundamental concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in professional practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently applied in everyday development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## まとめ
+## Summary
 
-| 概念 | 説明 | 例 |
+| Concept | Description | Example |
 |------|------|------|
-| 直積型 | A かつ B（全フィールド） | struct, interface |
-| 直和型 | A または B（1つだけ） | enum, union type |
-| パターンマッチ | 網羅的な分岐処理 | match, switch |
-| Option/Maybe | null の安全な代替 | Some/None |
-| 状態モデリング | 不正な状態を型で防止 | 判別ユニオン |
-| ニュータイプ | 型安全なラッパー | newtype, ブランド型 |
-| 再帰的 ADT | 自己参照するデータ構造 | List, Tree, Expr |
-| ジェネリック ADT | 型パラメータ付き ADT | Tree<T>, Result<T,E> |
+| Product type | A and B (all fields) | struct, interface |
+| Sum type | A or B (exactly one) | enum, union type |
+| Pattern matching | Exhaustive branching | match, switch |
+| Option/Maybe | Safe alternative to null | Some/None |
+| State modeling | Prevent invalid states via types | Discriminated unions |
+| Newtype | Type-safe wrapper | newtype, branded type |
+| Recursive ADT | Self-referencing data structures | List, Tree, Expr |
+| Generic ADT | ADTs with type parameters | Tree<T>, Result<T,E> |
 
-| 言語 | 直和型サポート | パターンマッチ | 網羅性チェック |
+| Language | Sum Type Support | Pattern Matching | Exhaustiveness Check |
 |------|-------------|-------------|-------------|
-| Rust | enum（最高レベル） | match, if let | コンパイル時 |
-| Haskell | data（最高レベル） | case, 関数定義 | コンパイル時（警告） |
-| TypeScript | 判別ユニオン | switch + 型ガード | never チェック |
-| Kotlin | sealed class | when | コンパイル時 |
-| Swift | enum + associated values | switch | コンパイル時 |
-| Scala | sealed trait | match | コンパイル時（警告） |
-| Go | インターフェース + 型スイッチ | switch v.(type) | なし |
-| Java | sealed interface（17+） | switch（21+ パターン） | コンパイル時 |
-| Python | dataclass + Union | match（3.10+） | なし |
+| Rust | enum (best-in-class) | match, if let | Compile-time |
+| Haskell | data (best-in-class) | case, function definitions | Compile-time (warning) |
+| TypeScript | Discriminated unions | switch + type guards | never check |
+| Kotlin | sealed class | when | Compile-time |
+| Swift | enum + associated values | switch | Compile-time |
+| Scala | sealed trait | match | Compile-time (warning) |
+| Go | Interface + type switch | switch v.(type) | None |
+| Java | sealed interface (17+) | switch (21+ patterns) | Compile-time |
+| Python | dataclass + Union | match (3.10+) | None |
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
 ---
 
-## 参考文献
+## References
 1. Pierce, B. "Types and Programming Languages." MIT Press, 2002.
 2. Wlaschin, S. "Domain Modeling Made Functional." Pragmatic Bookshelf, 2018.
 3. Swierstra, W. "Data Types a la Carte." JFP, 2008.

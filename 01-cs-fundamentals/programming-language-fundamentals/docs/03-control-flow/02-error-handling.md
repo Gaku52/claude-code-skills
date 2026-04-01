@@ -1,66 +1,66 @@
-# エラーハンドリング
+# Error Handling
 
-> エラーを「どう表現し、どう伝播し、どう処理するか」は言語設計の重要な決断。例外、Result型、エラーコードの3大戦略を理解する。
+> How to "represent, propagate, and handle" errors is a critical design decision in programming languages. Understand the three major strategies: exceptions, Result types, and error codes.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] 例外ベース・Result型・エラーコードの違いを理解する
-- [ ] 各言語のエラーハンドリング哲学を把握する
-- [ ] 適切なエラー処理パターンを選択できる
-- [ ] カスタムエラー型の設計ができる
-- [ ] エラーの伝播と変換のベストプラクティスを習得する
-- [ ] 実務でのエラーハンドリング戦略を設計できる
+- [ ] Understand the differences between exception-based, Result-type, and error-code approaches
+- [ ] Grasp the error handling philosophy of each language
+- [ ] Select the appropriate error handling pattern
+- [ ] Design custom error types
+- [ ] Master best practices for error propagation and transformation
+- [ ] Design error handling strategies for real-world applications
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [パターンマッチ](./01-pattern-matching.md) の内容を理解していること
-
----
-
-## 1. エラーハンドリングの3大戦略
-
-### 1.1 概要
-
-```
-3つの戦略:
-
-  1. 例外（Exceptions）
-     → 正常系と異常系のコードを分離
-     → 暗黙的な伝播（呼び出し元にスタックを巻き戻し）
-     → 代表: Python, Java, C#, JavaScript, Ruby
-
-  2. Result型 / Either型
-     → エラーを「値」として型で表現
-     → 明示的な伝播（? 演算子、map/and_then）
-     → 代表: Rust, Haskell, Elm, OCaml, F#
-
-  3. エラーコード / 複数戻り値
-     → 関数の戻り値でエラーを示す
-     → 明示的な伝播（if err != nil）
-     → 代表: C, Go
-
-各戦略のトレードオフ:
-  例外:    書きやすい ⟷ エラーが見えにくい
-  Result:  型安全     ⟷ ボイラープレートが多い
-  エラーコード: シンプル ⟷ チェック忘れの危険
-```
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding of the content in [Pattern Matching](./01-pattern-matching.md)
 
 ---
 
-## 2. 例外（Exceptions）
+## 1. The Three Major Error Handling Strategies
 
-### 2.1 Python のエラーハンドリング
+### 1.1 Overview
+
+```
+Three strategies:
+
+  1. Exceptions
+     → Separate normal and exceptional code paths
+     → Implicit propagation (unwinds the stack to the caller)
+     → Representative languages: Python, Java, C#, JavaScript, Ruby
+
+  2. Result Type / Either Type
+     → Represent errors as "values" through types
+     → Explicit propagation (? operator, map/and_then)
+     → Representative languages: Rust, Haskell, Elm, OCaml, F#
+
+  3. Error Codes / Multiple Return Values
+     → Indicate errors through function return values
+     → Explicit propagation (if err != nil)
+     → Representative languages: C, Go
+
+Trade-offs of each strategy:
+  Exceptions:  Easy to write     ⟷ Errors are hard to see
+  Result:      Type-safe         ⟷ More boilerplate
+  Error codes: Simple            ⟷ Risk of forgetting to check
+```
+
+---
+
+## 2. Exceptions
+
+### 2.1 Python's Error Handling
 
 ```python
 # Python: try-except
 
 # ========================================
-# 基本的な例外処理
+# Basic exception handling
 # ========================================
 try:
     result = int("not a number")
@@ -72,12 +72,12 @@ except FileNotFoundError as e:
 except Exception as e:
     print(f"Unexpected: {e}")
 else:
-    print("Success")  # 例外が発生しなかった場合
+    print("Success")  # Executes when no exception occurred
 finally:
-    print("Always executed")  # 常に実行（クリーンアップ）
+    print("Always executed")  # Always runs (cleanup)
 
 # ========================================
-# 例外の階層構造
+# Exception hierarchy
 # ========================================
 # BaseException
 #   ├── SystemExit
@@ -95,16 +95,16 @@ finally:
 #       └── ...
 
 # ========================================
-# カスタム例外の設計
+# Custom exception design
 # ========================================
 class AppError(Exception):
-    """アプリケーションの基底例外"""
+    """Base exception for the application"""
     def __init__(self, message: str, code: str = "UNKNOWN"):
         super().__init__(message)
         self.code = code
 
 class NotFoundError(AppError):
-    """リソースが見つからない"""
+    """Resource not found"""
     def __init__(self, resource: str, resource_id: str):
         super().__init__(
             f"{resource} with id '{resource_id}' not found",
@@ -114,7 +114,7 @@ class NotFoundError(AppError):
         self.resource_id = resource_id
 
 class ValidationError(AppError):
-    """バリデーションエラー"""
+    """Validation error"""
     def __init__(self, errors: dict[str, list[str]]):
         messages = []
         for field, field_errors in errors.items():
@@ -127,12 +127,12 @@ class ValidationError(AppError):
         self.errors = errors
 
 class AuthenticationError(AppError):
-    """認証エラー"""
+    """Authentication error"""
     def __init__(self, reason: str = "Invalid credentials"):
         super().__init__(reason, code="AUTHENTICATION_ERROR")
 
 class AuthorizationError(AppError):
-    """認可エラー"""
+    """Authorization error"""
     def __init__(self, action: str, resource: str):
         super().__init__(
             f"Not authorized to {action} {resource}",
@@ -142,7 +142,7 @@ class AuthorizationError(AppError):
         self.resource = resource
 
 # ========================================
-# 例外の使用例
+# Exception usage example
 # ========================================
 class UserService:
     def __init__(self, db, auth_service):
@@ -163,7 +163,7 @@ class UserService:
         if errors:
             raise ValidationError(errors)
 
-        user = self.get_user(user_id)  # NotFoundError が伝播する
+        user = self.get_user(user_id)  # NotFoundError propagates
         user.update(data)
         return self.db.save_user(user)
 
@@ -178,37 +178,37 @@ class UserService:
         return errors
 
 # ========================================
-# コンテキストマネージャ（自動クリーンアップ）
+# Context managers (automatic cleanup)
 # ========================================
-# with 文（リソースの自動解放）
+# with statement (automatic resource release)
 with open("file.txt") as f:
     content = f.read()
-# ファイルは自動的にクローズされる（例外発生時も）
+# File is automatically closed (even if an exception occurs)
 
-# カスタムコンテキストマネージャ
+# Custom context manager
 from contextlib import contextmanager
 
 @contextmanager
 def database_transaction(db):
-    """トランザクション管理"""
+    """Transaction management"""
     tx = db.begin_transaction()
     try:
         yield tx
         tx.commit()
     except Exception:
         tx.rollback()
-        raise  # 例外を再送出
+        raise  # Re-raise the exception
 
-# 使用例
+# Usage example
 with database_transaction(db) as tx:
     tx.execute("INSERT INTO users ...")
     tx.execute("INSERT INTO profiles ...")
-    # 例外が発生すると自動的にロールバック
+    # Automatically rolls back if an exception occurs
 
 # ========================================
 # EAFP vs LBYL
 # ========================================
-# LBYL (Look Before You Leap) — 事前チェック
+# LBYL (Look Before You Leap) — check first
 if key in dictionary:
     value = dictionary[key]
 else:
@@ -220,11 +220,11 @@ try:
 except KeyError:
     value = default
 
-# ベスト: dict.get() を使う
+# Best: use dict.get()
 value = dictionary.get(key, default)
 
 # ========================================
-# 例外チェーン（Python 3）
+# Exception chaining (Python 3)
 # ========================================
 class DatabaseError(AppError):
     pass
@@ -233,53 +233,53 @@ def get_user_from_db(user_id):
     try:
         return db.query(f"SELECT * FROM users WHERE id = {user_id}")
     except sqlite3.OperationalError as e:
-        # raise ... from e で元の例外を保持
+        # raise ... from e preserves the original exception
         raise DatabaseError(f"Failed to query user {user_id}") from e
-    # __cause__ で元の例外にアクセス可能
+    # The original exception is accessible via __cause__
 
-# 暗黙的な例外チェーン
+# Implicit exception chaining
 try:
     try:
         1 / 0
     except ZeroDivisionError:
         raise ValueError("Invalid computation")
-    # __context__ で暗黙的な例外チェーンにアクセス可能
+    # The implicit exception chain is accessible via __context__
 except ValueError as e:
     print(f"Error: {e}")
     print(f"Caused by: {e.__context__}")
 
 # ========================================
-# 例外の抑制
+# Suppressing exceptions
 # ========================================
 from contextlib import suppress
 
-# 例外を無視（安全に）
+# Safely ignore an exception
 with suppress(FileNotFoundError):
     os.remove("tempfile.txt")
-# ファイルがなくてもエラーにならない
+# No error even if the file doesn't exist
 
-# 等価なコード
+# Equivalent code
 try:
     os.remove("tempfile.txt")
 except FileNotFoundError:
     pass
 ```
 
-### 2.2 Java のエラーハンドリング
+### 2.2 Java's Error Handling
 
 ```java
-// Java: チェック例外 vs 非チェック例外
+// Java: checked exceptions vs unchecked exceptions
 
 // ========================================
-// チェック例外（Checked Exceptions）
+// Checked Exceptions
 // ========================================
-// コンパイラが処理を強制する例外
-// → IOException, SQLException, ClassNotFoundException など
+// Exceptions that the compiler forces you to handle
+// → IOException, SQLException, ClassNotFoundException, etc.
 public String readFile(String path) throws IOException {
     return Files.readString(Path.of(path));
 }
 
-// 呼び出し側は処理するか、throws で伝播するか選ぶ必要がある
+// The caller must either handle or propagate with throws
 public void processFile(String path) {
     try {
         String content = readFile(path);
@@ -290,20 +290,20 @@ public void processFile(String path) {
 }
 
 // ========================================
-// 非チェック例外（Unchecked Exceptions）
+// Unchecked Exceptions
 // ========================================
-// RuntimeException のサブクラス
+// Subclasses of RuntimeException
 // → NullPointerException, IllegalArgumentException,
-//    IndexOutOfBoundsException など
+//    IndexOutOfBoundsException, etc.
 public int divide(int a, int b) {
     if (b == 0) throw new IllegalArgumentException("Division by zero");
     return a / b;
 }
 
 // ========================================
-// try-with-resources（自動クリーンアップ）
+// try-with-resources (automatic cleanup)
 // ========================================
-// AutoCloseable インターフェースを実装したリソースを自動クローズ
+// Automatically closes resources that implement the AutoCloseable interface
 try (var reader = new BufferedReader(new FileReader("file.txt"));
      var writer = new BufferedWriter(new FileWriter("output.txt"))) {
     String line;
@@ -316,7 +316,7 @@ try (var reader = new BufferedReader(new FileReader("file.txt"));
 }
 
 // ========================================
-// カスタム例外（Java）
+// Custom exceptions (Java)
 // ========================================
 public class AppException extends Exception {
     private final String errorCode;
@@ -356,7 +356,7 @@ public class ValidationException extends AppException {
 }
 
 // ========================================
-// マルチキャッチ（Java 7+）
+// Multi-catch (Java 7+)
 // ========================================
 try {
     // ...
@@ -365,13 +365,13 @@ try {
 }
 
 // ========================================
-// チェック例外の問題点と対策
+// Problems with checked exceptions and workarounds
 // ========================================
-// 問題: ラムダ式でチェック例外を扱えない
-// ❌ コンパイルエラー
+// Problem: checked exceptions cannot be used in lambda expressions
+// Bad — compile error
 // list.stream().map(path -> Files.readString(path));
 
-// ✅ ラッパーを使用
+// Good — use a wrapper
 @FunctionalInterface
 interface ThrowingFunction<T, R> {
     R apply(T t) throws Exception;
@@ -387,19 +387,19 @@ static <T, R> Function<T, R> unchecked(ThrowingFunction<T, R> f) {
     };
 }
 
-// 使用例
+// Usage example
 list.stream()
     .map(unchecked(path -> Files.readString(Path.of(path))))
     .collect(Collectors.toList());
 ```
 
-### 2.3 JavaScript / TypeScript のエラーハンドリング
+### 2.3 JavaScript / TypeScript Error Handling
 
 ```javascript
 // JavaScript: try-catch-finally
 
 // ========================================
-// 基本的な例外処理
+// Basic exception handling
 // ========================================
 try {
     const data = JSON.parse(invalidJson);
@@ -417,9 +417,9 @@ try {
 }
 
 // ========================================
-// Promise のエラーハンドリング
+// Promise error handling
 // ========================================
-// .catch() メソッド
+// .catch() method
 fetch("/api/data")
     .then(response => {
         if (!response.ok) {
@@ -446,13 +446,13 @@ async function fetchData(url) {
         } else if (error instanceof TypeError) {
             console.error("Network error:", error.message);
         } else {
-            throw error; // 予期しないエラーは再送出
+            throw error; // Re-throw unexpected errors
         }
     }
 }
 
 // ========================================
-// Promise.allSettled（全ての結果を取得）
+// Promise.allSettled (get all results)
 // ========================================
 const results = await Promise.allSettled([
     fetch("/api/users"),
@@ -469,7 +469,7 @@ for (const result of results) {
 }
 
 // ========================================
-// AggregateError（Promise.any のエラー）
+// AggregateError (error from Promise.any)
 // ========================================
 try {
     const first = await Promise.any([
@@ -487,9 +487,9 @@ try {
 }
 
 // ========================================
-// グローバルエラーハンドリング
+// Global error handling
 // ========================================
-// ブラウザ
+// Browser
 window.addEventListener("error", (event) => {
     reportError({
         message: event.message,
@@ -520,7 +520,7 @@ process.on("unhandledRejection", (reason, promise) => {
 ```
 
 ```typescript
-// TypeScript: カスタムエラークラス
+// TypeScript: custom error classes
 class AppError extends Error {
     constructor(
         message: string,
@@ -530,7 +530,7 @@ class AppError extends Error {
     ) {
         super(message);
         this.name = "AppError";
-        // プロトタイプチェーンの修復（TypeScript のクラス継承の注意点）
+        // Fix the prototype chain (caveat of TypeScript class inheritance)
         Object.setPrototypeOf(this, new.target.prototype);
     }
 
@@ -582,7 +582,7 @@ class ConflictError extends AppError {
 }
 
 // ========================================
-// Express.js のエラーハンドリングミドルウェア
+// Express.js error handling middleware
 // ========================================
 function errorHandler(err: Error, req: Request, res: Response, next: NextFunction) {
     if (err instanceof AppError) {
@@ -599,9 +599,9 @@ function errorHandler(err: Error, req: Request, res: Response, next: NextFunctio
 }
 
 // ========================================
-// 型安全なエラーハンドリング（TypeScript）
+// Type-safe error handling (TypeScript)
 // ========================================
-// エラー型の判別関数
+// Error type discriminator functions
 function isAppError(error: unknown): error is AppError {
     return error instanceof AppError;
 }
@@ -610,7 +610,7 @@ function isNotFoundError(error: unknown): error is NotFoundError {
     return error instanceof NotFoundError;
 }
 
-// 安全なエラーハンドリング
+// Safe error handling
 async function handleRequest(req: Request): Promise<Response> {
     try {
         const result = await processRequest(req);
@@ -622,72 +622,72 @@ async function handleRequest(req: Request): Promise<Response> {
         if (isAppError(error)) {
             return new Response(JSON.stringify(error.toJSON()), { status: error.statusCode });
         }
-        // 予期しないエラー
+        // Unexpected error
         console.error("Unexpected error:", error);
         return new Response(JSON.stringify({ error: "Internal server error" }), { status: 500 });
     }
 }
 ```
 
-### 2.4 例外の問題点
+### 2.4 Problems with Exceptions
 
 ```
-問題1: 見えない制御フロー
-  → 関数のシグネチャを見ただけでは、どの例外が飛ぶか分からない
-  → Java のチェック例外は解決策だが、冗長になりがち
-  → JavaScript/Python は完全に暗黙的
+Problem 1: Invisible control flow
+  → Cannot tell which exceptions a function throws just by looking at its signature
+  → Java's checked exceptions are a solution but can become verbose
+  → JavaScript/Python are entirely implicit
 
-問題2: パフォーマンスコスト
-  → スタックトレースの生成は高コスト
-  → 正常系で例外を使うとパフォーマンス劣化
-  → 例外はあくまで「例外的」な状況のために
+Problem 2: Performance cost
+  → Generating stack traces is expensive
+  → Using exceptions in the normal flow degrades performance
+  → Exceptions are strictly for "exceptional" situations
 
-問題3: 例外の飲み込み
-  → catch して何もしない → バグの隠蔽
-  → 空の catch ブロックは最悪のアンチパターン
+Problem 3: Swallowing exceptions
+  → Catching and doing nothing → hiding bugs
+  → Empty catch blocks are the worst anti-pattern
 
-問題4: 例外安全性の保証が困難
-  → リソースリークのリスク
-  → 部分的に更新された状態
-  → トランザクションの整合性
+Problem 4: Difficulty guaranteeing exception safety
+  → Risk of resource leaks
+  → Partially updated state
+  → Transaction integrity
 ```
 
 ---
 
-## 3. Result 型（値ベースのエラー処理）
+## 3. Result Type (Value-Based Error Handling)
 
-### 3.1 Rust の Result<T, E>
+### 3.1 Rust's Result<T, E>
 
 ```rust
-// Rust: Result<T, E> — 成功か失敗かを型で表現
+// Rust: Result<T, E> — representing success or failure through types
 
 // ========================================
-// 基本的な使用
+// Basic usage
 // ========================================
 fn parse_number(s: &str) -> Result<i32, ParseIntError> {
     s.parse::<i32>()
 }
 
-// パターンマッチで処理
+// Handle with pattern matching
 match parse_number("42") {
     Ok(n) => println!("Parsed: {}", n),
     Err(e) => println!("Error: {}", e),
 }
 
 // ========================================
-// ? 演算子（エラー伝播の省略記法）
+// ? operator (shorthand for error propagation)
 // ========================================
 fn read_config() -> Result<Config, Box<dyn Error>> {
-    let content = fs::read_to_string("config.toml")?;  // エラーなら即return
+    let content = fs::read_to_string("config.toml")?;  // Returns immediately on error
     let config: Config = toml::from_str(&content)?;
     Ok(config)
 }
 
-// ? 演算子は以下の糖衣構文:
+// The ? operator is syntactic sugar for:
 fn read_config_expanded() -> Result<Config, Box<dyn Error>> {
     let content = match fs::read_to_string("config.toml") {
         Ok(c) => c,
-        Err(e) => return Err(e.into()),  // From トレイトで変換
+        Err(e) => return Err(e.into()),  // Converts via the From trait
     };
     let config = match toml::from_str(&content) {
         Ok(c) => c,
@@ -697,16 +697,16 @@ fn read_config_expanded() -> Result<Config, Box<dyn Error>> {
 }
 
 // ========================================
-// Result のメソッドチェーン
+// Result method chaining
 // ========================================
-// map — Ok の中身を変換
+// map — transform the contents of Ok
 let doubled: Result<i32, _> = parse_number("42").map(|n| n * 2);
 
-// map_err — Err の中身を変換
+// map_err — transform the contents of Err
 let result: Result<i32, AppError> = parse_number("abc")
     .map_err(|e| AppError::Validation(e.to_string()));
 
-// and_then — Result を返す関数を連鎖
+// and_then — chain functions that return Result
 fn validate_positive(n: i32) -> Result<i32, String> {
     if n > 0 { Ok(n) } else { Err("Must be positive".to_string()) }
 }
@@ -716,22 +716,22 @@ let result = parse_number("42")
     .and_then(validate_positive)
     .map(|n| n * 2);
 
-// unwrap_or — デフォルト値
+// unwrap_or — default value
 let n = parse_number("abc").unwrap_or(0);
 
-// unwrap_or_else — 遅延評価のデフォルト値
+// unwrap_or_else — lazily evaluated default value
 let n = parse_number("abc").unwrap_or_else(|e| {
     eprintln!("Parse error: {}", e);
     0
 });
 
-// ok — Result を Option に変換（Err を捨てる）
+// ok — convert Result to Option (discards Err)
 let opt: Option<i32> = parse_number("42").ok();
 
 // ========================================
-// 複数の Result の組み合わせ
+// Combining multiple Results
 // ========================================
-// 順次処理（? 演算子）
+// Sequential processing (? operator)
 fn process() -> Result<Output, AppError> {
     let a = step1()?;
     let b = step2(a)?;
@@ -739,16 +739,16 @@ fn process() -> Result<Output, AppError> {
     Ok(c)
 }
 
-// collect で Vec<Result<T, E>> → Result<Vec<T>, E>
+// collect converts Vec<Result<T, E>> → Result<Vec<T>, E>
 fn parse_all(inputs: &[&str]) -> Result<Vec<i32>, ParseIntError> {
     inputs.iter().map(|s| s.parse::<i32>()).collect()
 }
 
-// 全て成功 → Ok(vec![1, 2, 3])
-// いずれかが失敗 → 最初の Err
+// All succeed → Ok(vec![1, 2, 3])
+// Any failure → the first Err
 
 // ========================================
-// カスタムエラー型（thiserror クレート）
+// Custom error types (thiserror crate)
 // ========================================
 use thiserror::Error;
 
@@ -773,12 +773,12 @@ enum AppError {
     Internal(#[from] anyhow::Error),
 }
 
-// From トレイトの自動実装（#[from] アトリビュート）
-// sqlx::Error → AppError::Database への自動変換
-// → ? 演算子で自動的に変換される
+// Automatic From trait implementation (#[from] attribute)
+// sqlx::Error → AppError::Database automatic conversion
+// → Automatically converted by the ? operator
 
 // ========================================
-// anyhow クレート（プロトタイプや CLIツール向け）
+// anyhow crate (for prototypes and CLI tools)
 // ========================================
 use anyhow::{Context, Result, bail, ensure};
 
@@ -799,7 +799,7 @@ fn read_config(path: &str) -> Result<Config> {
 }
 
 // ========================================
-// エラーの伝播とコンテキスト追加
+// Error propagation and adding context
 // ========================================
 fn get_user(id: u32) -> Result<User, AppError> {
     let user = db.find_user(id)
@@ -812,14 +812,14 @@ fn get_user(id: u32) -> Result<User, AppError> {
 }
 
 fn get_user_profile(user_id: u32) -> Result<UserProfile, AppError> {
-    let user = get_user(user_id)?;  // AppError が自動伝播
+    let user = get_user(user_id)?;  // AppError automatically propagated
     let profile = db.find_profile(user.id)
         .map_err(AppError::Database)?;
     Ok(UserProfile { user, profile })
 }
 
 // ========================================
-// Result と Option の相互変換
+// Interconversion between Result and Option
 // ========================================
 // Option → Result
 let value: Result<i32, &str> = some_option.ok_or("Value is None");
@@ -827,22 +827,22 @@ let value: Result<i32, AppError> = some_option
     .ok_or_else(|| AppError::NotFound("value".to_string()));
 
 // Result → Option
-let value: Option<i32> = some_result.ok();   // Err を捨てる
-let error: Option<E> = some_result.err();    // Ok を捨てる
+let value: Option<i32> = some_result.ok();   // Discards Err
+let error: Option<E> = some_result.err();    // Discards Ok
 
-// transpose（Option<Result<T, E>> ⟷ Result<Option<T>, E>）
+// transpose (Option<Result<T, E>> ⟷ Result<Option<T>, E>)
 let opt_result: Option<Result<i32, E>> = Some(Ok(42));
 let result_opt: Result<Option<i32>, E> = opt_result.transpose();
 // → Ok(Some(42))
 ```
 
-### 3.2 Haskell の Either / Maybe
+### 3.2 Haskell's Either / Maybe
 
 ```haskell
--- Haskell: Either a b（Left = エラー、Right = 成功）
+-- Haskell: Either a b (Left = error, Right = success)
 
 -- ========================================
--- Maybe: 値の有無
+-- Maybe: presence or absence of a value
 -- ========================================
 safeDivide :: Double -> Double -> Maybe Double
 safeDivide _ 0 = Nothing
@@ -852,7 +852,7 @@ safeHead :: [a] -> Maybe a
 safeHead []    = Nothing
 safeHead (x:_) = Just x
 
--- Maybe の連鎖（do 記法）
+-- Chaining Maybe (do notation)
 lookupAddress :: Map String User -> String -> Maybe String
 lookupAddress users name = do
     user <- Map.lookup name users      -- Maybe User
@@ -860,7 +860,7 @@ lookupAddress users name = do
     return (addressCity address)       -- Maybe String
 
 -- ========================================
--- Either: 詳細なエラー情報
+-- Either: detailed error information
 -- ========================================
 data AppError
     = NotFound String
@@ -875,7 +875,7 @@ parseAge s = case reads s of
               | otherwise -> Left (ValidationError ["Age must be 0-150"])
     _ -> Left (ValidationError ["Invalid number format"])
 
--- Either の連鎖
+-- Chaining Either
 createUser :: String -> String -> Either AppError User
 createUser name ageStr = do
     validatedName <- validateName name
@@ -889,7 +889,7 @@ validateName name
     | otherwise = Right name
 
 -- ========================================
--- ExceptT（モナド変換子で IO と Either を組み合わせ）
+-- ExceptT (combining IO and Either with monad transformers)
 -- ========================================
 import Control.Monad.Except
 
@@ -903,23 +903,23 @@ getUser userId = do
         Just user -> return user
 
 -- ========================================
--- MonadError 型クラス
+-- MonadError type class
 -- ========================================
 handleError :: MonadError AppError m => m User -> m User
 handleError action = catchError action $ \err -> case err of
     NotFound msg -> do
         liftIO $ putStrLn $ "Warning: " ++ msg
         return defaultUser
-    _ -> throwError err  -- 他のエラーは再送出
+    _ -> throwError err  -- Re-throw other errors
 ```
 
-### 3.3 TypeScript の Result パターン
+### 3.3 TypeScript's Result Pattern
 
 ```typescript
-// TypeScript: Result型をユニオン型で表現
+// TypeScript: representing Result type with union types
 
 // ========================================
-// 自作 Result 型
+// Custom Result type
 // ========================================
 type Result<T, E> =
     | { ok: true; value: T }
@@ -934,7 +934,7 @@ function err<E>(error: E): Result<never, E> {
 }
 
 // ========================================
-// Result の便利メソッド（ユーティリティ関数）
+// Convenient Result methods (utility functions)
 // ========================================
 function mapResult<T, U, E>(
     result: Result<T, E>,
@@ -967,7 +967,7 @@ function mapError<T, E, F>(
 }
 
 // ========================================
-// 実務的な使用例
+// Practical usage example
 // ========================================
 type AppError =
     | { code: "NOT_FOUND"; resource: string }
@@ -993,7 +993,7 @@ function validateAge(age: number): Result<number, AppError> {
     return ok(age);
 }
 
-// Result のパイプライン
+// Result pipeline
 function processAgeInput(input: string): Result<number, AppError> {
     const parsed = parseNumber(input);
     if (!parsed.ok) {
@@ -1006,7 +1006,7 @@ function processAgeInput(input: string): Result<number, AppError> {
 }
 
 // ========================================
-// neverthrow ライブラリ
+// neverthrow library
 // ========================================
 import { ok, err, Result, ResultAsync } from 'neverthrow';
 
@@ -1015,13 +1015,13 @@ function divide(a: number, b: number): Result<number, string> {
     return ok(a / b);
 }
 
-// メソッドチェーン
+// Method chaining
 const result = divide(10, 2)
     .map(n => n * 3)
     .mapErr(e => new Error(e))
     .andThen(n => n > 0 ? ok(n) : err(new Error("Must be positive")));
 
-// ResultAsync（非同期版）
+// ResultAsync (async version)
 function fetchUser(id: string): ResultAsync<User, AppError> {
     return ResultAsync.fromPromise(
         fetch(`/api/users/${id}`).then(r => r.json()),
@@ -1029,7 +1029,7 @@ function fetchUser(id: string): ResultAsync<User, AppError> {
     );
 }
 
-// combine（複数の Result を結合）
+// combine (merge multiple Results)
 const combined = Result.combine([
     parseNumber("10"),
     parseNumber("20"),
@@ -1038,13 +1038,13 @@ const combined = Result.combine([
 // → ok([10, 20, 30]) or err("...")
 ```
 
-### 3.4 Go のエラーハンドリング
+### 3.4 Go's Error Handling
 
 ```go
-// Go: 複数戻り値でエラーを返す
+// Go: returning errors via multiple return values
 
 // ========================================
-// 基本パターン
+// Basic pattern
 // ========================================
 func readFile(path string) (string, error) {
     data, err := os.ReadFile(path)
@@ -1054,26 +1054,26 @@ func readFile(path string) (string, error) {
     return string(data), nil
 }
 
-// 呼び出し側
+// Caller side
 content, err := readFile("config.txt")
 if err != nil {
     log.Fatal(err)
 }
-// err チェックを忘れると、ゼロ値（""）で処理が続行 → バグの温床
+// Forgetting to check err → processing continues with zero value ("") → source of bugs
 
 // ========================================
-// エラーのラッピング（Go 1.13+）
+// Error wrapping (Go 1.13+)
 // ========================================
 func processFile(path string) error {
     data, err := os.ReadFile(path)
     if err != nil {
-        // %w でラップ → errors.Is/As で検査可能
+        // Wrap with %w → inspectable with errors.Is/As
         return fmt.Errorf("process file %s: %w", path, err)
     }
     return processData(data)
 }
 
-// エラーの検査
+// Error inspection
 if errors.Is(err, os.ErrNotExist) {
     fmt.Println("File does not exist")
 }
@@ -1084,7 +1084,7 @@ if errors.As(err, &pathErr) {
 }
 
 // ========================================
-// カスタムエラー型
+// Custom error types
 // ========================================
 type AppError struct {
     Code    string `json:"code"`
@@ -1103,7 +1103,7 @@ func (e *AppError) Unwrap() error {
     return e.Err
 }
 
-// センチネルエラー
+// Sentinel errors
 var (
     ErrNotFound     = &AppError{Code: "NOT_FOUND", Message: "Resource not found"}
     ErrUnauthorized = &AppError{Code: "UNAUTHORIZED", Message: "Unauthorized"}
@@ -1118,9 +1118,9 @@ func NewNotFoundError(resource, id string) *AppError {
 }
 
 // ========================================
-// エラーハンドリングのパターン
+// Error handling patterns
 // ========================================
-// パターン1: 即座にリターン
+// Pattern 1: return immediately
 func getUser(id string) (*User, error) {
     user, err := db.FindUser(id)
     if err != nil {
@@ -1132,7 +1132,7 @@ func getUser(id string) (*User, error) {
     return user, nil
 }
 
-// パターン2: defer でクリーンアップ
+// Pattern 2: cleanup with defer
 func processWithTransaction(db *sql.DB) error {
     tx, err := db.Begin()
     if err != nil {
@@ -1154,7 +1154,7 @@ func processWithTransaction(db *sql.DB) error {
     return tx.Commit()
 }
 
-// パターン3: エラーグループ（複数のエラーを収集）
+// Pattern 3: error groups (collecting multiple errors)
 type MultiError struct {
     Errors []error
 }
@@ -1187,37 +1187,38 @@ func validateUser(user *User) error {
 
 ---
 
-## 4. 各言語のエラーハンドリング比較
+## 4. Cross-Language Error Handling Comparison
 
 ```
-┌──────────────┬──────────────────────┬────────────────────────────┐
-│ 方式          │ 代表言語              │ 特徴                       │
-├──────────────┼──────────────────────┼────────────────────────────┤
-│ 例外          │ Python, Java, C#,    │ 暗黙的な伝播               │
-│              │ JavaScript, Ruby      │ 見えない制御フロー          │
-│              │                      │ 正常系と異常系の分離        │
-├──────────────┼──────────────────────┼────────────────────────────┤
-│ Result型      │ Rust, Haskell,       │ 明示的な伝播               │
-│              │ Elm, OCaml, F#       │ 型で安全に表現             │
-│              │                      │ コンパイル時に処理を強制    │
-├──────────────┼──────────────────────┼────────────────────────────┤
-│ エラーコード   │ C, Go               │ シンプルだが               │
-│              │                      │ チェック忘れの危険          │
-│              │                      │ Go は慣例で強制            │
-├──────────────┼──────────────────────┼────────────────────────────┤
-│ ハイブリッド   │ Swift(throw+Result)  │ 場面で使い分け             │
-│              │ Kotlin(throw+Result)  │ 最大の柔軟性               │
-│              │ Scala(Try+Either)    │                            │
-├──────────────┼──────────────────────┼────────────────────────────┤
-│ パニック      │ Rust(panic!),        │ 回復不可能なエラー          │
-│              │ Go(panic/recover)    │ プロセス終了前提            │
-└──────────────┴──────────────────────┴────────────────────────────┘
+┌──────────────────┬──────────────────────┬────────────────────────────────┐
+│ Approach         │ Representative       │ Characteristics                │
+│                  │ Languages            │                                │
+├──────────────────┼──────────────────────┼────────────────────────────────┤
+│ Exceptions       │ Python, Java, C#,    │ Implicit propagation           │
+│                  │ JavaScript, Ruby     │ Invisible control flow         │
+│                  │                      │ Separation of normal/exception │
+├──────────────────┼──────────────────────┼────────────────────────────────┤
+│ Result Type      │ Rust, Haskell,       │ Explicit propagation           │
+│                  │ Elm, OCaml, F#       │ Type-safe representation       │
+│                  │                      │ Handling enforced at compile   │
+├──────────────────┼──────────────────────┼────────────────────────────────┤
+│ Error Codes      │ C, Go               │ Simple but                     │
+│                  │                      │ risk of forgetting checks      │
+│                  │                      │ Go enforces by convention      │
+├──────────────────┼──────────────────────┼────────────────────────────────┤
+│ Hybrid           │ Swift(throw+Result)  │ Choose by context              │
+│                  │ Kotlin(throw+Result) │ Maximum flexibility            │
+│                  │ Scala(Try+Either)    │                                │
+├──────────────────┼──────────────────────┼────────────────────────────────┤
+│ Panic            │ Rust(panic!),        │ Unrecoverable errors           │
+│                  │ Go(panic/recover)    │ Assumes process termination    │
+└──────────────────┴──────────────────────┴────────────────────────────────┘
 ```
 
-### 4.1 Swift のエラーハンドリング
+### 4.1 Swift's Error Handling
 
 ```swift
-// Swift: ハイブリッド方式（throws + Result + Optional）
+// Swift: hybrid approach (throws + Result + Optional)
 
 // ========================================
 // throws / do-catch
@@ -1235,7 +1236,7 @@ func getUser(id: String) throws -> User {
     return user
 }
 
-// 呼び出し側
+// Caller side
 do {
     let user = try getUser(id: "123")
     print(user.name)
@@ -1245,14 +1246,14 @@ do {
     print("Unexpected error: \(error)")
 }
 
-// try? — エラーを Optional に変換
+// try? — convert error to Optional
 let user: User? = try? getUser(id: "123")
 
-// try! — エラー時にクラッシュ（確信がある場合のみ）
+// try! — crash on error (only when you're certain)
 let user: User = try! getUser(id: "known-id")
 
 // ========================================
-// Result 型（Swift 5+）
+// Result type (Swift 5+)
 // ========================================
 func fetchData(url: URL, completion: (Result<Data, Error>) -> Void) {
     URLSession.shared.dataTask(with: url) { data, response, error in
@@ -1266,7 +1267,7 @@ func fetchData(url: URL, completion: (Result<Data, Error>) -> Void) {
     }.resume()
 }
 
-// Result の利用
+// Using Result
 fetchData(url: apiURL) { result in
     switch result {
     case .success(let data):
@@ -1281,13 +1282,13 @@ let decoded: Result<User, Error> = result
     .map { data in try JSONDecoder().decode(User.self, from: data) }
 ```
 
-### 4.2 Kotlin のエラーハンドリング
+### 4.2 Kotlin's Error Handling
 
 ```kotlin
-// Kotlin: ハイブリッド方式（例外 + Result + sealed class）
+// Kotlin: hybrid approach (exceptions + Result + sealed class)
 
 // ========================================
-// sealed class でエラーを表現
+// Representing errors with sealed classes
 // ========================================
 sealed class AppResult<out T> {
     data class Success<T>(val value: T) : AppResult<T>()
@@ -1307,7 +1308,7 @@ fun getUser(id: String): AppResult<User> {
     return AppResult.Success(user)
 }
 
-// when 式での処理
+// Handling with when expression
 when (val result = getUser("123")) {
     is AppResult.Success -> println("User: ${result.value.name}")
     is AppResult.Failure -> when (result.error) {
@@ -1318,7 +1319,7 @@ when (val result = getUser("123")) {
 }
 
 // ========================================
-// Kotlin stdlib の Result 型
+// Kotlin stdlib Result type
 // ========================================
 val result: Result<Int> = runCatching {
     "42".toInt()
@@ -1333,7 +1334,7 @@ val value = result.getOrDefault(0)
 val value2 = result.getOrElse { error -> handleError(error); 0 }
 
 // ========================================
-// require / check（前提条件チェック）
+// require / check (precondition checks)
 // ========================================
 fun processOrder(order: Order) {
     require(order.items.isNotEmpty()) { "Order must have items" }
@@ -1347,53 +1348,53 @@ fun processOrder(order: Order) {
 
 ---
 
-## 5. エラー処理のベストプラクティス
+## 5. Error Handling Best Practices
 
-### 5.1 回復可能 vs 回復不可能
+### 5.1 Recoverable vs Unrecoverable
 
 ```
-1. 回復可能（Recoverable）なエラー
-   → ファイルが見つからない → 別のパスを試す
-   → ネットワークタイムアウト → リトライ
-   → バリデーションエラー → ユーザーにフィードバック
-   → 認証エラー → 再ログイン
+1. Recoverable errors
+   → File not found → try a different path
+   → Network timeout → retry
+   → Validation error → provide feedback to the user
+   → Authentication error → re-login
 
    Rust:  Result<T, E>
-   Go:    error を返す
-   Java:  チェック例外
-   Python: 特定の例外をキャッチ
+   Go:    return error
+   Java:  Checked exceptions
+   Python: Catch specific exceptions
 
-2. 回復不可能（Unrecoverable）なエラー
-   → メモリ不足 → プロセスを終了
-   → 不変条件の違反 → バグ、プログラムを修正すべき
-   → 設定ファイルの致命的な欠落 → 起動時に失敗
+2. Unrecoverable errors
+   → Out of memory → terminate the process
+   → Invariant violation → a bug; the program should be fixed
+   → Critical missing config file → fail at startup
 
    Rust:  panic!()
-   Go:    panic()（基本的に使わない）
+   Go:    panic() (generally not used)
    Java:  RuntimeException
    Python: SystemExit
 ```
 
-### 5.2 エラーの粒度設計
+### 5.2 Designing Error Granularity
 
 ```rust
-// Rust: エラーの粒度を適切に設計
+// Rust: designing appropriate error granularity
 
-// ❌ 粒度が粗すぎる
+// Bad — too coarse
 enum Error {
     SomethingWentWrong(String),
 }
 
-// ❌ 粒度が細かすぎる
+// Bad — too fine
 enum Error {
     FileNotFoundAtPath(PathBuf),
     FilePermissionDenied(PathBuf),
     FileAlreadyExists(PathBuf),
     FileIsDirectory(PathBuf),
-    // ... 何十もの種類
+    // ... dozens of types
 }
 
-// ✅ 適切な粒度（ドメインに合わせて）
+// Good — appropriate granularity (aligned with the domain)
 #[derive(Error, Debug)]
 enum UserServiceError {
     #[error("User not found: {0}")]
@@ -1412,8 +1413,8 @@ enum UserServiceError {
     ExternalService(#[source] reqwest::Error),
 }
 
-// レイヤーごとにエラー型を分ける
-// リポジトリ層
+// Separate error types per layer
+// Repository layer
 #[derive(Error, Debug)]
 enum RepositoryError {
     #[error("Record not found")]
@@ -1424,7 +1425,7 @@ enum RepositoryError {
     Connection(#[source] sqlx::Error),
 }
 
-// サービス層（リポジトリのエラーを変換）
+// Service layer (convert repository errors)
 impl From<RepositoryError> for UserServiceError {
     fn from(err: RepositoryError) -> Self {
         match err {
@@ -1438,40 +1439,40 @@ impl From<RepositoryError> for UserServiceError {
 }
 ```
 
-### 5.3 エラーメッセージの設計
+### 5.3 Designing Error Messages
 
 ```
-エラーメッセージの3要素:
-  1. 何が（What）    — 何が失敗したか
-  2. どこで（Where）  — どのリソース/操作で
-  3. なぜ（Why）     — 原因は何か
+Three elements of an error message:
+  1. What     — what failed
+  2. Where    — which resource/operation
+  3. Why      — what was the cause
 
-❌ 悪い例
+Bad examples:
   "Error occurred"
   "Failed"
   "Something went wrong"
   "Invalid input"
 
-✅ 良い例
+Good examples:
   "Failed to read config file '/etc/app.toml': Permission denied"
   "User 'alice@example.com' not found in database 'users'"
   "Validation failed for field 'email': must contain '@'"
   "Connection to Redis at localhost:6379 timed out after 5s"
 
-エラーメッセージのガイドライン:
-  - 技術的すぎず、かつ曖昧すぎない
-  - 機密情報（パスワード、トークン）を含めない
-  - ユーザー向けメッセージと開発者向けメッセージを分ける
-  - コンテキスト情報（ID、パス、パラメータ）を含める
-  - 解決策のヒントを含める（可能な場合）
+Error message guidelines:
+  - Not too technical, yet not too vague
+  - Do not include sensitive information (passwords, tokens)
+  - Separate user-facing messages from developer-facing messages
+  - Include context information (IDs, paths, parameters)
+  - Include hints for resolution (when possible)
 ```
 
-### 5.4 エラーの伝播パターン
+### 5.4 Error Propagation Patterns
 
 ```rust
-// Rust: エラーの伝播とコンテキスト追加
+// Rust: error propagation and adding context
 
-// パターン1: そのまま伝播（? 演算子）
+// Pattern 1: propagate as-is (? operator)
 fn load_config() -> Result<Config, AppError> {
     let path = find_config_path()?;
     let content = read_file(&path)?;
@@ -1479,7 +1480,7 @@ fn load_config() -> Result<Config, AppError> {
     Ok(config)
 }
 
-// パターン2: コンテキストを追加して伝播
+// Pattern 2: propagate with added context
 fn load_config() -> Result<Config, anyhow::Error> {
     let path = find_config_path()
         .context("Failed to find config file")?;
@@ -1490,7 +1491,7 @@ fn load_config() -> Result<Config, anyhow::Error> {
     Ok(config)
 }
 
-// パターン3: エラーを変換して伝播
+// Pattern 3: convert and propagate
 fn load_user_config(user_id: &str) -> Result<UserConfig, UserError> {
     let path = find_config_path()
         .map_err(|_| UserError::ConfigNotFound(user_id.to_string()))?;
@@ -1502,7 +1503,7 @@ fn load_user_config(user_id: &str) -> Result<UserConfig, UserError> {
     Ok(parse_user_config(&content)?)
 }
 
-// パターン4: エラーを回復
+// Pattern 4: recover from error
 fn load_config_with_fallback() -> Config {
     match load_config() {
         Ok(config) => config,
@@ -1515,15 +1516,15 @@ fn load_config_with_fallback() -> Config {
 ```
 
 ```python
-# Python: エラーの伝播パターン
+# Python: error propagation patterns
 
-# パターン1: そのまま伝播（何もしない）
+# Pattern 1: propagate as-is (do nothing)
 def load_config():
-    path = find_config_path()    # 例外が伝播する
-    content = read_file(path)    # 例外が伝播する
-    return parse_config(content) # 例外が伝播する
+    path = find_config_path()    # Exception propagates
+    content = read_file(path)    # Exception propagates
+    return parse_config(content) # Exception propagates
 
-# パターン2: コンテキストを追加
+# Pattern 2: add context
 def load_config():
     try:
         path = find_config_path()
@@ -1540,7 +1541,7 @@ def load_config():
     except ValueError as e:
         raise ConfigError(f"Invalid config format") from e
 
-# パターン3: 回復
+# Pattern 3: recover
 def load_config_with_fallback():
     try:
         return load_config()
@@ -1548,7 +1549,7 @@ def load_config_with_fallback():
         logger.warning(f"Failed to load config: {e}. Using defaults.")
         return Config.default()
 
-# パターン4: リトライ
+# Pattern 4: retry
 def load_with_retry(url, max_retries=3, delay=1.0):
     last_error = None
     for attempt in range(max_retries):
@@ -1558,25 +1559,25 @@ def load_with_retry(url, max_retries=3, delay=1.0):
             last_error = e
             logger.warning(f"Attempt {attempt + 1} failed: {e}")
             if attempt < max_retries - 1:
-                time.sleep(delay * (2 ** attempt))  # 指数バックオフ
+                time.sleep(delay * (2 ** attempt))  # Exponential backoff
     raise last_error
 ```
 
 ---
 
-## 6. 実践パターン
+## 6. Practical Patterns
 
-### 6.1 Web APIのエラーハンドリング
+### 6.1 Web API Error Handling
 
 ```python
-# Python (FastAPI): エラーハンドリング
+# Python (FastAPI): error handling
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 app = FastAPI()
 
-# カスタム例外ハンドラ
+# Custom exception handler
 @app.exception_handler(AppError)
 async def app_error_handler(request: Request, exc: AppError):
     return JSONResponse(
@@ -1618,12 +1619,12 @@ async def unhandled_error_handler(request: Request, exc: Exception):
 
 @app.get("/api/users/{user_id}")
 async def get_user(user_id: str):
-    user = await user_service.get_user(user_id)  # NotFoundError が伝播
+    user = await user_service.get_user(user_id)  # NotFoundError propagates
     return user
 ```
 
 ```rust
-// Rust (Axum): エラーハンドリング
+// Rust (Axum): error handling
 use axum::{
     response::{IntoResponse, Response},
     http::StatusCode,
@@ -1678,15 +1679,15 @@ impl IntoResponse for ApiError {
 }
 
 async fn get_user(Path(id): Path<String>) -> Result<Json<User>, ApiError> {
-    let user = user_service.get_user(&id).await?;  // ApiError に変換
+    let user = user_service.get_user(&id).await?;  // Converted to ApiError
     Ok(Json(user))
 }
 ```
 
-### 6.2 バッチ処理のエラーハンドリング
+### 6.2 Batch Processing Error Handling
 
 ```python
-# Python: バッチ処理でのエラーハンドリング
+# Python: error handling in batch processing
 
 from dataclasses import dataclass, field
 
@@ -1720,7 +1721,7 @@ def process_batch(items: list[dict]) -> BatchResult:
                 "error_type": "external_service",
                 "message": str(e),
             })
-            # 外部サービスエラーが続く場合は中断
+            # Abort if external service errors continue
             if result.failed > result.total * 0.5:
                 logger.error("Too many failures, aborting batch")
                 break
@@ -1738,7 +1739,7 @@ def process_batch(items: list[dict]) -> BatchResult:
 ```
 
 ```rust
-// Rust: バッチ処理のエラーハンドリング
+// Rust: batch processing error handling
 #[derive(Debug)]
 struct BatchResult<T> {
     succeeded: Vec<T>,
@@ -1770,7 +1771,7 @@ where
     result
 }
 
-// 並列バッチ処理（rayon）
+// Parallel batch processing (rayon)
 fn process_batch_parallel(items: &[Item]) -> BatchResult<Output> {
     let results: Vec<(usize, Result<Output, AppError>)> = items
         .par_iter()
@@ -1794,16 +1795,16 @@ fn process_batch_parallel(items: &[Item]) -> BatchResult<Output> {
 }
 ```
 
-### 6.3 リトライパターン
+### 6.3 Retry Pattern
 
 ```typescript
-// TypeScript: リトライパターン
+// TypeScript: retry pattern
 
 interface RetryOptions {
     maxRetries: number;
-    baseDelay: number;     // ミリ秒
-    maxDelay: number;      // ミリ秒
-    backoffFactor: number; // 指数バックオフの倍率
+    baseDelay: number;     // milliseconds
+    maxDelay: number;      // milliseconds
+    backoffFactor: number; // exponential backoff multiplier
     retryableErrors?: string[];
 }
 
@@ -1827,7 +1828,7 @@ async function withRetry<T>(
         } catch (error) {
             lastError = error as Error;
 
-            // リトライ可能なエラーかチェック
+            // Check if the error is retryable
             if (retryableErrors && !isRetryable(error, retryableErrors)) {
                 throw error;
             }
@@ -1837,7 +1838,7 @@ async function withRetry<T>(
                     baseDelay * Math.pow(backoffFactor, attempt),
                     maxDelay,
                 );
-                // ジッター（ランダムな揺らぎ）を追加
+                // Add jitter (random variation)
                 const jitter = delay * 0.1 * Math.random();
                 console.log(
                     `Attempt ${attempt + 1} failed, retrying in ${delay + jitter}ms...`
@@ -1859,7 +1860,7 @@ function isRetryable(error: unknown, retryableErrors: string[]): boolean {
     return false;
 }
 
-// 使用例
+// Usage example
 const data = await withRetry(
     () => fetch("/api/data").then(r => r.json()),
     {
@@ -1874,35 +1875,35 @@ const data = await withRetry(
 
 ---
 
-## 7. エラーハンドリングのアンチパターン
+## 7. Error Handling Anti-Patterns
 
-### 7.1 よくある間違い
+### 7.1 Common Mistakes
 
 ```python
-# ❌ アンチパターン1: 例外の飲み込み
+# Bad — Anti-pattern 1: swallowing exceptions
 try:
     process(data)
 except Exception:
-    pass  # エラーを完全に無視 → バグの隠蔽
+    pass  # Completely ignoring the error → hiding bugs
 
-# ✅ 改善: 少なくともログに記録
+# Good — at least log it
 try:
     process(data)
 except Exception as e:
     logger.error(f"Failed to process data: {e}")
-    # 必要に応じてリレイズ
+    # Re-raise if necessary
 ```
 
 ```python
-# ❌ アンチパターン2: 広すぎる例外キャッチ
+# Bad — Anti-pattern 2: overly broad exception catch
 try:
     user = get_user(user_id)
     order = create_order(user, items)
     payment = process_payment(order)
 except Exception as e:
-    return {"error": str(e)}  # 何が失敗したか分からない
+    return {"error": str(e)}  # Cannot tell what failed
 
-# ✅ 改善: 具体的な例外をキャッチ
+# Good — catch specific exceptions
 try:
     user = get_user(user_id)
 except UserNotFoundError:
@@ -1920,20 +1921,20 @@ except PaymentError as e:
 ```
 
 ```javascript
-// ❌ アンチパターン3: throw に文字列を使用
-throw "Something went wrong";  // Error オブジェクトでない
+// Bad — Anti-pattern 3: throwing strings
+throw "Something went wrong";  // Not an Error object
 
-// ✅ 改善: Error オブジェクトを使用
+// Good — use Error objects
 throw new Error("Something went wrong");
 throw new AppError("Something went wrong", "UNKNOWN", 500);
 ```
 
 ```go
-// ❌ アンチパターン4: エラーチェックの省略
-data, _ := readFile(path)  // エラーを無視
-processData(data)           // data がゼロ値でクラッシュの可能性
+// Bad — Anti-pattern 4: skipping error checks
+data, _ := readFile(path)  // Error ignored
+processData(data)           // data might be a zero value, potentially causing a crash
 
-// ✅ 改善: 必ずエラーをチェック
+// Good — always check errors
 data, err := readFile(path)
 if err != nil {
     return fmt.Errorf("read file: %w", err)
@@ -1942,21 +1943,21 @@ processData(data)
 ```
 
 ```rust
-// ❌ アンチパターン5: unwrap() の乱用
-let config = load_config().unwrap();  // パニック
-let user = get_user(id).unwrap();     // パニック
+// Bad — Anti-pattern 5: overuse of unwrap()
+let config = load_config().unwrap();  // Panics
+let user = get_user(id).unwrap();     // Panics
 
-// ✅ 改善: 適切なエラーハンドリング
+// Good — proper error handling
 let config = load_config()
     .context("Failed to load config")?;
 let user = get_user(id)
     .map_err(|e| AppError::NotFound(format!("user {}", id)))?;
 
-// unwrap() が許される場面:
-// - テストコード
-// - 論理的に失敗しないことが証明できる場合
-// - プロトタイプ（TODO コメント付き）
-let regex = Regex::new(r"^\d+$").unwrap();  // コンパイル時に確定するリテラル
+// Cases where unwrap() is acceptable:
+// - Test code
+// - When it's logically provable that failure cannot occur
+// - Prototypes (with TODO comments)
+let regex = Regex::new(r"^\d+$").unwrap();  // Literal determined at compile time
 ```
 
 ---
@@ -1964,59 +1965,59 @@ let regex = Regex::new(r"^\d+$").unwrap();  // コンパイル時に確定する
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not only through theory but also by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend solidly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently applied in day-to-day development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## まとめ
+## Summary
 
-| 方式 | エラー伝播 | 型安全 | チェック強制 | 代表言語 |
-|------|----------|--------|-----------|---------|
-| 例外 | 暗黙（throw） | 低い | Java のみ | Python, Java, JS |
-| Result | 明示（?/map） | 高い | コンパイル時 | Rust, Haskell |
-| Either | 明示（bind） | 高い | コンパイル時 | Haskell, Scala |
-| エラーコード | 明示（if err） | 低い | なし | Go, C |
-| ハイブリッド | 両方 | 中 | 部分的 | Swift, Kotlin |
+| Approach | Error Propagation | Type Safety | Enforcement | Representative Languages |
+|----------|------------------|-------------|-------------|------------------------|
+| Exceptions | Implicit (throw) | Low | Java only | Python, Java, JS |
+| Result | Explicit (?/map) | High | Compile-time | Rust, Haskell |
+| Either | Explicit (bind) | High | Compile-time | Haskell, Scala |
+| Error codes | Explicit (if err) | Low | None | Go, C |
+| Hybrid | Both | Medium | Partial | Swift, Kotlin |
 
-### 判断基準
+### Decision Criteria
 
 ```
-例外を使うべき場面:
-  - 呼び出し階層が深く、上位でまとめて処理したい
-  - ライブラリが例外を使う言語（Python, Java, JS）
+When to use exceptions:
+  - Deep call hierarchies where you want to handle errors collectively at a higher level
+  - In languages whose libraries use exceptions (Python, Java, JS)
 
-Result を使うべき場面:
-  - エラーが「予期される」もの（バリデーション、検索ミス）
-  - 型安全性を最大限に活用したい
-  - 関数型スタイルのコードベース
+When to use Result:
+  - Errors are "expected" (validation, search misses)
+  - You want to maximize type safety
+  - Functional-style codebases
 
-エラーコードを使うべき場面:
-  - シンプルさが最優先（C, Go）
-  - エラーの種類が少ない
-  - パフォーマンスが重要
+When to use error codes:
+  - Simplicity is the top priority (C, Go)
+  - Few types of errors
+  - Performance is critical
 
-ハイブリッドを使うべき場面:
-  - チームの習熟度に合わせて選択
-  - API 境界と内部ロジックで使い分け
+When to use hybrid:
+  - Choose based on team proficiency
+  - Use differently at API boundaries vs internal logic
 ```
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
 ---
 
-## 参考文献
+## References
 1. Klabnik, S. & Nichols, C. "The Rust Programming Language." Ch.9, 2023.
 2. Bloch, J. "Effective Java." 3rd Ed, Item 69-77, Addison-Wesley, 2018.
 3. Martin, R. "Clean Code." Ch.7 (Error Handling), Prentice Hall, 2008.

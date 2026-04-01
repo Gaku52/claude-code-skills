@@ -1,260 +1,264 @@
-# ガベージコレクション（GC）完全ガイド
+# Garbage Collection (GC) Complete Guide
 
-> **GC（Garbage Collection）は「不要になったメモリを自動的に回収する」仕組みである。**
-> プログラマの負担を劇的に軽減する一方、制御不能な停止時間（STW: Stop-The-World）という
-> トレードオフを伴う。本ガイドでは GC の理論的基盤から主要言語の実装詳細、
-> チューニング戦略、そしてアンチパターンの回避まで体系的に解説する。
-
----
-
-## この章で学ぶこと
-
-- [ ] GC が解決する問題と、GC が生み出す新たな課題を理解する
-- [ ] マーク&スイープ、コピー GC、参照カウントなど主要アルゴリズムの動作原理を把握する
-- [ ] 世代別仮説（Generational Hypothesis）の根拠と応用を理解する
-- [ ] Java（G1/ZGC）、Go、Python、JavaScript（V8）の GC 実装を比較できる
-- [ ] GC チューニングの基本戦略を習得する
-- [ ] GC に起因するパフォーマンス問題を診断・解決できる
-- [ ] 所有権システム（Rust）や手動管理（C/C++）との本質的な違いを説明できる
-
-
-## 前提知識
-
-このガイドを読む前に、以下の知識があると理解が深まります:
-
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [スタックとヒープ](./00-stack-and-heap.md) の内容を理解していること
+> **GC (Garbage Collection) is a mechanism that "automatically reclaims memory that is no longer needed."**
+> While it dramatically reduces the burden on programmers, it comes with the trade-off of
+> uncontrollable pause times (STW: Stop-The-World). This guide systematically covers everything
+> from the theoretical foundations of GC to implementation details in major languages,
+> tuning strategies, and anti-pattern avoidance.
 
 ---
 
-## 目次
+## What You Will Learn in This Chapter
 
-1. [なぜ GC が必要か](#1-なぜ-gc-が必要か)
-2. [GC の基本概念とルート集合](#2-gc-の基本概念とルート集合)
-3. [マーク&スイープ（Mark and Sweep）](#3-マークスイープmark-and-sweep)
-4. [参照カウント（Reference Counting）](#4-参照カウントreference-counting)
-5. [コピー GC（Copying GC）](#5-コピー-gccopying-gc)
-6. [世代別 GC（Generational GC）](#6-世代別-gcgenerational-gc)
-7. [並行・インクリメンタル GC](#7-並行インクリメンタル-gc)
-8. [主要言語の GC 実装比較](#8-主要言語の-gc-実装比較)
-9. [GC チューニング戦略](#9-gc-チューニング戦略)
-10. [アンチパターンと回避策](#10-アンチパターンと回避策)
-11. [演習問題（3段階）](#11-演習問題3段階)
-12. [FAQ（よくある質問）](#12-faqよくある質問)
-13. [まとめと次のステップ](#13-まとめと次のステップ)
-14. [参考文献](#14-参考文献)
+- [ ] Understand the problems GC solves and the new challenges it introduces
+- [ ] Grasp the operating principles of major algorithms such as Mark & Sweep, Copying GC, and Reference Counting
+- [ ] Understand the rationale and applications of the Generational Hypothesis
+- [ ] Compare GC implementations across Java (G1/ZGC), Go, Python, and JavaScript (V8)
+- [ ] Master basic GC tuning strategies
+- [ ] Diagnose and resolve performance issues caused by GC
+- [ ] Explain the fundamental differences from ownership systems (Rust) and manual management (C/C++)
+
+
+## Prerequisites
+
+Before reading this guide, having the following knowledge will deepen your understanding:
+
+- Basic programming knowledge
+- Understanding of related fundamental concepts
+- Understanding of the contents of [Stack and Heap](./00-stack-and-heap.md)
 
 ---
 
-## 1. なぜ GC が必要か
+## Table of Contents
 
-### 1.1 手動メモリ管理の3大問題
+1. [Why GC Is Needed](#1-why-gc-is-needed)
+2. [Basic GC Concepts and Root Sets](#2-basic-gc-concepts-and-root-sets)
+3. [Mark & Sweep](#3-mark--sweep)
+4. [Reference Counting](#4-reference-counting)
+5. [Copying GC](#5-copying-gc)
+6. [Generational GC](#6-generational-gc)
+7. [Concurrent and Incremental GC](#7-concurrent-and-incremental-gc)
+8. [GC Implementation Comparison Across Major Languages](#8-gc-implementation-comparison-across-major-languages)
+9. [GC Tuning Strategies](#9-gc-tuning-strategies)
+10. [Anti-Patterns and Avoidance Strategies](#10-anti-patterns-and-avoidance-strategies)
+11. [Exercises (3 Levels)](#11-exercises-3-levels)
+12. [FAQ (Frequently Asked Questions)](#12-faq-frequently-asked-questions)
+13. [Summary and Next Steps](#13-summary-and-next-steps)
+14. [References](#14-references)
 
-プログラムが動的にメモリを確保する場合、そのメモリをいつ解放するかは本質的に困難な
-問題である。C/C++ のような手動管理言語では、以下の3つのバグが繰り返し発生してきた。
+---
+
+## 1. Why GC Is Needed
+
+### 1.1 Three Major Problems with Manual Memory Management
+
+When a program dynamically allocates memory, determining when to free that memory is a fundamentally
+difficult problem. In manual management languages like C/C++, the following three bugs have
+repeatedly occurred.
 
 ```
-手動メモリ管理の3大問題:
+Three Major Problems with Manual Memory Management:
 
-  1. メモリリーク（Memory Leak）
+  1. Memory Leak
      ─────────────────────────────────────────────────────
-     malloc() で確保 → 使用 → free() を忘れる → メモリ枯渇
+     malloc() to allocate → use → forget to free() → memory exhaustion
 
-     長時間動作するサーバで致命的。メモリ使用量が単調増加し、
-     最終的に OOM Killer によりプロセスが強制終了される。
+     Fatal for long-running servers. Memory usage increases monotonically,
+     and the process is ultimately killed by the OOM Killer.
 
-     例: 1リクエストあたり 100B のリーク × 100万リクエスト/日
-         = 約 95MB/日 のメモリリーク
+     Example: 100B leak per request × 1 million requests/day
+              = approximately 95MB/day of memory leaks
 
-  2. ダングリングポインタ（Dangling Pointer）
+  2. Dangling Pointer
      ─────────────────────────────────────────────────────
-     free(ptr) → ... → *ptr にアクセス → 未定義動作（UB）
+     free(ptr) → ... → access *ptr → undefined behavior (UB)
 
-     解放済みメモリの内容が偶然正しく見えることがあり、
-     問題の発覚が遅れる。セキュリティ脆弱性の主要因。
-     Use-After-Free（UAF）脆弱性として CVE に頻出。
+     The contents of freed memory may accidentally appear correct,
+     delaying the discovery of the problem. A leading cause of security
+     vulnerabilities. Frequently appears in CVEs as Use-After-Free (UAF).
 
-  3. 二重解放（Double Free）
+  3. Double Free
      ─────────────────────────────────────────────────────
-     free(ptr) → ... → free(ptr) → ヒープ破壊・クラッシュ
+     free(ptr) → ... → free(ptr) → heap corruption / crash
 
-     メモリアロケータの内部データ構造が破壊され、
-     後続の malloc/free が予測不能な動作をする。
+     The internal data structures of the memory allocator are corrupted,
+     causing subsequent malloc/free calls to behave unpredictably.
 ```
 
-### 1.2 C言語での具体例
+### 1.2 Concrete Examples in C
 
 ```c
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-// --- 問題1: メモリリーク ---
+// --- Problem 1: Memory Leak ---
 char* create_greeting(const char* name) {
-    // 呼び出し側が free する責任を負う（忘れがち）
+    // The caller is responsible for freeing (easily forgotten)
     char* buf = (char*)malloc(256);
     if (!buf) return NULL;
     snprintf(buf, 256, "Hello, %s!", name);
-    return buf;  // 所有権が呼び出し側に移転
+    return buf;  // Ownership transfers to the caller
 }
 
 void process_request(const char* name) {
     char* greeting = create_greeting(name);
     printf("%s\n", greeting);
-    // free(greeting);  ← これを忘れるとリーク!
+    // free(greeting);  ← Forgetting this causes a leak!
 }
 
-// --- 問題2: ダングリングポインタ ---
+// --- Problem 2: Dangling Pointer ---
 int* get_local_ptr() {
     int local_val = 42;
-    return &local_val;  // ローカル変数へのポインタを返す（UB）
+    return &local_val;  // Returning a pointer to a local variable (UB)
 }
 
-// --- 問題3: 二重解放 ---
+// --- Problem 3: Double Free ---
 void double_free_example() {
     int* p = (int*)malloc(sizeof(int));
     *p = 100;
     free(p);
-    // ... 後続のコード ...
-    free(p);   // 二重解放! ヒープ破壊
+    // ... subsequent code ...
+    free(p);   // Double free! Heap corruption
 }
 
-// --- GCがあれば全て解決 ---
-// Java/Go/Python では上記3つの問題は構造的に発生しない
+// --- GC solves all of these ---
+// In Java/Go/Python, the above three problems structurally cannot occur
 ```
 
-### 1.3 GC のトレードオフ
+### 1.3 GC Trade-offs
 
-GC は上記の問題を自動的に解決するが、代償として以下のオーバーヘッドが発生する。
+GC automatically solves the above problems, but at the cost of the following overhead.
 
 ```
-GC のトレードオフ:
+GC Trade-offs:
 
   ┌─────────────────────────────────────────────────────────────┐
-  │                     GC のメリット                            │
-  │  + メモリリーク、ダングリングポインタ、二重解放が構造的に排除  │
-  │  + 開発速度の向上（メモリ管理コードが不要）                   │
-  │  + メモリ安全性の保証                                        │
+  │                     GC Advantages                            │
+  │  + Memory leaks, dangling pointers, and double frees are     │
+  │    structurally eliminated                                   │
+  │  + Improved development speed (no memory management code)    │
+  │  + Memory safety guarantee                                   │
   ├─────────────────────────────────────────────────────────────┤
-  │                     GC のデメリット                           │
-  │  - STW（Stop-The-World）による予測不能な停止                  │
-  │  - メモリ使用量の増加（GC メタデータ + 遅延回収）             │
-  │  - CPU 使用率の増加（GC スレッドの実行）                      │
-  │  - キャッシュ効率の低下（オブジェクトの再配置）               │
-  │  - リアルタイム性の保証が困難                                 │
+  │                     GC Disadvantages                          │
+  │  - Unpredictable pauses due to STW (Stop-The-World)          │
+  │  - Increased memory usage (GC metadata + delayed reclamation)│
+  │  - Increased CPU usage (GC thread execution)                 │
+  │  - Reduced cache efficiency (object relocation)              │
+  │  - Difficulty guaranteeing real-time performance              │
   └─────────────────────────────────────────────────────────────┘
 
-  性能特性の比較:
+  Performance Characteristics Comparison:
 
-  手動管理  ████████████████████████████  最高性能（ただし安全性は低い）
-  GC付き    ████████████████████░░░░░░░░  典型的に 5-20% のオーバーヘッド
-  所有権    ██████████████████████████░░  手動に近い性能 + 安全性
+  Manual     ████████████████████████████  Best performance (but low safety)
+  With GC    ████████████████████░░░░░░░░  Typically 5-20% overhead
+  Ownership  ██████████████████████████░░  Near-manual performance + safety
 ```
 
-### 1.4 歴史的経緯
+### 1.4 Historical Background
 
-GC は1959年に John McCarthy が Lisp のために発明した。これはプログラミング言語の
-歴史の中でも最も古く、最も重要な発明の一つである。
+GC was invented in 1959 by John McCarthy for Lisp. This is one of the oldest and most important
+inventions in the history of programming languages.
 
 ```
-GC の歴史年表:
+GC Historical Timeline:
 
-  1959  McCarthy が Lisp 用に Mark & Sweep GC を発明
-  1960  Collins が参照カウント方式を提案
-  1963  Minsky が Copying GC を発明
-  1969  Fenichel & Yochelson が Semi-space Copying GC を開発
-  1984  Lieberman & Hewitt が世代別 GC を提案
-  1992  Boehm が保守的 GC（C/C++向け）を開発
-  2004  Bacon らが Real-time GC の研究を発表
-  2006  Java 6 で Parallel GC がデフォルトに
-  2014  Java 8 で G1 GC が成熟
-  2017  Go 1.8 で STW < 100μs を達成
-  2018  Java 11 で ZGC（実験的）導入
-  2021  Java 17 LTS で ZGC が本番利用可能に
-  2023  Java 21 LTS で世代別 ZGC が導入
+  1959  McCarthy invents Mark & Sweep GC for Lisp
+  1960  Collins proposes reference counting
+  1963  Minsky invents Copying GC
+  1969  Fenichel & Yochelson develop Semi-space Copying GC
+  1984  Lieberman & Hewitt propose generational GC
+  1992  Boehm develops conservative GC (for C/C++)
+  2004  Bacon et al. publish research on Real-time GC
+  2006  Java 6 makes Parallel GC the default
+  2014  G1 GC matures in Java 8
+  2017  Go 1.8 achieves STW < 100μs
+  2018  Java 11 introduces ZGC (experimental)
+  2021  Java 17 LTS makes ZGC production-ready
+  2023  Java 21 LTS introduces generational ZGC
 ```
 
 ---
 
-## 2. GC の基本概念とルート集合
+## 2. Basic GC Concepts and Root Sets
 
-### 2.1 到達可能性（Reachability）
+### 2.1 Reachability
 
-GC の中核概念は「到達可能性」である。ルート集合（Root Set）から参照のチェーンを
-辿って到達できるオブジェクトは「生存」、到達できないオブジェクトは「ゴミ」と判断される。
+The core concept of GC is "reachability." Objects that can be reached by following chains of
+references from the root set are considered "alive," while objects that cannot be reached
+are considered "garbage."
 
 ```
-到達可能性の判定:
+Reachability Determination:
 
-  ルート集合（GC Roots）
+  Root Set (GC Roots)
   ┌──────────────────────────────────────┐
-  │  スタック上のローカル変数              │
-  │  グローバル変数 / 静的変数            │
-  │  JNI 参照（Java の場合）              │
-  │  アクティブスレッドのスタックフレーム  │
-  │  クラスローダーの参照（Java）          │
-  │  レジスタに格納されたポインタ          │
+  │  Local variables on the stack         │
+  │  Global / static variables            │
+  │  JNI references (in Java)             │
+  │  Stack frames of active threads       │
+  │  Class loader references (Java)       │
+  │  Pointers stored in registers         │
   └──────────────────────────────────────┘
          │          │           │
          ▼          ▼           ▼
-      [Obj A] ──→ [Obj B] ──→ [Obj C]    ← 到達可能（生存）
+      [Obj A] ──→ [Obj B] ──→ [Obj C]    ← Reachable (alive)
                     │
                     ▼
-                  [Obj D]                  ← 到達可能（生存）
+                  [Obj D]                  ← Reachable (alive)
 
-      [Obj E] ──→ [Obj F]                 ← 到達不能（ゴミ → 回収対象）
+      [Obj E] ──→ [Obj F]                 ← Unreachable (garbage → subject to collection)
          ↑           │
-         └───────────┘  循環参照しているが
-                        ルートから到達不能なので回収対象
+         └───────────┘  Circular reference, but
+                        unreachable from roots so subject to collection
 ```
 
-### 2.2 ルート集合の詳細
+### 2.2 Root Set Details
 
-ルート集合の構成要素は言語・ランタイムによって異なる。以下は主要なルートの分類である。
+The components of the root set vary by language and runtime. Below is a classification of major roots.
 
 ```
-ルート集合の分類:
+Root Set Classification:
 
-  種類              │ 説明                          │ 例
-  ─────────────────┼──────────────────────────────┼────────────────────
-  スタックルート    │ メソッド/関数のローカル変数    │ int x = new ...
-  グローバルルート  │ 静的フィールド、グローバル変数 │ static Map cache
-  レジスタルート    │ CPU レジスタ内のポインタ       │ JIT最適化で使用
-  JNI ルート        │ ネイティブコードからの参照      │ JNI GlobalRef
-  ファイナライザ    │ finalize待ちオブジェクト       │ Weak/Phantom Ref
-  スレッドルート    │ スレッドオブジェクト自体        │ Thread.currentThread
+  Type             │ Description                       │ Example
+  ─────────────────┼──────────────────────────────────┼────────────────────
+  Stack roots      │ Method/function local variables    │ int x = new ...
+  Global roots     │ Static fields, global variables    │ static Map cache
+  Register roots   │ Pointers in CPU registers          │ Used by JIT optimization
+  JNI roots        │ References from native code        │ JNI GlobalRef
+  Finalizer        │ Objects awaiting finalization       │ Weak/Phantom Ref
+  Thread roots     │ Thread objects themselves           │ Thread.currentThread
 ```
 
-### 2.3 オブジェクトグラフとポインタ解析
+### 2.3 Object Graphs and Pointer Analysis
 
-GC は実行時にオブジェクトグラフを走査する。このグラフの構造によって GC の
-効率が大きく変わる。
+GC traverses the object graph at runtime. The structure of this graph significantly
+affects GC efficiency.
 
 ```java
-// Java: オブジェクトグラフの構築例
+// Java: Object graph construction example
 public class ObjectGraphDemo {
 
-    // ルートから辿れるオブジェクトグラフ
+    // Object graph traceable from roots
     public static void main(String[] args) {
-        // root1: スタック変数（ルート）
+        // root1: Stack variable (root)
         List<String> list = new ArrayList<>();
         list.add("Hello");   // list → "Hello"
         list.add("World");   // list → "World"
 
-        // root2: ローカル変数（ルート）
+        // root2: Local variable (root)
         Map<String, List<String>> map = new HashMap<>();
         map.put("greetings", list);  // map → list → {"Hello", "World"}
 
-        // 到達不能になるオブジェクト
+        // Object that becomes unreachable
         {
-            byte[] temp = new byte[1024 * 1024]; // 1MB 確保
-            // ... temp を使用 ...
+            byte[] temp = new byte[1024 * 1024]; // Allocate 1MB
+            // ... use temp ...
         }
-        // ← ブロックを抜けた時点で temp は到達不能
-        //   次の GC で回収される
+        // ← At the point of leaving this block, temp becomes unreachable
+        //   It will be collected at the next GC
 
-        // map と list はまだルートから到達可能
+        // map and list are still reachable from roots
         System.out.println(map.get("greetings"));
     }
 }
@@ -262,97 +266,97 @@ public class ObjectGraphDemo {
 
 ---
 
-## 3. マーク&スイープ（Mark and Sweep）
+## 3. Mark & Sweep
 
-### 3.1 アルゴリズムの概要
+### 3.1 Algorithm Overview
 
-マーク&スイープは John McCarthy が1959年に Lisp のために発明した最初の GC
-アルゴリズムである。概念的に最もシンプルで、他の全ての GC アルゴリズムの基礎となっている。
+Mark & Sweep is the first GC algorithm invented by John McCarthy in 1959 for Lisp.
+It is conceptually the simplest and forms the foundation for all other GC algorithms.
 
 ```
-マーク&スイープの2フェーズ:
+Mark & Sweep Two Phases:
 
   ┌──────────────────────────────────────────────────────────┐
-  │  Phase 1: Mark（マーク） ── 到達可能オブジェクトの探索    │
+  │  Phase 1: Mark — Searching for reachable objects          │
   │                                                          │
-  │  1. 全オブジェクトの mark ビットを 0 にリセット           │
-  │  2. ルート集合からの参照を辿り、深さ優先探索（DFS）      │
-  │  3. 到達可能なオブジェクトの mark ビットを 1 に設定       │
+  │  1. Reset the mark bit of all objects to 0               │
+  │  2. Follow references from the root set using DFS        │
+  │  3. Set the mark bit of reachable objects to 1           │
   │                                                          │
-  │  Phase 2: Sweep（スイープ） ── ゴミの回収                │
+  │  Phase 2: Sweep — Collecting garbage                     │
   │                                                          │
-  │  1. ヒープ全体を線形走査                                 │
-  │  2. mark ビットが 0 のオブジェクトをフリーリストに返却    │
-  │  3. mark ビットが 1 のオブジェクトのビットを 0 にリセット │
+  │  1. Linearly scan the entire heap                        │
+  │  2. Return objects with mark bit 0 to the free list      │
+  │  3. Reset the mark bit of objects with mark bit 1 to 0   │
   └──────────────────────────────────────────────────────────┘
 ```
 
-### 3.2 動作の詳細な可視化
+### 3.2 Detailed Visualization of Operation
 
 ```
-マーク&スイープの段階的な動作:
+Step-by-step Mark & Sweep Operation:
 
-  === 初期状態 ===
+  === Initial State ===
 
-  ルート: [R1] ─→ [A] ─→ [B]
+  Roots: [R1] ─→ [A] ─→ [B]
          [R2] ─→ [C] ─→ [D]
                         ↗
-  孤立:  [E] ─→ [F] ─┘     ← E,F は到達不能（に見えるが D 経由で...)
+  Isolated: [E] ─→ [F] ─┘     ← E,F are unreachable (appear to be, but via D...)
 
-  実際のグラフ:
+  Actual graph:
 
   [R1]──→[A]──→[B]
               ↗
   [R2]──→[C]──→[D]
 
-  [E]──→[F]           ← ルートから到達不能
+  [E]──→[F]           ← Unreachable from roots
 
   === Phase 1: Mark ===
 
-  Step 1: R1 から探索開始
+  Step 1: Start exploration from R1
     R1 → A (mark=1) → B (mark=1)
 
-  Step 2: R2 から探索開始
+  Step 2: Start exploration from R2
     R2 → C (mark=1) → D (mark=1)
 
-  結果:
+  Result:
     A(1) B(1) C(1) D(1) E(0) F(0)
 
   === Phase 2: Sweep ===
 
-  ヒープを走査:
-    A(1) → mark=0 にリセット、保持
-    B(1) → mark=0 にリセット、保持
-    C(1) → mark=0 にリセット、保持
-    D(1) → mark=0 にリセット、保持
-    E(0) → フリーリストに追加（回収）  ★
-    F(0) → フリーリストに追加（回収）  ★
+  Scan heap:
+    A(1) → reset mark=0, retain
+    B(1) → reset mark=0, retain
+    C(1) → reset mark=0, retain
+    D(1) → reset mark=0, retain
+    E(0) → add to free list (collected)  ★
+    F(0) → add to free list (collected)  ★
 
-  回収されたメモリ: E + F のサイズ分
+  Memory collected: size of E + F
 ```
 
-### 3.3 擬似コード実装
+### 3.3 Pseudocode Implementation
 
 ```python
-# マーク&スイープ GC の擬似コード実装
+# Mark & Sweep GC pseudocode implementation
 
 class Object:
     def __init__(self, name, size):
         self.name = name
         self.size = size
         self.marked = False
-        self.references = []  # 他オブジェクトへの参照
+        self.references = []  # References to other objects
 
 class MarkSweepGC:
     def __init__(self, heap_size):
-        self.heap = []          # 全オブジェクトのリスト
-        self.roots = []         # ルート集合
-        self.free_list = []     # フリーリスト
+        self.heap = []          # List of all objects
+        self.roots = []         # Root set
+        self.free_list = []     # Free list
         self.heap_size = heap_size
         self.used = 0
 
     def allocate(self, name, size):
-        """メモリ確保。空きがなければGCを実行"""
+        """Allocate memory. Run GC if no space available"""
         if self.used + size > self.heap_size:
             self.collect()
             if self.used + size > self.heap_size:
@@ -364,15 +368,15 @@ class MarkSweepGC:
         return obj
 
     def collect(self):
-        """GC の実行: Mark → Sweep"""
+        """Execute GC: Mark → Sweep"""
         print("=== GC Start ===")
 
         # Phase 1: Mark
         for obj in self.heap:
-            obj.marked = False    # 全ビットをリセット
+            obj.marked = False    # Reset all bits
 
         for root in self.roots:
-            self._mark(root)      # ルートから到達可能なオブジェクトをマーク
+            self._mark(root)      # Mark objects reachable from roots
 
         # Phase 2: Sweep
         alive = []
@@ -390,507 +394,508 @@ class MarkSweepGC:
         print(f"=== GC End: freed {freed} bytes ===")
 
     def _mark(self, obj):
-        """再帰的に到達可能オブジェクトをマーク（DFS）"""
+        """Recursively mark reachable objects (DFS)"""
         if obj is None or obj.marked:
             return
         obj.marked = True
         for ref in obj.references:
             self._mark(ref)
 
-# --- 使用例 ---
+# --- Usage example ---
 gc = MarkSweepGC(heap_size=1024)
 
-# オブジェクト確保
+# Allocate objects
 a = gc.allocate("A", 100)
 b = gc.allocate("B", 200)
 c = gc.allocate("C", 150)
 d = gc.allocate("D", 100)
 
-# 参照グラフ構築
+# Build reference graph
 a.references.append(b)    # A → B
 b.references.append(c)    # B → C
 
-# ルート設定（A のみルートから到達可能）
+# Set roots (only A is reachable from roots)
 gc.roots = [a]
 
-# GC 実行 → D は到達不能なので回収される
+# Execute GC → D is unreachable so it gets collected
 gc.collect()
-# 出力:
+# Output:
 #   === GC Start ===
 #     Freed: D (100 bytes)
 #   === GC End: freed 100 bytes ===
 ```
 
-### 3.4 マーク&スイープの利点と欠点
+### 3.4 Advantages and Disadvantages of Mark & Sweep
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
-│  マーク&スイープの評価                                          │
+│  Mark & Sweep Evaluation                                        │
 ├───────────────────────┬────────────────────────────────────────┤
-│  利点                  │  詳細                                 │
+│  Advantages            │  Details                               │
 ├───────────────────────┼────────────────────────────────────────┤
-│  循環参照の処理        │  参照カウントと異なり、循環参照を       │
-│                       │  正しく検出・回収できる                 │
+│  Circular reference    │  Unlike reference counting, can         │
+│  handling              │  correctly detect and collect cycles    │
 ├───────────────────────┼────────────────────────────────────────┤
-│  実装のシンプルさ      │  2つのフェーズで構成される              │
-│                       │  基本的な理解が容易                     │
+│  Simplicity of         │  Composed of two phases                │
+│  implementation        │  Fundamentally easy to understand       │
 ├───────────────────────┼────────────────────────────────────────┤
-│  確保コストゼロ        │  オブジェクト確保時に追加の             │
-│                       │  管理コストが不要                       │
+│  Zero allocation cost  │  No additional management cost          │
+│                       │  when allocating objects                 │
 ├───────────────────────┼────────────────────────────────────────┤
-│  欠点                  │  詳細                                 │
+│  Disadvantages         │  Details                               │
 ├───────────────────────┼────────────────────────────────────────┤
-│  STW（全停止）        │  マーク・スイープ中はアプリケーション   │
-│                       │  全体が停止する                         │
+│  STW (full pause)     │  The entire application stops during    │
+│                       │  mark and sweep phases                   │
 ├───────────────────────┼────────────────────────────────────────┤
-│  メモリ断片化          │  回収後にメモリの穴ができ、             │
-│                       │  大きな連続領域の確保が困難になる       │
+│  Memory fragmentation │  Holes form in memory after collection, │
+│                       │  making large contiguous allocation hard │
 ├───────────────────────┼────────────────────────────────────────┤
-│  ヒープ全走査          │  スイープフェーズで全ヒープを走査       │
-│                       │  ヒープが大きいと時間がかかる           │
+│  Full heap scan       │  Sweep phase scans the entire heap      │
+│                       │  Takes time for large heaps              │
 └───────────────────────┴────────────────────────────────────────┘
 ```
 
-### 3.5 断片化問題の図解
+### 3.5 Fragmentation Problem Illustrated
 
 ```
-メモリ断片化の問題:
+Memory Fragmentation Problem:
 
-  GC 前:
+  Before GC:
   ┌──────┬──────┬──────┬──────┬──────┬──────┬──────┬──────┐
   │  A   │  B   │  C   │  D   │  E   │  F   │  G   │  H   │
   │ 100B │ 200B │ 150B │ 100B │ 300B │ 50B  │ 200B │ 100B │
   └──────┴──────┴──────┴──────┴──────┴──────┴──────┴──────┘
 
-  GC 後（B, D, F が回収）:
+  After GC (B, D, F collected):
   ┌──────┬ ─ ─ ┬──────┬ ─ ─ ┬──────┬ ─ ─ ┬──────┬──────┐
-  │  A   │(空)  │  C   │(空)  │  E   │(空)  │  G   │  H   │
+  │  A   │(free)│  C   │(free)│  E   │(free)│  G   │  H   │
   │ 100B │200B  │ 150B │100B  │ 300B │ 50B  │ 200B │ 100B │
   └──────┴ ─ ─ ┴──────┴ ─ ─ ┴──────┴ ─ ─ ┴──────┴──────┘
 
-  空き合計: 350B あるが、最大の連続空き領域は 200B
-  → 250B のオブジェクトを確保できない!（外部断片化）
+  Total free: 350B, but the largest contiguous free region is 200B
+  → Cannot allocate a 250B object! (external fragmentation)
 
-  解決策: コンパクション（Compaction）
+  Solution: Compaction
   ┌──────┬──────┬──────┬──────┬──────┬─────────────────────┐
-  │  A   │  C   │  E   │  G   │  H   │      空き(350B)      │
+  │  A   │  C   │  E   │  G   │  H   │      free (350B)     │
   │ 100B │ 150B │ 300B │ 200B │ 100B │                      │
   └──────┴──────┴──────┴──────┴──────┴─────────────────────┘
 
-  → 連続した350Bの空き領域を確保できる
-  → ただしコンパクションにはポインタの書き換えが必要（高コスト）
+  → A contiguous 350B free region can now be obtained
+  → However, compaction requires rewriting pointers (high cost)
 ```
 
 ---
 
-## 4. 参照カウント（Reference Counting）
+## 4. Reference Counting
 
-### 4.1 アルゴリズムの概要
+### 4.1 Algorithm Overview
 
-参照カウントは、各オブジェクトが「何個のポインタから参照されているか」を記録する
-方式である。参照カウントが 0 になった時点で即座にオブジェクトを回収する。
+Reference counting is a method where each object records "how many pointers reference it."
+When the reference count reaches 0, the object is immediately collected.
 
 ```
-参照カウントの基本動作:
+Basic Reference Counting Operation:
 
-  操作                          カウント変化
+  Operation                      Count Change
   ─────────────────────────────────────────────
   a = new Obj()                 Obj.rc = 1
   b = a                         Obj.rc = 2
   a = null                      Obj.rc = 1
-  b = null                      Obj.rc = 0 → 即座に回収!
+  b = null                      Obj.rc = 0 → Immediately collected!
 
-  タイムライン:
+  Timeline:
 
-  時刻  操作        a      b      Obj.rc   状態
+  Time  Operation   a      b      Obj.rc   Status
   ────────────────────────────────────────────────
-  T1    a=new()     →Obj   -      1        生存
-  T2    b=a         →Obj   →Obj   2        生存
-  T3    a=null      null   →Obj   1        生存
-  T4    b=null      null   null   0        ★回収★
+  T1    a=new()     →Obj   -      1        Alive
+  T2    b=a         →Obj   →Obj   2        Alive
+  T3    a=null      null   →Obj   1        Alive
+  T4    b=null      null   null   0        ★Collected★
 ```
 
-### 4.2 Python の参照カウント実装
+### 4.2 Python's Reference Counting Implementation
 
-Python は参照カウントをメインの GC 機構として採用している唯一の主要言語である。
+Python is the only major language that uses reference counting as its main GC mechanism.
 
 ```python
 import sys
 import gc
 
-# === 参照カウントの観察 ===
+# === Observing Reference Counting ===
 
 class MyObject:
     def __init__(self, name):
         self.name = name
     def __del__(self):
-        print(f"  デストラクタ呼出: {self.name} を回収")
+        print(f"  Destructor called: collecting {self.name}")
 
-print("--- 参照カウントの基本 ---")
+print("--- Reference Counting Basics ---")
 obj = MyObject("Alpha")
-print(f"参照カウント: {sys.getrefcount(obj) - 1}")
-# getrefcount 自体の一時参照分を -1 する
+print(f"Reference count: {sys.getrefcount(obj) - 1}")
+# Subtract 1 for the temporary reference from getrefcount itself
 
 ref2 = obj
-print(f"参照追加後: {sys.getrefcount(obj) - 1}")
+print(f"After adding reference: {sys.getrefcount(obj) - 1}")
 
 del ref2
-print(f"参照削除後: {sys.getrefcount(obj) - 1}")
+print(f"After deleting reference: {sys.getrefcount(obj) - 1}")
 
-del obj  # rc=0 → 即座にデストラクタが呼ばれる
-print("del obj の直後")
+del obj  # rc=0 → destructor is called immediately
+print("Right after del obj")
 
-# 出力:
-#   --- 参照カウントの基本 ---
-#   参照カウント: 1
-#   参照追加後: 2
-#   参照削除後: 1
-#     デストラクタ呼出: Alpha を回収
-#   del obj の直後
+# Output:
+#   --- Reference Counting Basics ---
+#   Reference count: 1
+#   After adding reference: 2
+#   After deleting reference: 1
+#     Destructor called: collecting Alpha
+#   Right after del obj
 
-print("\n--- 循環参照の問題 ---")
-# 参照カウントだけでは回収できないケース
+print("\n--- Circular Reference Problem ---")
+# Case where reference counting alone cannot collect
 a = MyObject("CycleA")
 b = MyObject("CycleB")
 a.partner = b   # a → b
-b.partner = a   # b → a（循環参照）
+b.partner = a   # b → a (circular reference)
 
-# 外部参照を削除しても rc は 0 にならない
-del a  # CycleA.rc: 2→1（b.partner からまだ参照されている）
-del b  # CycleB.rc: 2→1（a.partner からまだ参照されている）
+# External references are deleted but rc never reaches 0
+del a  # CycleA.rc: 2→1 (still referenced by b.partner)
+del b  # CycleB.rc: 2→1 (still referenced by a.partner)
 
-# → デストラクタは呼ばれない!
-# → Python の世代別 GC（サイクルコレクタ）が回収する
+# → Destructors are NOT called!
+# → Python's generational GC (cycle collector) will collect them
 
-print("手動で gc.collect() を呼ぶ:")
+print("Calling gc.collect() manually:")
 collected = gc.collect()
-print(f"回収されたオブジェクト数: {collected}")
+print(f"Number of collected objects: {collected}")
 
-# 出力:
-#   --- 循環参照の問題 ---
-#   手動で gc.collect() を呼ぶ:
-#     デストラクタ呼出: CycleA を回収
-#     デストラクタ呼出: CycleB を回収
-#   回収されたオブジェクト数: 2
+# Output:
+#   --- Circular Reference Problem ---
+#   Calling gc.collect() manually:
+#     Destructor called: collecting CycleA
+#     Destructor called: collecting CycleB
+#   Number of collected objects: 2
 ```
 
-### 4.3 循環参照問題の図解
+### 4.3 Circular Reference Problem Illustrated
 
 ```
-循環参照問題:
+Circular Reference Problem:
 
-  === 外部参照がある状態 ===
+  === State with External References ===
 
-  ルート
+  Roots
   ┌──────┐
   │ a ───┼──→ [ObjA  rc=2] ──→ [ObjB  rc=2]
   │ b ───┼──→       ↑          │
-  └──────┘          └──────────┘  循環参照
+  └──────┘          └──────────┘  Circular reference
 
-  rc=2 の内訳:
-    ObjA: ルート a (1) + ObjB.partner (1) = 2
-    ObjB: ルート b (1) + ObjA.partner (1) = 2
+  rc=2 breakdown:
+    ObjA: root a (1) + ObjB.partner (1) = 2
+    ObjB: root b (1) + ObjA.partner (1) = 2
 
-  === del a, del b の後 ===
+  === After del a, del b ===
 
-  ルート
+  Roots
   ┌──────┐
   │      │     [ObjA  rc=1] ──→ [ObjB  rc=1]
   │      │           ↑          │
-  └──────┘           └──────────┘  循環参照
+  └──────┘           └──────────┘  Circular reference
 
-  rc=1 の内訳:
-    ObjA: ObjB.partner (1) = 1  ← 0 にならない!
-    ObjB: ObjA.partner (1) = 1  ← 0 にならない!
+  rc=1 breakdown:
+    ObjA: ObjB.partner (1) = 1  ← Never reaches 0!
+    ObjB: ObjA.partner (1) = 1  ← Never reaches 0!
 
-  → 参照カウント方式だけでは回収不可能
-  → 別途「サイクルコレクタ」が必要
+  → Cannot be collected by reference counting alone
+  → A separate "cycle collector" is needed
 ```
 
-### 4.4 参照カウントの利点と欠点
+### 4.4 Advantages and Disadvantages of Reference Counting
 
 ```
-参照カウント方式の評価:
+Reference Counting Evaluation:
 
   ┌────────────────────────────────────────────────────────────┐
-  │  利点                                                      │
+  │  Advantages                                                │
   ├────────────────────────────────────────────────────────────┤
-  │  1. 即時回収: rc=0 になった瞬間にメモリが解放される         │
-  │     → デストラクタの実行タイミングが予測可能                │
-  │     → メモリ使用量のピークが低く抑えられる                  │
+  │  1. Immediate collection: Memory is freed the moment rc=0  │
+  │     → Destructor execution timing is predictable           │
+  │     → Peak memory usage is kept low                        │
   │                                                            │
-  │  2. STW なし: GC による一括停止が発生しない                 │
-  │     → レイテンシが予測しやすい                              │
+  │  2. No STW: No batch pauses caused by GC                   │
+  │     → Latency is predictable                               │
   │                                                            │
-  │  3. 局所性: 参照の変更時にのみコストが発生                  │
-  │     → GC に比べてコストが分散される                         │
+  │  3. Locality: Cost is incurred only on reference changes    │
+  │     → Cost is distributed compared to GC                   │
   ├────────────────────────────────────────────────────────────┤
-  │  欠点                                                      │
+  │  Disadvantages                                             │
   ├────────────────────────────────────────────────────────────┤
-  │  1. 循環参照: 参照カウントだけでは回収不可能                │
-  │     → 別途サイクルコレクタが必要（Python の実装）           │
+  │  1. Circular references: Cannot be collected by RC alone    │
+  │     → A separate cycle collector is needed (Python's impl.) │
   │                                                            │
-  │  2. カウント更新のオーバーヘッド                             │
-  │     → 全ての参照操作で原子的な inc/dec が必要               │
-  │     → マルチスレッド環境では特に高コスト                    │
+  │  2. Count update overhead                                   │
+  │     → Atomic inc/dec required for every reference operation │
+  │     → Especially costly in multithreaded environments       │
   │                                                            │
-  │  3. 連鎖的解放: 大きなデータ構造の解放が連鎖し、           │
-  │     一時的に長い停止が発生する可能性がある                   │
-  │     例: 100万ノードの木を解放 → 100万回の再帰的 free       │
+  │  3. Cascading deallocation: Freeing large data structures  │
+  │     cascades, potentially causing a temporarily long pause  │
+  │     Example: Freeing a tree with 1M nodes → 1M recursive   │
+  │     free calls                                              │
   │                                                            │
-  │  4. メモリオーバーヘッド: 各オブジェクトに rc フィールド     │
-  │     が必要（通常 4-8 バイト）                               │
+  │  4. Memory overhead: Each object needs an rc field          │
+  │     (typically 4-8 bytes)                                   │
   └────────────────────────────────────────────────────────────┘
 ```
 
-### 4.5 Swift の ARC（Automatic Reference Counting）
+### 4.5 Swift's ARC (Automatic Reference Counting)
 
-Swift は参照カウントをコンパイラレベルで自動化した ARC を採用している。
-プログラマが手動で retain/release を書く必要はないが、循環参照は
-`weak` / `unowned` キーワードで明示的に断ち切る必要がある。
+Swift uses ARC, which automates reference counting at the compiler level.
+Programmers don't need to manually write retain/release, but must explicitly break
+circular references using the `weak` / `unowned` keywords.
 
 ```swift
-// Swift: ARC の動作と循環参照の回避
+// Swift: ARC operation and circular reference avoidance
 
 class Person {
     let name: String
-    var apartment: Apartment?  // 強参照
+    var apartment: Apartment?  // Strong reference
 
     init(name: String) {
         self.name = name
-        print("\(name) を確保")
+        print("\(name) allocated")
     }
     deinit {
-        print("\(name) を解放")
+        print("\(name) deallocated")
     }
 }
 
 class Apartment {
     let unit: String
-    weak var tenant: Person?   // 弱参照（循環参照の回避）
+    weak var tenant: Person?   // Weak reference (circular reference avoidance)
 
     init(unit: String) {
         self.unit = unit
-        print("Apt \(unit) を確保")
+        print("Apt \(unit) allocated")
     }
     deinit {
-        print("Apt \(unit) を解放")
+        print("Apt \(unit) deallocated")
     }
 }
 
-// 使用例
+// Usage example
 var john: Person? = Person(name: "John")       // John.rc = 1
 var apt: Apartment? = Apartment(unit: "101")   // Apt101.rc = 1
 
-john!.apartment = apt    // Apt101.rc = 2（強参照）
-apt!.tenant = john       // John.rc = 1（weak なので rc は増えない）
+john!.apartment = apt    // Apt101.rc = 2 (strong reference)
+apt!.tenant = john       // John.rc = 1 (weak, so rc does not increase)
 
-john = nil   // John.rc = 0 → 解放、Apt101.rc = 1
-apt = nil    // Apt101.rc = 0 → 解放
+john = nil   // John.rc = 0 → deallocated, Apt101.rc = 1
+apt = nil    // Apt101.rc = 0 → deallocated
 
-// weak を使わないと:
-// john = nil → John.rc=1（apt.tenant が強参照）→ 解放されない!
-// apt = nil  → Apt101.rc=1（john.apartment が強参照）→ 解放されない!
-// → メモリリーク
+// Without weak:
+// john = nil → John.rc=1 (apt.tenant holds a strong reference) → NOT deallocated!
+// apt = nil  → Apt101.rc=1 (john.apartment holds a strong reference) → NOT deallocated!
+// → Memory leak
 ```
 
-### 4.6 参照カウントとマーク&スイープの比較
+### 4.6 Reference Counting vs Mark & Sweep Comparison
 
 ```
 ┌───────────────────┬────────────────────┬────────────────────┐
-│  特性              │  参照カウント       │  マーク&スイープ    │
+│  Property          │  Reference Counting │  Mark & Sweep       │
 ├───────────────────┼────────────────────┼────────────────────┤
-│  回収タイミング    │  即時（rc=0時）     │  GC実行時          │
-│  STW              │  なし              │  あり（全停止）     │
-│  循環参照          │  処理不可          │  処理可能          │
-│  CPU オーバーヘッド │  分散的（常時）     │  集中的（GC時）    │
-│  メモリ効率        │  高い（即時回収）   │  やや低い（遅延回収）│
-│  実装の複雑さ      │  低い              │  中程度            │
-│  スレッド安全性    │  原子操作が必要     │  GCスレッドで一括  │
-│  連鎖解放          │  発生する          │  発生しない        │
-│  採用言語          │  Python, Swift,    │  Java, Go, JS,     │
-│                   │  Objective-C, Perl │  Ruby, C#          │
+│  Collection timing │  Immediate (rc=0)  │  At GC execution    │
+│  STW              │  None              │  Yes (full pause)    │
+│  Circular refs    │  Cannot handle     │  Can handle          │
+│  CPU overhead     │  Distributed       │  Concentrated (GC)   │
+│  Memory efficiency│  High (immediate)  │  Slightly low (delay)│
+│  Impl. complexity │  Low               │  Moderate            │
+│  Thread safety    │  Atomics needed    │  Batch by GC thread  │
+│  Cascading free   │  Occurs            │  Does not occur      │
+│  Languages using  │  Python, Swift,    │  Java, Go, JS,       │
+│                   │  Objective-C, Perl │  Ruby, C#            │
 └───────────────────┴────────────────────┴────────────────────┘
 ```
 
 ---
 
-## 5. コピー GC（Copying GC）
+## 5. Copying GC
 
-### 5.1 セミスペース方式の原理
+### 5.1 Semi-space Principle
 
-コピー GC はヒープを2つの等しいサイズの空間（セミスペース）に分割し、
-生存オブジェクトを一方から他方へコピーする方式である。1963年に Marvin Minsky が
-提案し、1969年に Fenichel と Yochelson が現在知られる形に洗練した。
+Copying GC divides the heap into two equally-sized spaces (semi-spaces) and copies
+surviving objects from one to the other. It was proposed by Marvin Minsky in 1963
+and refined into its current form by Fenichel and Yochelson in 1969.
 
 ```
-セミスペース・コピー GC の動作:
+Semi-space Copying GC Operation:
 
-  === GC 前 ===
+  === Before GC ===
 
-  From空間（アクティブ）              To空間（空き）
+  From-space (active)               To-space (empty)
   ┌─────────────────────────┐       ┌─────────────────────────┐
   │ [A 100B] [dead] [B 80B] │       │                         │
-  │ [dead] [C 60B] [dead]   │       │        (未使用)          │
+  │ [dead] [C 60B] [dead]   │       │        (unused)          │
   │ [D 40B] [dead] [dead]   │       │                         │
   └─────────────────────────┘       └─────────────────────────┘
-   生存: A,B,C,D  死亡: 5個
+   Alive: A,B,C,D  Dead: 5
 
-  === GC 実行（コピー） ===
+  === GC Execution (Copying) ===
 
-  ルートから到達可能なオブジェクトだけを To にコピー:
+  Copy only objects reachable from roots to To-space:
 
-  From空間                          To空間
+  From-space                          To-space
   ┌─────────────────────────┐       ┌─────────────────────────┐
   │                         │       │ [A' 100B][B' 80B]       │
-  │    (全体を破棄)          │  ←→   │ [C' 60B] [D' 40B]       │
-  │                         │       │       (空き領域)         │
+  │    (discard entirely)    │  ←→   │ [C' 60B] [D' 40B]       │
+  │                         │       │       (free space)       │
   └─────────────────────────┘       └─────────────────────────┘
-   From と To を交換
+   Swap From and To
 
-  === GC 後 ===
+  === After GC ===
 
-  From空間（旧 To、新アクティブ）     To空間（旧 From、空き）
+  From-space (old To, now active)    To-space (old From, empty)
   ┌─────────────────────────┐       ┌─────────────────────────┐
   │ [A' 100B][B' 80B]       │       │                         │
-  │ [C' 60B] [D' 40B]       │       │        (未使用)          │
-  │       (空き領域)         │       │                         │
+  │ [C' 60B] [D' 40B]       │       │        (unused)          │
+  │       (free space)       │       │                         │
   └─────────────────────────┘       └─────────────────────────┘
 
-  特徴:
-  - コンパクションが自動的に行われる（断片化なし）
-  - 生存オブジェクト数に比例するコスト（死亡オブジェクトは無視）
-  - メモリの半分しか使えないというトレードオフ
+  Characteristics:
+  - Compaction happens automatically (no fragmentation)
+  - Cost proportional to number of surviving objects (dead objects ignored)
+  - Trade-off: only half the memory is usable
 ```
 
-### 5.2 フォワーディングポインタ
+### 5.2 Forwarding Pointers
 
-コピー GC では、コピー元のオブジェクトに「フォワーディングポインタ」を設置して、
-他のオブジェクトからの参照を新しいアドレスに転送する。
+In Copying GC, a "forwarding pointer" is placed at the original location of a copied object
+to redirect references from other objects to the new address.
 
 ```
-フォワーディングポインタの仕組み:
+Forwarding Pointer Mechanism:
 
-  Step 1: ルートから A を発見、To にコピー
+  Step 1: Discover A from roots, copy to To-space
   From: [A] ──(forwarding)──→ To: [A']
         ↑
-  Step 2: B を発見（A を参照している）
-  From: [B] → [A のfwd] → To: [A']
-        ↓ コピー
-  To:   [B'] → [A']    ← 参照先が自動的に更新される
+  Step 2: Discover B (references A)
+  From: [B] → [A's fwd] → To: [A']
+        ↓ copy
+  To:   [B'] → [A']    ← Reference automatically updated
 
-  Step 3: C を発見（A を参照している）
-  From: [C] → [A のfwd] → To: [A'] ← 既にコピー済み、再コピーしない
-        ↓ コピー
+  Step 3: Discover C (references A)
+  From: [C] → [A's fwd] → To: [A'] ← Already copied, not re-copied
+        ↓ copy
   To:   [C'] → [A']
 
-  → 全ての参照が新しいアドレスを指すように自動的に書き換えられる
+  → All references are automatically rewritten to point to the new addresses
 ```
 
-### 5.3 Cheney のアルゴリズム
+### 5.3 Cheney's Algorithm
 
-1970年に C.J. Cheney が提案した、スタックを使わない幅優先探索（BFS）ベースの
-コピー GC アルゴリズムは、再帰を使わないため実装が効率的である。
+The BFS-based Copying GC algorithm proposed by C.J. Cheney in 1970 does not use a stack,
+making its implementation efficient without recursion.
 
 ```python
-# Cheney のコピー GC アルゴリズム（擬似コード）
+# Cheney's Copying GC Algorithm (pseudocode)
 
 class CheneyGC:
     def __init__(self, space_size):
         self.space_size = space_size
-        # From 空間と To 空間
+        # From-space and To-space
         self.from_space = bytearray(space_size)
         self.to_space = bytearray(space_size)
-        self.alloc_ptr = 0  # From 空間の確保位置
-        self.scan = 0       # To 空間のスキャンポインタ
-        self.free = 0       # To 空間の空きポインタ
+        self.alloc_ptr = 0  # Allocation position in From-space
+        self.scan = 0       # Scan pointer in To-space
+        self.free = 0       # Free pointer in To-space
 
     def collect(self, roots):
-        """GC 実行: Cheney のBFSコピー"""
+        """Execute GC: Cheney's BFS copy"""
         self.scan = 0
         self.free = 0
 
-        # Step 1: ルートから直接参照されるオブジェクトをコピー
+        # Step 1: Copy objects directly referenced from roots
         new_roots = []
         for root in roots:
             new_roots.append(self._copy(root))
 
-        # Step 2: BFS でコピー済みオブジェクトの参照先もコピー
+        # Step 2: BFS — also copy references of already-copied objects
         while self.scan < self.free:
             obj = self._object_at(self.to_space, self.scan)
             for i, ref in enumerate(obj.references):
                 obj.references[i] = self._copy(ref)
             self.scan += obj.size
 
-        # Step 3: From と To を交換
+        # Step 3: Swap From and To
         self.from_space, self.to_space = self.to_space, self.from_space
         self.alloc_ptr = self.free
 
         return new_roots
 
     def _copy(self, obj):
-        """オブジェクトを To 空間にコピー（未コピーの場合のみ）"""
+        """Copy object to To-space (only if not already copied)"""
         if obj.forwarding is not None:
-            return obj.forwarding  # 既にコピー済み
+            return obj.forwarding  # Already copied
 
-        # To 空間にコピー
+        # Copy to To-space
         new_obj = self._copy_bytes(obj, self.to_space, self.free)
         self.free += obj.size
 
-        # フォワーディングポインタを設置
+        # Install forwarding pointer
         obj.forwarding = new_obj
         return new_obj
 ```
 
-### 5.4 コピー GC の性能特性
+### 5.4 Performance Characteristics of Copying GC
 
 ```
-コピー GC の性能分析:
+Copying GC Performance Analysis:
 
-  生存率（生存オブジェクト / 全オブジェクト）と GC コストの関係:
+  Relationship between survival rate (surviving objects / total objects) and GC cost:
 
-  コスト
-  高 │                                     ╱
+  Cost
+  High│                                     ╱
      │                                   ╱
      │                                ╱
      │                             ╱
      │                          ╱
      │                       ╱
      │                    ╱
-     │                 ╱           ← コピー GC: 生存率に比例
+     │                 ╱           ← Copying GC: proportional to survival rate
      │              ╱
      │           ╱
      │        ╱
-     │─────╱──────────────────────── ← マーク&スイープ: ほぼ一定
-     │  ╱                               （全ヒープ走査のため）
-  低 │╱
-     └──────────────────────────────→ 生存率
+     │─────╱──────────────────────── ← Mark & Sweep: roughly constant
+     │  ╱                               (due to full heap scan)
+  Low│╱
+     └──────────────────────────────→ Survival rate
      0%                           100%
 
-  結論:
-  - 生存率が低い場合（<50%）: コピー GC が有利
-  - 生存率が高い場合（>50%）: マーク&スイープが有利
-  - Young 世代は生存率が低い → コピー GC が最適
-  - Old 世代は生存率が高い → マーク&スイープが最適
+  Conclusion:
+  - Low survival rate (<50%): Copying GC is advantageous
+  - High survival rate (>50%): Mark & Sweep is advantageous
+  - Young generation has low survival rate → Copying GC is optimal
+  - Old generation has high survival rate → Mark & Sweep is optimal
 ```
 
 ---
 
-## 6. 世代別 GC（Generational GC）
+## 6. Generational GC
 
-### 6.1 世代別仮説（Generational Hypothesis）
+### 6.1 Generational Hypothesis
 
-世代別 GC は「ほとんどのオブジェクトは若くして死ぬ」（Infant Mortality）という
-経験則に基づく最適化手法である。この仮説は1984年に David Ungar が Smalltalk の
-研究で体系化した。
+Generational GC is an optimization technique based on the empirical rule that
+"most objects die young" (Infant Mortality). This hypothesis was systematized by
+David Ungar in 1984 through his research on Smalltalk.
 
 ```
-世代別仮説の根拠:
+Basis for the Generational Hypothesis:
 
-  オブジェクトの寿命分布（典型的なアプリケーション）:
+  Object lifetime distribution (typical application):
 
-  オブジェクト数
-  多 │██
+  Number of objects
+  Many│██
      │██
      │██
      │██░░
@@ -900,98 +905,98 @@ class CheneyGC:
      │██░░░░░░░░
      │██░░░░░░░░░░░░░░
      │██░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-  少 │██░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-     └──────────────────────────────────────────────────────→ 寿命
-     短                                                    長
+  Few │██░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+     └──────────────────────────────────────────────────────→ Lifetime
+     Short                                                  Long
 
-  █ = Young 世代で死亡（80-98%）
-  ░ = Old 世代まで生存（2-20%）
+  █ = Die in Young generation (80-98%)
+  ░ = Survive to Old generation (2-20%)
 
-  具体例:
-  - メソッドのローカル変数、一時オブジェクト → すぐ死亡
-  - イテレータ、ラムダのクロージャ → すぐ死亡
-  - キャッシュ、設定オブジェクト → 長期生存
-  - シングルトン → アプリ終了まで生存
+  Concrete examples:
+  - Method local variables, temporary objects → die quickly
+  - Iterators, lambda closures → die quickly
+  - Caches, configuration objects → long-lived
+  - Singletons → alive until application exit
 ```
 
-### 6.2 Java HotSpot の世代別構成
+### 6.2 Java HotSpot Generational Layout
 
 ```
-Java HotSpot VM のヒープ構成:
+Java HotSpot VM Heap Layout:
 
   ┌─────────────────────────────────────────────────────────────────┐
-  │                         Java ヒープ                              │
+  │                         Java Heap                                │
   │                                                                 │
-  │  Young Generation（若い世代）         Old Generation（古い世代）  │
+  │  Young Generation                    Old Generation              │
   │  ┌────────┬──────┬──────┐            ┌──────────────────────┐   │
   │  │  Eden  │  S0  │  S1  │            │                      │   │
-  │  │        │(from)│ (to) │   昇格     │    Tenured Space     │   │
-  │  │ 新規   │      │      │ ────────→  │                      │   │
-  │  │ オブジェ│サバイ│サバイ│            │   長寿命オブジェクト  │   │
-  │  │ クト   │バ 0  │バ 1  │            │                      │   │
+  │  │        │(from)│ (to) │  Promotion │    Tenured Space     │   │
+  │  │  New   │      │      │ ────────→  │                      │   │
+  │  │ objects│Survi-│Survi-│            │  Long-lived objects   │   │
+  │  │        │vor 0 │vor 1 │            │                      │   │
   │  └────────┴──────┴──────┘            └──────────────────────┘   │
-  │  ←── Minor GC（高頻度）──→            ←── Major GC（低頻度）──→  │
+  │  ←── Minor GC (frequent) ──→         ←── Major GC (infrequent)→ │
   │                                                                 │
-  │  Metaspace（Java 8+: ネイティブメモリ）                          │
+  │  Metaspace (Java 8+: native memory)                             │
   │  ┌──────────────────────────────────────────────────────────┐   │
-  │  │ クラスメタデータ、メソッド情報、定数プール                 │   │
+  │  │ Class metadata, method info, constant pool                │   │
   │  └──────────────────────────────────────────────────────────┘   │
   └─────────────────────────────────────────────────────────────────┘
 
-  デフォルトの比率:
-  - Young : Old = 1 : 2（-XX:NewRatio=2）
-  - Eden : S0 : S1 = 8 : 1 : 1（-XX:SurvivorRatio=8）
+  Default ratios:
+  - Young : Old = 1 : 2 (-XX:NewRatio=2)
+  - Eden : S0 : S1 = 8 : 1 : 1 (-XX:SurvivorRatio=8)
 ```
 
-### 6.3 Minor GC の詳細な動作
+### 6.3 Detailed Minor GC Operation
 
 ```
-Minor GC のステップバイステップ:
+Minor GC Step by Step:
 
-  === Step 1: Eden が満杯 ===
+  === Step 1: Eden is full ===
   Eden            S0(from)     S1(to)       Old
   ┌──────────┐   ┌────┐      ┌────┐      ┌──────┐
   │A B C D E │   │ F  │      │    │      │  Z   │
-  │(全て新規) │   │age1│      │    │      │      │
+  │(all new)  │   │age1│      │    │      │      │
   └──────────┘   └────┘      └────┘      └──────┘
-  ※ B, D は既に到達不能
+  * B, D are already unreachable
 
-  === Step 2: Minor GC 実行 ===
-  - Eden の生存オブジェクト（A,C,E）を S1(to) にコピー
-  - S0 の生存オブジェクト（F, age=1）を S1(to) にコピー（age+1）
-  - B, D は到達不能なのでコピーされない（回収）
+  === Step 2: Minor GC executes ===
+  - Copy surviving objects from Eden (A,C,E) to S1(to)
+  - Copy surviving objects from S0 (F, age=1) to S1(to) (age+1)
+  - B, D are unreachable so they are not copied (collected)
 
   Eden            S0(from)     S1(to)       Old
   ┌──────────┐   ┌────┐      ┌────┐      ┌──────┐
-  │  (空)     │   │(空)│      │A   │      │  Z   │
+  │  (empty)  │   │(empty)│   │A   │      │  Z   │
   │          │   │    │      │C   │      │      │
   │          │   │    │      │E   │age0  │      │
   │          │   │    │      │F   │age2  │      │
   └──────────┘   └────┘      └────┘      └──────┘
 
-  === Step 3: S0 と S1 の役割を交換 ===
-  Eden            S0(=旧S1)    S1(=旧S0)    Old
+  === Step 3: Swap S0 and S1 roles ===
+  Eden            S0(=old S1)  S1(=old S0)  Old
   ┌──────────┐   ┌────┐      ┌────┐      ┌──────┐
-  │  (空)     │   │A   │      │    │      │  Z   │
-  │          │   │C   │      │(空)│      │      │
+  │  (empty)  │   │A   │      │    │      │  Z   │
+  │          │   │C   │      │(empty)│   │      │
   │          │   │E   │age0  │    │      │      │
   │          │   │F   │age2  │    │      │      │
   └──────────┘   └────┘      └────┘      └──────┘
 
-  === Step 4: 次の Minor GC で F(age>=閾値) を Old へ昇格 ===
-  - MaxTenuringThreshold（デフォルト15）に達したら昇格
-  - Survivor が溢れた場合も Old に直接昇格
+  === Step 4: In the next Minor GC, promote F (age>=threshold) to Old ===
+  - Promoted when MaxTenuringThreshold (default 15) is reached
+  - Also promoted directly to Old if Survivor overflows
 ```
 
-### 6.4 書き込みバリア（Write Barrier）
+### 6.4 Write Barrier
 
-世代別 GC では、Old から Young への参照を追跡する必要がある。これを実現するのが
-書き込みバリアである。
+In generational GC, references from Old to Young need to be tracked. This is achieved
+through write barriers.
 
 ```
-書き込みバリアの必要性:
+Necessity of Write Barriers:
 
-  問題: Old → Young への参照
+  Problem: Old → Young reference
 
   Old                    Young
   ┌──────────┐          ┌──────────┐
@@ -999,77 +1004,78 @@ Minor GC のステップバイステップ:
   │          │          │          │
   └──────────┘          └──────────┘
 
-  Minor GC は Young 世代だけを走査する。
-  しかし OldObj → YoungObj の参照を見落とすと、
-  YoungObj を誤って回収してしまう!
+  Minor GC only scans the Young generation.
+  However, if the Old → Young reference is missed,
+  YoungObj would be erroneously collected!
 
-  解決策: 書き込みバリア + Remembered Set
+  Solution: Write Barrier + Remembered Set
 
-  1. Old オブジェクトへの書き込み時にバリアが発動
-  2. Old → Young の参照を Remembered Set（カードテーブル）に記録
-  3. Minor GC 時に Remembered Set もルートとして扱う
+  1. A barrier triggers on writes to Old objects
+  2. Old → Young references are recorded in the Remembered Set (card table)
+  3. During Minor GC, the Remembered Set is also treated as roots
 
-  カードテーブル:
+  Card Table:
   ┌───┬───┬───┬───┬───┬───┬───┬───┐
-  │ 0 │ 0 │ 1 │ 0 │ 0 │ 1 │ 0 │ 0 │  ← 各カードは512Bの領域に対応
+  │ 0 │ 0 │ 1 │ 0 │ 0 │ 1 │ 0 │ 0 │  ← Each card corresponds to a 512B region
   └───┴───┴───┴───┴───┴───┴───┴───┘
             ↑               ↑
-        このカードの領域に     このカードの領域に
-        Young への参照あり     Young への参照あり
+        This card's region  This card's region
+        has Young refs      has Young refs
 
-  → dirty なカードの領域だけスキャンすればよい
+  → Only dirty card regions need to be scanned
 ```
 
-### 6.5 V8（JavaScript）の世代別 GC
+### 6.5 V8 (JavaScript) Generational GC
 
 ```
-V8 エンジンの GC アーキテクチャ（Orinoco）:
+V8 Engine GC Architecture (Orinoco):
 
   ┌─────────────────────────────────────────────────────────────┐
-  │  Young Generation（Scavenger）                               │
+  │  Young Generation (Scavenger)                               │
   │                                                             │
-  │  Semi-space 方式（コピー GC）                                │
+  │  Semi-space method (Copying GC)                             │
   │  ┌──────────────┐  ┌──────────────┐                        │
   │  │  From-space   │  │   To-space    │                        │
   │  │              │  │              │                        │
-  │  │  新規オブジェ  │  │  (GC後の生存  │                        │
-  │  │  クトを確保   │  │   オブジェクト)│                        │
+  │  │  New objects  │  │  (Surviving   │                        │
+  │  │  allocated   │  │   objects     │                        │
+  │  │  here        │  │   after GC)   │                        │
   │  └──────────────┘  └──────────────┘                        │
-  │  - サイズ: 1-8MB（デフォルト）                               │
-  │  - 2回の Scavenge を生き延びたら Old へ昇格                  │
-  │  - 停止時間: 1-2ms                                          │
+  │  - Size: 1-8MB (default)                                    │
+  │  - Promoted to Old after surviving 2 scavenges              │
+  │  - Pause time: 1-2ms                                        │
   ├─────────────────────────────────────────────────────────────┤
-  │  Old Generation（Mark-Sweep-Compact）                        │
+  │  Old Generation (Mark-Sweep-Compact)                        │
   │                                                             │
   │  ┌──────────────────────────────────────────────────┐       │
   │  │                                                  │       │
-  │  │  インクリメンタルマーキング:                        │       │
-  │  │    GC を小さなステップに分割し、メインスレッドの     │       │
-  │  │    停止を最小化                                    │       │
+  │  │  Incremental marking:                             │       │
+  │  │    Splits GC into small steps to minimize         │       │
+  │  │    main thread pauses                             │       │
   │  │                                                  │       │
-  │  │  並行マーキング:                                   │       │
-  │  │    ワーカースレッドでマーキングを並行実行            │       │
+  │  │  Concurrent marking:                              │       │
+  │  │    Marking runs concurrently on worker threads    │       │
   │  │                                                  │       │
-  │  │  並行スイープ:                                     │       │
-  │  │    メインスレッドの実行中にバックグラウンドでスイープ │       │
+  │  │  Concurrent sweeping:                             │       │
+  │  │    Sweeping in background while main thread runs  │       │
   │  │                                                  │       │
-  │  │  コンパクション（必要な場合のみ）:                  │       │
-  │  │    断片化が閾値を超えた場合に実行                   │       │
+  │  │  Compaction (only when needed):                   │       │
+  │  │    Executes when fragmentation exceeds threshold  │       │
   │  └──────────────────────────────────────────────────┘       │
-  │  - サイズ: 数百MB〜数GB                                     │
-  │  - Idle-Time GC: ブラウザのアイドル時間に GC を実行         │
+  │  - Size: hundreds of MB to several GB                       │
+  │  - Idle-Time GC: Runs GC during browser idle time           │
   └─────────────────────────────────────────────────────────────┘
 ```
 
-### 6.6 Node.js での V8 GC チューニング
+### 6.6 V8 GC Tuning in Node.js
 
 ```javascript
-// Node.js: V8 GC の挙動観察とチューニング
+// Node.js: Observing and tuning V8 GC behavior
 
-// --- GC イベントの監視 ---
-// 起動オプション: node --expose-gc --trace-gc app.js
+// --- Monitoring GC events ---
+// Launch option: node --expose-gc --trace-gc app.js
 
-// ヒープ統計の取得
+// Get heap statistics
 const v8 = require('v8');
 
 function printHeapStats() {
@@ -1083,179 +1089,179 @@ function printHeapStats() {
     console.log(`  Number of contexts:   ${stats.number_of_native_contexts}`);
 }
 
-// --- メモリリークの検出パターン ---
-// 問題のあるコード: クロージャによるリーク
+// --- Memory leak detection patterns ---
+// Problematic code: Leak through closures
 const leakyCache = [];
 function processRequest(data) {
-    // クロージャが data を捕捉し続ける → GC が回収できない
+    // Closure keeps capturing data → GC cannot collect it
     const handler = () => {
-        return data.length; // data への参照を保持
+        return data.length; // Holds reference to data
     };
-    leakyCache.push(handler); // 配列に蓄積 → メモリリーク
+    leakyCache.push(handler); // Accumulates in array → memory leak
 }
 
-// 改善: WeakRef を使用（Node.js 14.6+）
+// Improvement: Use WeakRef (Node.js 14.6+)
 const cache = new Map();
 function processRequestFixed(id, data) {
-    // WeakRef: GC が必要に応じて回収できる
+    // WeakRef: GC can collect when needed
     cache.set(id, new WeakRef(data));
 }
 
 function getCachedData(id) {
     const ref = cache.get(id);
     if (ref) {
-        const data = ref.deref(); // null の場合は GC に回収された
+        const data = ref.deref(); // null if collected by GC
         if (data) return data;
-        cache.delete(id); // 回収済みエントリを削除
+        cache.delete(id); // Remove collected entry
     }
     return null;
 }
 
-// --- チューニングオプション ---
-// node --max-old-space-size=4096 app.js   # Old 世代を 4GB に
-// node --max-semi-space-size=64 app.js    # Young 世代を 64MB に
-// node --expose-gc app.js                 # global.gc() を有効化
-// node --trace-gc app.js                  # GC イベントをログ出力
-// node --gc-interval=100 app.js           # GC 間隔の調整
+// --- Tuning options ---
+// node --max-old-space-size=4096 app.js   # Old generation to 4GB
+// node --max-semi-space-size=64 app.js    # Young generation to 64MB
+// node --expose-gc app.js                 # Enable global.gc()
+// node --trace-gc app.js                  # Log GC events
+// node --gc-interval=100 app.js           # Adjust GC interval
 
 printHeapStats();
 ```
 
 ---
 
-## 7. 並行・インクリメンタル GC
+## 7. Concurrent and Incremental GC
 
-### 7.1 STW 問題と解決アプローチ
+### 7.1 The STW Problem and Solution Approaches
 
-マーク&スイープや世代別 GC の最大の課題は STW（Stop-The-World）である。
-GC 実行中にアプリケーションのスレッドが全て停止するため、レスポンスタイムに
-予測不能なスパイクが発生する。
+The biggest challenge of Mark & Sweep and Generational GC is STW (Stop-The-World).
+All application threads stop during GC execution, causing unpredictable spikes in
+response time.
 
 ```
-STW の影響:
+Impact of STW:
 
-  時間軸 ──────────────────────────────────────────→
+  Timeline ──────────────────────────────────────────→
 
-  アプリ  ████████████│          │████████████████████
-  スレッド            │  STW !   │
-                     │  GC実行  │
+  App     ████████████│          │████████████████████
+  threads             │  STW !   │
+                     │  GC runs │
                      │ (50ms)   │
                      │          │
-  レスポンス          │          │
-  タイム   2ms  3ms  │ 53ms!!   │ 2ms  2ms  3ms
+  Response           │          │
+  time    2ms  3ms   │ 53ms!!   │ 2ms  2ms  3ms
                      ↑
-                  ここでリクエストを受けたら
-                  50ms のレイテンシスパイク
+                  If a request arrives here,
+                  a 50ms latency spike occurs
 
-  解決アプローチ:
+  Solution Approaches:
   ┌──────────────────────────────────────────────────┐
-  │  1. インクリメンタル GC: GC を小分けにして実行    │
-  │  2. 並行（Concurrent）GC: バックグラウンド実行    │
-  │  3. 並列（Parallel）GC: 複数スレッドで GC 実行   │
-  │  4. 上記の組み合わせ                              │
+  │  1. Incremental GC: Run GC in small increments   │
+  │  2. Concurrent GC: Run in the background          │
+  │  3. Parallel GC: Run GC on multiple threads       │
+  │  4. Combination of the above                      │
   └──────────────────────────────────────────────────┘
 ```
 
-### 7.2 三色マーキング（Tri-color Marking）
+### 7.2 Tri-color Marking
 
-並行 GC の正確性を保証するための核心技術が三色マーキングである。
-1975年に Dijkstra らが提案した。
+The core technique that guarantees correctness in concurrent GC is tri-color marking,
+proposed by Dijkstra et al. in 1975.
 
 ```
-三色マーキング:
+Tri-color Marking:
 
-  色の定義:
-  ■ 黒（Black）: 走査完了。自身も全ての子もマーク済み
-  ░ 灰（Gray）:  自身はマーク済みだが、子の走査がまだ
-  □ 白（White）: 未走査。GC 終了時に白なら回収対象
+  Color definitions:
+  ■ Black: Scanning complete. Self and all children are marked
+  ░ Gray:  Self is marked, but children not yet scanned
+  □ White: Not yet scanned. White at GC end means subject to collection
 
-  マーキングの進行:
+  Marking progression:
 
-  Step 0（初期状態）: 全オブジェクト白、ルートの直接参照先を灰に
+  Step 0 (initial state): All objects white, direct references from roots turned gray
   ┌──────┐
   │ root │─→ ░A ─→ □B ─→ □C
   └──────┘    │
               └─→ □D ─→ □E
 
-  Step 1: A を処理（灰→黒）、A の子を灰に
+  Step 1: Process A (gray→black), turn A's children gray
   ┌──────┐
   │ root │─→ ■A ─→ ░B ─→ □C
   └──────┘    │
               └─→ ░D ─→ □E
 
-  Step 2: B を処理（灰→黒）、B の子を灰に
+  Step 2: Process B (gray→black), turn B's children gray
   ┌──────┐
   │ root │─→ ■A ─→ ■B ─→ ░C
   └──────┘    │
               └─→ ░D ─→ □E
 
-  Step 3: C を処理（灰→黒）、子なし
+  Step 3: Process C (gray→black), no children
   ┌──────┐
   │ root │─→ ■A ─→ ■B ─→ ■C
   └──────┘    │
               └─→ ░D ─→ □E
 
-  Step 4: D を処理（灰→黒）、D の子を灰に
+  Step 4: Process D (gray→black), turn D's children gray
   ┌──────┐
   │ root │─→ ■A ─→ ■B ─→ ■C
   └──────┘    │
               └─→ ■D ─→ ░E
 
-  Step 5: E を処理（灰→黒）
+  Step 5: Process E (gray→black)
   ┌──────┐
   │ root │─→ ■A ─→ ■B ─→ ■C
   └──────┘    │
               └─→ ■D ─→ ■E
 
-  完了: 灰オブジェクトがなくなったらマーキング終了
-  → 白のオブジェクトはルートから到達不能 → 回収
+  Complete: Marking ends when there are no more gray objects
+  → White objects are unreachable from roots → collect
 ```
 
-### 7.3 並行 GC の不変条件と書き込みバリア
+### 7.3 Concurrent GC Invariants and Write Barriers
 
-並行 GC ではアプリケーション（Mutator）と GC（Collector）が同時に動作するため、
-参照の変更を正しく追跡する必要がある。
+In concurrent GC, the application (Mutator) and GC (Collector) run simultaneously,
+requiring correct tracking of reference changes.
 
 ```
-並行 GC のロストオブジェクト問題:
+Lost Object Problem in Concurrent GC:
 
-  Mutator が GC 中に参照を変更すると、生存オブジェクトが
-  誤って回収される可能性がある（ロストオブジェクト問題）。
+  If the Mutator changes references during GC, live objects may be
+  erroneously collected (lost object problem).
 
-  === 問題のシナリオ ===
+  === Problematic Scenario ===
 
-  1. GC が ■A を走査済み、░B を走査中
+  1. GC has finished scanning ■A, currently scanning ░B
      ■A ─→ ░B ─→ □C
 
-  2. Mutator が以下の操作を同時に実行:
-     A.ref = C    （A から C への参照を追加）
-     B.ref = null  （B から C への参照を削除）
+  2. Mutator simultaneously performs:
+     A.ref = C    (add reference from A to C)
+     B.ref = null  (remove reference from B to C)
 
-  3. 結果:
-     ■A ─→ □C    A は既に黒なので再走査されない
-     ■B           B からの C への参照は削除済み
+  3. Result:
+     ■A ─→ □C    A is already black so it won't be re-scanned
+     ■B           B's reference to C has been removed
 
-  → C は到達可能なのに白のまま → 誤って回収される!
+  → C is reachable but remains white → erroneously collected!
 
-  === 解決策: 書き込みバリア ===
+  === Solutions: Write Barriers ===
 
-  Dijkstra バリア（スナップショット方式）:
-    参照の書き込み時に、新しい参照先を灰に変更
-    → 「新しく参照されるオブジェクトは確実に走査される」
+  Dijkstra Barrier (snapshot-at-the-beginning):
+    On write, turn the new reference target gray
+    → "Newly referenced objects are definitely scanned"
 
-  Yuasa バリア（削除バリア）:
-    参照の削除時に、削除される参照先を灰に変更
-    → 「削除される参照先は確実に走査される」
+  Yuasa Barrier (deletion barrier):
+    On reference deletion, turn the deleted target gray
+    → "Deleted reference targets are definitely scanned"
 
-  Steele バリア（インクリメンタルアップデート）:
-    黒オブジェクトに新しい参照が追加されたら、黒→灰に戻す
-    → 「参照を追加された黒オブジェクトは再走査される」
+  Steele Barrier (incremental update):
+    When a new reference is added to a black object, revert black→gray
+    → "Black objects with new references are re-scanned"
 ```
 
-### 7.4 Go のゴルーチンと並行 GC
+### 7.4 Go's Goroutines and Concurrent GC
 
 ```go
-// Go: 並行 GC の実践
+// Go: Concurrent GC in practice
 
 package main
 
@@ -1267,93 +1273,93 @@ import (
 )
 
 func main() {
-    // === GC 統計の取得 ===
+    // === Get GC statistics ===
     var stats debug.GCStats
     debug.ReadGCStats(&stats)
-    fmt.Printf("GC 回数: %d\n", stats.NumGC)
-    fmt.Printf("最後の GC: %v\n", stats.LastGC)
+    fmt.Printf("GC count: %d\n", stats.NumGC)
+    fmt.Printf("Last GC: %v\n", stats.LastGC)
 
-    // === メモリ統計の取得 ===
+    // === Get memory statistics ===
     var m runtime.MemStats
     runtime.ReadMemStats(&m)
-    fmt.Printf("ヒープ使用量: %.2f MB\n", float64(m.HeapAlloc)/1024/1024)
-    fmt.Printf("ヒープ確保量: %.2f MB\n", float64(m.HeapSys)/1024/1024)
-    fmt.Printf("GC 回数: %d\n", m.NumGC)
-    fmt.Printf("GC 停止時間合計: %v\n", time.Duration(m.PauseTotalNs))
+    fmt.Printf("Heap in use: %.2f MB\n", float64(m.HeapAlloc)/1024/1024)
+    fmt.Printf("Heap allocated: %.2f MB\n", float64(m.HeapSys)/1024/1024)
+    fmt.Printf("GC count: %d\n", m.NumGC)
+    fmt.Printf("Total GC pause time: %v\n", time.Duration(m.PauseTotalNs))
 
-    // === GOGC の設定 ===
-    // GOGC=100（デフォルト）: ヒープが100%成長したら GC
-    // GOGC=50: より頻繁に GC → メモリ節約、CPU 消費増
-    // GOGC=200: GC 頻度減 → スループット向上、メモリ消費増
-    // GOGC=off: GC を無効化（特殊用途のみ）
+    // === GOGC configuration ===
+    // GOGC=100 (default): GC when heap grows by 100%
+    // GOGC=50: More frequent GC → saves memory, more CPU
+    // GOGC=200: Less frequent GC → better throughput, more memory
+    // GOGC=off: Disable GC (special use cases only)
     old := debug.SetGCPercent(50)
-    fmt.Printf("旧 GOGC: %d, 新 GOGC: 50\n", old)
+    fmt.Printf("Old GOGC: %d, New GOGC: 50\n", old)
 
-    // === GOMEMLIMIT の設定（Go 1.19+）===
-    // ソフトなメモリ上限を設定
-    // GOGC と組み合わせて使用するのが推奨
+    // === GOMEMLIMIT configuration (Go 1.19+) ===
+    // Set a soft memory limit
+    // Recommended to use in combination with GOGC
     debug.SetMemoryLimit(512 * 1024 * 1024) // 512MB
 
-    // === 手動 GC の実行 ===
-    runtime.GC() // 即座に GC を実行
+    // === Manual GC execution ===
+    runtime.GC() // Execute GC immediately
 
-    // === GC 完了の待機 ===
-    // runtime.GC() は GC が完了するまでブロックする
+    // === Wait for GC completion ===
+    // runtime.GC() blocks until GC completes
 
-    // === ファイナライザの設定 ===
+    // === Setting finalizers ===
     type Resource struct {
         name string
     }
     r := &Resource{name: "database-connection"}
     runtime.SetFinalizer(r, func(res *Resource) {
-        fmt.Printf("ファイナライザ: %s を解放\n", res.name)
+        fmt.Printf("Finalizer: releasing %s\n", res.name)
     })
-    // r が到達不能になったとき、次の GC でファイナライザが実行される
-    // 注意: ファイナライザの実行タイミングは保証されない
+    // When r becomes unreachable, the finalizer runs at the next GC
+    // Note: Finalizer execution timing is not guaranteed
 }
 ```
 
 ---
 
-## 8. 主要言語の GC 実装比較
+## 8. GC Implementation Comparison Across Major Languages
 
-### 8.1 Java の GC コレクタ一覧
+### 8.1 Java GC Collector List
 
 ```
-Java GC コレクタの進化:
+Evolution of Java GC Collectors:
 
   ┌──────────────┬──────────┬────────────┬─────────────────────────┐
-  │ コレクタ      │ 導入     │ ターゲット  │ 特徴                     │
+  │ Collector     │ Intro    │ Target      │ Characteristics          │
   ├──────────────┼──────────┼────────────┼─────────────────────────┤
-  │ Serial GC    │ JDK 1.0  │ 小規模     │ シングルスレッド          │
-  │              │          │ クライアント│ STW あり                 │
+  │ Serial GC    │ JDK 1.0  │ Small-scale│ Single-threaded          │
+  │              │          │ Client     │ Has STW                  │
   ├──────────────┼──────────┼────────────┼─────────────────────────┤
-  │ Parallel GC  │ JDK 1.4  │ スループット│ 複数スレッドで GC 実行   │
-  │ (Throughput) │          │ 重視       │ STW あり                 │
+  │ Parallel GC  │ JDK 1.4  │ Throughput │ Multi-threaded GC        │
+  │ (Throughput) │          │ focused    │ Has STW                  │
   ├──────────────┼──────────┼────────────┼─────────────────────────┤
-  │ CMS          │ JDK 1.4  │ 低レイテンシ│ 並行マーク&スイープ      │
-  │ (非推奨)     │          │            │ Java 14 で削除           │
+  │ CMS          │ JDK 1.4  │ Low latency│ Concurrent Mark & Sweep  │
+  │ (deprecated) │          │            │ Removed in Java 14       │
   ├──────────────┼──────────┼────────────┼─────────────────────────┤
-  │ G1 GC        │ JDK 7    │ バランス型  │ Region ベース            │
-  │ (デフォルト)  │ (Java 9) │            │ 停止時間目標を設定可能    │
+  │ G1 GC        │ JDK 7    │ Balanced   │ Region-based             │
+  │ (default)    │ (Java 9) │            │ Configurable pause target│
   ├──────────────┼──────────┼────────────┼─────────────────────────┤
-  │ ZGC          │ JDK 11   │ 超低レイテンシ│ 停止時間 < 1ms          │
-  │              │ (JDK 15) │ 大規模ヒープ │ 最大 16TB ヒープ対応    │
-  │              │          │            │ カラーポインタ           │
+  │ ZGC          │ JDK 11   │ Ultra-low  │ Pause time < 1ms         │
+  │              │ (JDK 15) │ latency,   │ Up to 16TB heap          │
+  │              │          │ large heap │ Colored pointers         │
   ├──────────────┼──────────┼────────────┼─────────────────────────┤
-  │ Shenandoah   │ JDK 12   │ 超低レイテンシ│ ZGC と同等の低レイテンシ │
-  │              │          │            │ ブルックスポインタ       │
-  │              │          │            │ Red Hat 主導             │
+  │ Shenandoah   │ JDK 12   │ Ultra-low  │ Low latency like ZGC     │
+  │              │          │ latency    │ Brooks pointer           │
+  │              │          │            │ Led by Red Hat            │
   ├──────────────┼──────────┼────────────┼─────────────────────────┤
-  │ Generational │ JDK 21   │ 最新の推奨  │ ZGC + 世代別の組合せ    │
-  │ ZGC          │          │            │ Young/Old 世代を分離    │
+  │ Generational │ JDK 21   │ Latest     │ ZGC + Generational       │
+  │ ZGC          │          │ recommended│ Separates Young/Old      │
   └──────────────┴──────────┴────────────┴─────────────────────────┘
 ```
 
-### 8.2 G1 GC の Region ベースアーキテクチャ
+### 8.2 G1 GC Region-Based Architecture
 
 ```
-G1 GC のヒープ構造:
+G1 GC Heap Structure:
 
   ┌────┬────┬────┬────┬────┬────┬────┬────┐
   │ E  │ E  │ S  │ O  │ O  │ H  │ O  │ E  │
@@ -1366,17 +1372,17 @@ G1 GC のヒープ構造:
   └────┴────┴────┴────┴────┴────┴────┴────┘
 
   E = Eden Region      S = Survivor Region
-  O = Old Region       H = Humongous Region（大オブジェクト用）
+  O = Old Region       H = Humongous Region (for large objects)
 
-  動作:
-  1. ヒープを 1-32MB の Region に分割（通常 2048 個）
-  2. 各 Region は E/S/O/H のいずれかの役割を持つ
-  3. Mixed GC: 回収効率の高い Region を優先的に回収
-     → "Garbage First" の名前の由来
-  4. 停止時間目標（-XX:MaxGCPauseMillis=200）に収まるよう
-     回収する Region 数を調整
+  Operation:
+  1. Heap is divided into 1-32MB Regions (typically 2048)
+  2. Each Region has a role of E/S/O/H
+  3. Mixed GC: Prioritizes regions with highest collection efficiency
+     → Origin of the name "Garbage First"
+  4. Adjusts the number of regions collected to stay within
+     the pause time target (-XX:MaxGCPauseMillis=200)
 
-  Java コマンドライン:
+  Java command line:
   java -XX:+UseG1GC \
        -XX:MaxGCPauseMillis=200 \
        -XX:G1HeapRegionSize=4m \
@@ -1385,251 +1391,252 @@ G1 GC のヒープ構造:
        MyApplication
 ```
 
-### 8.3 ZGC の革新的技術
+### 8.3 ZGC Innovative Technology
 
 ```
-ZGC（Z Garbage Collector）のアーキテクチャ:
+ZGC (Z Garbage Collector) Architecture:
 
-  核心技術: カラーポインタ（Colored Pointer）
+  Core technology: Colored Pointer
 
-  64ビットポインタの構成:
+  64-bit pointer structure:
   ┌──────────────────────────────────────────────────────────────┐
   │ 63    47│46│45│44│43│42  │41                              0│
-  │ (未使用) │M │R │F │Md│Met │        オブジェクトアドレス       │
-  │         │a │e │i │  │a   │        （42ビット = 4TB）        │
+  │ (unused)│M │R │F │Md│Met │        Object address            │
+  │         │a │e │i │  │a   │        (42 bits = 4TB)           │
   │         │r │m │n │  │    │                                 │
   │         │k │a │a │  │    │                                 │
   │         │e │p │l │  │    │                                 │
   │         │d │  │  │  │    │                                 │
   └──────────────────────────────────────────────────────────────┘
 
-  - Marked:     マーキング済みフラグ
-  - Remapped:   再配置済みフラグ
-  - Finalizable: ファイナライザ保留フラグ
+  - Marked:     Marked flag
+  - Remapped:   Relocated flag
+  - Finalizable: Finalizer pending flag
 
-  ZGC のフェーズ:
-  1. Pause Mark Start     ← STW（極短: < 1ms）
-     ルートのスキャンのみ
-  2. Concurrent Mark      ← アプリと並行
-     オブジェクトグラフの走査
-  3. Pause Mark End       ← STW（極短: < 1ms）
-     参照処理の完了
-  4. Concurrent Relocate  ← アプリと並行
-     オブジェクトの再配置
+  ZGC Phases:
+  1. Pause Mark Start     ← STW (extremely short: < 1ms)
+     Root scanning only
+  2. Concurrent Mark      ← Concurrent with application
+     Object graph traversal
+  3. Pause Mark End       ← STW (extremely short: < 1ms)
+     Reference processing completion
+  4. Concurrent Relocate  ← Concurrent with application
+     Object relocation
 
-  Java コマンドライン:
+  Java command line:
   java -XX:+UseZGC \
-       -XX:+ZGenerational \    # 世代別 ZGC（JDK 21+推奨）
+       -XX:+ZGenerational \    # Generational ZGC (recommended for JDK 21+)
        -Xms8g -Xmx8g \
        -Xlog:gc*:file=gc.log \
        MyApplication
 ```
 
-### 8.4 Go の並行マーク&スイープ
+### 8.4 Go's Concurrent Mark & Sweep
 
 ```
-Go の GC 特性:
+Go GC Characteristics:
 
-  設計思想:
-  - 世代別ではない（シンプルさを重視）
-  - 並行マーク&スイープ
-  - STW を最小化（目標 < 500μs）
-  - レイテンシ重視（スループットよりレイテンシを優先）
+  Design Philosophy:
+  - Not generational (prioritizes simplicity)
+  - Concurrent Mark & Sweep
+  - Minimizes STW (target < 500μs)
+  - Latency-focused (prioritizes latency over throughput)
 
-  GC サイクル:
+  GC Cycle:
   ┌────────────────────────────────────────────────────────────┐
   │                                                            │
   │  ┌─STW─┐                              ┌─STW─┐            │
   │  │Mark │  Concurrent Mark & Sweep      │Mark │            │
   │  │Start│                               │Term │            │
   │  │     │  ┌──────────────────────────┐ │     │            │
-  │  │<1ms │  │ Mutator と GC が並行動作  │ │<1ms │            │
-  │  │     │  │                          │ │     │            │
+  │  │<1ms │  │ Mutator and GC run       │ │<1ms │            │
+  │  │     │  │ concurrently             │ │     │            │
   │  └─────┘  └──────────────────────────┘ └─────┘            │
   │                                                            │
-  │  STW1        並行マーキング              STW2   スイープ    │
-  │  (短い)      (アプリ実行中)              (短い)  (並行)     │
+  │  STW1       Concurrent marking          STW2   Sweeping    │
+  │  (short)    (app running)               (short) (concurrent)│
   └────────────────────────────────────────────────────────────┘
 
-  GC ペーシング:
-  - GOGC=100: ヒープが前回GC後の2倍になったらGC開始
-  - GOMEMLIMIT: ソフトメモリ上限（Go 1.19+）
-  - GC はヒープの成長率に基づいて開始タイミングを調整
+  GC Pacing:
+  - GOGC=100: Start GC when heap reaches 2x post-GC size
+  - GOMEMLIMIT: Soft memory limit (Go 1.19+)
+  - GC adjusts start timing based on heap growth rate
 
-  チューニングパラメータ:
+  Tuning Parameters:
   ┌────────────────────────┬───────────────────────────────────┐
-  │ パラメータ              │ 説明                              │
+  │ Parameter               │ Description                       │
   ├────────────────────────┼───────────────────────────────────┤
-  │ GOGC=100               │ ヒープが100%成長したらGC開始      │
-  │ GOGC=50                │ 頻繁にGC→メモリ節約・CPU増加      │
-  │ GOGC=200               │ GC頻度減→スループット向上         │
-  │ GOGC=off               │ GCを無効化                        │
-  │ GOMEMLIMIT=512MiB      │ ソフトメモリ上限                  │
-  │ GODEBUG=gctrace=1      │ GCトレースの有効化                │
+  │ GOGC=100               │ Start GC when heap grows by 100%  │
+  │ GOGC=50                │ Frequent GC → saves memory, more CPU│
+  │ GOGC=200               │ Less frequent GC → better throughput│
+  │ GOGC=off               │ Disable GC                        │
+  │ GOMEMLIMIT=512MiB      │ Soft memory limit                 │
+  │ GODEBUG=gctrace=1      │ Enable GC trace                   │
   └────────────────────────┴───────────────────────────────────┘
 ```
 
-### 8.5 Python の複合型 GC
+### 8.5 Python's Hybrid GC
 
 ```
-Python（CPython）の GC アーキテクチャ:
+Python (CPython) GC Architecture:
 
   ┌─────────────────────────────────────────────────────────────┐
-  │  層1: 参照カウント（メイン機構）                              │
+  │  Layer 1: Reference Counting (Main mechanism)               │
   │                                                             │
-  │  - 全オブジェクトに参照カウント（ob_refcnt）                  │
-  │  - 参照の追加/削除で即座に増減                               │
-  │  - rc=0 で即座に解放                                        │
-  │  - GIL により原子操作が不要（シングルスレッド保証）           │
+  │  - Reference count (ob_refcnt) on every object              │
+  │  - Incremented/decremented immediately on reference add/del │
+  │  - Immediately freed when rc=0                              │
+  │  - GIL eliminates need for atomic operations (single-thread)│
   │                                                             │
-  │  問題: 循環参照を回収できない                                │
+  │  Problem: Cannot collect circular references                 │
   ├─────────────────────────────────────────────────────────────┤
-  │  層2: 世代別サイクルコレクタ（補助機構）                      │
+  │  Layer 2: Generational Cycle Collector (Auxiliary mechanism) │
   │                                                             │
-  │  世代0: 新しいオブジェクト（閾値: 700）                      │
-  │  世代1: 世代0を1回生き延びたオブジェクト（閾値: 10）          │
-  │  世代2: 世代1を1回生き延びたオブジェクト（閾値: 10）          │
+  │  Gen 0: New objects (threshold: 700)                        │
+  │  Gen 1: Objects that survived Gen 0 once (threshold: 10)    │
+  │  Gen 2: Objects that survived Gen 1 once (threshold: 10)    │
   │                                                             │
-  │  動作:                                                      │
-  │  1. 世代0 のオブジェクト数が閾値を超えたら GC 実行           │
-  │  2. 循環参照を検出して回収                                   │
-  │  3. コンテナオブジェクトのみが対象                            │
-  │     （int, str 等は循環参照を形成しないため対象外）           │
+  │  Operation:                                                 │
+  │  1. Run GC when Gen 0 object count exceeds threshold        │
+  │  2. Detect and collect circular references                   │
+  │  3. Only container objects are targeted                      │
+  │     (int, str, etc. cannot form cycles so are excluded)     │
   └─────────────────────────────────────────────────────────────┘
 ```
 
 ```python
-# Python: GC の詳細な制御
+# Python: Detailed GC control
 
 import gc
 import sys
 
-# === GC の状態確認 ===
-print("GC 有効:", gc.isenabled())
-print("世代別閾値:", gc.get_threshold())
-# 出力: (700, 10, 10)
-# 世代0: 700回のalloc-dealloc差で発動
-# 世代1: 世代0が10回実行されたら発動
-# 世代2: 世代1が10回実行されたら発動
+# === Check GC state ===
+print("GC enabled:", gc.isenabled())
+print("Generational thresholds:", gc.get_threshold())
+# Output: (700, 10, 10)
+# Gen 0: Triggers when alloc-dealloc difference reaches 700
+# Gen 1: Triggers after Gen 0 runs 10 times
+# Gen 2: Triggers after Gen 1 runs 10 times
 
-# === GC 統計 ===
+# === GC statistics ===
 stats = gc.get_stats()
 for i, gen in enumerate(stats):
-    print(f"世代{i}: collections={gen['collections']}, "
+    print(f"Gen {i}: collections={gen['collections']}, "
           f"collected={gen['collected']}, "
           f"uncollectable={gen['uncollectable']}")
 
-# === GC チューニング ===
-# 閾値の調整（パフォーマンス重視）
-gc.set_threshold(1000, 15, 15)  # GC 頻度を下げる
+# === GC tuning ===
+# Adjust thresholds (performance-oriented)
+gc.set_threshold(1000, 15, 15)  # Reduce GC frequency
 
-# GC の一時無効化（ベンチマーク等）
+# Temporarily disable GC (for benchmarks, etc.)
 gc.disable()
-# ... 計測コード ...
+# ... measurement code ...
 gc.enable()
 
-# === 回収不能オブジェクトの検出 ===
-# __del__ を持つ循環参照は回収できない場合がある
+# === Detecting uncollectable objects ===
+# Circular references with __del__ may be uncollectable
 gc.set_debug(gc.DEBUG_SAVEALL)
 gc.collect()
-print("回収不能:", gc.garbage)
+print("Uncollectable:", gc.garbage)
 ```
 
-### 8.6 主要言語 GC 比較表
+### 8.6 Major Language GC Comparison Table
 
 ```
 ┌──────────┬────────────┬────────────┬──────────┬───────────────────┐
-│ 言語      │ GC 方式     │ STW 時間   │ 世代別   │ 特記事項           │
+│ Language  │ GC Method   │ STW Time   │ Generat. │ Notes              │
 ├──────────┼────────────┼────────────┼──────────┼───────────────────┤
-│ Java     │ G1/ZGC     │ <1ms(ZGC)  │ あり     │ 複数コレクタ選択可  │
-│ (HotSpot)│            │ <200ms(G1) │          │ JFR で詳細分析     │
+│ Java     │ G1/ZGC     │ <1ms(ZGC)  │ Yes      │ Multiple collectors│
+│ (HotSpot)│            │ <200ms(G1) │          │ JFR for analysis   │
 ├──────────┼────────────┼────────────┼──────────┼───────────────────┤
-│ Go       │ 並行M&S    │ <500μs     │ なし     │ GOGC/GOMEMLIMIT   │
-│          │            │            │          │ シンプルさ重視     │
+│ Go       │ Concurrent │ <500μs     │ No       │ GOGC/GOMEMLIMIT   │
+│          │ M&S        │            │          │ Simplicity focused │
 ├──────────┼────────────┼────────────┼──────────┼───────────────────┤
-│ Python   │ 参照カウント│ 数ms〜数十ms│ あり     │ GIL との相互作用   │
-│ (CPython)│ +サイクルGC │            │ (3世代)  │ 参照カウントがメイン│
+│ Python   │ Ref counting│ ms to tens │ Yes      │ GIL interaction    │
+│ (CPython)│ + Cycle GC │ of ms      │ (3 gen)  │ RC is primary      │
 ├──────────┼────────────┼────────────┼──────────┼───────────────────┤
-│ JS (V8)  │ Orinoco    │ <2ms(Young)│ あり     │ Idle-Time GC      │
-│          │ M&S+Copy   │ <10ms(Old) │ (2世代)  │ インクリメンタル   │
+│ JS (V8)  │ Orinoco    │ <2ms(Young)│ Yes      │ Idle-Time GC      │
+│          │ M&S+Copy   │ <10ms(Old) │ (2 gen)  │ Incremental       │
 ├──────────┼────────────┼────────────┼──────────┼───────────────────┤
-│ C#       │ 世代別     │ <10ms      │ あり     │ LOH, POH(NET5+)   │
-│ (.NET)   │ M&S+Compact│            │ (3世代)  │ Server/Workstation│
+│ C#       │ Generational│ <10ms     │ Yes      │ LOH, POH(.NET5+)  │
+│ (.NET)   │ M&S+Compact│            │ (3 gen)  │ Server/Workstation│
 ├──────────┼────────────┼────────────┼──────────┼───────────────────┤
-│ Ruby     │ 世代別     │ <10ms      │ あり     │ Incremental M&S   │
-│ (CRuby)  │ M&S        │            │ (2世代)  │ RUBY_GC_*環境変数 │
+│ Ruby     │ Generational│ <10ms     │ Yes      │ Incremental M&S   │
+│ (CRuby)  │ M&S        │            │ (2 gen)  │ RUBY_GC_* env vars│
 ├──────────┼────────────┼────────────┼──────────┼───────────────────┤
-│ Swift    │ ARC        │ なし       │ なし     │ weak/unowned 必要  │
-│          │ (参照カウント)│           │          │ コンパイル時管理   │
+│ Swift    │ ARC        │ None       │ No       │ weak/unowned needed│
+│          │ (ref count)│            │          │ Compile-time mgmt  │
 ├──────────┼────────────┼────────────┼──────────┼───────────────────┤
-│ Rust     │ なし       │ なし       │ なし     │ 所有権+借用で管理  │
-│          │ (所有権)   │            │          │ GC オーバーヘッドゼロ│
+│ Rust     │ None       │ None       │ No       │ Ownership+borrowing│
+│          │ (ownership)│            │          │ Zero GC overhead   │
 └──────────┴────────────┴────────────┴──────────┴───────────────────┘
 ```
 
 ---
 
-## 9. GC チューニング戦略
+## 9. GC Tuning Strategies
 
-### 9.1 チューニングの基本原則
+### 9.1 Basic Tuning Principles
 
-GC チューニングは「万能の設定」が存在しない領域である。アプリケーションの特性
-（レイテンシ重視 vs スループット重視 vs メモリ効率重視）に応じて戦略が変わる。
+GC tuning is a domain where no "universal setting" exists. Strategy varies depending on
+application characteristics (latency-focused vs throughput-focused vs memory-efficiency-focused).
 
 ```
-GC チューニングの三角形（トレードオフ）:
+GC Tuning Triangle (Trade-offs):
 
-              レイテンシ
-              （低停止時間）
+              Latency
+              (Low pause time)
                  ╱╲
                 ╱  ╲
                ╱    ╲
               ╱  GC   ╲
-             ╱ チューニング╲
-            ╱   の三角形   ╲
+             ╱ Tuning   ╲
+            ╱  Triangle   ╲
            ╱________________╲
-   スループット          メモリ効率
-  （高処理能力）        （低メモリ使用量）
+   Throughput           Memory Efficiency
+  (High processing     (Low memory usage)
+   capacity)
 
-  全てを同時に最適化することは不可能:
-  - レイテンシ優先   → GC 頻度増 → スループット低下
-  - スループット優先 → GC 頻度減 → メモリ使用量増加
-  - メモリ効率優先   → ヒープを小さく → GC 頻度増 → レイテンシ悪化
+  It is impossible to optimize all three simultaneously:
+  - Latency priority   → More frequent GC → Lower throughput
+  - Throughput priority → Less frequent GC → Higher memory usage
+  - Memory priority    → Small heap → More frequent GC → Worse latency
 ```
 
-### 9.2 Java GC チューニング実践
+### 9.2 Java GC Tuning in Practice
 
 ```java
-// Java: GC チューニングの段階的アプローチ
+// Java: Step-by-step approach to GC tuning
 
-// === Step 1: GC ログの有効化 ===
-// JDK 9+ 統一ログ:
+// === Step 1: Enable GC logging ===
+// JDK 9+ unified logging:
 // java -Xlog:gc*:file=gc.log:time,uptime,level,tags -jar app.jar
 
-// === Step 2: GC ログの分析 ===
-// GC ログの読み方:
+// === Step 2: Analyze GC logs ===
+// How to read GC logs:
 // [0.234s][info][gc] GC(0) Pause Young (Normal) (G1 Evacuation Pause)
 //                        12M->8M(256M) 3.456ms
 //                        ↑    ↑  ↑      ↑
-//                    GC前 GC後 ヒープ  停止時間
+//                    Pre-GC Post-GC Heap  Pause time
 
-// === Step 3: ヒープサイズの設定 ===
-// -Xms と -Xmx を同じ値にする（ヒープのリサイズを回避）
+// === Step 3: Set heap size ===
+// Set -Xms and -Xmx to the same value (avoid heap resizing)
 // java -Xms4g -Xmx4g -jar app.jar
 
-// === Step 4: GC コレクタの選択 ===
-// レイテンシ重視:
+// === Step 4: Select GC collector ===
+// Latency-focused:
 //   java -XX:+UseZGC -XX:+ZGenerational -jar app.jar
-// バランス型:
+// Balanced:
 //   java -XX:+UseG1GC -XX:MaxGCPauseMillis=100 -jar app.jar
-// スループット重視:
+// Throughput-focused:
 //   java -XX:+UseParallelGC -jar app.jar
 
-// === Java Flight Recorder（JFR）による分析 ===
+// === Java Flight Recorder (JFR) for analysis ===
 // java -XX:StartFlightRecording=filename=recording.jfr,
 //       duration=60s,settings=profile -jar app.jar
 
-// === プログラムからの GC 情報取得 ===
+// === Getting GC info from program ===
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.util.List;
@@ -1640,14 +1647,14 @@ public class GCMonitor {
             ManagementFactory.getGarbageCollectorMXBeans();
 
         for (GarbageCollectorMXBean gcBean : gcBeans) {
-            System.out.printf("GC名: %s%n", gcBean.getName());
-            System.out.printf("  回数: %d%n", gcBean.getCollectionCount());
-            System.out.printf("  累積時間: %d ms%n", gcBean.getCollectionTime());
+            System.out.printf("GC name: %s%n", gcBean.getName());
+            System.out.printf("  Count: %d%n", gcBean.getCollectionCount());
+            System.out.printf("  Cumulative time: %d ms%n", gcBean.getCollectionTime());
         }
     }
 
-    // Weak Reference を活用したキャッシュ
-    // GC がメモリ不足時に自動的に回収してくれる
+    // Cache using Weak References
+    // GC automatically collects when memory is insufficient
     private static final java.util.Map<String, java.lang.ref.WeakReference<byte[]>> cache
         = new java.util.concurrent.ConcurrentHashMap<>();
 
@@ -1660,116 +1667,118 @@ public class GCMonitor {
         if (ref != null) {
             byte[] data = ref.get();
             if (data != null) return data;
-            cache.remove(key); // GC に回収された
+            cache.remove(key); // Already collected by GC
         }
         return null;
     }
 }
 ```
 
-### 9.3 GC チューニングのチェックリスト
+### 9.3 GC Tuning Checklist
 
 ```
-GC チューニング・チェックリスト:
+GC Tuning Checklist:
 
-  □ 1. 目標の明確化
-     ├── 最大停止時間の目標は? （例: 100ms 以下）
-     ├── スループット目標は?   （例: GC に費やす時間 < 5%）
-     └── メモリ制約は?         （例: 最大 4GB）
+  □ 1. Clarify goals
+     ├── What is the max pause time target? (e.g., under 100ms)
+     ├── What is the throughput target? (e.g., <5% time spent in GC)
+     └── What are the memory constraints? (e.g., max 4GB)
 
-  □ 2. 現状の把握
-     ├── GC ログを有効化して分析
-     ├── GC 頻度、停止時間、ヒープ使用量の傾向を把握
-     └── メモリリークの有無を確認
+  □ 2. Understand current state
+     ├── Enable and analyze GC logs
+     ├── Understand trends in GC frequency, pause time, heap usage
+     └── Check for memory leaks
 
-  □ 3. ヒープサイズの最適化
-     ├── -Xms = -Xmx（リサイズ回避）
-     ├── ヒープが小さすぎ → GC 頻発
-     └── ヒープが大きすぎ → GC 停止時間増加
+  □ 3. Optimize heap size
+     ├── -Xms = -Xmx (avoid resizing)
+     ├── Heap too small → excessive GC
+     └── Heap too large → longer GC pauses
 
-  □ 4. GC コレクタの選択
-     ├── G1: ほとんどのケースで適切（Java 9+ デフォルト）
-     ├── ZGC: 超低レイテンシが必要な場合
-     ├── Parallel: バッチ処理等スループット重視
-     └── Serial: 小規模アプリ / コンテナ
+  □ 4. Select GC collector
+     ├── G1: Appropriate for most cases (Java 9+ default)
+     ├── ZGC: When ultra-low latency is needed
+     ├── Parallel: Batch processing, throughput-focused
+     └── Serial: Small apps / containers
 
-  □ 5. 世代別サイズの調整
-     ├── Young 世代が小さい → Minor GC 頻発
-     ├── Young 世代が大きい → Minor GC の停止時間増
-     └── -XX:NewRatio, -XX:SurvivorRatio で調整
+  □ 5. Adjust generational sizes
+     ├── Young generation too small → frequent Minor GCs
+     ├── Young generation too large → longer Minor GC pauses
+     └── Adjust with -XX:NewRatio, -XX:SurvivorRatio
 
-  □ 6. 継続的モニタリング
-     ├── JFR / JMX でリアルタイム監視
-     ├── ダッシュボード（Grafana 等）でトレンド分析
-     └── アラート設定（GC 停止時間 > 閾値）
+  □ 6. Continuous monitoring
+     ├── Real-time monitoring with JFR / JMX
+     ├── Trend analysis with dashboards (Grafana, etc.)
+     └── Set alerts (GC pause time > threshold)
 ```
 
-### 9.4 メモリ管理パターン: GC vs 手動管理 vs 所有権
+### 9.4 Memory Management Patterns: GC vs Manual Management vs Ownership
 
 ```
-3つのメモリ管理パラダイムの総合比較:
+Comprehensive Comparison of Three Memory Management Paradigms:
 
   ┌──────────────┬──────────────┬──────────────┬──────────────┐
-  │ 観点          │ GC           │ 手動管理      │ 所有権(Rust)  │
+  │ Aspect        │ GC           │ Manual Mgmt   │ Ownership    │
+  │              │              │              │ (Rust)       │
   ├──────────────┼──────────────┼──────────────┼──────────────┤
-  │ 安全性        │ 高い         │ 低い         │ 最も高い      │
-  │ メモリリーク  │ 論理的リーク可│ 頻発         │ 構造的に防止  │
-  │ ダングリング  │ 発生しない   │ 頻発         │ コンパイルエラー│
-  │ 二重解放      │ 発生しない   │ 頻発         │ コンパイルエラー│
-  │ 性能予測性    │ 低い(STW)    │ 高い         │ 高い          │
-  │ 開発効率      │ 高い         │ 低い         │ 中〜高        │
-  │ 実行時コスト  │ 5-20%        │ 0%           │ 0-3%          │
-  │ コンパイル時  │ なし         │ なし         │ 借用チェック  │
-  │ 学習曲線      │ 低い         │ 中程度       │ 急峻          │
-  │ リアルタイム  │ 困難         │ 可能         │ 可能          │
-  │ 大規模開発    │ 適している   │ 困難         │ 適している    │
-  │ 代表言語      │ Java,Go,     │ C,C++        │ Rust          │
-  │              │ Python,JS,C# │              │               │
+  │ Safety        │ High         │ Low          │ Highest      │
+  │ Memory leaks  │ Logical leaks│ Frequent     │ Structurally │
+  │              │ possible     │              │ prevented    │
+  │ Dangling ptrs │ Cannot occur │ Frequent     │ Compile error│
+  │ Double free   │ Cannot occur │ Frequent     │ Compile error│
+  │ Predictability│ Low (STW)    │ High         │ High         │
+  │ Dev speed     │ High         │ Low          │ Med-High     │
+  │ Runtime cost  │ 5-20%        │ 0%           │ 0-3%         │
+  │ Compile-time  │ None         │ None         │ Borrow check │
+  │ Learning curve│ Low          │ Moderate     │ Steep        │
+  │ Real-time     │ Difficult    │ Possible     │ Possible     │
+  │ Large-scale   │ Suitable     │ Difficult    │ Suitable     │
+  │ Representative│ Java,Go,     │ C,C++        │ Rust         │
+  │ languages    │ Python,JS,C# │              │              │
   └──────────────┴──────────────┴──────────────┴──────────────┘
 
-  選定ガイドライン:
-  - Web アプリ、ビジネスロジック → GC（Java, Go, C#）
-  - OS、組込み、ゲームエンジン  → 手動管理（C, C++）
-  - システムプログラミング       → 所有権（Rust）
-  - スクリプティング、データ分析 → GC（Python, JS）
+  Selection Guidelines:
+  - Web apps, business logic → GC (Java, Go, C#)
+  - OS, embedded, game engines → Manual management (C, C++)
+  - Systems programming → Ownership (Rust)
+  - Scripting, data analysis → GC (Python, JS)
 ```
 
 ---
 
-## 10. アンチパターンと回避策
+## 10. Anti-Patterns and Avoidance Strategies
 
-### 10.1 アンチパターン1: 隠れたメモリリーク（論理的リーク）
+### 10.1 Anti-Pattern 1: Hidden Memory Leaks (Logical Leaks)
 
-GC 言語でも「論理的メモリリーク」は発生する。GC はルートから到達可能なオブジェクトを
-回収しないため、不要な参照を保持し続けるとメモリが際限なく増加する。
+"Logical memory leaks" can occur even in GC languages. Since GC does not collect objects
+that are reachable from roots, memory grows indefinitely when unnecessary references are retained.
 
 ```java
-// Java: 論理的メモリリークの典型例
+// Java: Typical examples of logical memory leaks
 
-// === アンチパターン: 無制限のキャッシュ ===
+// === Anti-pattern: Unbounded cache ===
 public class LeakyCache {
-    // 問題: 追加されたエントリは永遠に GC されない
+    // Problem: Added entries are never GC'd
     private static final Map<String, byte[]> cache = new HashMap<>();
 
     public static void addToCache(String key, byte[] data) {
-        cache.put(key, data);  // 無制限に蓄積 → メモリリーク
+        cache.put(key, data);  // Accumulates without limit → memory leak
     }
 
-    // 呼び出し側:
+    // Caller:
     // for (Request req : requests) {
     //     addToCache(req.getId(), req.getPayload());
-    //     // cache は永遠に成長し続ける → OOM
+    //     // cache keeps growing forever → OOM
     // }
 }
 
-// === 修正1: サイズ制限付きキャッシュ（LRU） ===
+// === Fix 1: Size-limited cache (LRU) ===
 public class BoundedCache {
     private static final int MAX_SIZE = 1000;
     private static final Map<String, byte[]> cache =
         new LinkedHashMap<String, byte[]>(MAX_SIZE, 0.75f, true) {
             @Override
             protected boolean removeEldestEntry(Map.Entry<String, byte[]> eldest) {
-                return size() > MAX_SIZE;  // 最大サイズを超えたら最古を削除
+                return size() > MAX_SIZE;  // Remove oldest when max size exceeded
             }
         };
 
@@ -1778,9 +1787,9 @@ public class BoundedCache {
     }
 }
 
-// === 修正2: WeakHashMap を使用 ===
+// === Fix 2: Use WeakHashMap ===
 public class WeakCache {
-    // キーが他から参照されなくなったら自動的にエントリが削除される
+    // Entries are automatically removed when keys are no longer referenced elsewhere
     private static final Map<Object, byte[]> cache = new WeakHashMap<>();
 
     public static void addToCache(Object key, byte[] data) {
@@ -1788,8 +1797,8 @@ public class WeakCache {
     }
 }
 
-// === 修正3: Caffeine ライブラリ（推奨） ===
-// Caffeine: 高性能な Java キャッシュライブラリ
+// === Fix 3: Caffeine library (recommended) ===
+// Caffeine: High-performance Java caching library
 //
 // Cache<String, byte[]> cache = Caffeine.newBuilder()
 //     .maximumSize(10_000)
@@ -1797,12 +1806,12 @@ public class WeakCache {
 //     .build();
 ```
 
-### 10.2 アンチパターン2: ファイナライザの乱用
+### 10.2 Anti-Pattern 2: Finalizer Abuse
 
 ```java
-// Java: ファイナライザのアンチパターンと正しい代替手段
+// Java: Finalizer anti-pattern and correct alternatives
 
-// === アンチパターン: finalize() によるリソース解放 ===
+// === Anti-pattern: Resource release via finalize() ===
 public class BadResourceHandler {
     private java.io.InputStream stream;
 
@@ -1810,12 +1819,12 @@ public class BadResourceHandler {
         this.stream = new java.io.FileInputStream(path);
     }
 
-    // 問題点:
-    // 1. finalize() の実行タイミングは不定
-    // 2. finalize() が実行される保証がない
-    // 3. finalize() の実行により GC が遅延する
-    // 4. finalize() 内の例外は無視される
-    // 5. Java 9+ で非推奨、Java 18+ で削除対象
+    // Problems:
+    // 1. Timing of finalize() execution is indefinite
+    // 2. No guarantee that finalize() will execute
+    // 3. GC is delayed by finalize() execution
+    // 4. Exceptions in finalize() are silently ignored
+    // 5. Deprecated in Java 9+, scheduled for removal in Java 18+
     @Override
     protected void finalize() throws Throwable {
         try {
@@ -1826,7 +1835,7 @@ public class BadResourceHandler {
     }
 }
 
-// === 修正: try-with-resources + AutoCloseable ===
+// === Fix: try-with-resources + AutoCloseable ===
 public class GoodResourceHandler implements AutoCloseable {
     private final java.io.InputStream stream;
 
@@ -1839,13 +1848,13 @@ public class GoodResourceHandler implements AutoCloseable {
         if (stream != null) stream.close();
     }
 
-    // 使用例:
+    // Usage:
     // try (GoodResourceHandler handler = new GoodResourceHandler("data.txt")) {
-    //     // handler を使用
-    // }  ← ブロック終了時に自動的に close() が呼ばれる
+    //     // use handler
+    // }  ← close() is automatically called when the block exits
 }
 
-// === Java 9+: Cleaner API（finalize の代替） ===
+// === Java 9+: Cleaner API (replacement for finalize) ===
 import java.lang.ref.Cleaner;
 
 public class ModernResourceHandler implements AutoCloseable {
@@ -1854,8 +1863,8 @@ public class ModernResourceHandler implements AutoCloseable {
     private final Cleaner.Cleanable cleanable;
     private final ResourceState state;
 
-    // 内部状態クラス（Runnable 実装）
-    // 重要: 外部クラスへの参照を持たないこと
+    // Internal state class (implements Runnable)
+    // Important: Must not hold a reference to the outer class
     private static class ResourceState implements Runnable {
         private java.io.InputStream stream;
 
@@ -1865,11 +1874,11 @@ public class ModernResourceHandler implements AutoCloseable {
 
         @Override
         public void run() {
-            // GC 時のフォールバック清掃
+            // Fallback cleanup at GC time
             try {
                 if (stream != null) stream.close();
             } catch (Exception e) {
-                // ログ記録
+                // Log the error
             }
         }
     }
@@ -1881,150 +1890,151 @@ public class ModernResourceHandler implements AutoCloseable {
 
     @Override
     public void close() {
-        cleanable.clean();  // 明示的に清掃
+        cleanable.clean();  // Explicit cleanup
     }
 }
 ```
 
-### 10.3 アンチパターン3: 大量の短命オブジェクトの生成
+### 10.3 Anti-Pattern 3: Mass Generation of Short-Lived Objects
 
 ```
-大量の一時オブジェクト生成の問題:
+Problem with Mass Temporary Object Generation:
 
-  問題のあるパターン:
+  Problematic pattern:
   ┌────────────────────────────────────────────────────────────┐
   │  for (int i = 0; i < 1_000_000; i++) {                    │
   │      String result = "prefix_" + i + "_suffix";  // ★     │
-  │      // 各イテレーションで複数の String オブジェクトが生成   │
-  │      // "prefix_" + i → 新 String                         │
-  │      // 新 String + "_suffix" → 別の新 String              │
+  │      // Multiple String objects generated per iteration     │
+  │      // "prefix_" + i → new String                         │
+  │      // new String + "_suffix" → another new String         │
   │      process(result);                                      │
   │  }                                                         │
   │                                                            │
-  │  → 200万個以上の一時 String が生成 → GC 圧力が急増          │
+  │  → 2M+ temporary Strings generated → GC pressure surges    │
   └────────────────────────────────────────────────────────────┘
 
-  改善:
+  Improvement:
   ┌────────────────────────────────────────────────────────────┐
   │  StringBuilder sb = new StringBuilder(64);                 │
   │  for (int i = 0; i < 1_000_000; i++) {                    │
-  │      sb.setLength(0);  // バッファをクリア（再利用）        │
+  │      sb.setLength(0);  // Clear buffer (reuse)             │
   │      sb.append("prefix_").append(i).append("_suffix");     │
   │      process(sb.toString());                               │
   │  }                                                         │
   │                                                            │
-  │  → StringBuilder を再利用 → 一時オブジェクト大幅削減        │
+  │  → Reuse StringBuilder → dramatically fewer temp objects    │
   └────────────────────────────────────────────────────────────┘
 ```
 
-### 10.4 アンチパターン4: System.gc() の呼び出し
+### 10.4 Anti-Pattern 4: Calling System.gc()
 
 ```java
-// アンチパターン: System.gc() を明示的に呼ぶ
+// Anti-pattern: Explicitly calling System.gc()
 
-// 問題のあるコード:
+// Problematic code:
 public void processLargeData(byte[] data) {
-    // ... データ処理 ...
+    // ... data processing ...
     data = null;
-    System.gc();  // ★ GC を強制実行しようとしている
+    System.gc();  // ★ Trying to force GC execution
 }
 
-// なぜダメなのか:
-// 1. System.gc() は「ヒント」に過ぎず、GC の実行は保証されない
-// 2. Full GC が発生すると長い STW を引き起こす可能性がある
-// 3. GC のタイミング最適化（ペーシング）を妨害する
-// 4. 本番環境では -XX:+DisableExplicitGC で無効化されることが多い
+// Why this is bad:
+// 1. System.gc() is merely a "hint"; GC execution is not guaranteed
+// 2. May trigger a Full GC causing a long STW
+// 3. Interferes with GC timing optimization (pacing)
+// 4. Often disabled in production with -XX:+DisableExplicitGC
 
-// 正しいアプローチ:
-// - JVM の GC に任せる
-// - 必要ならヒープサイズや GC パラメータを調整する
-// - 不要な参照を null にする（大きなオブジェクトの場合のみ有効）
+// Correct approach:
+// - Let the JVM's GC handle it
+// - Adjust heap size or GC parameters if needed
+// - Set unnecessary references to null (only effective for large objects)
 ```
 
 ---
 
-## 11. 演習問題（3段階）
+## 11. Exercises (3 Levels)
 
-### Level 1: 基礎（GC アルゴリズムの理解）
+### Level 1: Fundamentals (Understanding GC Algorithms)
 
-**問題 1-1: マーク&スイープの手動トレース**
+**Problem 1-1: Manual Trace of Mark & Sweep**
 
-以下のオブジェクトグラフに対してマーク&スイープを実行し、
-回収されるオブジェクトを全て列挙せよ。
+Execute Mark & Sweep on the following object graph and list all objects
+that are collected.
 
 ```
-ルート: R1 → A, R2 → B
+Roots: R1 → A, R2 → B
 
 A → C, A → D
 B → D
 C → E
-D → (なし)
-E → (なし)
+D → (none)
+E → (none)
 F → G
-G → F（循環参照）
-H → (なし)
+G → F (circular reference)
+H → (none)
 ```
 
 <details>
-<summary>解答（クリックで展開）</summary>
+<summary>Answer (click to expand)</summary>
 
 ```
-マーキングフェーズ:
+Marking phase:
   R1 → A(mark) → C(mark) → E(mark)
                 → D(mark)
-  R2 → B(mark) → D(既にmark)
+  R2 → B(mark) → D(already marked)
 
-マークされたオブジェクト: A, B, C, D, E
-マークされていないオブジェクト: F, G, H
+Marked objects: A, B, C, D, E
+Unmarked objects: F, G, H
 
-回収対象: F, G, H
+Collection targets: F, G, H
 
-注: F と G は循環参照しているが、ルートから到達不能なので回収される。
-これが参照カウント方式との大きな違い。参照カウントでは F, G は
-rc=1 のままで回収できない。
+Note: F and G have circular references, but they are collected because
+they are unreachable from roots. This is the major difference from
+reference counting. With reference counting, F and G would have
+rc=1 and could not be collected.
 ```
 
 </details>
 
-**問題 1-2: 参照カウントの手動トレース**
+**Problem 1-2: Manual Trace of Reference Counting**
 
-以下の Python コードの各行実行後の参照カウントを追跡せよ。
+Track the reference count after each line of the following Python code.
 
 ```python
-a = [1, 2, 3]      # (1) a の参照カウントは?
-b = a               # (2) a の参照カウントは?
-c = [a, b]          # (3) a の参照カウントは?
-del b               # (4) a の参照カウントは?
-c.pop()             # (5) a の参照カウントは?
-c.pop()             # (6) a の参照カウントは?
-del a               # (7) リストオブジェクトはどうなる?
+a = [1, 2, 3]      # (1) What is a's reference count?
+b = a               # (2) What is a's reference count?
+c = [a, b]          # (3) What is a's reference count?
+del b               # (4) What is a's reference count?
+c.pop()             # (5) What is a's reference count?
+c.pop()             # (6) What is a's reference count?
+del a               # (7) What happens to the list object?
 ```
 
 <details>
-<summary>解答（クリックで展開）</summary>
+<summary>Answer (click to expand)</summary>
 
 ```
-(1) a=[1,2,3] → リストの rc=1（a からの参照）
-(2) b=a       → リストの rc=2（a, b からの参照）
-(3) c=[a,b]   → リストの rc=4（a, b, c[0], c[1] からの参照）
-(4) del b     → リストの rc=3（a, c[0], c[1] からの参照）
-(5) c.pop()   → リストの rc=2（a, c[0] からの参照）
-               ※ c[1] が削除された
-(6) c.pop()   → リストの rc=1（a からの参照）
-               ※ c[0] が削除された
-(7) del a     → リストの rc=0 → 即座に解放!
+(1) a=[1,2,3] → list rc=1 (reference from a)
+(2) b=a       → list rc=2 (references from a, b)
+(3) c=[a,b]   → list rc=4 (references from a, b, c[0], c[1])
+(4) del b     → list rc=3 (references from a, c[0], c[1])
+(5) c.pop()   → list rc=2 (references from a, c[0])
+               * c[1] was removed
+(6) c.pop()   → list rc=1 (reference from a only)
+               * c[0] was removed
+(7) del a     → list rc=0 → immediately freed!
 
-補足: sys.getrefcount(a) で確認すると +1 されるのは
-getrefcount の引数として一時的に参照が増えるため。
+Note: When checking with sys.getrefcount(a), it shows +1 because
+getrefcount temporarily increases the reference as its argument.
 ```
 
 </details>
 
-### Level 2: 応用（GC チューニングと診断）
+### Level 2: Applied (GC Tuning and Diagnosis)
 
-**問題 2-1: GC ログの解析**
+**Problem 2-1: GC Log Analysis**
 
-以下の Java GC ログから問題を診断し、改善策を提案せよ。
+Diagnose the problem from the following Java GC log and propose improvements.
 
 ```
 [2.001s][info][gc] GC(0) Pause Young 128M->64M(512M) 5.2ms
@@ -2034,42 +2044,42 @@ getrefcount の引数として一時的に参照が増えるため。
 [4.002s][info][gc] GC(4) Pause Young 224M->112M(512M) 10.2ms
 [4.503s][info][gc] GC(5) Pause Full 240M->48M(512M) 350.1ms  ★
 [5.001s][info][gc] GC(6) Pause Young 176M->64M(512M) 5.0ms
-...（以降繰り返し）
+...(repeating pattern)
 ```
 
 <details>
-<summary>解答（クリックで展開）</summary>
+<summary>Answer (click to expand)</summary>
 
 ```
-診断:
-1. Minor GC 後の生存量が単調増加: 64→72→80→96→112MB
-   → Old 世代への昇格が急速に増加している
-2. GC(5) で Full GC が発生: 350.1ms の STW
-   → Old 世代が満杯になった
-3. Full GC 後に 48MB に戻る
-   → 長期生存オブジェクトは少ない（一時的な昇格が多い）
+Diagnosis:
+1. Surviving amount after Minor GC increases monotonically: 64→72→80→96→112MB
+   → Promotions to Old generation are rapidly increasing
+2. Full GC occurs at GC(5): 350.1ms STW
+   → Old generation became full
+3. After Full GC it returns to 48MB
+   → Few truly long-lived objects (many temporary promotions)
 
-推定原因:
-- 中程度の寿命のオブジェクトが多い（Young で死なず Old に昇格するが
-  Old でもすぐ不要になる）
-- Young 世代のサイズが小さすぎる可能性
+Estimated cause:
+- Many objects with moderate lifetimes (don't die in Young but
+  get promoted to Old, yet become unnecessary soon in Old)
+- Young generation may be too small
 
-改善策:
-1. Young 世代を拡大: -XX:NewRatio=1（Young:Old=1:1）
-   → オブジェクトが Young 内で死ぬ確率を上げる
-2. Survivor の調整: -XX:MaxTenuringThreshold=15
-   → 昇格までの閾値を上げる
-3. G1 GC の場合: -XX:MaxGCPauseMillis=100
-   → 目標停止時間を設定してFull GCを回避
-4. ZGC への切替を検討: -XX:+UseZGC
-   → Full GC による長い STW を根本的に解消
+Improvements:
+1. Enlarge Young generation: -XX:NewRatio=1 (Young:Old=1:1)
+   → Increase probability of objects dying within Young
+2. Adjust Survivor: -XX:MaxTenuringThreshold=15
+   → Raise the promotion threshold
+3. For G1 GC: -XX:MaxGCPauseMillis=100
+   → Set pause time target to avoid Full GC
+4. Consider switching to ZGC: -XX:+UseZGC
+   → Fundamentally eliminates long STW from Full GC
 ```
 
 </details>
 
-**問題 2-2: メモリリークの特定**
+**Problem 2-2: Identifying Memory Leaks**
 
-以下の Node.js コードにはメモリリークがある。原因を特定し修正せよ。
+The following Node.js code has a memory leak. Identify the cause and fix it.
 
 ```javascript
 const EventEmitter = require('events');
@@ -2100,7 +2110,7 @@ class DataProcessor extends EventEmitter {
 }
 
 const processor = new DataProcessor();
-// 毎秒新しいデータを処理
+// Process new data every second
 setInterval(() => {
     const data = { id: Math.random().toString(36), payload: 'x'.repeat(1024) };
     processor.process(data);
@@ -2108,22 +2118,21 @@ setInterval(() => {
 ```
 
 <details>
-<summary>解答（クリックで展開）</summary>
+<summary>Answer (click to expand)</summary>
 
 ```
-メモリリークの原因は2つ:
+There are two causes of memory leaks:
 
-1. cache が無制限に成長する
-   - process() で cache.set() しているが、削除する処理がない
-   - → Map のエントリが際限なく増加
+1. cache grows without bound
+   - process() calls cache.set() but there is no deletion logic
+   - → Map entries accumulate indefinitely
 
-2. イベントリスナーが無制限に追加される
-   - process() の呼び出しごとに this.on('update', handler) で
-     新しいリスナーが追加される
-   - リスナーはクロージャで id, this.cache を参照し続ける
-   - → リスナー数が際限なく増加
+2. Event listeners are added without limit
+   - Each call to process() adds a new listener via this.on('update', handler)
+   - Listeners continue to reference id, this.cache through closures
+   - → Listener count increases indefinitely
 
-修正版:
+Fixed version:
 class DataProcessor extends EventEmitter {
     constructor(maxCacheSize = 1000) {
         super();
@@ -2135,15 +2144,15 @@ class DataProcessor extends EventEmitter {
         const id = data.id;
         const result = this.transform(data);
 
-        // 修正1: キャッシュサイズを制限
+        // Fix 1: Limit cache size
         if (this.cache.size >= this.maxCacheSize) {
             const oldestKey = this.cache.keys().next().value;
             this.cache.delete(oldestKey);
         }
         this.cache.set(id, result);
 
-        // 修正2: リスナーは追加しない（別途管理する）
-        // または once() を使い1回だけ実行する
+        // Fix 2: Don't add listeners (manage separately)
+        // Or use once() to execute only once
 
         return result;
     }
@@ -2152,22 +2161,22 @@ class DataProcessor extends EventEmitter {
 
 </details>
 
-### Level 3: 発展（GC アルゴリズムの実装と分析）
+### Level 3: Advanced (GC Algorithm Implementation and Analysis)
 
-**問題 3-1: 世代別 GC シミュレータの設計**
+**Problem 3-1: Generational GC Simulator Design**
 
-以下の仕様を満たす世代別 GC シミュレータを Python で設計せよ。
-（完全な実装は不要。クラス構造とメソッドのシグネチャ、主要な擬似コードを示すこと）
+Design a generational GC simulator in Python that meets the following specifications.
+(Full implementation is not required. Provide class structure, method signatures, and key pseudocode.)
 
-要件:
-- Young 世代（Eden + Survivor x 2）と Old 世代を持つ
-- Minor GC: Eden の生存オブジェクトを Survivor にコピー
-- 昇格: 閾値回数 Minor GC を生き延びたオブジェクトを Old に移動
-- Major GC: Old 世代のマーク&スイープ
-- 書き込みバリア: Old → Young の参照を Remembered Set に記録
+Requirements:
+- Has Young generation (Eden + Survivor x 2) and Old generation
+- Minor GC: Copy surviving objects from Eden to Survivor
+- Promotion: Move objects to Old that survived the threshold number of Minor GCs
+- Major GC: Mark & Sweep of the Old generation
+- Write Barrier: Record Old → Young references in a Remembered Set
 
 <details>
-<summary>解答（クリックで展開）</summary>
+<summary>Answer (click to expand)</summary>
 
 ```python
 class GenerationalGC:
@@ -2178,28 +2187,28 @@ class GenerationalGC:
         self.survivor_to = Space("S1", survivor_size)
         self.old = Space("Old", old_size)
         self.tenuring_threshold = tenuring_threshold
-        self.remembered_set = set()  # Old → Young の参照を記録
+        self.remembered_set = set()  # Records Old → Young references
         self.roots = []
 
     def allocate(self, size):
-        """Eden にオブジェクトを確保。満杯なら Minor GC"""
+        """Allocate object in Eden. Minor GC if full"""
         if not self.eden.can_allocate(size):
             self.minor_gc()
             if not self.eden.can_allocate(size):
-                self.major_gc()  # Old も満杯なら Major GC
+                self.major_gc()  # Major GC if Old is also full
         obj = self.eden.allocate(size)
         obj.age = 0
         return obj
 
     def minor_gc(self):
-        """Young 世代の GC（コピー GC）"""
-        # ルートの走査
-        # 1. スタック/グローバルルートから到達可能な Young オブジェクトをコピー
-        # 2. Remembered Set のエントリから到達可能な Young オブジェクトもコピー
-        # 3. age >= threshold なら Old に昇格
-        # 4. それ以外は survivor_to にコピー（age+1）
-        # 5. Eden と survivor_from をクリア
-        # 6. survivor_from と survivor_to を交換
+        """Young generation GC (Copying GC)"""
+        # Root scanning
+        # 1. Copy Young objects reachable from stack/global roots
+        # 2. Also copy Young objects reachable from Remembered Set entries
+        # 3. Promote to Old if age >= threshold
+        # 4. Otherwise copy to survivor_to (age+1)
+        # 5. Clear Eden and survivor_from
+        # 6. Swap survivor_from and survivor_to
         for root in self.roots + list(self.remembered_set):
             self._copy_reachable(root)
         self.eden.clear()
@@ -2209,15 +2218,15 @@ class GenerationalGC:
         )
 
     def major_gc(self):
-        """Old 世代の GC（マーク&スイープ）"""
-        # 1. 全オブジェクトの mark ビットをリセット
-        # 2. ルートから到達可能なオブジェクトをマーク
-        # 3. マークされていない Old オブジェクトを解放
+        """Old generation GC (Mark & Sweep)"""
+        # 1. Reset mark bits for all objects
+        # 2. Mark objects reachable from roots
+        # 3. Free unmarked Old objects
         self._mark_all()
         self._sweep_old()
 
     def write_barrier(self, src, dst):
-        """Old → Young への参照を検出して記録"""
+        """Detect and record Old → Young references"""
         if self.old.contains(src) and not self.old.contains(dst):
             self.remembered_set.add(src)
 ```
@@ -2226,157 +2235,156 @@ class GenerationalGC:
 
 ---
 
-## 12. FAQ（よくある質問）
+## 12. FAQ (Frequently Asked Questions)
 
-### Q1: GC があればメモリリークは発生しないのか?
+### Q1: Do memory leaks never occur if there is GC?
 
-**A:** いいえ。GC は「到達不能なオブジェクト」のみを回収する。到達可能だが不要なオブジェクト
-（論理的リーク）は回収されない。典型的な例として以下がある:
+**A:** No. GC only collects "unreachable objects." Objects that are reachable but unnecessary
+(logical leaks) are not collected. Typical examples include:
 
-- 無制限に成長するキャッシュ（HashMap 等）
-- 登録したまま解除しないイベントリスナー
-- スレッドローカル変数のクリア忘れ（スレッドプールでの使用時）
-- static フィールドに保持し続けるコレクション
-- クロージャが不要な変数をキャプチャし続けるケース
+- Caches that grow without limit (HashMap, etc.)
+- Event listeners that are registered but never unregistered
+- ThreadLocal variables not cleared (when used with thread pools)
+- Collections held in static fields
+- Closures that continue to capture unnecessary variables
 
-対策としては、キャッシュのサイズ制限（LRU, TTL）、WeakReference の活用、
-メモリプロファイラ（VisualVM, Chrome DevTools, pprof 等）による定期的な検査が有効。
+Countermeasures include cache size limits (LRU, TTL), use of WeakReferences,
+and regular inspection with memory profilers (VisualVM, Chrome DevTools, pprof, etc.).
 
-### Q2: GC の停止時間をゼロにできるか?
+### Q2: Can GC pause time be reduced to zero?
 
-**A:** 完全にゼロにすることは理論的に困難だが、極めて短くすることは可能。
+**A:** Making it completely zero is theoretically difficult, but it can be made extremely short.
 
-- **Java ZGC**: STW < 1ms（ヒープサイズに依存しない）。カラーポインタと
-  ロードバリアにより、ほぼ全ての作業を並行で実行する。
-- **Go**: STW < 500μs を目標とし、実際には数十μs で完了することが多い。
-- **Azul C4 GC**（商用）: 「Pauseless GC」を謳い、STW なしで動作する。
+- **Java ZGC**: STW < 1ms (independent of heap size). Uses colored pointers and
+  load barriers to perform nearly all work concurrently.
+- **Go**: Targets STW < 500μs, and often completes in tens of μs in practice.
+- **Azul C4 GC** (commercial): Claims to be "Pauseless GC," operating without STW.
 
-注意点として、「STW がない」と「レイテンシへの影響がない」は異なる。
-並行 GC はバックグラウンドで CPU を消費するため、アプリケーションの
-スループットやレイテンシに間接的な影響を及ぼす場合がある。
+An important note: "no STW" and "no impact on latency" are different things.
+Concurrent GC consumes CPU in the background, which may indirectly affect
+application throughput and latency.
 
-### Q3: Rust に GC がないのに安全なのはなぜか?
+### Q3: Why is Rust safe without GC?
 
-**A:** Rust は GC の代わりに「所有権システム」と「借用チェッカー」を用いて
-コンパイル時にメモリ安全性を保証する。
+**A:** Instead of GC, Rust uses the "ownership system" and "borrow checker" to
+guarantee memory safety at compile time.
 
-- **所有権**: 各値には唯一のオーナーが存在し、オーナーがスコープを抜けると自動的に解放される。
-- **借用**: 値への参照（借用）は不変参照（複数可）か可変参照（1つのみ）のどちらかで、
-  コンパイラが静的に検証する。
-- **ライフタイム**: 参照の有効期間をコンパイラが追跡し、ダングリングポインタを構造的に防止する。
+- **Ownership**: Each value has a unique owner, and the value is automatically freed when the owner goes out of scope.
+- **Borrowing**: References (borrows) to a value are either immutable (multiple allowed) or mutable (only one), statically verified by the compiler.
+- **Lifetimes**: The compiler tracks the validity period of references, structurally preventing dangling pointers.
 
-GC と比較した場合のトレードオフ:
-- 利点: 実行時オーバーヘッドゼロ、STW なし、決定的なリソース解放
-- 欠点: 学習曲線が急峻、循環的なデータ構造の表現がやや煩雑（Rc/Arc + RefCell が必要）
+Trade-offs compared to GC:
+- Advantages: Zero runtime overhead, no STW, deterministic resource release
+- Disadvantages: Steep learning curve, expressing circular data structures is somewhat complex (requires Rc/Arc + RefCell)
 
-### Q4: どの言語を選ぶべきか（メモリ管理の観点から）?
+### Q4: Which language should I choose (from a memory management perspective)?
 
-**A:** プロジェクトの要件に依存する。
+**A:** It depends on project requirements.
 
-| 要件 | 推奨言語 | 理由 |
+| Requirement | Recommended Languages | Reason |
 |------|---------|------|
-| Web バックエンド | Java, Go, C# | GC が成熟、エコシステムが豊富 |
-| 低レイテンシ | Go, Java(ZGC), Rust | 短い STW、または STW なし |
-| 組込みシステム | C, Rust | GC オーバーヘッドが許容されない |
-| データサイエンス | Python | GC を意識せず開発可能 |
-| フロントエンド | JavaScript/TypeScript | V8 の GC が自動最適化 |
-| ゲームエンジン | C++, Rust | リアルタイム性が必須 |
-| モバイルアプリ | Swift(iOS), Kotlin(Android) | ARC/GC がプラットフォーム標準 |
+| Web backend | Java, Go, C# | Mature GC, rich ecosystem |
+| Low latency | Go, Java(ZGC), Rust | Short STW, or no STW |
+| Embedded systems | C, Rust | GC overhead is not acceptable |
+| Data science | Python | Development without worrying about GC |
+| Frontend | JavaScript/TypeScript | V8's GC auto-optimizes |
+| Game engines | C++, Rust | Real-time performance is essential |
+| Mobile apps | Swift(iOS), Kotlin(Android) | ARC/GC is the platform standard |
 
-### Q5: GC のオーバーヘッドはどの程度か?
+### Q5: How much is the GC overhead?
 
-**A:** ワークロードによって大きく異なるが、一般的な目安は以下の通り。
+**A:** It varies greatly by workload, but general guidelines are as follows.
 
-- **CPU オーバーヘッド**: 全体の 2-10%（GC スレッドの実行コスト）
-- **メモリオーバーヘッド**: 20-50%（GC メタデータ + 遅延回収による余剰使用量）
-- **レイテンシ影響**: GC コレクタによる。ZGC なら < 1ms、G1 なら数百 ms の場合あり
+- **CPU overhead**: 2-10% of total (cost of GC thread execution)
+- **Memory overhead**: 20-50% (GC metadata + excess usage from delayed collection)
+- **Latency impact**: Depends on GC collector. < 1ms for ZGC, potentially hundreds of ms for G1
 
-GC のオーバーヘッドを最小化するために:
-1. オブジェクトの確保率を下げる（オブジェクトプーリング、バッファの再利用）
-2. 長寿命オブジェクトの不要な参照を断つ
-3. 適切な GC コレクタとパラメータを選択する
-4. ヒープサイズを適切に設定する
+To minimize GC overhead:
+1. Reduce object allocation rate (object pooling, buffer reuse)
+2. Break unnecessary references from long-lived objects
+3. Select appropriate GC collector and parameters
+4. Set heap size appropriately
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point in learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Building practical experience is most important. Understanding deepens not just from theory, but from actually writing code and observing the behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What mistakes do beginners commonly make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before proceeding to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently applied in day-to-day development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## 13. まとめと次のステップ
+## 13. Summary and Next Steps
 
-### GC アルゴリズムの全体マップ
+### Overall Map of GC Algorithms
 
 ```
-GC アルゴリズムの分類体系:
+GC Algorithm Classification:
 
-  ガベージコレクション
+  Garbage Collection
   │
-  ├── トレーシング GC（到達可能性ベース）
-  │   ├── マーク&スイープ ─── 基本形。循環参照 OK、断片化問題
-  │   ├── マーク&コンパクト ── 断片化解消、コスト高
-  │   ├── コピー GC ────── コンパクション自動、メモリ 50% 消費
-  │   ├── 世代別 GC ────── 若いオブジェクトの高速回収
-  │   ├── インクリメンタル GC ─ STW を小分け
-  │   └── 並行 GC ─────── バックグラウンドで GC 実行
+  ├── Tracing GC (reachability-based)
+  │   ├── Mark & Sweep ──── Basic form. Handles cycles, fragmentation issues
+  │   ├── Mark & Compact ── Eliminates fragmentation, high cost
+  │   ├── Copying GC ────── Automatic compaction, uses 50% of memory
+  │   ├── Generational GC ── Fast collection of young objects
+  │   ├── Incremental GC ── Splits STW into smaller pieces
+  │   └── Concurrent GC ─── Runs GC in the background
   │
-  └── 参照カウント（カウントベース）
-      ├── 単純参照カウント ── 即時回収、循環参照不可
-      ├── 遅延参照カウント ── ルートの更新を遅延
-      └── ARC ───────── コンパイラが自動挿入（Swift）
+  └── Reference Counting (count-based)
+      ├── Simple RC ──────── Immediate collection, cannot handle cycles
+      ├── Deferred RC ────── Delays root updates
+      └── ARC ────────────── Compiler auto-inserts (Swift)
 ```
 
-### 要点のまとめ
+### Key Points Summary
 
-| アルゴリズム | 中核アイデア | 主な利点 | 主な欠点 | 使用例 |
+| Algorithm | Core Idea | Main Advantage | Main Disadvantage | Usage |
 |------------|------------|---------|---------|-------|
-| マーク&スイープ | 到達可能性で判定 | 循環参照OK | STW、断片化 | 多くの言語の基盤 |
-| 参照カウント | 参照数で判定 | 即時回収 | 循環参照不可 | Python, Swift |
-| コピー GC | 生存オブジェクトをコピー | 断片化なし | メモリ2倍 | Young 世代 |
-| 世代別 GC | 世代別仮説で最適化 | 高速な Minor GC | 実装の複雑さ | Java, JS, C# |
-| 並行 GC | バックグラウンド実行 | STW 最小化 | 書き込みバリア必要 | Go, Java(ZGC) |
+| Mark & Sweep | Reachability-based | Handles cycles | STW, fragmentation | Foundation for many languages |
+| Reference Counting | Count-based | Immediate collection | Cannot handle cycles | Python, Swift |
+| Copying GC | Copy surviving objects | No fragmentation | 2x memory | Young generation |
+| Generational GC | Optimized by generational hypothesis | Fast Minor GC | Implementation complexity | Java, JS, C# |
+| Concurrent GC | Background execution | Minimizes STW | Requires write barriers | Go, Java(ZGC) |
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
 
 ---
 
-## 14. 参考文献
+## 14. References
 
-1. Jones, R., Hosking, A. & Moss, E. *The Garbage Collection Handbook: The Art of Automatic Memory Management.* 2nd Edition, CRC Press, 2023. -- GC の理論と実装を包括的にカバーする決定版テキスト。マーク&スイープ、コピー GC、世代別 GC、並行 GC の全てを詳細に解説している。
+1. Jones, R., Hosking, A. & Moss, E. *The Garbage Collection Handbook: The Art of Automatic Memory Management.* 2nd Edition, CRC Press, 2023. -- The definitive text comprehensively covering GC theory and implementation. Provides detailed explanations of Mark & Sweep, Copying GC, Generational GC, and Concurrent GC.
 
-2. McCarthy, J. "Recursive Functions of Symbolic Expressions and Their Computation by Machine, Part I." *Communications of the ACM*, Vol.3, No.4, pp.184-195, 1960. -- Lisp と GC の原論文。マーク&スイープ方式の最初の提案を含む、プログラミング言語史上最も重要な論文の一つ。
+2. McCarthy, J. "Recursive Functions of Symbolic Expressions and Their Computation by Machine, Part I." *Communications of the ACM*, Vol.3, No.4, pp.184-195, 1960. -- The original paper on Lisp and GC. One of the most important papers in programming language history, containing the first proposal of the Mark & Sweep method.
 
-3. Dijkstra, E.W., Lamport, L., Martin, A.J., Scholten, C.S. & Steffens, E.F.M. "On-the-Fly Garbage Collection: An Exercise in Cooperation." *Communications of the ACM*, Vol.21, No.11, pp.966-975, 1978. -- 三色マーキングと並行 GC の理論的基盤を確立した古典的論文。
+3. Dijkstra, E.W., Lamport, L., Martin, A.J., Scholten, C.S. & Steffens, E.F.M. "On-the-Fly Garbage Collection: An Exercise in Cooperation." *Communications of the ACM*, Vol.21, No.11, pp.966-975, 1978. -- A classic paper that established the theoretical foundations of tri-color marking and concurrent GC.
 
-4. Bacon, D.F., Cheng, P. & Rajan, V.T. "A Unified Theory of Garbage Collection." *Proceedings of the 19th ACM SIGPLAN Conference on Object-Oriented Programming, Systems, Languages, and Applications (OOPSLA)*, pp.50-68, 2004. -- トレーシング GC と参照カウントが数学的に双対であることを示した画期的論文。
+4. Bacon, D.F., Cheng, P. & Rajan, V.T. "A Unified Theory of Garbage Collection." *Proceedings of the 19th ACM SIGPLAN Conference on Object-Oriented Programming, Systems, Languages, and Applications (OOPSLA)*, pp.50-68, 2004. -- A groundbreaking paper demonstrating that tracing GC and reference counting are mathematically dual.
 
-5. Oracle. *Java Platform, Standard Edition HotSpot Virtual Machine Garbage Collection Tuning Guide.* https://docs.oracle.com/en/java/javase/21/gctuning/ -- Java 21 LTS の公式 GC チューニングガイド。G1 GC、ZGC、Serial GC、Parallel GC の設定と最適化手法を解説。
+5. Oracle. *Java Platform, Standard Edition HotSpot Virtual Machine Garbage Collection Tuning Guide.* https://docs.oracle.com/en/java/javase/21/gctuning/ -- Official GC tuning guide for Java 21 LTS. Explains configuration and optimization methods for G1 GC, ZGC, Serial GC, and Parallel GC.
 
-6. Go Team. *A Guide to the Go Garbage Collector.* https://tip.golang.org/doc/gc-guide -- Go 公式の GC ガイド。GOGC と GOMEMLIMIT の使い方、GC のペーシングアルゴリズムを解説。
+6. Go Team. *A Guide to the Go Garbage Collector.* https://tip.golang.org/doc/gc-guide -- Official Go GC guide. Explains how to use GOGC and GOMEMLIMIT, and the GC pacing algorithm.
 
-7. V8 Team. *Trash Talk: The Orinoco Garbage Collector.* https://v8.dev/blog/trash-talk -- V8 エンジンの GC（Orinoco）の設計と実装を解説する公式ブログ記事。Scavenger、並行マーキング、インクリメンタルマーキングの詳細を含む。
+7. V8 Team. *Trash Talk: The Orinoco Garbage Collector.* https://v8.dev/blog/trash-talk -- Official blog post explaining the design and implementation of V8's GC (Orinoco). Includes details on Scavenger, concurrent marking, and incremental marking.
 
-8. Tene, G., Iyengar, B. & Wolf, M. "C4: The Continuously Concurrent Compacting Collector." *Proceedings of the International Symposium on Memory Management (ISMM)*, ACM, 2011. -- Azul Systems の Pauseless GC（C4）の設計を解説した論文。商用 GC の最前線。
+8. Tene, G., Iyengar, B. & Wolf, M. "C4: The Continuously Concurrent Compacting Collector." *Proceedings of the International Symposium on Memory Management (ISMM)*, ACM, 2011. -- Paper explaining the design of Azul Systems' Pauseless GC (C4). The cutting edge of commercial GC.
 
 ---
 
-## 参考文献
+## References
 
-- [MDN Web Docs](https://developer.mozilla.org/) - Web技術のリファレンス
-- [Wikipedia](https://ja.wikipedia.org/) - 技術概念の概要
+- [MDN Web Docs](https://developer.mozilla.org/) - Web technology reference
+- [Wikipedia](https://en.wikipedia.org/) - Overview of technical concepts

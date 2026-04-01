@@ -1,87 +1,87 @@
-# 再帰（Recursion）
+# Recursion
 
-> 再帰は「問題を同じ構造の小さな問題に分解する」技法。数学的に美しく、ツリー・グラフ・分割統治に不可欠。
+> Recursion is a technique of "decomposing a problem into smaller problems of the same structure." It is mathematically elegant and indispensable for trees, graphs, and divide-and-conquer approaches.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] 再帰の仕組みと基本パターンを理解する
-- [ ] 末尾再帰と最適化を理解する
-- [ ] 再帰とループの使い分けを判断できる
-- [ ] メモ化による再帰の最適化を実践できる
-- [ ] 分割統治法の各種アルゴリズムを理解する
-- [ ] バックトラッキングと探索アルゴリズムを実装できる
-- [ ] トランポリンと CPS による末尾呼び出し最適化の代替手法を理解する
+- [ ] Understand the mechanics and basic patterns of recursion
+- [ ] Understand tail recursion and its optimization
+- [ ] Be able to determine when to use recursion vs. loops
+- [ ] Practice optimization of recursion through memoization
+- [ ] Understand various divide-and-conquer algorithms
+- [ ] Implement backtracking and search algorithms
+- [ ] Understand trampolines and CPS as alternatives to tail call optimization
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [高階関数（Higher-Order Functions）](./02-higher-order-functions.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding the content of [Higher-Order Functions](./02-higher-order-functions.md)
 
 ---
 
-## 1. 再帰の基本
+## 1. Recursion Basics
 
-### 1.1 再帰関数とは
-
-```
-再帰関数 = 自分自身を呼び出す関数
-
-構成要素:
-  1. ベースケース（終了条件）: 再帰を止める条件
-  2. 再帰ステップ: 問題を小さくして自分自身を呼び出す
-
-必須ルール:
-  - 必ずベースケースに到達すること（無限再帰を防ぐ）
-  - 各再帰呼び出しで問題が小さくなること（収束すること）
-```
+### 1.1 What Is a Recursive Function?
 
 ```
-再帰呼び出しのイメージ:
+Recursive function = A function that calls itself
+
+Components:
+  1. Base case (termination condition): The condition that stops the recursion
+  2. Recursive step: Makes the problem smaller and calls itself
+
+Essential rules:
+  - Must always reach the base case (to prevent infinite recursion)
+  - The problem must get smaller with each recursive call (must converge)
+```
+
+```
+Visualization of recursive calls:
 
   factorial(5)
     ├── 5 * factorial(4)
     │       ├── 4 * factorial(3)
     │       │       ├── 3 * factorial(2)
     │       │       │       ├── 2 * factorial(1)
-    │       │       │       │       └── return 1  ← ベースケース
+    │       │       │       │       └── return 1  ← base case
     │       │       │       └── return 2 * 1 = 2
     │       │       └── return 3 * 2 = 6
     │       └── return 4 * 6 = 24
     └── return 5 * 24 = 120
 ```
 
-### 1.2 Python での基本的な再帰
+### 1.2 Basic Recursion in Python
 
 ```python
-# 階乗: n! = n * (n-1)!
+# Factorial: n! = n * (n-1)!
 def factorial(n):
-    if n <= 1:          # ベースケース
+    if n <= 1:          # Base case
         return 1
-    return n * factorial(n - 1)  # 再帰ステップ
+    return n * factorial(n - 1)  # Recursive step
 
-# コールスタックの展開:
+# Unwinding the call stack:
 # factorial(5)
 #   → 5 * factorial(4)
 #     → 4 * factorial(3)
 #       → 3 * factorial(2)
 #         → 2 * factorial(1)
-#           → 1（ベースケース）
+#           → 1 (base case)
 #         → 2 * 1 = 2
 #       → 3 * 2 = 6
 #     → 4 * 6 = 24
 #   → 5 * 24 = 120
 
-# 自然数の合計: sum(n) = n + sum(n-1)
+# Sum of natural numbers: sum(n) = n + sum(n-1)
 def sum_natural(n):
     if n <= 0:
         return 0
     return n + sum_natural(n - 1)
 
-# 累乗: power(base, exp) = base * power(base, exp-1)
+# Exponentiation: power(base, exp) = base * power(base, exp-1)
 def power(base, exp):
     if exp == 0:
         return 1
@@ -89,19 +89,19 @@ def power(base, exp):
         return 1 / power(base, -exp)
     return base * power(base, exp - 1)
 
-# 最大公約数（ユークリッドの互除法）
+# Greatest common divisor (Euclidean algorithm)
 def gcd(a, b):
     if b == 0:
         return a
     return gcd(b, a % b)
 
-# 文字列の反転
+# String reversal
 def reverse_string(s):
     if len(s) <= 1:
         return s
     return reverse_string(s[1:]) + s[0]
 
-# 回文判定
+# Palindrome check
 def is_palindrome(s):
     if len(s) <= 1:
         return True
@@ -110,38 +110,38 @@ def is_palindrome(s):
     return is_palindrome(s[1:-1])
 ```
 
-### 1.3 TypeScript での基本的な再帰
+### 1.3 Basic Recursion in TypeScript
 
 ```typescript
-// 階乗
+// Factorial
 function factorial(n: number): number {
     if (n <= 1) return 1;
     return n * factorial(n - 1);
 }
 
-// フィボナッチ数列（素朴な再帰 - 非効率）
+// Fibonacci sequence (naive recursion - inefficient)
 function fibonacci(n: number): number {
     if (n <= 1) return n;
     return fibonacci(n - 1) + fibonacci(n - 2);
 }
 
-// 二分探索（再帰版）
+// Binary search (recursive version)
 function binarySearch(
     arr: number[],
     target: number,
     lo: number = 0,
     hi: number = arr.length - 1
 ): number {
-    if (lo > hi) return -1;  // ベースケース: 見つからない
+    if (lo > hi) return -1;  // Base case: not found
     const mid = Math.floor((lo + hi) / 2);
-    if (arr[mid] === target) return mid;  // ベースケース: 発見
+    if (arr[mid] === target) return mid;  // Base case: found
     if (arr[mid] < target) {
         return binarySearch(arr, target, mid + 1, hi);
     }
     return binarySearch(arr, target, lo, mid - 1);
 }
 
-// 文字列のすべての部分集合（パワーセット）
+// All subsets of a string (power set)
 function powerSet(s: string): string[] {
     if (s.length === 0) return [""];
     const first = s[0];
@@ -153,58 +153,58 @@ powerSet("abc");
 // → ["", "c", "b", "bc", "a", "ac", "ab", "abc"]
 ```
 
-### 1.4 コールスタックの視覚化
+### 1.4 Call Stack Visualization
 
 ```
-コールスタックの成長と縮小:
+Growth and shrinkage of the call stack:
 
-factorial(4) を呼び出した時のスタックの変化:
+Changes to the stack when calling factorial(4):
 
   Step 1:  [factorial(4)]
   Step 2:  [factorial(4), factorial(3)]
   Step 3:  [factorial(4), factorial(3), factorial(2)]
   Step 4:  [factorial(4), factorial(3), factorial(2), factorial(1)]
-  Step 5:  [factorial(4), factorial(3), factorial(2)]  ← 1 を返す
-  Step 6:  [factorial(4), factorial(3)]                ← 2 を返す
-  Step 7:  [factorial(4)]                              ← 6 を返す
-  Step 8:  []                                          ← 24 を返す
+  Step 5:  [factorial(4), factorial(3), factorial(2)]  ← returns 1
+  Step 6:  [factorial(4), factorial(3)]                ← returns 2
+  Step 7:  [factorial(4)]                              ← returns 6
+  Step 8:  []                                          ← returns 24
 
-スタックの深さ = n（線形再帰の場合）
-スタックオーバーフロー: 深さが言語のスタック制限を超えた場合に発生
-  - Python: デフォルト 1000（sys.setrecursionlimit() で変更可能）
-  - JavaScript: エンジン依存（通常 10,000～25,000）
-  - Java: スレッドスタックサイズに依存（デフォルト 512KB～1MB）
+Stack depth = n (for linear recursion)
+Stack overflow: Occurs when depth exceeds the language's stack limit
+  - Python: Default 1000 (changeable with sys.setrecursionlimit())
+  - JavaScript: Engine-dependent (typically 10,000-25,000)
+  - Java: Depends on thread stack size (default 512KB-1MB)
 ```
 
 ---
 
-## 2. 再帰のパターン
+## 2. Recursion Patterns
 
-### 2.1 線形再帰
+### 2.1 Linear Recursion
 
 ```python
-# パターン1: 線形再帰（リスト処理）
-# 各呼び出しで再帰を1回だけ行う → O(n)
+# Pattern 1: Linear recursion (list processing)
+# Each call makes exactly one recursive call → O(n)
 
 def sum_list(lst):
     if not lst:
         return 0
     return lst[0] + sum_list(lst[1:])
 
-# リストの長さ
+# List length
 def length(lst):
     if not lst:
         return 0
     return 1 + length(lst[1:])
 
-# リストの最大値
+# Maximum value in a list
 def maximum(lst):
     if len(lst) == 1:
         return lst[0]
     rest_max = maximum(lst[1:])
     return lst[0] if lst[0] > rest_max else rest_max
 
-# リストのフラット化
+# List flattening
 def flatten(lst):
     result = []
     for item in lst:
@@ -217,20 +217,20 @@ def flatten(lst):
 flatten([1, [2, [3, 4], 5], [6, 7]])
 # → [1, 2, 3, 4, 5, 6, 7]
 
-# zip（再帰版）
+# zip (recursive version)
 def zip_lists(lst1, lst2):
     if not lst1 or not lst2:
         return []
     return [(lst1[0], lst2[0])] + zip_lists(lst1[1:], lst2[1:])
 ```
 
-### 2.2 二分再帰（分割統治）
+### 2.2 Binary Recursion (Divide and Conquer)
 
 ```python
-# パターン2: 二分再帰（分割統治）
-# 各呼び出しで再帰を2回行う
+# Pattern 2: Binary recursion (divide and conquer)
+# Each call makes two recursive calls
 
-# マージソート
+# Merge sort
 def merge_sort(arr):
     if len(arr) <= 1:
         return arr
@@ -253,7 +253,7 @@ def merge(left, right):
     result.extend(right[j:])
     return result
 
-# クイックソート
+# Quicksort
 def quicksort(arr):
     if len(arr) <= 1:
         return arr
@@ -263,7 +263,7 @@ def quicksort(arr):
     right = [x for x in arr if x > pivot]
     return quicksort(left) + middle + quicksort(right)
 
-# 高速累乗（分割統治）: O(log n)
+# Fast exponentiation (divide and conquer): O(log n)
 def fast_power(base, exp):
     if exp == 0:
         return 1
@@ -273,7 +273,7 @@ def fast_power(base, exp):
     else:
         return base * fast_power(base, exp - 1)
 
-# カラツバ乗算（大きな整数の高速乗算）
+# Karatsuba multiplication (fast multiplication of large integers)
 def karatsuba(x, y):
     if x < 10 or y < 10:
         return x * y
@@ -285,7 +285,7 @@ def karatsuba(x, y):
     a, b = divmod(x, power)  # x = a * 10^half + b
     c, d = divmod(y, power)  # y = c * 10^half + d
 
-    # 3回の乗算で済む（通常は4回必要）
+    # Only 3 multiplications needed (normally 4 are required)
     ac = karatsuba(a, c)
     bd = karatsuba(b, d)
     ad_bc = karatsuba(a + b, c + d) - ac - bd
@@ -293,20 +293,20 @@ def karatsuba(x, y):
     return ac * (10 ** (2 * half)) + ad_bc * (10 ** half) + bd
 ```
 
-### 2.3 ツリー再帰
+### 2.3 Tree Recursion
 
 ```python
-# パターン3: ツリー再帰
-# 各呼び出しで2回以上の再帰呼び出しを行う
+# Pattern 3: Tree recursion
+# Each call makes two or more recursive calls
 
-# フィボナッチ（ナイーブ版 - O(2^n)）
+# Fibonacci (naive version - O(2^n))
 def fibonacci(n):
     if n <= 1:
         return n
     return fibonacci(n - 1) + fibonacci(n - 2)
-# 注意: 指数的な計算量。メモ化が必要
+# Note: Exponential time complexity. Memoization is needed
 
-# フィボナッチの呼び出しツリー:
+# Fibonacci call tree:
 # fib(5)
 # ├── fib(4)
 # │   ├── fib(3)
@@ -322,15 +322,15 @@ def fibonacci(n):
 #     │   ├── fib(1) → 1
 #     │   └── fib(0) → 0
 #     └── fib(1) → 1
-# → 同じ計算が何度も繰り返される
+# → The same computations are repeated many times
 
-# パスカルの三角形
+# Pascal's triangle
 def pascal(row, col):
     if col == 0 or col == row:
         return 1
     return pascal(row - 1, col - 1) + pascal(row - 1, col)
 
-# パスカルの三角形を表示
+# Display Pascal's triangle
 def print_pascal(n):
     for row in range(n):
         values = [pascal(row, col) for col in range(row + 1)]
@@ -344,7 +344,7 @@ print_pascal(6)
 #   1   4   6   4   1
 #  1   5  10  10   5   1
 
-# 組み合わせの数 C(n, k) = C(n-1, k-1) + C(n-1, k)
+# Number of combinations C(n, k) = C(n-1, k-1) + C(n-1, k)
 def combinations_count(n, k):
     if k == 0 or k == n:
         return 1
@@ -353,11 +353,11 @@ def combinations_count(n, k):
     return combinations_count(n - 1, k - 1) + combinations_count(n - 1, k)
 ```
 
-### 2.4 相互再帰
+### 2.4 Mutual Recursion
 
 ```python
-# パターン4: 相互再帰
-# 2つ以上の関数が互いを呼び出す
+# Pattern 4: Mutual recursion
+# Two or more functions call each other
 
 def is_even(n):
     if n == 0: return True
@@ -367,7 +367,7 @@ def is_odd(n):
     if n == 0: return False
     return is_even(n - 1)
 
-# 数式パーサーの相互再帰
+# Mutual recursion in an expression parser
 # expr   = term (('+' | '-') term)*
 # term   = factor (('*' | '/') factor)*
 # factor = number | '(' expr ')'
@@ -414,13 +414,13 @@ class Parser:
     def parse_factor(self):
         """factor = number | '(' expr ')'"""
         if self.peek() == '(':
-            self.consume()  # '(' を消費
-            result = self.parse_expr()  # 再帰: factor → expr → term → factor
-            self.consume()  # ')' を消費
+            self.consume()  # Consume '('
+            result = self.parse_expr()  # Recursion: factor → expr → term → factor
+            self.consume()  # Consume ')'
             return result
         return float(self.consume())
 
-# 使用例
+# Usage example
 tokens = ['(', '2', '+', '3', ')', '*', '4']
 parser = Parser(tokens)
 print(parser.parse_expr())  # → 20.0
@@ -428,12 +428,12 @@ print(parser.parse_expr())  # → 20.0
 
 ---
 
-## 3. ツリー構造の再帰処理
+## 3. Recursive Processing of Tree Structures
 
-### 3.1 ファイルシステムの走査
+### 3.1 File System Traversal
 
 ```typescript
-// ファイルシステムの走査
+// File system traversal
 interface FSNode {
     name: string;
     type: "file" | "directory";
@@ -441,16 +441,16 @@ interface FSNode {
     size?: number;
 }
 
-// 総サイズの計算
+// Calculate total size
 function totalSize(node: FSNode): number {
     if (node.type === "file") {
-        return node.size ?? 0;  // ベースケース
+        return node.size ?? 0;  // Base case
     }
     return (node.children ?? [])
         .reduce((sum, child) => sum + totalSize(child), 0);
 }
 
-// ファイルの検索（深さ優先）
+// Search for files (depth-first)
 function findFiles(
     node: FSNode,
     predicate: (node: FSNode) => boolean
@@ -467,7 +467,7 @@ function findFiles(
     return results;
 }
 
-// ディレクトリツリーの文字列表現
+// String representation of a directory tree
 function renderTree(node: FSNode, indent: string = "", isLast: boolean = true): string {
     const prefix = indent + (isLast ? "└── " : "├── ");
     const childIndent = indent + (isLast ? "    " : "│   ");
@@ -481,7 +481,7 @@ function renderTree(node: FSNode, indent: string = "", isLast: boolean = true): 
     return result;
 }
 
-// 使用例
+// Usage example
 const root: FSNode = {
     name: "project",
     type: "directory",
@@ -523,10 +523,10 @@ console.log(renderTree(root));
 //     └── README.md
 ```
 
-### 3.2 JSON / ネストオブジェクトの再帰処理
+### 3.2 Recursive Processing of JSON / Nested Objects
 
 ```typescript
-// JSON の深い値を取得
+// Get a deep value from JSON
 function deepGet(obj: any, path: string[]): any {
     if (path.length === 0) return obj;
     if (obj == null) return undefined;
@@ -536,7 +536,7 @@ function deepGet(obj: any, path: string[]): any {
 
 deepGet({ a: { b: { c: 42 } } }, ["a", "b", "c"]);  // → 42
 
-// 深いマージ
+// Deep merge
 function deepMerge(target: any, source: any): any {
     if (typeof target !== "object" || typeof source !== "object") {
         return source;
@@ -555,7 +555,7 @@ function deepMerge(target: any, source: any): any {
     return result;
 }
 
-// 深い比較（deep equality）
+// Deep comparison (deep equality)
 function deepEqual(a: any, b: any): boolean {
     if (a === b) return true;
     if (a == null || b == null) return false;
@@ -576,7 +576,7 @@ function deepEqual(a: any, b: any): boolean {
     return false;
 }
 
-// 深いクローン
+// Deep clone
 function deepClone<T>(obj: T): T {
     if (obj === null || typeof obj !== "object") return obj;
     if (obj instanceof Date) return new Date(obj.getTime()) as any;
@@ -592,7 +592,7 @@ function deepClone<T>(obj: T): T {
     return cloned;
 }
 
-// オブジェクトの全パスを列挙
+// Enumerate all paths in an object
 function allPaths(obj: any, prefix: string = ""): string[] {
     if (typeof obj !== "object" || obj === null) {
         return [prefix];
@@ -606,7 +606,7 @@ function allPaths(obj: any, prefix: string = ""): string[] {
 allPaths({ a: { b: 1, c: { d: 2 } }, e: 3 });
 // → ["a.b", "a.c.d", "e"]
 
-// オブジェクトの平坦化
+// Object flattening
 function flattenObject(obj: any, prefix: string = ""): Record<string, any> {
     const result: Record<string, any> = {};
     for (const [key, value] of Object.entries(obj)) {
@@ -624,10 +624,10 @@ flattenObject({ a: { b: 1, c: { d: 2 } }, e: 3 });
 // → { "a.b": 1, "a.c.d": 2, "e": 3 }
 ```
 
-### 3.3 DOM ツリーの再帰処理
+### 3.3 Recursive Processing of DOM Trees
 
 ```typescript
-// DOM ツリーの走査
+// DOM tree traversal
 function walkDOM(node: Node, callback: (node: Node) => void): void {
     callback(node);
     let child = node.firstChild;
@@ -637,7 +637,7 @@ function walkDOM(node: Node, callback: (node: Node) => void): void {
     }
 }
 
-// 特定の条件に一致する要素を再帰的に検索
+// Recursively search for elements matching a condition
 function findElement(
     node: Element,
     predicate: (el: Element) => boolean
@@ -650,14 +650,14 @@ function findElement(
     return null;
 }
 
-// React コンポーネントツリーの再帰レンダリング
+// Recursive rendering of a React component tree
 interface TreeItem {
     id: string;
     label: string;
     children?: TreeItem[];
 }
 
-// 再帰的なツリーコンポーネント
+// Recursive tree component
 function TreeView({ items, depth = 0 }: { items: TreeItem[]; depth?: number }) {
     return (
         <ul style={{ paddingLeft: depth > 0 ? 20 : 0 }}>
@@ -676,81 +676,80 @@ function TreeView({ items, depth = 0 }: { items: TreeItem[]; depth?: number }) {
 
 ---
 
-## 4. 末尾再帰（Tail Recursion）
+## 4. Tail Recursion
 
-### 4.1 末尾再帰とは
+### 4.1 What Is Tail Recursion?
 
 ```
-末尾再帰 = 再帰呼び出しが関数の最後の操作
+Tail recursion = The recursive call is the last operation in the function
 
-  通常の再帰: return n * factorial(n - 1)
-              ↑ 再帰の結果に n を掛ける → スタックに n を保持
+  Normal recursion: return n * factorial(n - 1)
+                    ↑ Multiplies n by the result of recursion → n must be kept on the stack
 
-  末尾再帰:   return factorial_tail(n - 1, acc * n)
-              ↑ 再帰呼び出しが最後 → スタックフレームを再利用可能
+  Tail recursion:   return factorial_tail(n - 1, acc * n)
+                    ↑ Recursive call is the last operation → stack frame can be reused
 
-通常の再帰のスタック:
-  factorial(4)           ← スタックに 4 を保持
-    factorial(3)         ← スタックに 3 を保持
-      factorial(2)       ← スタックに 2 を保持
-        factorial(1)     ← ベースケース
-      return 2 * 1       ← 巻き戻し
+Normal recursion stack:
+  factorial(4)           ← Keep 4 on the stack
+    factorial(3)         ← Keep 3 on the stack
+      factorial(2)       ← Keep 2 on the stack
+        factorial(1)     ← Base case
+      return 2 * 1       ← Unwinding
     return 3 * 2
   return 4 * 6
-→ スタック深さ: O(n)
+→ Stack depth: O(n)
 
-末尾再帰のスタック（TCO あり）:
+Tail recursion stack (with TCO):
   factorial_tail(4, 1)   → factorial_tail(3, 4)
                          → factorial_tail(2, 12)
                          → factorial_tail(1, 24)
                          → return 24
-→ スタック深さ: O(1)（スタックフレームを再利用）
+→ Stack depth: O(1) (stack frames are reused)
 ```
 
-### 4.2 末尾再帰への変換
+### 4.2 Converting to Tail Recursion
 
 ```python
-# 通常の再帰（スタックが O(n) 成長）
+# Normal recursion (stack grows O(n))
 def factorial(n):
     if n <= 1: return 1
     return n * factorial(n - 1)
 
-# 末尾再帰（アキュムレータ使用）
+# Tail recursion (using accumulator)
 def factorial_tail(n, acc=1):
     if n <= 1: return acc
     return factorial_tail(n - 1, acc * n)
 
-# Python は末尾再帰最適化を行わない
-# → 大きな n でスタックオーバーフロー
-# → ループで書き直すのが推奨
+# Python does NOT perform tail call optimization
+# → Stack overflow for large n
+# → Rewriting as a loop is recommended
 
-# 末尾再帰への変換パターン
-# 通常の再帰を末尾再帰に変換する一般的な手法:
-# 1. アキュムレータ（accumulator）を導入
-# 2. 計算結果をアキュムレータに蓄積
-# 3. ベースケースでアキュムレータを返す
+# General pattern for converting to tail recursion:
+# 1. Introduce an accumulator
+# 2. Accumulate the computation result in the accumulator
+# 3. Return the accumulator at the base case
 
-# 例: リストの合計
-# 通常の再帰
+# Example: List sum
+# Normal recursion
 def sum_list(lst):
     if not lst:
         return 0
     return lst[0] + sum_list(lst[1:])
 
-# 末尾再帰
+# Tail recursion
 def sum_list_tail(lst, acc=0):
     if not lst:
         return acc
     return sum_list_tail(lst[1:], acc + lst[0])
 
-# 例: リストの反転
-# 通常の再帰
+# Example: List reversal
+# Normal recursion
 def reverse_list(lst):
     if not lst:
         return []
     return reverse_list(lst[1:]) + [lst[0]]
 
-# 末尾再帰
+# Tail recursion
 def reverse_list_tail(lst, acc=None):
     if acc is None:
         acc = []
@@ -758,69 +757,69 @@ def reverse_list_tail(lst, acc=None):
         return acc
     return reverse_list_tail(lst[1:], [lst[0]] + acc)
 
-# 例: フィボナッチ
-# 通常の再帰（ツリー再帰 - O(2^n)）
+# Example: Fibonacci
+# Normal recursion (tree recursion - O(2^n))
 def fib(n):
     if n <= 1:
         return n
     return fib(n - 1) + fib(n - 2)
 
-# 末尾再帰（線形 - O(n)）
+# Tail recursion (linear - O(n))
 def fib_tail(n, a=0, b=1):
     if n == 0:
         return a
     return fib_tail(n - 1, b, a + b)
 ```
 
-### 4.3 TCO をサポートする言語
+### 4.3 Languages That Support TCO
 
 ```
-TCO あり:  Scheme, Haskell, Elixir/Erlang, Scala(@tailrec)
-TCO 限定:  JavaScript(strict mode、実装依存)
-TCO なし:  Python, Java, Go, Rust(明示的に使用しない)
+TCO supported:  Scheme, Haskell, Elixir/Erlang, Scala(@tailrec)
+TCO limited:    JavaScript (strict mode, implementation-dependent)
+No TCO:         Python, Java, Go, Rust (not explicitly used)
 
-TCO がない言語での対策:
-  → ループに書き直す
-  → トランポリン（後述）
+Workarounds for languages without TCO:
+  → Rewrite as a loop
+  → Trampolining (described later)
 ```
 
 ```scheme
-;; Scheme: 末尾再帰最適化（TCO）あり
+;; Scheme: Tail call optimization (TCO) is supported
 (define (factorial n)
   (define (iter n acc)
     (if (<= n 1)
         acc
-        (iter (- n 1) (* acc n))))  ; 末尾位置 → TCOで最適化
+        (iter (- n 1) (* acc n))))  ; Tail position → optimized by TCO
   (iter n 1))
-;; スタックは成長しない（ループと同等の効率）
+;; Stack does not grow (same efficiency as a loop)
 ```
 
 ```scala
-// Scala: @tailrec アノテーションで末尾再帰を保証
+// Scala: @tailrec annotation guarantees tail recursion
 import scala.annotation.tailrec
 
 def factorial(n: Long): Long = {
   @tailrec
   def loop(n: Long, acc: Long): Long = {
     if (n <= 1) acc
-    else loop(n - 1, acc * n)  // コンパイラが末尾再帰を検証
+    else loop(n - 1, acc * n)  // Compiler verifies tail recursion
   }
   loop(n, 1)
 }
 
-// 末尾再帰でない場合はコンパイルエラー
+// Compile error if not tail-recursive
 // @tailrec
 // def badFactorial(n: Long): Long = {
 //   if (n <= 1) 1
-//   else n * badFactorial(n - 1)  // エラー: 末尾位置ではない
+//   else n * badFactorial(n - 1)  // Error: not in tail position
 // }
 ```
 
 ```elixir
-# Elixir: 末尾再帰が推奨される関数型言語
+# Elixir: A functional language where tail recursion is encouraged
 
 defmodule Math do
-  # 末尾再帰版
+  # Tail-recursive version
   def factorial(n), do: factorial(n, 1)
 
   defp factorial(0, acc), do: acc
@@ -828,7 +827,7 @@ defmodule Math do
     factorial(n - 1, acc * n)
   end
 
-  # リストの長さ（末尾再帰）
+  # List length (tail recursion)
   def length(list), do: length(list, 0)
 
   defp length([], acc), do: acc
@@ -836,7 +835,7 @@ defmodule Math do
     length(tail, acc + 1)
   end
 
-  # map（末尾再帰 + アキュムレータ + reverse）
+  # map (tail recursion + accumulator + reverse)
   def map(list, func), do: map(list, func, [])
 
   defp map([], _func, acc), do: Enum.reverse(acc)
@@ -848,22 +847,22 @@ end
 
 ---
 
-## 5. メモ化（Memoization）
+## 5. Memoization
 
-### 5.1 メモ化の基本
+### 5.1 Basics of Memoization
 
 ```python
-# フィボナッチの問題: 同じ計算を何度も繰り返す
+# The Fibonacci problem: The same computation is repeated many times
 # fib(5)
 #   fib(4) + fib(3)
 #     fib(3)+fib(2)   fib(2)+fib(1)
-#     ↑ fib(3) を2回計算している
+#     ↑ fib(3) is computed twice
 
-# 計算量の比較:
-# メモ化なし: O(2^n) - 指数的に爆発
-# メモ化あり: O(n)   - 各値を1回だけ計算
+# Time complexity comparison:
+# Without memoization: O(2^n) - exponential explosion
+# With memoization:    O(n)   - each value computed only once
 
-# 手動メモ化
+# Manual memoization
 def fibonacci_memo(n, memo=None):
     if memo is None:
         memo = {}
@@ -874,7 +873,7 @@ def fibonacci_memo(n, memo=None):
     memo[n] = fibonacci_memo(n - 1, memo) + fibonacci_memo(n - 2, memo)
     return memo[n]
 
-# デコレータによるメモ化
+# Memoization via decorator
 from functools import lru_cache
 
 @lru_cache(maxsize=None)
@@ -882,17 +881,17 @@ def fibonacci(n):
     if n <= 1: return n
     return fibonacci(n - 1) + fibonacci(n - 2)
 
-fibonacci(100)  # 一瞬で計算（O(n)）
+fibonacci(100)  # Computed instantly (O(n))
 
-# キャッシュ情報の確認
+# Check cache information
 print(fibonacci.cache_info())
 # CacheInfo(hits=98, misses=101, maxsize=None, currsize=101)
 ```
 
-### 5.2 各言語でのメモ化
+### 5.2 Memoization in Various Languages
 
 ```rust
-// Rust: HashMap でメモ化
+// Rust: Memoization with HashMap
 use std::collections::HashMap;
 
 fn fibonacci(n: u64, memo: &mut HashMap<u64, u64>) -> u64 {
@@ -913,7 +912,7 @@ fn main() {
 ```
 
 ```typescript
-// TypeScript: 汎用メモ化デコレータ
+// TypeScript: Generic memoization decorator
 function memoize<Args extends any[], R>(
     fn: (...args: Args) => R,
     keyFn: (...args: Args) => string = (...args) => JSON.stringify(args)
@@ -928,15 +927,15 @@ function memoize<Args extends any[], R>(
     };
 }
 
-// 使用例: 経路の数（格子上の右下への移動）
+// Usage example: Number of paths (moving right and down on a grid)
 const gridPaths = memoize((rows: number, cols: number): number => {
     if (rows === 1 || cols === 1) return 1;
     return gridPaths(rows - 1, cols) + gridPaths(rows, cols - 1);
 });
 
-console.log(gridPaths(18, 18));  // → 2333606220（メモ化なしでは非常に遅い）
+console.log(gridPaths(18, 18));  // → 2333606220 (very slow without memoization)
 
-// LRU キャッシュ（サイズ制限付きメモ化）
+// LRU cache (memoization with size limit)
 class LRUCache<K, V> {
     private cache = new Map<K, V>();
 
@@ -944,7 +943,7 @@ class LRUCache<K, V> {
 
     get(key: K): V | undefined {
         if (!this.cache.has(key)) return undefined;
-        // アクセスされたエントリを末尾に移動（最近使用された）
+        // Move accessed entry to the end (most recently used)
         const value = this.cache.get(key)!;
         this.cache.delete(key);
         this.cache.set(key, value);
@@ -955,7 +954,7 @@ class LRUCache<K, V> {
         if (this.cache.has(key)) {
             this.cache.delete(key);
         } else if (this.cache.size >= this.maxSize) {
-            // 最も古いエントリを削除
+            // Delete the oldest entry
             const firstKey = this.cache.keys().next().value;
             this.cache.delete(firstKey!);
         }
@@ -964,15 +963,15 @@ class LRUCache<K, V> {
 }
 ```
 
-### 5.3 動的計画法との関係
+### 5.3 Relationship with Dynamic Programming
 
 ```python
-# メモ化再帰 = トップダウン動的計画法（Top-down DP）
-# テーブル法 = ボトムアップ動的計画法（Bottom-up DP）
+# Memoized recursion = Top-down dynamic programming (Top-down DP)
+# Table method = Bottom-up dynamic programming (Bottom-up DP)
 
-# 例: 最長共通部分列（LCS）
+# Example: Longest Common Subsequence (LCS)
 
-# メモ化再帰（トップダウン）
+# Memoized recursion (top-down)
 @lru_cache(maxsize=None)
 def lcs_topdown(s1, s2, i=None, j=None):
     if i is None: i = len(s1) - 1
@@ -983,7 +982,7 @@ def lcs_topdown(s1, s2, i=None, j=None):
         return 1 + lcs_topdown(s1, s2, i - 1, j - 1)
     return max(lcs_topdown(s1, s2, i - 1, j), lcs_topdown(s1, s2, i, j - 1))
 
-# テーブル法（ボトムアップ）
+# Table method (bottom-up)
 def lcs_bottomup(s1, s2):
     m, n = len(s1), len(s2)
     dp = [[0] * (n + 1) for _ in range(m + 1)]
@@ -995,25 +994,25 @@ def lcs_bottomup(s1, s2):
                 dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])
     return dp[m][n]
 
-# 例: ナップサック問題
+# Example: Knapsack problem
 @lru_cache(maxsize=None)
 def knapsack(weights, values, capacity, i=None):
     if i is None:
         i = len(weights) - 1
     if i < 0 or capacity <= 0:
         return 0
-    # アイテム i を入れない場合
+    # Case: Do not include item i
     without = knapsack(weights, values, capacity, i - 1)
-    # アイテム i を入れる場合
+    # Case: Include item i
     if weights[i] <= capacity:
         with_item = values[i] + knapsack(weights, values, capacity - weights[i], i - 1)
         return max(without, with_item)
     return without
 
-# 例: コイン交換問題
+# Example: Coin change problem
 @lru_cache(maxsize=None)
 def coin_change(coins, amount):
-    """金額 amount を作るのに必要な最小コイン枚数"""
+    """Minimum number of coins needed to make the given amount"""
     if amount == 0:
         return 0
     if amount < 0:
@@ -1026,7 +1025,7 @@ def coin_change(coins, amount):
 
 print(coin_change((1, 5, 10, 25), 63))  # → 6 (25+25+10+1+1+1)
 
-# 例: 階段の登り方（1段 or 2段）
+# Example: Number of ways to climb stairs (1 or 2 steps at a time)
 @lru_cache(maxsize=None)
 def climb_stairs(n):
     if n <= 1:
@@ -1038,73 +1037,74 @@ print(climb_stairs(10))  # → 89
 
 ---
 
-## 6. バックトラッキング
+## 6. Backtracking
 
-### 6.1 基本概念
+### 6.1 Basic Concept
 
 ```
-バックトラッキング = 探索木を深さ優先で探索し、
-                    行き詰まったら1つ前の状態に戻って別の選択肢を試す
+Backtracking = Explore the search tree depth-first,
+               and when you reach a dead end, return to the
+               previous state and try a different option
 
-アルゴリズム:
-  1. 現在の状態が解か確認
-  2. 解なら記録して終了（or 続行）
-  3. 可能な次の選択肢を列挙
-  4. 各選択肢について:
-     a. 選択を適用
-     b. 再帰的に探索
-     c. 選択を取り消す（バックトラック）
+Algorithm:
+  1. Check if the current state is a solution
+  2. If it is, record it and terminate (or continue)
+  3. Enumerate possible next choices
+  4. For each choice:
+     a. Apply the choice
+     b. Explore recursively
+     c. Undo the choice (backtrack)
 
 ┌─────────────┐
 │   Start     │
 └──────┬──────┘
        │
    ┌───┴───┐
-   │ 選択1  │ 選択2  選択3
+   │ Choice1│ Choice2  Choice3
    └───┬───┘
        │
    ┌───┴───┐
-   │ 選択A  │ 選択B
+   │ ChoiceA│ ChoiceB
    └───┬───┘
        │
-    行き詰まり → バックトラック → 選択B を試す
+    Dead end → Backtrack → Try ChoiceB
 ```
 
-### 6.2 N-Queens 問題
+### 6.2 N-Queens Problem
 
 ```python
 def solve_n_queens(n):
-    """N-Queens問題: N×Nのチェス盤にN個のクイーンを互いに攻撃しない位置に配置"""
+    """N-Queens problem: Place N queens on an N×N board so none attack each other"""
     solutions = []
 
     def is_safe(board, row, col):
-        # 同じ列にクイーンがないか
+        # Check if no queen in the same column
         for r in range(row):
             if board[r] == col:
                 return False
-            # 対角線にクイーンがないか
+            # Check if no queen on diagonals
             if abs(board[r] - col) == row - r:
                 return False
         return True
 
     def backtrack(board, row):
         if row == n:
-            solutions.append(board[:])  # 解を記録
+            solutions.append(board[:])  # Record solution
             return
         for col in range(n):
             if is_safe(board, row, col):
-                board[row] = col         # 選択を適用
-                backtrack(board, row + 1) # 再帰的に探索
-                board[row] = -1          # バックトラック
+                board[row] = col         # Apply choice
+                backtrack(board, row + 1) # Explore recursively
+                board[row] = -1          # Backtrack
 
     backtrack([-1] * n, 0)
     return solutions
 
-# 8-Queens の解
+# 8-Queens solutions
 solutions = solve_n_queens(8)
-print(f"解の数: {len(solutions)}")  # → 92
+print(f"Number of solutions: {len(solutions)}")  # → 92
 
-# 解の可視化
+# Visualize a solution
 def print_board(solution):
     n = len(solution)
     for row in range(n):
@@ -1125,11 +1125,11 @@ print_board(solutions[0])
 # . . . Q . . . .
 ```
 
-### 6.3 数独ソルバー
+### 6.3 Sudoku Solver
 
 ```python
 def solve_sudoku(board):
-    """数独を解く（バックトラッキング）"""
+    """Solve Sudoku (backtracking)"""
     def find_empty():
         for r in range(9):
             for c in range(9):
@@ -1138,13 +1138,13 @@ def solve_sudoku(board):
         return None
 
     def is_valid(num, row, col):
-        # 行チェック
+        # Row check
         if num in board[row]:
             return False
-        # 列チェック
+        # Column check
         if num in [board[r][col] for r in range(9)]:
             return False
-        # 3x3ブロックチェック
+        # 3x3 block check
         box_r, box_c = 3 * (row // 3), 3 * (col // 3)
         for r in range(box_r, box_r + 3):
             for c in range(box_c, box_c + 3):
@@ -1154,24 +1154,24 @@ def solve_sudoku(board):
 
     empty = find_empty()
     if not empty:
-        return True  # 全マス埋まった → 解決
+        return True  # All cells filled → solved
 
     row, col = empty
     for num in range(1, 10):
         if is_valid(num, row, col):
-            board[row][col] = num       # 選択
-            if solve_sudoku(board):     # 再帰
+            board[row][col] = num       # Choose
+            if solve_sudoku(board):     # Recurse
                 return True
-            board[row][col] = 0         # バックトラック
+            board[row][col] = 0         # Backtrack
 
-    return False  # この分岐には解がない
+    return False  # No solution in this branch
 ```
 
-### 6.4 迷路の解法
+### 6.4 Maze Solving
 
 ```typescript
-// 迷路の解法（バックトラッキング）
-type Maze = number[][];  // 0 = 通路, 1 = 壁
+// Maze solving (backtracking)
+type Maze = number[][];  // 0 = path, 1 = wall
 type Position = [number, number];
 
 function solveMaze(
@@ -1186,26 +1186,26 @@ function solveMaze(
     );
 
     function backtrack(r: number, c: number, path: Position[]): Position[] | null {
-        // 境界外 or 壁 or 訪問済み
+        // Out of bounds, wall, or already visited
         if (r < 0 || r >= rows || c < 0 || c >= cols) return null;
         if (maze[r][c] === 1 || visited[r][c]) return null;
 
         path.push([r, c]);
         visited[r][c] = true;
 
-        // ゴールに到達
+        // Reached the goal
         if (r === end[0] && c === end[1]) {
             return [...path];
         }
 
-        // 4方向を探索
+        // Explore 4 directions
         const directions: Position[] = [[0, 1], [1, 0], [0, -1], [-1, 0]];
         for (const [dr, dc] of directions) {
             const result = backtrack(r + dr, c + dc, path);
             if (result) return result;
         }
 
-        // バックトラック
+        // Backtrack
         path.pop();
         visited[r][c] = false;
         return null;
@@ -1214,7 +1214,7 @@ function solveMaze(
     return backtrack(start[0], start[1], []);
 }
 
-// 使用例
+// Usage example
 const maze: Maze = [
     [0, 1, 0, 0, 0],
     [0, 1, 0, 1, 0],
@@ -1225,13 +1225,13 @@ const maze: Maze = [
 
 const path = solveMaze(maze, [0, 0], [4, 4]);
 // → [[0,0], [1,0], [2,0], [2,1], [2,2], [3,2], [3,3], [3,4], [4,4]]
-// (...が正しいルートの一例)
+// (one example of a valid route)
 ```
 
-### 6.5 順列と組み合わせの生成
+### 6.5 Generating Permutations and Combinations
 
 ```typescript
-// 順列の生成（バックトラッキング）
+// Generating permutations (backtracking)
 function permutations<T>(arr: T[]): T[][] {
     const results: T[][] = [];
 
@@ -1244,7 +1244,7 @@ function permutations<T>(arr: T[]): T[][] {
             current.push(remaining[i]);
             const newRemaining = [...remaining.slice(0, i), ...remaining.slice(i + 1)];
             backtrack(current, newRemaining);
-            current.pop();  // バックトラック
+            current.pop();  // Backtrack
         }
     }
 
@@ -1252,7 +1252,7 @@ function permutations<T>(arr: T[]): T[][] {
     return results;
 }
 
-// 組み合わせの生成
+// Generating combinations
 function combinations<T>(arr: T[], k: number): T[][] {
     const results: T[][] = [];
 
@@ -1272,7 +1272,7 @@ function combinations<T>(arr: T[], k: number): T[][] {
     return results;
 }
 
-// 部分集合の合計が目標値になる組み合わせ
+// Subset sum: Find combinations that sum to the target value
 function subsetSum(nums: number[], target: number): number[][] {
     const results: number[][] = [];
 
@@ -1284,7 +1284,7 @@ function subsetSum(nums: number[], target: number): number[][] {
         if (remaining < 0) return;
 
         for (let i = start; i < nums.length; i++) {
-            // 重複をスキップ
+            // Skip duplicates
             if (i > start && nums[i] === nums[i - 1]) continue;
             current.push(nums[i]);
             backtrack(i + 1, current, remaining - nums[i]);
@@ -1300,46 +1300,46 @@ function subsetSum(nums: number[], target: number): number[][] {
 
 ---
 
-## 7. 再帰 vs ループの使い分け
+## 7. Recursion vs. Loops: When to Use Which
 
-### 7.1 判断基準
+### 7.1 Decision Criteria
 
 ```
-再帰が適する場面:
-  - ツリー・グラフの走査
-  - 分割統治アルゴリズム（マージソート、クイックソート）
-  - パーサー・コンパイラ（構文木の処理）
-  - 数学的な定義に直接対応する場合
-  - バックトラッキング
-  - ネストしたデータ構造の処理
+When recursion is appropriate:
+  - Tree and graph traversal
+  - Divide-and-conquer algorithms (merge sort, quicksort)
+  - Parsers and compilers (syntax tree processing)
+  - When directly corresponding to a mathematical definition
+  - Backtracking
+  - Processing nested data structures
 
-ループが適する場面:
-  - 単純な繰り返し
-  - パフォーマンスが重要（TCOがない言語）
-  - 状態の更新が中心の処理
-  - 深い再帰でスタックオーバーフローの危険がある場合
-  - データが平坦な場合
+When loops are appropriate:
+  - Simple repetition
+  - Performance is critical (in languages without TCO)
+  - Processing centered on state updates
+  - When deep recursion risks stack overflow
+  - When data is flat
 
-判断フローチャート:
-  データ構造が再帰的（ツリー、グラフ）？
-    → YES → 再帰が自然
-    → NO → ループが自然
+Decision flowchart:
+  Is the data structure recursive (tree, graph)?
+    → YES → Recursion is natural
+    → NO → Loops are natural
 
-  スタックオーバーフローの危険がある？
-    → YES → ループ or トランポリン
-    → NO → 再帰OK
+  Is there a risk of stack overflow?
+    → YES → Loop or trampoline
+    → NO → Recursion is fine
 
-  TCOが使える言語？
-    → YES → 末尾再帰
-    → NO → 深い再帰はループに変換
+  Does the language support TCO?
+    → YES → Tail recursion
+    → NO → Convert deep recursion to loops
 ```
 
-### 7.2 ループへの変換例
+### 7.2 Examples of Converting to Loops
 
 ```rust
-// ループへの変換例: 木の走査
+// Example: Converting tree traversal to a loop
 
-// 再帰版
+// Recursive version
 struct Node {
     value: i32,
     children: Vec<Node>,
@@ -1353,7 +1353,7 @@ fn sum_tree(node: &Node) -> i32 {
     total
 }
 
-// スタック明示版（再帰なし）
+// Explicit stack version (no recursion)
 fn sum_tree_iterative(root: &Node) -> i32 {
     let mut stack = vec![root];
     let mut total = 0;
@@ -1366,7 +1366,7 @@ fn sum_tree_iterative(root: &Node) -> i32 {
     total
 }
 
-// キュー版（幅優先探索 BFS）
+// Queue version (breadth-first search BFS)
 use std::collections::VecDeque;
 
 fn sum_tree_bfs(root: &Node) -> i32 {
@@ -1384,16 +1384,16 @@ fn sum_tree_bfs(root: &Node) -> i32 {
 ```
 
 ```typescript
-// TypeScript: 再帰からループへの変換パターン
+// TypeScript: Patterns for converting recursion to loops
 
-// パターン1: 単純な末尾再帰 → while ループ
-// 再帰版
+// Pattern 1: Simple tail recursion → while loop
+// Recursive version
 function gcd(a: number, b: number): number {
     if (b === 0) return a;
     return gcd(b, a % b);
 }
 
-// ループ版
+// Loop version
 function gcdLoop(a: number, b: number): number {
     while (b !== 0) {
         [a, b] = [b, a % b];
@@ -1401,8 +1401,8 @@ function gcdLoop(a: number, b: number): number {
     return a;
 }
 
-// パターン2: 深さ優先探索 → 明示的スタック
-// 再帰版
+// Pattern 2: Depth-first search → explicit stack
+// Recursive version
 function flattenTree<T>(node: TreeNode<T>): T[] {
     const result = [node.value];
     for (const child of node.children) {
@@ -1411,14 +1411,14 @@ function flattenTree<T>(node: TreeNode<T>): T[] {
     return result;
 }
 
-// 明示的スタック版
+// Explicit stack version
 function flattenTreeIterative<T>(root: TreeNode<T>): T[] {
     const result: T[] = [];
     const stack: TreeNode<T>[] = [root];
     while (stack.length > 0) {
         const node = stack.pop()!;
         result.push(node.value);
-        // children を逆順で push（最初の子が先に pop されるように）
+        // Push children in reverse order (so the first child is popped first)
         for (let i = node.children.length - 1; i >= 0; i--) {
             stack.push(node.children[i]);
         }
@@ -1426,8 +1426,8 @@ function flattenTreeIterative<T>(root: TreeNode<T>): T[] {
     return result;
 }
 
-// パターン3: バックトラッキング → 明示的状態管理
-// 再帰版の順列
+// Pattern 3: Backtracking → explicit state management
+// Recursive permutation version
 function permsRecursive(arr: number[]): number[][] {
     if (arr.length <= 1) return [arr];
     return arr.flatMap((item, i) => {
@@ -1436,7 +1436,7 @@ function permsRecursive(arr: number[]): number[][] {
     });
 }
 
-// 明示的状態管理版
+// Explicit state management version
 function permsIterative(arr: number[]): number[][] {
     const results: number[][] = [];
     interface State {
@@ -1467,14 +1467,14 @@ function permsIterative(arr: number[]): number[][] {
 
 ---
 
-## 8. トランポリンと CPS
+## 8. Trampolines and CPS
 
-### 8.1 トランポリン（Trampoline）
+### 8.1 Trampoline
 
 ```typescript
-// トランポリン: TCO のない言語で末尾再帰を安全に実行する技法
-// 再帰呼び出しの代わりに「次に呼ぶべき関数」を返し、
-// ループで繰り返し呼び出す
+// Trampoline: A technique for safely executing tail recursion in languages without TCO
+// Instead of making recursive calls, return "the next function to call"
+// and call it repeatedly in a loop
 
 type Thunk<T> = () => T | Thunk<T>;
 
@@ -1486,16 +1486,16 @@ function trampoline<T>(fn: Thunk<T>): T {
     return result;
 }
 
-// 使用例: 安全な階乗（スタックオーバーフローなし）
+// Usage example: Safe factorial (no stack overflow)
 function factorialTramp(n: number, acc: number = 1): number | (() => number | (() => any)) {
     if (n <= 1) return acc;
-    return () => factorialTramp(n - 1, acc * n);  // 関数を返す（呼び出さない）
+    return () => factorialTramp(n - 1, acc * n);  // Return a function (don't call it)
 }
 
 console.log(trampoline(() => factorialTramp(100000)));
-// → Infinity（数値のオーバーフローだがスタックは溢れない）
+// → Infinity (numeric overflow but no stack overflow)
 
-// より型安全なトランポリン
+// More type-safe trampoline
 type Bounce<T> =
     | { done: true; value: T }
     | { done: false; thunk: () => Bounce<T> };
@@ -1516,7 +1516,7 @@ function run<T>(b: Bounce<T>): T {
     return current.value;
 }
 
-// 使用例: 相互再帰のトランポリン化
+// Usage example: Trampolining mutual recursion
 function isEvenTramp(n: number): Bounce<boolean> {
     if (n === 0) return done(true);
     return bounce(() => isOddTramp(n - 1));
@@ -1527,21 +1527,21 @@ function isOddTramp(n: number): Bounce<boolean> {
     return bounce(() => isEvenTramp(n - 1));
 }
 
-console.log(run(isEvenTramp(1000000)));  // → true（スタックオーバーフローなし）
+console.log(run(isEvenTramp(1000000)));  // → true (no stack overflow)
 ```
 
-### 8.2 CPS（Continuation-Passing Style）
+### 8.2 CPS (Continuation-Passing Style)
 
 ```typescript
-// CPS: 再帰の結果をコールバックに渡すことで末尾再帰化する
+// CPS: Convert to tail recursion by passing results to callbacks
 
-// 直接スタイル
+// Direct style
 function sumList(arr: number[]): number {
     if (arr.length === 0) return 0;
     return arr[0] + sumList(arr.slice(1));
 }
 
-// CPS 変換
+// CPS transformation
 function sumListCPS(arr: number[], k: (result: number) => number): number {
     if (arr.length === 0) return k(0);
     return sumListCPS(arr.slice(1), (restSum) => k(arr[0] + restSum));
@@ -1549,20 +1549,20 @@ function sumListCPS(arr: number[], k: (result: number) => number): number {
 
 sumListCPS([1, 2, 3, 4, 5], x => x);  // → 15
 
-// ツリーの CPS 走査
+// CPS tree traversal
 interface TreeNode {
     value: number;
     left?: TreeNode;
     right?: TreeNode;
 }
 
-// 直接スタイル（スタック深さ = ツリーの深さ）
+// Direct style (stack depth = tree depth)
 function sumTree(node: TreeNode | undefined): number {
     if (!node) return 0;
     return node.value + sumTree(node.left) + sumTree(node.right);
 }
 
-// CPS（末尾再帰化可能）
+// CPS (can be made tail-recursive)
 function sumTreeCPS(
     node: TreeNode | undefined,
     k: (result: number) => number
@@ -1578,19 +1578,19 @@ function sumTreeCPS(
 
 ---
 
-## 9. 再帰を使った実用的なアルゴリズム
+## 9. Practical Algorithms Using Recursion
 
-### 9.1 分割統治アルゴリズム
+### 9.1 Divide-and-Conquer Algorithms
 
 ```python
-# 分割統治法の一般的な構造:
-# 1. 分割（Divide）: 問題を小さな部分問題に分ける
-# 2. 統治（Conquer）: 各部分問題を再帰的に解く
-# 3. 結合（Combine）: 部分問題の解を統合する
+# General structure of divide and conquer:
+# 1. Divide: Split the problem into smaller subproblems
+# 2. Conquer: Solve each subproblem recursively
+# 3. Combine: Merge the subproblem solutions
 
-# 最大部分配列和（Kadane's vs 分割統治）
+# Maximum subarray sum (Kadane's vs. divide and conquer)
 def max_subarray_dc(arr, lo=0, hi=None):
-    """分割統治法による最大部分配列和 O(n log n)"""
+    """Maximum subarray sum using divide and conquer O(n log n)"""
     if hi is None:
         hi = len(arr) - 1
     if lo == hi:
@@ -1598,12 +1598,12 @@ def max_subarray_dc(arr, lo=0, hi=None):
 
     mid = (lo + hi) // 2
 
-    # 左半分の最大部分配列和
+    # Maximum subarray sum in the left half
     left_max = max_subarray_dc(arr, lo, mid)
-    # 右半分の最大部分配列和
+    # Maximum subarray sum in the right half
     right_max = max_subarray_dc(arr, mid + 1, hi)
 
-    # 中央をまたぐ最大部分配列和
+    # Maximum subarray sum crossing the center
     left_sum = float('-inf')
     total = 0
     for i in range(mid, lo - 1, -1):
@@ -1620,18 +1620,18 @@ def max_subarray_dc(arr, lo=0, hi=None):
 
     return max(left_max, right_max, cross_max)
 
-# 最近点対問題
+# Closest pair of points problem
 import math
 
 def closest_pair(points):
-    """平面上の最近点対を求める O(n log n)"""
+    """Find the closest pair of points on a plane O(n log n)"""
     def distance(p1, p2):
         return math.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
 
     def closest_pair_rec(pts_x, pts_y):
         n = len(pts_x)
         if n <= 3:
-            # ブルートフォース
+            # Brute force
             min_dist = float('inf')
             best_pair = None
             for i in range(n):
@@ -1645,20 +1645,20 @@ def closest_pair(points):
         mid = n // 2
         mid_point = pts_x[mid]
 
-        # 分割
+        # Divide
         left_x = pts_x[:mid]
         right_x = pts_x[mid:]
         left_y = [p for p in pts_y if p[0] <= mid_point[0]]
         right_y = [p for p in pts_y if p[0] > mid_point[0]]
 
-        # 統治（再帰）
+        # Conquer (recursion)
         dl, pair_l = closest_pair_rec(left_x, left_y)
         dr, pair_r = closest_pair_rec(right_x, right_y)
 
         d = min(dl, dr)
         best = pair_l if dl < dr else pair_r
 
-        # 結合: ストリップ内の点をチェック
+        # Combine: Check points within the strip
         strip = [p for p in pts_y if abs(p[0] - mid_point[0]) < d]
         for i in range(len(strip)):
             for j in range(i + 1, min(i + 8, len(strip))):
@@ -1673,18 +1673,18 @@ def closest_pair(points):
     pts_y = sorted(points, key=lambda p: p[1])
     return closest_pair_rec(pts_x, pts_y)
 
-# ストラッセンの行列乗算（概念）
-# 通常の行列乗算: O(n^3)
-# ストラッセン: O(n^2.807) - 分割統治で7回の乗算に削減
+# Strassen's matrix multiplication (concept)
+# Normal matrix multiplication: O(n^3)
+# Strassen: O(n^2.807) - reduced to 7 multiplications via divide and conquer
 ```
 
-### 9.2 グラフの再帰的探索
+### 9.2 Recursive Graph Exploration
 
 ```typescript
-// グラフの DFS（深さ優先探索）
+// Graph DFS (depth-first search)
 type Graph = Map<string, string[]>;
 
-// 再帰版 DFS
+// Recursive DFS
 function dfs(
     graph: Graph,
     start: string,
@@ -1702,7 +1702,7 @@ function dfs(
     return result;
 }
 
-// トポロジカルソート（DAG の依存関係順序）
+// Topological sort (dependency order of a DAG)
 function topologicalSort(graph: Graph): string[] {
     const visited = new Set<string>();
     const result: string[] = [];
@@ -1713,7 +1713,7 @@ function topologicalSort(graph: Graph): string[] {
         for (const neighbor of graph.get(node) || []) {
             visit(neighbor);
         }
-        result.unshift(node);  // 後処理で先頭に追加
+        result.unshift(node);  // Prepend during post-processing
     }
 
     for (const node of graph.keys()) {
@@ -1723,18 +1723,18 @@ function topologicalSort(graph: Graph): string[] {
     return result;
 }
 
-// 循環検出
+// Cycle detection
 function hasCycle(graph: Graph): boolean {
-    const white = new Set<string>(graph.keys()); // 未訪問
-    const gray = new Set<string>();               // 訪問中
-    const black = new Set<string>();              // 完了
+    const white = new Set<string>(graph.keys()); // Unvisited
+    const gray = new Set<string>();               // Currently visiting
+    const black = new Set<string>();              // Completed
 
     function dfsVisit(node: string): boolean {
         white.delete(node);
         gray.add(node);
 
         for (const neighbor of graph.get(node) || []) {
-            if (gray.has(neighbor)) return true;  // 循環検出
+            if (gray.has(neighbor)) return true;  // Cycle detected
             if (white.has(neighbor) && dfsVisit(neighbor)) return true;
         }
 
@@ -1749,7 +1749,7 @@ function hasCycle(graph: Graph): boolean {
     return false;
 }
 
-// 使用例
+// Usage example
 const dependencyGraph: Graph = new Map([
     ["main", ["auth", "db", "logger"]],
     ["auth", ["db", "crypto"]],
@@ -1760,15 +1760,15 @@ const dependencyGraph: Graph = new Map([
 
 console.log(topologicalSort(dependencyGraph));
 // → ["main", "auth", "db", "crypto", "logger"]
-// （または別の有効な順序）
+// (or another valid order)
 ```
 
-### 9.3 再帰下降パーサー
+### 9.3 Recursive Descent Parser
 
 ```typescript
-// 再帰下降パーサー: 文法規則に対応する再帰関数群
+// Recursive descent parser: A group of recursive functions corresponding to grammar rules
 
-// 簡単な数式言語:
+// Simple expression language:
 // expr   = term (('+' | '-') term)*
 // term   = factor (('*' | '/') factor)*
 // factor = NUMBER | '(' expr ')'
@@ -1836,9 +1836,9 @@ class ExprParser {
             return token.value as number;
         }
         if (token?.type === "paren" && token.value === "(") {
-            this.consume();                    // '(' を消費
-            const result = this.parseExpr();   // 相互再帰
-            this.expect("paren", ")");         // ')' を消費
+            this.consume();                    // Consume '('
+            const result = this.parseExpr();   // Mutual recursion
+            this.expect("paren", ")");         // Consume ')'
             return result;
         }
         throw new Error(`Unexpected token: ${JSON.stringify(token)}`);
@@ -1848,53 +1848,57 @@ class ExprParser {
 
 ---
 
-## 10. 再帰の計算量分析
+## 10. Complexity Analysis of Recursion
 
-### 10.1 マスター定理
+### 10.1 Master Theorem
 
 ```
-分割統治法の計算量を求めるマスター定理:
+Master Theorem for determining the complexity of divide-and-conquer:
 
-再帰の形: T(n) = a * T(n/b) + O(n^d)
-  a = 部分問題の数
-  b = 問題サイズの縮小率
-  d = 結合ステップの計算量の指数
+Recurrence form: T(n) = a * T(n/b) + O(n^d)
+  a = number of subproblems
+  b = factor by which problem size shrinks
+  d = exponent of the combination step's complexity
 
-3つのケース:
+Three cases:
   Case 1: d < log_b(a) → T(n) = O(n^(log_b(a)))
   Case 2: d = log_b(a) → T(n) = O(n^d * log(n))
   Case 3: d > log_b(a) → T(n) = O(n^d)
 
-例:
-  マージソート: T(n) = 2T(n/2) + O(n)
+Examples:
+  Merge sort: T(n) = 2T(n/2) + O(n)
     a=2, b=2, d=1 → log_2(2) = 1 = d → Case 2 → O(n log n)
 
-  二分探索: T(n) = T(n/2) + O(1)
+  Binary search: T(n) = T(n/2) + O(1)
     a=1, b=2, d=0 → log_2(1) = 0 = d → Case 2 → O(log n)
 
-  ストラッセン: T(n) = 7T(n/2) + O(n^2)
+  Strassen: T(n) = 7T(n/2) + O(n^2)
     a=7, b=2, d=2 → log_2(7) ≈ 2.807 > 2 → Case 1 → O(n^2.807)
 
-  通常の行列乗算: T(n) = 8T(n/2) + O(n^2)
+  Standard matrix multiplication: T(n) = 8T(n/2) + O(n^2)
     a=8, b=2, d=2 → log_2(8) = 3 > 2 → Case 1 → O(n^3)
 ```
 
-### 10.2 各再帰パターンの計算量
+### 10.2 Complexity of Each Recursion Pattern
 
 ```
 ┌──────────────────┬────────────┬──────────────┬──────────────┐
-│ パターン          │ 時間計算量  │ 空間計算量    │ 例            │
+│ Pattern           │ Time       │ Space        │ Example       │
 ├──────────────────┼────────────┼──────────────┼──────────────┤
-│ 線形再帰          │ O(n)       │ O(n)         │ 階乗、合計    │
-│ 末尾再帰(TCO)     │ O(n)       │ O(1)         │ 階乗(末尾版)  │
-│ 二分探索再帰      │ O(log n)   │ O(log n)     │ 二分探索      │
-│ 分割統治          │ O(n log n) │ O(n)         │ マージソート  │
-│ ツリー再帰(naive) │ O(2^n)     │ O(n)         │ fib(naive)    │
-│ ツリー再帰(memo)  │ O(n)       │ O(n)         │ fib(memo)     │
-│ バックトラッキング │ O(b^d)     │ O(d)         │ N-Queens      │
-│ 全順列生成        │ O(n!)      │ O(n)         │ permutations  │
+│ Linear recursion  │ O(n)       │ O(n)         │ Factorial, sum│
+│ Tail recursion    │ O(n)       │ O(1)         │ Factorial     │
+│ (with TCO)        │            │              │ (tail version)│
+│ Binary search     │ O(log n)   │ O(log n)     │ Binary search │
+│ recursion         │            │              │               │
+│ Divide & conquer  │ O(n log n) │ O(n)         │ Merge sort    │
+│ Tree recursion    │ O(2^n)     │ O(n)         │ fib (naive)   │
+│ (naive)           │            │              │               │
+│ Tree recursion    │ O(n)       │ O(n)         │ fib (memo)    │
+│ (memoized)        │            │              │               │
+│ Backtracking      │ O(b^d)     │ O(d)         │ N-Queens      │
+│ All permutations  │ O(n!)      │ O(n)         │ permutations  │
 └──────────────────┴────────────┴──────────────┴──────────────┘
-  b = 分岐数, d = 深さ
+  b = branching factor, d = depth
 ```
 
 ---
@@ -1902,49 +1906,49 @@ class ExprParser {
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important aspect. Understanding deepens not just through theory but by actually writing code and verifying how it works.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently applied in everyday development work. It is particularly important during code reviews and architecture design.
 
 ---
 
-## まとめ
+## Summary
 
-| 概念 | 説明 |
+| Concept | Description |
 |------|------|
-| ベースケース | 再帰の終了条件（必須） |
-| 再帰ステップ | 問題を小さくして再帰呼び出し |
-| 末尾再帰 | 再帰が最後の操作。TCOで最適化可能 |
-| メモ化 | 計算結果をキャッシュして重複排除 |
-| 分割統治 | 問題を半分に分割して再帰（O(n log n)） |
-| バックトラッキング | 探索木を DFS で辿り、行き詰まったら戻る |
-| トランポリン | TCO のない言語で末尾再帰を安全に実行 |
-| CPS | 結果をコールバックに渡して末尾再帰化 |
+| Base case | Termination condition for recursion (required) |
+| Recursive step | Makes the problem smaller and calls itself |
+| Tail recursion | Recursion is the last operation. Can be optimized by TCO |
+| Memoization | Cache computed results to eliminate duplicate computation |
+| Divide and conquer | Split the problem in half and recurse (O(n log n)) |
+| Backtracking | Traverse the search tree via DFS, backtrack when stuck |
+| Trampoline | Safely execute tail recursion in languages without TCO |
+| CPS | Convert to tail recursion by passing results to callbacks |
 
-再帰を効果的に使うための原則:
+Principles for using recursion effectively:
 
-1. **必ずベースケースを定義する**: 無限再帰を防ぐ最重要ルール
-2. **問題が確実に小さくなることを保証する**: 各再帰呼び出しで問題サイズが減少
-3. **重複計算にはメモ化を適用する**: 指数的な計算量を線形に改善
-4. **スタックオーバーフローに注意する**: 深い再帰ではループ or トランポリンを検討
-5. **適切な手法を選択する**: ツリー構造には再帰、平坦なデータにはループ
-6. **可読性と効率のバランスを取る**: 再帰が自然なら再帰、そうでなければループ
-
----
-
-## 次に読むべきガイド
+1. **Always define a base case**: The most critical rule to prevent infinite recursion
+2. **Guarantee the problem gets smaller**: The problem size must decrease with each recursive call
+3. **Apply memoization for duplicate computation**: Improve exponential complexity to linear
+4. **Be aware of stack overflow**: Consider loops or trampolines for deep recursion
+5. **Choose the right technique**: Recursion for tree structures, loops for flat data
+6. **Balance readability and efficiency**: Use recursion when it is natural, otherwise use loops
 
 ---
 
-## 参考文献
+## Recommended Next Guides
+
+---
+
+## References
 1. Abelson, H. & Sussman, G. "SICP." Ch.1.2, MIT Press, 1996.
 2. Cormen, T. et al. "Introduction to Algorithms." Ch.4, MIT Press, 2022.
 3. Sedgewick, R. & Wayne, K. "Algorithms." 4th Edition, Addison-Wesley, 2011.

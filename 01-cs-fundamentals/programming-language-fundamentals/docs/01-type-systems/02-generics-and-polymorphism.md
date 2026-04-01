@@ -1,83 +1,83 @@
-# ジェネリクスと多態性（Polymorphism）
+# Generics and Polymorphism
 
-> 多態性は「同じコードで異なる型を扱う」能力。コードの再利用性と型安全性を両立する鍵。
+> Polymorphism is the ability to "handle different types with the same code." It is the key to achieving both code reusability and type safety.
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] 多態性の3つの種類を理解する
-- [ ] ジェネリクスの実装と使い方を習得する
-- [ ] 型制約（Bounded Polymorphism）を活用できる
-- [ ] 各言語のジェネリクス実装方式の違いを理解する
-- [ ] 高カインド型・GADTs などの発展的な概念を把握する
-- [ ] 実務でジェネリクスを効果的に活用するパターンを身につける
+- [ ] Understand the three kinds of polymorphism
+- [ ] Master the implementation and usage of generics
+- [ ] Use bounded polymorphism (type constraints) effectively
+- [ ] Understand the differences in generics implementation across languages
+- [ ] Grasp advanced concepts such as higher-kinded types and GADTs
+- [ ] Learn patterns for effectively leveraging generics in practice
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [型推論（Type Inference）](./01-type-inference.md) の内容を理解していること
-
----
-
-## 1. 多態性の種類
-
-```
-多態性（Polymorphism）= 「多くの形を持つ」
-
-  1. パラメトリック多態性（ジェネリクス）
-     → 型をパラメータ化して汎用的なコードを書く
-     例: List<T>, Map<K, V>
-
-  2. サブタイプ多態性（継承・インターフェース）
-     → 親型のインターフェースで子型を扱う
-     例: Animal を引数に取る関数で Dog も Cat も渡せる
-
-  3. アドホック多態性（オーバーロード・型クラス）
-     → 型ごとに異なる実装を持つ
-     例: + が数値の加算にも文字列の結合にもなる
-
-  4. 行多態性（Row Polymorphism）
-     → 特定のフィールドを持つ任意のレコードを扱う
-     例: OCaml のオブジェクト、TypeScript の構造的部分型
-
-  5. カインド多態性（Higher-Kinded Polymorphism）
-     → 型コンストラクタ自体を抽象化する
-     例: Haskell の Functor, Monad
-```
-
-### 多態性の歴史的背景
-
-```
-1967年: Strachey が「パラメトリック多態性」と「アドホック多態性」を区別
-1972年: Girard が System F（二階多態型ラムダ計算）を提案
-1978年: Milner が ML 言語で型推論付きパラメトリック多態性を実現
-1984年: Cardelli & Wegner がサブタイプ多態性を形式化
-1989年: Wadler & Blott が型クラス（アドホック多態性の統一的枠組み）を提案
-2004年: Java 5 でジェネリクスが導入
-2012年: Rust のトレイトシステムが成熟
-2022年: Go 1.18 でジェネリクスが導入
-```
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Familiarity with the content in [Type Inference](./01-type-inference.md)
 
 ---
 
-## 2. パラメトリック多態性（ジェネリクス）
+## 1. Kinds of Polymorphism
+
+```
+Polymorphism = "having many forms"
+
+  1. Parametric Polymorphism (Generics)
+     -> Parameterize types to write generic code
+     Example: List<T>, Map<K, V>
+
+  2. Subtype Polymorphism (Inheritance / Interfaces)
+     -> Handle subtypes through a parent type's interface
+     Example: A function taking Animal can accept both Dog and Cat
+
+  3. Ad-hoc Polymorphism (Overloading / Type Classes)
+     -> Different implementations per type
+     Example: + works as numeric addition and string concatenation
+
+  4. Row Polymorphism
+     -> Handle any record that has specific fields
+     Example: OCaml objects, TypeScript structural subtyping
+
+  5. Kind Polymorphism (Higher-Kinded Polymorphism)
+     -> Abstract over type constructors themselves
+     Example: Haskell's Functor, Monad
+```
+
+### Historical Background of Polymorphism
+
+```
+1967: Strachey distinguishes "parametric polymorphism" from "ad-hoc polymorphism"
+1972: Girard proposes System F (second-order polymorphic lambda calculus)
+1978: Milner realizes parametric polymorphism with type inference in ML
+1984: Cardelli & Wegner formalize subtype polymorphism
+1989: Wadler & Blott propose type classes (a unified framework for ad-hoc polymorphism)
+2004: Java 5 introduces generics
+2012: Rust's trait system matures
+2022: Go 1.18 introduces generics
+```
+
+---
+
+## 2. Parametric Polymorphism (Generics)
 
 ### TypeScript
 
 ```typescript
-// ジェネリック関数
+// Generic function
 function identity<T>(value: T): T {
     return value;
 }
 
 identity<number>(42);     // T = number
 identity<string>("hello"); // T = string
-identity(42);             // T = number（型推論）
+identity(42);             // T = number (type inference)
 
-// ジェネリック型
+// Generic type
 interface Box<T> {
     value: T;
     map<U>(fn: (v: T) => U): Box<U>;
@@ -93,14 +93,14 @@ function createBox<T>(value: T): Box<T> {
 const numBox = createBox(42);
 const strBox = numBox.map(n => n.toString());  // Box<string>
 
-// 複数の型パラメータ
+// Multiple type parameters
 function zip<A, B>(a: A[], b: B[]): [A, B][] {
     return a.map((val, i) => [val, b[i]]);
 }
 
 zip([1, 2], ["a", "b"]);  // [[1, "a"], [2, "b"]]
 
-// ジェネリッククラス
+// Generic class
 class Stack<T> {
     private items: T[] = [];
 
@@ -128,9 +128,9 @@ class Stack<T> {
 const numStack = new Stack<number>();
 numStack.push(1);
 numStack.push(2);
-numStack.pop(); // 2（型は number | undefined）
+numStack.pop(); // 2 (type is number | undefined)
 
-// ジェネリックインターフェースの実務的な例: Repository パターン
+// Practical generic interface example: Repository pattern
 interface Repository<T, ID> {
     findById(id: ID): Promise<T | null>;
     findAll(): Promise<T[]>;
@@ -170,7 +170,7 @@ class UserRepository implements Repository<User, string> {
     }
 }
 
-// ジェネリックユーティリティ関数群
+// Generic utility functions
 function groupBy<T, K extends string | number>(
     items: T[],
     keyFn: (item: T) => K
@@ -203,7 +203,7 @@ function partition<T>(items: T[], predicate: (item: T) => boolean): [T[], T[]] {
     return [pass, fail];
 }
 
-// 使用例
+// Usage example
 const users = [
     { name: "Alice", dept: "Engineering" },
     { name: "Bob", dept: "Marketing" },
@@ -219,7 +219,7 @@ const [engineers, others] = partition(users, u => u.dept === "Engineering");
 ### Rust
 
 ```rust
-// ジェネリック関数
+// Generic function
 fn largest<T: PartialOrd>(list: &[T]) -> &T {
     let mut largest = &list[0];
     for item in &list[1..] {
@@ -230,7 +230,7 @@ fn largest<T: PartialOrd>(list: &[T]) -> &T {
     largest
 }
 
-// ジェネリック構造体
+// Generic struct
 struct Point<T> {
     x: T,
     y: T,
@@ -242,7 +242,7 @@ impl<T: std::fmt::Display> Point<T> {
     }
 }
 
-// 異なる型パラメータを持つ Point
+// Point with different type parameters
 struct Point2<T, U> {
     x: T,
     y: U,
@@ -260,7 +260,7 @@ impl<T, U> Point2<T, U> {
 let int_point = Point { x: 5, y: 10 };
 let float_point = Point { x: 1.0, y: 4.0 };
 
-// ジェネリック列挙型（Rust の核心）
+// Generic enum (core of Rust)
 enum Option<T> {
     Some(T),
     None,
@@ -271,7 +271,7 @@ enum Result<T, E> {
     Err(E),
 }
 
-// ジェネリックな Iterator 実装
+// Generic Iterator implementation
 struct Counter {
     start: u32,
     end: u32,
@@ -298,7 +298,7 @@ impl Iterator for Counter {
     }
 }
 
-// ジェネリックな HashMap ラッパー（キャッシュ実装）
+// Generic HashMap wrapper (cache implementation)
 use std::collections::HashMap;
 use std::hash::Hash;
 
@@ -321,7 +321,7 @@ impl<K: Eq + Hash + Clone, V: Clone> Cache<K, V> {
 
     fn put(&mut self, key: K, value: V) -> Option<V> {
         if self.store.len() >= self.max_size && !self.store.contains_key(&key) {
-            // 最も古いエントリを削除（簡略化）
+            // Remove the oldest entry (simplified)
             if let Some(first_key) = self.store.keys().next().cloned() {
                 self.store.remove(&first_key);
             }
@@ -342,8 +342,8 @@ impl<K: Eq + Hash + Clone, V: Clone> Cache<K, V> {
 ### Go
 
 ```go
-// Go 1.18+ のジェネリクス
-func MapT any, U any U) []U {
+// Go 1.18+ generics
+func Map[T any, U any](slice []T, fn func(T) U) []U {
     result := make([]U, len(slice))
     for i, v := range slice {
         result[i] = fn(v)
@@ -352,14 +352,14 @@ func MapT any, U any U) []U {
 }
 
 doubled := Map([]int{1, 2, 3}, func(n int) int { return n * 2 })
-// → [2, 4, 6]
+// -> [2, 4, 6]
 
-// 型制約
+// Type constraints
 type Number interface {
     ~int | ~int64 | ~float64
 }
 
-func SumT Number T {
+func Sum[T Number](numbers []T) T {
     var sum T
     for _, n := range numbers {
         sum += n
@@ -367,7 +367,7 @@ func SumT Number T {
     return sum
 }
 
-// ジェネリックなスタック
+// Generic stack
 type Stack[T any] struct {
     items []T
 }
@@ -402,18 +402,18 @@ func (s *Stack[T]) Size() int {
     return len(s.items)
 }
 
-// ジェネリックな Result 型（Go にはネイティブの Result がない）
+// Generic Result type (Go has no native Result)
 type Result[T any] struct {
     value T
     err   error
     ok    bool
 }
 
-func OkT any Result[T] {
+func Ok[T any](value T) Result[T] {
     return Result[T]{value: value, ok: true}
 }
 
-func ErrT any Result[T] {
+func Err[T any](err error) Result[T] {
     return Result[T]{err: err, ok: false}
 }
 
@@ -431,18 +431,18 @@ func (r Result[T]) UnwrapOr(defaultValue T) T {
     return r.value
 }
 
-// ジェネリックな Pair 型
+// Generic Pair type
 type Pair[T any, U any] struct {
     First  T
     Second U
 }
 
-func NewPairT any, U any Pair[T, U] {
+func NewPair[T any, U any](first T, second U) Pair[T, U] {
     return Pair[T, U]{First: first, Second: second}
 }
 
-// ジェネリックな Filter, Reduce
-func FilterT any bool) []T {
+// Generic Filter and Reduce
+func Filter[T any](slice []T, predicate func(T) bool) []T {
     result := make([]T, 0)
     for _, v := range slice {
         if predicate(v) {
@@ -452,7 +452,7 @@ func FilterT any bool) []T {
     return result
 }
 
-func ReduceT any, U any U) U {
+func Reduce[T any, U any](slice []T, initial U, fn func(U, T) U) U {
     acc := initial
     for _, v := range slice {
         acc = fn(acc, v)
@@ -460,28 +460,28 @@ func ReduceT any, U any U) U {
     return acc
 }
 
-// 型制約インターフェースの高度な例
+// Advanced type constraint interface examples
 type Ordered interface {
     ~int | ~int8 | ~int16 | ~int32 | ~int64 |
     ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 |
     ~float32 | ~float64 | ~string
 }
 
-func MinT Ordered T {
+func Min[T Ordered](a, b T) T {
     if a < b {
         return a
     }
     return b
 }
 
-func MaxT Ordered T {
+func Max[T Ordered](a, b T) T {
     if a > b {
         return a
     }
     return b
 }
 
-func SortSliceT Ordered {
+func SortSlice[T Ordered](slice []T) {
     sort.Slice(slice, func(i, j int) bool {
         return slice[i] < slice[j]
     })
@@ -491,7 +491,7 @@ func SortSliceT Ordered {
 ### Java
 
 ```java
-// Java のジェネリクス
+// Java generics
 public class Pair<A, B> {
     private final A first;
     private final B second;
@@ -509,8 +509,8 @@ public class Pair<A, B> {
     }
 }
 
-// ワイルドカード型
-// ? extends T（上限ワイルドカード）: T のサブタイプを受け入れる（共変）
+// Wildcard types
+// ? extends T (upper bounded wildcard): accepts subtypes of T (covariant)
 public static double sumOfList(List<? extends Number> list) {
     double sum = 0.0;
     for (Number n : list) {
@@ -519,45 +519,45 @@ public static double sumOfList(List<? extends Number> list) {
     return sum;
 }
 
-sumOfList(List.of(1, 2, 3));           // List<Integer> → OK
-sumOfList(List.of(1.0, 2.0, 3.0));     // List<Double> → OK
+sumOfList(List.of(1, 2, 3));           // List<Integer> -> OK
+sumOfList(List.of(1.0, 2.0, 3.0));     // List<Double> -> OK
 
-// ? super T（下限ワイルドカード）: T のスーパータイプを受け入れる（反変）
+// ? super T (lower bounded wildcard): accepts supertypes of T (contravariant)
 public static void addNumbers(List<? super Integer> list) {
     list.add(1);
     list.add(2);
 }
 
 List<Number> numbers = new ArrayList<>();
-addNumbers(numbers);  // List<Number> は List<? super Integer> の一種
+addNumbers(numbers);  // List<Number> is a kind of List<? super Integer>
 
-// PECS（Producer Extends, Consumer Super）
-// 読み取り専用 → extends、書き込み専用 → super
+// PECS (Producer Extends, Consumer Super)
+// Read-only -> extends, Write-only -> super
 public static <T> void copy(List<? extends T> src, List<? super T> dst) {
     for (T item : src) {
         dst.add(item);
     }
 }
 
-// ジェネリックメソッドのバウンド
+// Generic method bounds
 public static <T extends Comparable<T>> T max(T a, T b) {
     return a.compareTo(b) >= 0 ? a : b;
 }
 
-// 型の交差（intersection types）
+// Intersection types
 public static <T extends Serializable & Comparable<T>> void process(T item) {
-    // T は Serializable かつ Comparable
+    // T is both Serializable and Comparable
 }
 ```
 
 ---
 
-## 3. サブタイプ多態性
+## 3. Subtype Polymorphism
 
-### TypeScript: 構造的部分型
+### TypeScript: Structural Subtyping
 
 ```typescript
-// TypeScript: インターフェースによるサブタイプ多態性
+// TypeScript: Subtype polymorphism via interfaces
 interface Printable {
     print(): string;
 }
@@ -576,7 +576,7 @@ class Product implements Printable {
     }
 }
 
-// Printable を実装していれば何でも渡せる
+// Anything implementing Printable can be passed
 function display(item: Printable): void {
     console.log(item.print());
 }
@@ -584,16 +584,16 @@ function display(item: Printable): void {
 display(new User("Gaku"));      // User: Gaku
 display(new Product("Book"));   // Product: Book
 
-// TypeScript は構造的部分型（Structural Subtyping）
-// 明示的な implements がなくても、構造が一致すればOK
+// TypeScript uses structural subtyping
+// Even without explicit implements, matching structure is sufficient
 const plainObj = {
     print(): string {
         return "Plain object";
     }
 };
-display(plainObj); // OK! print() メソッドを持っているから
+display(plainObj); // OK! Because it has a print() method
 
-// 構造的部分型の実践的な利用
+// Practical use of structural subtyping
 interface HasId {
     id: string;
 }
@@ -607,15 +607,15 @@ interface HasTimestamps {
     updatedAt: Date;
 }
 
-// 複数のインターフェースを組み合わせ
+// Combining multiple interfaces
 type Entity = HasId & HasName & HasTimestamps;
 
-// 部分的な型を受け入れる関数
+// Function accepting a partial type
 function getDisplayName(item: HasName): string {
     return item.name;
 }
 
-// Entity は HasName を含むので渡せる
+// Entity includes HasName, so it can be passed
 const entity: Entity = {
     id: "1",
     name: "Alice",
@@ -624,7 +624,7 @@ const entity: Entity = {
 };
 getDisplayName(entity); // "Alice"
 
-// Visitor パターンとサブタイプ多態性の組み合わせ
+// Combining the Visitor pattern with subtype polymorphism
 interface ASTNode {
     accept<T>(visitor: ASTVisitor<T>): T;
 }
@@ -668,7 +668,7 @@ class VariableNode implements ASTNode {
     }
 }
 
-// 式を評価する Visitor
+// Visitor that evaluates expressions
 class Evaluator implements ASTVisitor<number> {
     private env: Map<string, number>;
 
@@ -707,10 +707,10 @@ class Evaluator implements ASTVisitor<number> {
 }
 ```
 
-### Rust: トレイトによる多態性
+### Rust: Polymorphism via Traits
 
 ```rust
-// Rust: トレイトによる多態性
+// Rust: Polymorphism via traits
 trait Drawable {
     fn draw(&self);
     fn bounding_box(&self) -> (f64, f64, f64, f64); // (x, y, width, height)
@@ -754,28 +754,28 @@ impl Drawable for Triangle {
     }
 }
 
-// 静的ディスパッチ（コンパイル時に解決、高速）
+// Static dispatch (resolved at compile time, fast)
 fn draw_static(shape: &impl Drawable) {
     shape.draw();
 }
 
-// 動的ディスパッチ（実行時に解決、柔軟）
+// Dynamic dispatch (resolved at runtime, flexible)
 fn draw_dynamic(shape: &dyn Drawable) {
     shape.draw();
 }
 
-// トレイトオブジェクト（異なる型を1つのコレクションに）
+// Trait objects (different types in a single collection)
 let shapes: Vec<Box<dyn Drawable>> = vec![
     Box::new(Circle { x: 0.0, y: 0.0, radius: 5.0 }),
     Box::new(Rectangle { x: 1.0, y: 1.0, width: 3.0, height: 4.0 }),
 ];
 
-// 全ての図形を描画
+// Draw all shapes
 for shape in &shapes {
     shape.draw();
 }
 
-// トレイト継承（スーパートレイト）
+// Trait inheritance (supertraits)
 trait Shape: Drawable + std::fmt::Debug {
     fn area(&self) -> f64;
     fn perimeter(&self) -> f64;
@@ -791,13 +791,13 @@ impl Shape for Circle {
     }
 }
 
-// デフォルトメソッド
+// Default methods
 trait Summary {
     fn title(&self) -> String;
     fn author(&self) -> String;
     fn content(&self) -> String;
 
-    // デフォルト実装
+    // Default implementation
     fn summarize(&self) -> String {
         format!("{} by {} - {}", self.title(), self.author(), &self.content()[..50])
     }
@@ -807,7 +807,7 @@ trait Summary {
     }
 }
 
-// 関連型（Associated Types）
+// Associated types
 trait Container {
     type Item;
     type Error;
@@ -822,51 +822,51 @@ trait Container {
 
 ---
 
-## 4. アドホック多態性
+## 4. Ad-hoc Polymorphism
 
-### オーバーロード
+### Overloading
 
 ```java
-// Java: メソッドオーバーロード
+// Java: Method overloading
 class Calculator {
     int add(int a, int b) { return a + b; }
     double add(double a, double b) { return a + b; }
     String add(String a, String b) { return a + b; }
 
-    // オーバーロード解決の優先順位
+    // Overload resolution priority
     void print(Object obj) { System.out.println("Object: " + obj); }
     void print(String str) { System.out.println("String: " + str); }
     void print(int num)    { System.out.println("int: " + num); }
 
-    // print("hello") → String 版が呼ばれる（最も具体的な型）
-    // print(42)      → int 版が呼ばれる
-    // print(null)    → コンパイルエラー（曖昧）
+    // print("hello") -> String version is called (most specific type)
+    // print(42)      -> int version is called
+    // print(null)    -> Compile error (ambiguous)
 }
 
-// C++: テンプレート特殊化（アドホック多態性の一種）
+// C++: Template specialization (a form of ad-hoc polymorphism)
 template<typename T>
 std::string serialize(const T& value) {
-    // 汎用版
+    // Generic version
     return std::to_string(value);
 }
 
 template<>
 std::string serialize<std::string>(const std::string& value) {
-    // string 専用版
+    // string-specific version
     return "\"" + value + "\"";
 }
 
 template<>
 std::string serialize<bool>(const bool& value) {
-    // bool 専用版
+    // bool-specific version
     return value ? "true" : "false";
 }
 ```
 
-### TypeScript でのオーバーロード
+### Overloading in TypeScript
 
 ```typescript
-// TypeScript: 関数オーバーロード
+// TypeScript: Function overloading
 function createElement(tag: "div"): HTMLDivElement;
 function createElement(tag: "span"): HTMLSpanElement;
 function createElement(tag: "input"): HTMLInputElement;
@@ -875,12 +875,12 @@ function createElement(tag: string): HTMLElement {
     return document.createElement(tag);
 }
 
-const div = createElement("div");   // 型は HTMLDivElement
-const span = createElement("span"); // 型は HTMLSpanElement
-const input = createElement("input"); // 型は HTMLInputElement
-const p = createElement("p");       // 型は HTMLElement
+const div = createElement("div");   // type is HTMLDivElement
+const span = createElement("span"); // type is HTMLSpanElement
+const input = createElement("input"); // type is HTMLInputElement
+const p = createElement("p");       // type is HTMLElement
 
-// メソッドオーバーロードの実践例
+// Practical method overloading example
 class EventEmitter<Events extends Record<string, unknown[]>> {
     private handlers: Map<string, Function[]> = new Map();
 
@@ -898,7 +898,7 @@ class EventEmitter<Events extends Record<string, unknown[]>> {
     }
 }
 
-// 型安全なイベントエミッター
+// Type-safe event emitter
 interface AppEvents {
     "user:login": [userId: string, timestamp: Date];
     "user:logout": [userId: string];
@@ -907,19 +907,19 @@ interface AppEvents {
 
 const emitter = new EventEmitter<AppEvents>();
 emitter.on("user:login", (userId, timestamp) => {
-    // userId: string, timestamp: Date が推論される
+    // userId: string, timestamp: Date are inferred
     console.log(`${userId} logged in at ${timestamp}`);
 });
 ```
 
-### 型クラス（Haskell / Rust のトレイト）
+### Type Classes (Haskell / Rust Traits)
 
 ```haskell
--- Haskell: 型クラス（アドホック多態性の最も洗練された形）
+-- Haskell: Type classes (the most refined form of ad-hoc polymorphism)
 class Eq a where
     (==) :: a -> a -> Bool
     (/=) :: a -> a -> Bool
-    x /= y = not (x == y)  -- デフォルト実装
+    x /= y = not (x == y)  -- Default implementation
 
 instance Eq Int where
     x == y = eqInt x y
@@ -927,9 +927,9 @@ instance Eq Int where
 instance Eq String where
     x == y = eqString x y
 
--- 型ごとに異なる == の実装を持つ
+-- Each type has a different implementation of ==
 
--- 型クラスの階層
+-- Type class hierarchy
 class (Eq a) => Ord a where
     compare :: a -> a -> Ordering
     (<)  :: a -> a -> Bool
@@ -939,19 +939,19 @@ class (Eq a) => Ord a where
     min  :: a -> a -> a
     max  :: a -> a -> a
 
--- Show: 表示可能な型
+-- Show: types that can be displayed
 class Show a where
     show :: a -> String
 
--- Read: 文字列から解析可能な型
+-- Read: types that can be parsed from a string
 class Read a where
     read :: String -> a
 
--- 複合的な型クラス制約
+-- Compound type class constraints
 printSorted :: (Show a, Ord a) => [a] -> String
 printSorted xs = show (sort xs)
 
--- Functor: 写像可能な型コンストラクタ
+-- Functor: a mappable type constructor
 class Functor f where
     fmap :: (a -> b) -> f a -> f b
 
@@ -962,13 +962,13 @@ instance Functor Maybe where
     fmap _ Nothing  = Nothing
     fmap f (Just x) = Just (f x)
 
--- 自作の型に対する型クラスインスタンス
+-- Type class instances for custom types
 data Color = Red | Green | Blue
 
 instance Show Color where
-    show Red   = "赤"
-    show Green = "緑"
-    show Blue  = "青"
+    show Red   = "Red"
+    show Green = "Green"
+    show Blue  = "Blue"
 
 instance Eq Color where
     Red   == Red   = True
@@ -987,17 +987,17 @@ instance Ord Color where
 ```
 
 ```rust
-// Rust: トレイトでのアドホック多態性
+// Rust: Ad-hoc polymorphism via traits
 use std::fmt;
 
-// Display トレイトを実装すると println! で表示可能
+// Implementing the Display trait enables printing with println!
 impl fmt::Display for Point<f64> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "({}, {})", self.x, self.y)
     }
 }
 
-// 演算子オーバーロード
+// Operator overloading
 use std::ops::Add;
 
 impl Add for Point<f64> {
@@ -1010,7 +1010,7 @@ impl Add for Point<f64> {
     }
 }
 
-// 複数の演算子を実装
+// Implementing multiple operators
 use std::ops::{Sub, Mul, Neg};
 
 impl Sub for Point<f64> {
@@ -1043,7 +1043,7 @@ impl Neg for Point<f64> {
     }
 }
 
-// From / Into トレイト（型変換のアドホック多態性）
+// From / Into traits (ad-hoc polymorphism for type conversion)
 struct Celsius(f64);
 struct Fahrenheit(f64);
 
@@ -1062,8 +1062,8 @@ impl From<Fahrenheit> for Celsius {
 let boiling = Celsius(100.0);
 let f: Fahrenheit = boiling.into(); // Fahrenheit(212.0)
 
-// Iterator トレイトのアドホック多態性
-// 任意の型に対して for ループを使えるようにする
+// Ad-hoc polymorphism of the Iterator trait
+// Makes any type usable with for loops
 struct Fibonacci {
     a: u64,
     b: u64,
@@ -1086,7 +1086,7 @@ impl Iterator for Fibonacci {
     }
 }
 
-// 使用
+// Usage
 for fib in Fibonacci::new().take(10) {
     println!("{}", fib);
 }
@@ -1094,50 +1094,50 @@ for fib in Fibonacci::new().take(10) {
 
 ---
 
-## 5. 型制約（Bounded Polymorphism）
+## 5. Bounded Polymorphism (Type Constraints)
 
 ### TypeScript
 
 ```typescript
-// TypeScript: extends による型制約
+// TypeScript: Type constraints with extends
 function getLength<T extends { length: number }>(item: T): number {
     return item.length;
 }
 
-getLength("hello");     // OK: string は length を持つ
-getLength([1, 2, 3]);   // OK: array は length を持つ
-// getLength(42);        // NG: number は length を持たない
+getLength("hello");     // OK: string has length
+getLength([1, 2, 3]);   // OK: array has length
+// getLength(42);        // NG: number does not have length
 
-// keyof 制約
+// keyof constraint
 function getProperty<T, K extends keyof T>(obj: T, key: K): T[K] {
     return obj[key];
 }
 
 const user = { name: "Gaku", age: 30 };
 getProperty(user, "name");  // string
-// getProperty(user, "foo"); // NG: "foo" は keyof User にない
+// getProperty(user, "foo"); // NG: "foo" is not in keyof User
 
-// 条件型と型制約の組み合わせ
+// Combining conditional types with type constraints
 type IsArray<T> = T extends unknown[] ? true : false;
 
 type A = IsArray<number[]>;  // true
 type B = IsArray<string>;    // false
 
-// 条件型での型の抽出
+// Type extraction with conditional types
 type ElementType<T> = T extends (infer E)[] ? E : never;
 
 type C = ElementType<number[]>;   // number
 type D = ElementType<string[]>;   // string
 type E = ElementType<number>;     // never
 
-// マップ型と型制約
+// Mapped types and type constraints
 type Readonly<T> = { readonly [K in keyof T]: T[K] };
 type Partial<T> = { [K in keyof T]?: T[K] };
 type Required<T> = { [K in keyof T]-?: T[K] };
 type Pick<T, K extends keyof T> = { [P in K]: T[P] };
 type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
 
-// 実務的な型制約の例: バリデーション
+// Practical type constraint example: Validation
 type Validator<T> = {
     [K in keyof T]: (value: T[K]) => string | null;
 };
@@ -1149,20 +1149,20 @@ interface UserForm {
 }
 
 const userValidator: Validator<UserForm> = {
-    name: (value) => value.length > 0 ? null : "名前は必須です",
-    age: (value) => value >= 0 ? null : "年齢は0以上です",
-    email: (value) => value.includes("@") ? null : "メールアドレスが不正です",
+    name: (value) => value.length > 0 ? null : "Name is required",
+    age: (value) => value >= 0 ? null : "Age must be 0 or greater",
+    email: (value) => value.includes("@") ? null : "Invalid email address",
 };
 
 function validate<T>(data: T, validator: Validator<T>): Record<keyof T, string | null> {
     const result = {} as Record<keyof T, string | null>;
     for (const key in validator) {
-        result[key] = validatorkey;
+        result[key] = validator[key](data[key]);
     }
     return result;
 }
 
-// 再帰的な型制約
+// Recursive type constraints
 type DeepReadonly<T> = {
     readonly [K in keyof T]: T[K] extends object ? DeepReadonly<T[K]> : T[K];
 };
@@ -1171,12 +1171,12 @@ type DeepPartial<T> = {
     [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K];
 };
 
-// テンプレートリテラル型と制約
+// Template literal types and constraints
 type EventName<T extends string> = `on${Capitalize<T>}`;
 type ClickEvent = EventName<"click">;     // "onClick"
 type SubmitEvent = EventName<"submit">;   // "onSubmit"
 
-// 型安全なパス指定
+// Type-safe path specification
 type PathOf<T, Prefix extends string = ""> = {
     [K in keyof T & string]: T[K] extends object
         ? `${Prefix}${K}` | PathOf<T[K], `${Prefix}${K}.`>
@@ -1200,14 +1200,14 @@ type ConfigPath = PathOf<Config>;
 ### Rust
 
 ```rust
-// Rust: トレイト境界
+// Rust: Trait bounds
 fn print_all<T: Display + Debug>(items: &[T]) {
     for item in items {
         println!("{} ({:?})", item, item);
     }
 }
 
-// where 句（複雑な制約の場合）
+// where clause (for complex constraints)
 fn complex<T, U>(t: T, u: U) -> String
 where
     T: Display + Clone,
@@ -1216,7 +1216,7 @@ where
     format!("{}: {:?}", t, u)
 }
 
-// 関連型による制約
+// Constraints with associated types
 fn sum_iterator<I>(iter: I) -> I::Item
 where
     I: Iterator,
@@ -1225,7 +1225,7 @@ where
     iter.fold(I::Item::default(), |acc, x| acc + x)
 }
 
-// ライフタイムとトレイト境界の組み合わせ
+// Combining lifetimes and trait bounds
 fn longest_displayable<'a, T>(x: &'a T, y: &'a T) -> &'a T
 where
     T: Display + PartialOrd,
@@ -1233,16 +1233,16 @@ where
     if x >= y { x } else { y }
 }
 
-// 否定制約は直接サポートされないが、マーカートレイトで制御可能
+// Negative constraints are not directly supported, but marker traits can be used
 trait NotSend {}
-impl !Send for SomeType {}  // nightly のみ
+impl !Send for SomeType {}  // nightly only
 
-// impl Trait（簡略構文）
+// impl Trait (shorthand syntax)
 fn make_iterator(start: i32, end: i32) -> impl Iterator<Item = i32> {
     (start..end).filter(|x| x % 2 == 0)
 }
 
-// 条件付きメソッド実装
+// Conditional method implementation
 struct Wrapper<T>(T);
 
 impl<T> Wrapper<T> {
@@ -1251,14 +1251,14 @@ impl<T> Wrapper<T> {
     }
 }
 
-// T が Display を実装している場合のみ show メソッドが使える
+// The show method is only available when T implements Display
 impl<T: Display> Wrapper<T> {
     fn show(&self) {
         println!("Value: {}", self.0);
     }
 }
 
-// T が Clone + Debug を実装している場合のみ
+// Only available when T implements Clone + Debug
 impl<T: Clone + Debug> Wrapper<T> {
     fn clone_and_debug(&self) -> T {
         let cloned = self.0.clone();
@@ -1268,29 +1268,29 @@ impl<T: Clone + Debug> Wrapper<T> {
 }
 ```
 
-### Go の型制約
+### Go Type Constraints
 
 ```go
-// Go: インターフェース制約
+// Go: Interface constraints
 type Stringer interface {
     String() string
 }
 
-// 型セット制約
+// Type set constraints
 type Numeric interface {
     ~int | ~int8 | ~int16 | ~int32 | ~int64 |
     ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 |
     ~float32 | ~float64
 }
 
-// メソッドとユニオン型の組み合わせ
+// Combining methods and union type constraints
 type StringableNumeric interface {
     Numeric
     String() string
 }
 
-// comparable 制約（== と != が使える型）
-func ContainsT comparable bool {
+// comparable constraint (types that support == and !=)
+func Contains[T comparable](slice []T, target T) bool {
     for _, v := range slice {
         if v == target {
             return true
@@ -1299,7 +1299,7 @@ func ContainsT comparable bool {
     return false
 }
 
-// 複合制約
+// Compound constraints
 type OrderedStringer interface {
     Ordered
     fmt.Stringer
@@ -1308,91 +1308,91 @@ type OrderedStringer interface {
 
 ---
 
-## 6. 実装方式の違い
+## 6. Differences in Implementation Approaches
 
 ```
-単相化（Monomorphization）— Rust, C++
-  コンパイル時に型ごとにコードを生成
-  Vec<i32> と Vec<String> は別のコードになる
-  利点: ゼロコスト抽象化（実行時オーバーヘッドなし）
-  欠点: バイナリサイズが増加、コンパイル時間が増加
+Monomorphization -- Rust, C++
+  Generates type-specific code at compile time
+  Vec<i32> and Vec<String> become separate code
+  Advantage: Zero-cost abstraction (no runtime overhead)
+  Disadvantage: Binary size and compile time increase
 
-型消去（Type Erasure）— Java, TypeScript
-  コンパイル後にジェネリクスの型情報を削除
-  List<Integer> と List<String> は実行時に同じ List
-  利点: バイナリサイズが小さい、後方互換性
-  欠点: 実行時に型情報が失われる
+Type Erasure -- Java, TypeScript
+  Removes generic type information after compilation
+  List<Integer> and List<String> are the same List at runtime
+  Advantage: Smaller binary size, backward compatibility
+  Disadvantage: Type information is lost at runtime
 
-ボックス化 + vtable — Rust の dyn Trait
-  実行時に仮想関数テーブルで解決
-  利点: 異なる型を同一コレクションに格納可能
-  欠点: 間接参照のオーバーヘッド
+Boxing + vtable -- Rust's dyn Trait
+  Resolved at runtime via virtual function table
+  Advantage: Different types can be stored in the same collection
+  Disadvantage: Overhead from indirection
 
-辞書渡し（Dictionary Passing）— Haskell
-  型クラスのメソッドテーブルを暗黙的に引数として渡す
-  利点: 柔軟性が高い
-  欠点: 間接呼び出しのオーバーヘッド（インライン化で軽減可能）
+Dictionary Passing -- Haskell
+  Implicitly passes method tables for type classes as arguments
+  Advantage: High flexibility
+  Disadvantage: Overhead from indirect calls (can be mitigated by inlining)
 
-具体化（Reification）— C#
-  実行時にもジェネリクスの型情報を保持
-  typeof(T) や typeof(List<int>) が使える
-  利点: 実行時の型検査が可能
-  欠点: ランタイムの複雑化
+Reification -- C#
+  Preserves generic type information at runtime
+  typeof(T) and typeof(List<int>) are available
+  Advantage: Runtime type inspection is possible
+  Disadvantage: Increased runtime complexity
 ```
 
-### 単相化の詳細
+### Monomorphization in Detail
 
 ```rust
-// Rust の単相化
+// Rust monomorphization
 fn add<T: std::ops::Add<Output = T>>(a: T, b: T) -> T {
     a + b
 }
 
-// 呼び出し
+// Calls
 add(1i32, 2i32);
 add(1.0f64, 2.0f64);
 
-// コンパイラが生成するコード（概念的）:
+// Code generated by the compiler (conceptual):
 fn add_i32(a: i32, b: i32) -> i32 { a + b }
 fn add_f64(a: f64, b: f64) -> f64 { a + b }
 
-// 利点: 直接呼び出し、インライン化可能
-// 欠点: 型の数だけ関数が生成される
+// Advantage: Direct call, can be inlined
+// Disadvantage: A function is generated for each type
 ```
 
-### 型消去の詳細
+### Type Erasure in Detail
 
 ```java
-// Java の型消去
+// Java type erasure
 List<String> strings = new ArrayList<>();
 List<Integer> integers = new ArrayList<>();
 
-// コンパイル後は両方とも ArrayList になる
-// 実行時には型パラメータの情報がない
+// After compilation, both become ArrayList
+// No type parameter information at runtime
 strings.getClass() == integers.getClass(); // true!
 
-// 型消去の制限
-// 1. instanceof でジェネリック型をチェックできない
-// if (obj instanceof List<String>) {} // コンパイルエラー
-if (obj instanceof List<?>) {} // OK（ワイルドカードのみ）
+// Limitations of type erasure
+// 1. Cannot use instanceof with generic types
+// if (obj instanceof List<String>) {} // Compile error
+if (obj instanceof List<?>) {} // OK (wildcards only)
 
-// 2. ジェネリック型の配列を作れない
-// T[] arr = new T[10]; // コンパイルエラー
-Object[] arr = new Object[10]; // 代替手段
+// 2. Cannot create arrays of generic types
+// T[] arr = new T[10]; // Compile error
+Object[] arr = new Object[10]; // Workaround
 
-// 3. プリミティブ型をジェネリックに使えない
-// List<int> list = ...; // コンパイルエラー
-List<Integer> list = new ArrayList<>(); // ボクシングが必要
+// 3. Cannot use primitive types with generics
+// List<int> list = ...; // Compile error
+List<Integer> list = new ArrayList<>(); // Boxing required
 
-// C# との比較（具体化）
-// C# ではジェネリック型情報が実行時にも保持される
+// Comparison with C# (reification)
+// In C#, generic type information is preserved at runtime
 // typeof(List<string>) != typeof(List<int>) // true
 ```
 
-### 動的ディスパッチの詳細
+### Dynamic Dispatch in Detail
 
 ```rust
-// Rust: 静的ディスパッチ vs 動的ディスパッチ
+// Rust: Static dispatch vs dynamic dispatch
 trait Animal {
     fn speak(&self) -> String;
     fn name(&self) -> &str;
@@ -1402,107 +1402,107 @@ struct Dog { name: String }
 struct Cat { name: String }
 
 impl Animal for Dog {
-    fn speak(&self) -> String { format!("{}: ワンワン!", self.name) }
+    fn speak(&self) -> String { format!("{}: Woof!", self.name) }
     fn name(&self) -> &str { &self.name }
 }
 
 impl Animal for Cat {
-    fn speak(&self) -> String { format!("{}: ニャー!", self.name) }
+    fn speak(&self) -> String { format!("{}: Meow!", self.name) }
     fn name(&self) -> &str { &self.name }
 }
 
-// 静的ディスパッチ（単相化）
-// コンパイル時に具体的な型が決定される
+// Static dispatch (monomorphization)
+// The concrete type is determined at compile time
 fn greet_static(animal: &impl Animal) {
     println!("{}", animal.speak());
 }
-// コンパイラは greet_static_Dog と greet_static_Cat を生成
+// The compiler generates greet_static_Dog and greet_static_Cat
 
-// 動的ディスパッチ（vtable）
-// 実行時に vtable を参照してメソッドを呼び出す
+// Dynamic dispatch (vtable)
+// Methods are called by looking up the vtable at runtime
 fn greet_dynamic(animal: &dyn Animal) {
     println!("{}", animal.speak());
 }
 
-// vtable のメモリレイアウト（概念的）:
-// ┌─────────────────┐
-// │ &dyn Animal      │ = ファットポインタ
-// │   data: *const T │ → 実際のデータ
-// │   vtable: *const │ → vtable
-// └─────────────────┘
+// Memory layout of vtable (conceptual):
+// +-------------------+
+// | &dyn Animal        | = fat pointer
+// |   data: *const T   | -> actual data
+// |   vtable: *const   | -> vtable
+// +-------------------+
 //
 // vtable:
-// ┌─────────────────┐
-// │ drop_fn          │ → デストラクタ
-// │ size             │ → データのサイズ
-// │ align            │ → データのアライメント
-// │ speak_fn         │ → speak メソッドのポインタ
-// │ name_fn          │ → name メソッドのポインタ
-// └─────────────────┘
+// +-------------------+
+// | drop_fn            | -> destructor
+// | size               | -> data size
+// | align              | -> data alignment
+// | speak_fn           | -> pointer to speak method
+// | name_fn            | -> pointer to name method
+// +-------------------+
 
-// 使い分けの指針
-// 静的: パフォーマンス重視、コンパイル時に型が分かる場合
-// 動的: 異種コレクション、プラグインシステム、実行時の型決定
+// Guidelines for choosing between them
+// Static: When performance matters, when types are known at compile time
+// Dynamic: Heterogeneous collections, plugin systems, runtime type determination
 ```
 
 ---
 
-## 7. 変性（Variance）
+## 7. Variance
 
 ```
-型パラメータの変性は、サブタイプ関係がジェネリック型にどう伝播するかを決める:
+Variance determines how subtype relationships propagate to generic types:
 
-共変（Covariant）: A <: B ならば F<A> <: F<B>
-  例: List<Dog> は List<Animal> のサブタイプ（読み取り専用の場合）
-  Rust: &T は T に対して共変
-  Java: ? extends T（上限ワイルドカード）
+Covariant: If A <: B then F<A> <: F<B>
+  Example: List<Dog> is a subtype of List<Animal> (when read-only)
+  Rust: &T is covariant over T
+  Java: ? extends T (upper bounded wildcard)
 
-反変（Contravariant）: A <: B ならば F<B> <: F<A>（逆転）
-  例: (Animal) => void は (Dog) => void のサブタイプ
-  Rust: fn(T) は T に対して反変
-  Java: ? super T（下限ワイルドカード）
+Contravariant: If A <: B then F<B> <: F<A> (reversed)
+  Example: (Animal) => void is a subtype of (Dog) => void
+  Rust: fn(T) is contravariant over T
+  Java: ? super T (lower bounded wildcard)
 
-不変（Invariant）: 変換不可
-  例: List<Dog> と List<Animal> に互換性なし（読み書きする場合）
-  Rust: &mut T は T に対して不変
-  Java: List<T>（ワイルドカードなし）
+Invariant: No conversion possible
+  Example: List<Dog> and List<Animal> are incompatible (when reading and writing)
+  Rust: &mut T is invariant over T
+  Java: List<T> (without wildcards)
 ```
 
 ```typescript
-// TypeScript の変性
-// 関数パラメータは反変（strictFunctionTypes: true の場合）
+// TypeScript variance
+// Function parameters are contravariant (when strictFunctionTypes: true)
 type Handler<T> = (event: T) => void;
 
 interface MouseEvent { x: number; y: number; }
 interface ClickEvent extends MouseEvent { button: number; }
 
-// Handler<MouseEvent> は Handler<ClickEvent> に代入可能?
-// 反変なので: ClickEvent <: MouseEvent → Handler<MouseEvent> <: Handler<ClickEvent>
+// Can Handler<MouseEvent> be assigned to Handler<ClickEvent>?
+// Contravariant: ClickEvent <: MouseEvent -> Handler<MouseEvent> <: Handler<ClickEvent>
 const mouseHandler: Handler<MouseEvent> = (e) => console.log(e.x, e.y);
-const clickHandler: Handler<ClickEvent> = mouseHandler; // OK（反変）
+const clickHandler: Handler<ClickEvent> = mouseHandler; // OK (contravariant)
 
-// 配列は不変（実際は TypeScript では共変として扱われる ← 型安全性の穴）
+// Arrays are invariant (but TypeScript treats them as covariant -- a type safety hole)
 const dogs: Dog[] = [new Dog()];
-const animals: Animal[] = dogs; // TypeScript では OK（安全ではない）
-animals.push(new Cat()); // 型チェックは通るが、dogs に Cat が入ってしまう
+const animals: Animal[] = dogs; // OK in TypeScript (but not safe)
+animals.push(new Cat()); // Type check passes, but a Cat ends up in dogs
 ```
 
 ```java
-// Java の変性とワイルドカード
-// 共変: ? extends T（読み取り専用）
+// Java variance and wildcards
+// Covariant: ? extends T (read-only)
 List<? extends Animal> animals = new ArrayList<Dog>();
-Animal a = animals.get(0);  // OK: 読み取りは安全
-// animals.add(new Dog());  // NG: 書き込みは不安全
+Animal a = animals.get(0);  // OK: reading is safe
+// animals.add(new Dog());  // NG: writing is unsafe
 
-// 反変: ? super T（書き込み専用）
+// Contravariant: ? super T (write-only)
 List<? super Dog> dogs = new ArrayList<Animal>();
-dogs.add(new Dog());        // OK: 書き込みは安全
-// Dog d = dogs.get(0);     // NG: 読み取りは不安全（Object しか得られない）
+dogs.add(new Dog());        // OK: writing is safe
+// Dog d = dogs.get(0);     // NG: reading is unsafe (only Object can be obtained)
 
 // PECS: Producer Extends, Consumer Super
 public static <T> void copy(
-    List<? extends T> src,  // 読み取り（Producer）→ extends
-    List<? super T> dst     // 書き込み（Consumer）→ super
+    List<? extends T> src,  // Reading (Producer) -> extends
+    List<? super T> dst     // Writing (Consumer) -> super
 ) {
     for (T item : src) {
         dst.add(item);
@@ -1512,30 +1512,30 @@ public static <T> void copy(
 
 ---
 
-## 8. 高カインド型（Higher-Kinded Types）
+## 8. Higher-Kinded Types
 
 ```
-高カインド型 = 「型コンストラクタを抽象化する」能力
+Higher-Kinded Types = the ability to "abstract over type constructors"
 
-通常のジェネリクス: T は型（kind: *）
-高カインド型: F は型コンストラクタ（kind: * -> *）
+Regular generics: T is a type (kind: *)
+Higher-kinded types: F is a type constructor (kind: * -> *)
 
-例: F を List や Option に差し替えられる
+Example: F can be substituted with List or Option
 
-Haskell: ネイティブサポート
-Scala: ネイティブサポート
-Rust: トレイトの関連型で擬似的に表現
-TypeScript: 型レベルの工夫で部分的に表現
-Java/Go: サポートなし
+Haskell: Native support
+Scala: Native support
+Rust: Approximated via associated types in traits
+TypeScript: Partially expressible through type-level tricks
+Java/Go: Not supported
 ```
 
 ```haskell
--- Haskell: Functor（高カインド型の典型例）
+-- Haskell: Functor (the canonical example of higher-kinded types)
 class Functor f where
     fmap :: (a -> b) -> f a -> f b
 
--- f は型コンストラクタ（kind: * -> *）
--- List, Maybe, IO, Either e などが Functor になれる
+-- f is a type constructor (kind: * -> *)
+-- List, Maybe, IO, Either e, etc. can be Functors
 
 instance Functor [] where
     fmap = map
@@ -1544,22 +1544,22 @@ instance Functor Maybe where
     fmap _ Nothing  = Nothing
     fmap f (Just x) = Just (f x)
 
--- Applicative（Functor の拡張）
+-- Applicative (extension of Functor)
 class Functor f => Applicative f where
     pure  :: a -> f a
     (<*>) :: f (a -> b) -> f a -> f b
 
--- Monad（Applicative の拡張）
+-- Monad (extension of Applicative)
 class Applicative m => Monad m where
     return :: a -> m a
     (>>=)  :: m a -> (a -> m b) -> m b
 
--- これにより、List, Maybe, IO, Either など
--- 異なる型コンストラクタに対して統一的なインターフェースを提供
+-- This provides a unified interface for
+-- different type constructors like List, Maybe, IO, Either, etc.
 ```
 
 ```rust
-// Rust: 高カインド型の擬似的な表現（GAT: Generic Associated Types）
+// Rust: Approximation of higher-kinded types (GAT: Generic Associated Types)
 trait Functor {
     type Unwrapped;
     type Wrapped<U>: Functor;
@@ -1596,12 +1596,12 @@ impl<T> Functor for Vec<T> {
 
 ---
 
-## 9. 実務パターン集
+## 9. Practical Pattern Collection
 
-### Builder パターン（ジェネリクス活用）
+### Builder Pattern (Leveraging Generics)
 
 ```rust
-// Rust: 型状態パターン（Typestate Pattern）で安全な Builder
+// Rust: Safe Builder using the Typestate Pattern
 struct NoName;
 struct HasName(String);
 struct NoEmail;
@@ -1650,7 +1650,7 @@ impl<N, E> UserBuilder<N, E> {
     }
 }
 
-// build は name と email が両方設定された場合のみ呼び出し可能
+// build can only be called when both name and email are set
 impl UserBuilder<HasName, HasEmail> {
     fn build(self) -> User {
         User {
@@ -1661,21 +1661,21 @@ impl UserBuilder<HasName, HasEmail> {
     }
 }
 
-// 使用例
+// Usage
 let user = UserBuilder::new()
     .name("Gaku".into())
     .email("gaku@example.com".into())
     .age(30)
     .build();
 
-// これはコンパイルエラー（email が未設定）
+// This is a compile error (email not set)
 // let invalid = UserBuilder::new().name("Gaku".into()).build();
 ```
 
-### Strategy パターン
+### Strategy Pattern
 
 ```typescript
-// TypeScript: ジェネリクスを活用した Strategy パターン
+// TypeScript: Strategy pattern leveraging generics
 interface SortStrategy<T> {
     sort(items: T[]): T[];
     readonly name: string;
@@ -1723,7 +1723,7 @@ class MergeSort<T> implements SortStrategy<T> {
     }
 }
 
-// 使い方
+// Usage
 class Sorter<T> {
     constructor(private strategy: SortStrategy<T>) {}
 
@@ -1745,10 +1745,10 @@ sorter.setStrategy(new MergeSort<number>(numberCompare));
 sorter.sort([3, 1, 4, 1, 5, 9, 2, 6]);
 ```
 
-### Result 型による型安全なエラーハンドリング
+### Type-Safe Error Handling with Result Types
 
 ```typescript
-// TypeScript: Result モナド的パターン
+// TypeScript: Result monadic pattern
 type Result<T, E> =
     | { ok: true; value: T }
     | { ok: false; error: E };
@@ -1779,7 +1779,7 @@ function mapError<T, E, F>(
     return result.ok ? result : err(fn(result.error));
 }
 
-// パイプライン的に使う
+// Pipeline-style usage
 type ParseError = { type: "parse"; message: string };
 type ValidationError = { type: "validation"; field: string; message: string };
 type AppError = ParseError | ValidationError;
@@ -1803,42 +1803,42 @@ const result = flatMap(
 
 ---
 
-## 10. アンチパターンと注意点
+## 10. Anti-patterns and Caveats
 
 ```
-1. 過度なジェネリクス化
-   → 読みやすさを犠牲にしない。具体的な型で十分な場合はジェネリクスを使わない
-   → 「3回以上似たコードを書いたら」ジェネリクスを検討する
+1. Over-generification
+   -> Do not sacrifice readability. Use concrete types when they suffice.
+   -> Consider generics when you have written similar code 3+ times.
 
-2. 型パラメータの乱用
-   → 型パラメータが4つ以上になったら設計を見直す
-   → 関連型（Associated Types）で減らせないか検討する
+2. Abuse of type parameters
+   -> Reconsider your design when you have 4 or more type parameters.
+   -> Consider whether associated types can reduce the count.
 
-3. Java の型消去に起因する問題
-   → 実行時にジェネリック型を検査できない
-   → instanceof List<String> は不可能
-   → 回避策: Class<T> トークンを引数で渡す
+3. Problems caused by Java's type erasure
+   -> Generic types cannot be inspected at runtime.
+   -> instanceof List<String> is impossible.
+   -> Workaround: Pass a Class<T> token as an argument.
 
-4. Go のインターフェース制約の限界
-   → メソッドとユニオン型制約を混在できない制約がある
-   → 複雑な制約は型アサーションで補完する必要がある場合がある
+4. Limitations of Go's interface constraints
+   -> There are restrictions on mixing method and union type constraints.
+   -> Complex constraints may need to be supplemented with type assertions.
 
-5. 共変配列の罠（Java, TypeScript）
-   → Java: String[] は Object[] のサブタイプ → ArrayStoreException の可能性
-   → TypeScript: 配列は共変 → 型安全性の穴
+5. Covariant array pitfall (Java, TypeScript)
+   -> Java: String[] is a subtype of Object[] -> potential ArrayStoreException
+   -> TypeScript: Arrays are covariant -> a type safety hole
 
-6. Rust のオブジェクト安全性
-   → Self を返すメソッドや型パラメータを持つメソッドは dyn Trait に使えない
-   → 回避策: 関連型やジェネリックラッパーを使う
+6. Rust's object safety
+   -> Methods returning Self or methods with type parameters cannot be used with dyn Trait.
+   -> Workaround: Use associated types or generic wrappers.
 ```
 
 ```rust
-// Rust: オブジェクト安全でないトレイト
+// Rust: A trait that is not object-safe
 trait Cloneable {
-    fn clone(&self) -> Self;  // Self を返す → dyn Cloneable にできない
+    fn clone(&self) -> Self;  // Returns Self -> cannot be used as dyn Cloneable
 }
 
-// 回避策: 型を消去するラッパー
+// Workaround: A wrapper that erases the type
 trait CloneBox {
     fn clone_box(&self) -> Box<dyn CloneBox>;
 }
@@ -1849,7 +1849,7 @@ impl<T: Clone + 'static> CloneBox for T {
     }
 }
 
-// これなら dyn CloneBox として使える
+// Now it can be used as dyn CloneBox
 let items: Vec<Box<dyn CloneBox>> = vec![
     Box::new(42),
     Box::new(String::from("hello")),
@@ -1858,74 +1858,74 @@ let items: Vec<Box<dyn CloneBox>> = vec![
 
 ---
 
-## 実践演習
+## Practical Exercises
 
-### 演習1: [基礎] -- ジェネリックなコレクション
-TypeScript または Rust でジェネリックな双方向キュー（Deque）を実装する。push_front, push_back, pop_front, pop_back, peek_front, peek_back, size, is_empty メソッドを持つ。
+### Exercise 1: [Basics] -- Generic Collection
+Implement a generic double-ended queue (Deque) in TypeScript or Rust. It should have push_front, push_back, pop_front, pop_back, peek_front, peek_back, size, and is_empty methods.
 
-### 演習2: [応用] -- 型安全なイベントシステム
-TypeScript でイベント名と引数の型を型パラメータで厳密に管理するイベントエミッターを実装する。on, off, emit, once メソッドを持ち、イベント名に対応しない引数型ではコンパイルエラーになること。
+### Exercise 2: [Intermediate] -- Type-Safe Event System
+Implement a type-safe event emitter in TypeScript that strictly manages event names and argument types via type parameters. It should have on, off, emit, and once methods, and cause compile errors when argument types do not match the event name.
 
-### 演習3: [応用] -- トレイトオブジェクトとジェネリクスの使い分け
-Rust でプラグインシステムを設計する。静的ディスパッチと動的ディスパッチの両方のバージョンを実装し、ベンチマークで性能差を比較する。
+### Exercise 3: [Intermediate] -- Choosing Between Trait Objects and Generics
+Design a plugin system in Rust. Implement both static dispatch and dynamic dispatch versions, and compare their performance differences with benchmarks.
 
-### 演習4: [発展] -- 型レベルプログラミング
-TypeScript の条件型とマップ型を使って、JSON Schema に相当する型定義から TypeScript の型を自動生成する型ユーティリティを実装する。
+### Exercise 4: [Advanced] -- Type-Level Programming
+Use TypeScript's conditional types and mapped types to implement a type utility that automatically generates TypeScript types from type definitions equivalent to JSON Schema.
 
-### 演習5: [発展] -- 高カインド型のシミュレーション
-Rust の GAT（Generic Associated Types）を使って、Functor と Monad に相当するトレイトを定義し、Option と Result に対して実装する。
+### Exercise 5: [Advanced] -- Simulating Higher-Kinded Types
+Use Rust's GAT (Generic Associated Types) to define traits equivalent to Functor and Monad, and implement them for Option and Result.
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point in learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the basics and jumping to advanced topics. We recommend thoroughly understanding the fundamental concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in professional practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently applied in everyday development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## まとめ
+## Summary
 
-| 多態性の種類 | 仕組み | 例 |
+| Type of Polymorphism | Mechanism | Example |
 |------------|--------|------|
-| パラメトリック | 型をパラメータ化 | `List<T>`, `Vec<T>` |
-| サブタイプ | 継承・インターフェース | `impl Trait`, `extends` |
-| アドホック | 型ごとに異なる実装 | オーバーロード、型クラス |
-| 型制約 | 型パラメータに条件を付ける | `T extends X`, `T: Trait` |
-| 行多態性 | 特定フィールドを持つ型 | TypeScript 構造的部分型 |
-| カインド多態性 | 型コンストラクタの抽象化 | `Functor f`, `Monad m` |
+| Parametric | Parameterize types | `List<T>`, `Vec<T>` |
+| Subtype | Inheritance / Interfaces | `impl Trait`, `extends` |
+| Ad-hoc | Different implementations per type | Overloading, type classes |
+| Bounded | Constrain type parameters | `T extends X`, `T: Trait` |
+| Row | Types with specific fields | TypeScript structural subtyping |
+| Kind | Abstract over type constructors | `Functor f`, `Monad m` |
 
-| 実装方式 | 特徴 | 代表言語 |
+| Implementation Approach | Characteristics | Representative Languages |
 |---------|------|---------|
-| 単相化 | コンパイル時展開、ゼロコスト | Rust, C++ |
-| 型消去 | 実行時型情報なし | Java, TypeScript |
-| 具体化 | 実行時型情報あり | C# |
-| vtable | 動的ディスパッチ | Rust dyn, Java仮想メソッド |
-| 辞書渡し | 型クラスメソッドテーブル | Haskell |
+| Monomorphization | Compile-time expansion, zero-cost | Rust, C++ |
+| Type Erasure | No runtime type info | Java, TypeScript |
+| Reification | Runtime type info preserved | C# |
+| vtable | Dynamic dispatch | Rust dyn, Java virtual methods |
+| Dictionary Passing | Type class method table | Haskell |
 
-| 変性 | 意味 | 例 |
+| Variance | Meaning | Example |
 |------|------|-----|
-| 共変 | サブタイプ関係が保存 | `&T`, `? extends T` |
-| 反変 | サブタイプ関係が反転 | `fn(T)`, `? super T` |
-| 不変 | サブタイプ関係なし | `&mut T`, `List<T>` |
+| Covariant | Subtype relationship preserved | `&T`, `? extends T` |
+| Contravariant | Subtype relationship reversed | `fn(T)`, `? super T` |
+| Invariant | No subtype relationship | `&mut T`, `List<T>` |
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
 ---
 
-## 参考文献
+## References
 1. Pierce, B. "Types and Programming Languages." Ch.23-26, MIT Press, 2002.
 2. Wadler, P. & Blott, S. "How to make ad-hoc polymorphism less ad hoc." 1989.
 3. Cardelli, L. & Wegner, P. "On Understanding Types, Data Abstraction, and Polymorphism." Computing Surveys, 1985.

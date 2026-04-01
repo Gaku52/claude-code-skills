@@ -1,34 +1,34 @@
-# 分岐とループ
+# Branching and Loops
 
-> 制御フローはプログラムの「実行順序を変える」仕組み。分岐とループの設計は言語の哲学を反映する。
+> Control flow is the mechanism that "changes the execution order" of a program. The design of branching and loops reflects the philosophy of a language.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] 各言語の分岐構文の違いと設計思想を理解する
-- [ ] ループの種類と使い分けを把握する
-- [ ] 式ベースの制御フローを理解する
-- [ ] 早期リターンとガード節を適切に使いこなせる
-- [ ] ループ最適化のテクニックを把握する
-- [ ] 制御フローの設計判断を言語横断的に比較できる
+- [ ] Understand the differences and design philosophies of branching syntax across languages
+- [ ] Grasp the types of loops and when to use each
+- [ ] Understand expression-based control flow
+- [ ] Properly use early returns and guard clauses
+- [ ] Grasp loop optimization techniques
+- [ ] Compare control flow design decisions across languages
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
+- Basic programming knowledge
+- Understanding of related foundational concepts
 
 ---
 
-## 1. 分岐（Branching）
+## 1. Branching
 
-### 1.1 if 文 vs if 式
+### 1.1 if Statement vs if Expression
 
-プログラミング言語における `if` の設計は、「文（statement）」として扱うか「式（expression）」として扱うかで大きく異なる。文は副作用のために実行され、式は値を返す。
+The design of `if` in programming languages differs significantly depending on whether it is treated as a "statement" or an "expression." Statements are executed for their side effects, while expressions return values.
 
 ```python
-# Python: if は文（statement）
+# Python: if is a statement
 if score >= 90:
     grade = "A"
 elif score >= 80:
@@ -40,19 +40,19 @@ elif score >= 60:
 else:
     grade = "F"
 
-# 三項演算子（式）— 条件式
+# Ternary operator (expression) — conditional expression
 grade = "A" if score >= 90 else "B" if score >= 80 else "C"
 
-# 三項演算子の実務的な使い方
+# Practical uses of the ternary operator
 status = "active" if user.is_verified else "pending"
 display_name = user.nickname if user.nickname else user.email
 max_val = a if a > b else b
 
-# 複雑な条件は三項演算子を避け、通常の if 文を使う
-# ❌ 読みにくい
+# Avoid ternary operators for complex conditions; use regular if statements
+# Bad — hard to read
 result = "A" if x > 90 else "B" if x > 80 else "C" if x > 70 else "D" if x > 60 else "F"
 
-# ✅ 読みやすい
+# Good — easy to read
 if x > 90:
     result = "A"
 elif x > 80:
@@ -66,7 +66,7 @@ else:
 ```
 
 ```rust
-// Rust: if は式（expression）→ 値を返す
+// Rust: if is an expression — returns a value
 let grade = if score >= 90 {
     "A"
 } else if score >= 80 {
@@ -77,43 +77,43 @@ let grade = if score >= 90 {
     "D"
 } else {
     "F"
-};  // セミコロンで束縛
+};  // Bound with a semicolon
 
-// 1行で使える（短い条件の場合）
+// Can be used in a single line (for short conditions)
 let abs_val = if x >= 0 { x } else { -x };
 let min_val = if a < b { a } else { b };
 
-// ブロック内で複数の文を含む場合、最後の式が値になる
+// When a block contains multiple statements, the last expression becomes the value
 let description = if score >= 90 {
     let prefix = "Excellent";
     let emoji = "🌟";
-    format!("{} {}", prefix, emoji)  // これが返る値
+    format!("{} {}", prefix, emoji)  // This is the returned value
 } else {
     "Keep trying".to_string()
 };
 
-// if let — Option や Result のパターンマッチ簡略版
+// if let — shorthand for pattern matching on Option or Result
 let config_value = if let Some(val) = config.get("timeout") {
     val.parse::<u64>().unwrap_or(30)
 } else {
-    30  // デフォルト値
+    30  // Default value
 };
 ```
 
 ```kotlin
-// Kotlin: if も when も式
+// Kotlin: both if and when are expressions
 val grade = if (score >= 90) "A" else if (score >= 80) "B" else "C"
 
-// 複数行の場合、最後の式が値になる
+// For multi-line blocks, the last expression becomes the value
 val result = if (score >= 90) {
     println("Great job!")
-    "A"  // この値が返る
+    "A"  // This value is returned
 } else {
     println("Keep going")
     "B"
 }
 
-// when 式（Kotlin 独自の強力な分岐）
+// when expression (Kotlin's powerful branching construct)
 val result = when {
     score >= 90 -> "A"
     score >= 80 -> "B"
@@ -122,14 +122,14 @@ val result = when {
     else -> "F"
 }
 
-// when を値ベースで使用
+// Using when with value-based matching
 val typeDescription = when (val day = getDayOfWeek()) {
     "Mon", "Tue", "Wed", "Thu", "Fri" -> "Weekday"
     "Sat", "Sun" -> "Weekend"
     else -> "Unknown"
 }
 
-// when で型チェック
+// Type checking with when
 fun describe(obj: Any): String = when (obj) {
     is Int -> "Integer: $obj"
     is String -> "String of length ${obj.length}"
@@ -137,7 +137,7 @@ fun describe(obj: Any): String = when (obj) {
     else -> "Unknown type"
 }
 
-// when で範囲チェック
+// Range checking with when
 val category = when (age) {
     in 0..12 -> "Child"
     in 13..17 -> "Teen"
@@ -148,17 +148,17 @@ val category = when (age) {
 ```
 
 ```swift
-// Swift: if は文だが、if let / guard let が強力
+// Swift: if is a statement, but if let / guard let are powerful
 let score = 85
 
-// if let（Optional バインディング）
+// if let (Optional binding)
 if let username = optionalUsername {
     print("Hello, \(username)")
 } else {
     print("No username")
 }
 
-// guard let（早期リターン向け）
+// guard let (designed for early returns)
 func processUser(_ user: User?) -> String {
     guard let user = user else {
         return "No user"
@@ -169,34 +169,34 @@ func processUser(_ user: User?) -> String {
     return "Processing \(user.name)"
 }
 
-// Swift 5.9+: if 式として使用可能
+// Swift 5.9+: if can be used as an expression
 let grade = if score >= 90 { "A" } else if score >= 80 { "B" } else { "C" }
 ```
 
 ```scala
-// Scala: if は式（常に値を返す）
+// Scala: if is an expression (always returns a value)
 val grade = if (score >= 90) "A"
             else if (score >= 80) "B"
             else if (score >= 70) "C"
             else "F"
 
-// ブロック式
+// Block expression
 val result = if (condition) {
   val computed = heavyComputation()
-  computed * 2  // 最後の式が返る値
+  computed * 2  // The last expression is the returned value
 } else {
   defaultValue
 }
 ```
 
 ```haskell
--- Haskell: if は式（else が必須）
+-- Haskell: if is an expression (else is required)
 grade = if score >= 90 then "A"
         else if score >= 80 then "B"
         else if score >= 70 then "C"
         else "F"
 
--- ガード（関数定義での条件分岐）
+-- Guards (conditional branching in function definitions)
 bmiCategory bmi
   | bmi < 18.5 = "Underweight"
   | bmi < 25.0 = "Normal"
@@ -204,40 +204,40 @@ bmiCategory bmi
   | otherwise   = "Obese"
 ```
 
-### 1.2 文 vs 式の設計哲学比較
+### 1.2 Statement vs Expression Design Philosophy Comparison
 
 ```
-文ベース（Statement-based）の言語:
+Statement-based languages:
   C, Java, Python, JavaScript, Go
-  → if は値を返さない。副作用（代入など）で結果を伝える
-  → 三項演算子（? :）が式としての分岐を補完
+  → if does not return a value. Results are communicated through side effects (assignment, etc.)
+  → The ternary operator (? :) supplements branching as an expression
 
-式ベース（Expression-based）の言語:
+Expression-based languages:
   Rust, Kotlin, Scala, Haskell, OCaml, F#, Elixir
-  → if は値を返す。変数束縛と自然に組み合わせられる
-  → 「全ての構文が値を返す」一貫性
+  → if returns a value. Naturally combines with variable bindings
+  → Consistency of "every construct returns a value"
 
-式ベースの利点:
-  1. 変数の不変性を保ちやすい（let x = if ... で一度だけ代入）
-  2. 初期化忘れがない（else がないとコンパイルエラー）
-  3. 関数型スタイルとの親和性が高い
-  4. 型推論が効きやすい
+Advantages of expression-based:
+  1. Easier to maintain variable immutability (assign once with let x = if ...)
+  2. No risk of forgetting initialization (missing else causes a compile error)
+  3. High affinity with functional style
+  4. Type inference works well
 
-文ベースの利点:
-  1. 馴染みやすい（C から続く伝統）
-  2. 副作用を明示的に分離できる
-  3. void（値なし）の分岐が自然
+Advantages of statement-based:
+  1. Familiar (tradition from C)
+  2. Side effects can be explicitly separated
+  3. void (no-value) branching feels natural
 ```
 
 ### 1.3 switch / match
 
 ```javascript
-// JavaScript: switch文（fall-through に注意）
+// JavaScript: switch statement (beware of fall-through)
 switch (day) {
     case "Mon": case "Tue": case "Wed":
     case "Thu": case "Fri":
         type = "Weekday";
-        break;      // break 忘れ → fall-through（バグの温床）
+        break;      // Forgetting break → fall-through (source of bugs)
     case "Sat": case "Sun":
         type = "Weekend";
         break;
@@ -245,7 +245,7 @@ switch (day) {
         type = "Unknown";
 }
 
-// switch の実務的な使用例: HTTPステータスコードの分類
+// Practical switch usage: classifying HTTP status codes
 function categorizeStatus(code) {
     switch (true) {
         case code >= 200 && code < 300:
@@ -261,7 +261,7 @@ function categorizeStatus(code) {
     }
 }
 
-// switch の代替: オブジェクトマップ（推奨パターン）
+// Alternative to switch: object map (recommended pattern)
 const statusMessages = {
     200: "OK",
     201: "Created",
@@ -276,7 +276,7 @@ const message = statusMessages[code] ?? "Unknown Status";
 ```
 
 ```typescript
-// TypeScript: switch で型の絞り込み（Narrowing）
+// TypeScript: type narrowing with switch
 type Shape =
     | { kind: "circle"; radius: number }
     | { kind: "rectangle"; width: number; height: number }
@@ -285,15 +285,15 @@ type Shape =
 function area(shape: Shape): number {
     switch (shape.kind) {
         case "circle":
-            // ここでは shape は { kind: "circle"; radius: number }
+            // Here shape is { kind: "circle"; radius: number }
             return Math.PI * shape.radius ** 2;
         case "rectangle":
-            // ここでは shape は { kind: "rectangle"; width: number; height: number }
+            // Here shape is { kind: "rectangle"; width: number; height: number }
             return shape.width * shape.height;
         case "triangle":
             return (shape.base * shape.height) / 2;
         default:
-            // 網羅性チェック（never 型）
+            // Exhaustiveness check (never type)
             const _exhaustive: never = shape;
             return _exhaustive;
     }
@@ -301,16 +301,16 @@ function area(shape: Shape): number {
 ```
 
 ```rust
-// Rust: match式（網羅性チェック + パターンマッチ）
+// Rust: match expression (exhaustiveness check + pattern matching)
 let type_str = match day {
     "Mon" | "Tue" | "Wed" | "Thu" | "Fri" => "Weekday",
     "Sat" | "Sun" => "Weekend",
     _ => "Unknown",
 };
-// 全パターンを網羅しないとコンパイルエラー
-// fall-through なし（安全）
+// Compile error if not all patterns are covered
+// No fall-through (safe)
 
-// match で複雑な条件分岐
+// Complex conditional branching with match
 let message = match status_code {
     200 => "OK",
     201 => "Created",
@@ -333,7 +333,7 @@ let message = match status_code {
 ```
 
 ```go
-// Go: switch（break不要、fall-through は明示的）
+// Go: switch (no break needed, fall-through is explicit)
 switch day {
 case "Mon", "Tue", "Wed", "Thu", "Fri":
     typeStr = "Weekday"
@@ -342,10 +342,10 @@ case "Sat", "Sun":
 default:
     typeStr = "Unknown"
 }
-// break 不要（自動的に抜ける）
-// fallthrough キーワードで明示的に fall-through
+// No break needed (exits automatically)
+// Use the fallthrough keyword for explicit fall-through
 
-// 条件式なしの switch（if-else チェーンの代替）
+// switch without a condition expression (alternative to if-else chain)
 switch {
 case score >= 90:
     grade = "A"
@@ -359,7 +359,7 @@ default:
     grade = "F"
 }
 
-// 型 switch（Go のインターフェース型アサーション）
+// Type switch (Go's interface type assertion)
 func describe(i interface{}) string {
     switch v := i.(type) {
     case int:
@@ -377,7 +377,7 @@ func describe(i interface{}) string {
 ```
 
 ```c
-// C: switch文（整数型のみ、fall-through がデフォルト）
+// C: switch statement (integer types only, fall-through is the default)
 switch (command) {
     case CMD_START:
         initialize();
@@ -386,7 +386,7 @@ switch (command) {
         cleanup();
         break;
     case CMD_PAUSE:
-    case CMD_SUSPEND:  // fall-through（意図的）
+    case CMD_SUSPEND:  // Fall-through (intentional)
         pause();
         break;
     default:
@@ -394,15 +394,15 @@ switch (command) {
         break;
 }
 
-// C の switch の制限
-// - 整数型（int, char, enum）のみ
-// - 文字列の比較はできない
-// - 範囲指定はできない（GCC拡張を除く）
+// Limitations of C's switch
+// - Integer types only (int, char, enum)
+// - Cannot compare strings
+// - Cannot specify ranges (except with GCC extensions)
 ```
 
 ```java
-// Java: switch 式（Java 14+）
-// 従来の switch 文
+// Java: switch expression (Java 14+)
+// Traditional switch statement
 String typeStr;
 switch (day) {
     case "Mon": case "Tue": case "Wed":
@@ -416,14 +416,14 @@ switch (day) {
         typeStr = "Unknown";
 }
 
-// Java 14+: switch 式（アロー構文）
+// Java 14+: switch expression (arrow syntax)
 String typeStr = switch (day) {
     case "Mon", "Tue", "Wed", "Thu", "Fri" -> "Weekday";
     case "Sat", "Sun" -> "Weekend";
     default -> "Unknown";
 };
 
-// Java 14+: switch 式でブロック使用（yield で値を返す）
+// Java 14+: switch expression with blocks (return values with yield)
 String result = switch (statusCode) {
     case 200 -> "OK";
     case 404 -> "Not Found";
@@ -433,7 +433,7 @@ String result = switch (statusCode) {
     }
 };
 
-// Java 21+: パターンマッチング switch
+// Java 21+: pattern matching switch
 String describe(Object obj) {
     return switch (obj) {
         case Integer i when i > 0 -> "Positive integer: " + i;
@@ -445,36 +445,36 @@ String describe(Object obj) {
 }
 ```
 
-### 1.4 条件演算子と条件式
+### 1.4 Conditional Operators and Conditional Expressions
 
 ```python
-# Python: 条件式（三項演算子相当）
+# Python: conditional expression (equivalent to ternary operator)
 result = value_if_true if condition else value_if_false
 
-# 実務例
+# Practical examples
 display = f"{count} item{'s' if count != 1 else ''}"
 log_level = "DEBUG" if is_development else "INFO"
 timeout = custom_timeout if custom_timeout is not None else default_timeout
 
-# Python: Walrus演算子（:=）— Python 3.8+
-# 代入と条件判定を同時に行う
+# Python: Walrus operator (:=) — Python 3.8+
+# Perform assignment and condition check simultaneously
 if (n := len(data)) > 10:
     print(f"Data too long: {n}")
 
-# while ループでの活用
+# Usage in while loops
 while (line := file.readline()) != "":
     process(line)
 
-# リスト内包表記での活用
+# Usage in list comprehensions
 results = [y for x in data if (y := expensive_computation(x)) is not None]
 ```
 
 ```c
-// C / C++ / JavaScript / Java: 三項演算子
+// C / C++ / JavaScript / Java: ternary operator
 int abs_val = (x >= 0) ? x : -x;
 const char* msg = (err == 0) ? "Success" : "Error";
 
-// ネストした三項演算子（非推奨 — 読みにくい）
+// Nested ternary operators (not recommended — hard to read)
 const char* grade = (score >= 90) ? "A"
                   : (score >= 80) ? "B"
                   : (score >= 70) ? "C"
@@ -482,19 +482,19 @@ const char* grade = (score >= 90) ? "A"
 ```
 
 ```ruby
-# Ruby: 多彩な条件式
-# if 修飾子（後置 if）
+# Ruby: diverse conditional expressions
+# if modifier (postfix if)
 puts "Adult" if age >= 18
 log.warn("Low memory") if memory_usage > 0.9
 
-# unless（否定条件）
+# unless (negated condition)
 raise "Not found" unless record
 send_notification unless user.opted_out?
 
-# 三項演算子
+# Ternary operator
 status = active? ? "Active" : "Inactive"
 
-# case-when（パターンマッチ風）
+# case-when (pattern-match style)
 result = case score
          when 90..100 then "A"
          when 80..89  then "B"
@@ -503,7 +503,7 @@ result = case score
          else              "F"
          end
 
-# case-in（Ruby 3.0+ パターンマッチ）
+# case-in (Ruby 3.0+ pattern matching)
 case user
 in { name: String => name, age: (18..) => age }
   puts "#{name} is an adult (#{age})"
@@ -514,29 +514,29 @@ end
 
 ---
 
-## 2. ループ
+## 2. Loops
 
-### 2.1 for ループの進化
+### 2.1 Evolution of for Loops
 
 ```c
-// C: 古典的な for ループ
+// C: classic for loop
 for (int i = 0; i < 10; i++) {
     printf("%d\n", i);
 }
 
-// C: 配列の走査（インデックスベース）
+// C: traversing an array (index-based)
 int arr[] = {10, 20, 30, 40, 50};
 int len = sizeof(arr) / sizeof(arr[0]);
 for (int i = 0; i < len; i++) {
     printf("arr[%d] = %d\n", i, arr[i]);
 }
 
-// C: 逆順走査
+// C: reverse traversal
 for (int i = len - 1; i >= 0; i--) {
     printf("arr[%d] = %d\n", i, arr[i]);
 }
 
-// C: 2重ループ（行列処理）
+// C: nested loops (matrix processing)
 for (int i = 0; i < rows; i++) {
     for (int j = 0; j < cols; j++) {
         matrix[i][j] = i * cols + j;
@@ -545,244 +545,244 @@ for (int i = 0; i < rows; i++) {
 ```
 
 ```python
-# Python: for-in（イテレータベース）
+# Python: for-in (iterator-based)
 for i in range(10):
     print(i)
 
 for item in collection:
     print(item)
 
-# enumerate（インデックス付き）
+# enumerate (with index)
 for i, item in enumerate(collection):
     print(f"{i}: {item}")
 
-# enumerate の開始インデックス指定
+# Specifying the starting index for enumerate
 for i, line in enumerate(lines, start=1):
     print(f"Line {i}: {line}")
 
-# zip（並行イテレーション）
+# zip (parallel iteration)
 for name, age in zip(names, ages):
     print(f"{name}: {age}")
 
-# zip_longest（長さが異なるイテラブルの結合）
+# zip_longest (combining iterables of different lengths)
 from itertools import zip_longest
 for a, b in zip_longest([1, 2, 3], [10, 20], fillvalue=0):
     print(f"{a}, {b}")  # (1,10), (2,20), (3,0)
 
-# reversed（逆順）
+# reversed (reverse order)
 for item in reversed(collection):
     print(item)
 
-# sorted（ソート順）
+# sorted (sorted order)
 for item in sorted(collection, key=lambda x: x.name):
     print(item)
 
-# itertools の活用
+# Leveraging itertools
 from itertools import product, combinations, permutations, chain
 
-# デカルト積（全ての組み合わせ）
+# Cartesian product (all combinations)
 for x, y in product(range(3), range(3)):
     print(f"({x}, {y})")
 
-# 組み合わせ
+# Combinations
 for a, b in combinations([1, 2, 3, 4], 2):
     print(f"{a}, {b}")  # (1,2), (1,3), (1,4), (2,3), (2,4), (3,4)
 
-# 順列
+# Permutations
 for a, b in permutations([1, 2, 3], 2):
     print(f"{a}, {b}")  # (1,2), (1,3), (2,1), (2,3), (3,1), (3,2)
 
-# チェーン（複数のイテラブルを連結）
+# Chain (concatenating multiple iterables)
 for item in chain([1, 2], [3, 4], [5, 6]):
     print(item)  # 1, 2, 3, 4, 5, 6
 
-# 辞書の走査
+# Iterating over dictionaries
 for key, value in config.items():
     print(f"{key} = {value}")
 
-# 辞書内包表記（ループ + 変換）
+# Dictionary comprehension (loop + transformation)
 squared = {x: x**2 for x in range(10)}
 filtered = {k: v for k, v in data.items() if v > threshold}
 ```
 
 ```rust
-// Rust: for-in（所有権を意識）
-for item in &collection {     // 不変借用（コレクション保持）
+// Rust: for-in (ownership-aware)
+for item in &collection {     // Immutable borrow (collection preserved)
     println!("{}", item);
 }
 
-for item in &mut collection { // 可変借用（要素を変更）
+for item in &mut collection { // Mutable borrow (modify elements)
     *item += 1;
 }
 
-for item in collection {      // ムーブ（コレクション消費）
+for item in collection {      // Move (collection consumed)
     println!("{}", item);
 }
-// collection はもう使えない
+// collection can no longer be used
 
-// レンジ
-for i in 0..10 {        // 0〜9
+// Ranges
+for i in 0..10 {        // 0 to 9
     println!("{}", i);
 }
-for i in 0..=10 {       // 0〜10（inclusive）
+for i in 0..=10 {       // 0 to 10 (inclusive)
     println!("{}", i);
 }
 
-// ステップ（step_by）
+// Stepping (step_by)
 for i in (0..100).step_by(5) {
     println!("{}", i);  // 0, 5, 10, ..., 95
 }
 
-// 逆順
+// Reverse
 for i in (0..10).rev() {
     println!("{}", i);  // 9, 8, 7, ..., 0
 }
 
-// enumerate（インデックス付き）
+// enumerate (with index)
 for (i, item) in collection.iter().enumerate() {
     println!("{}: {}", i, item);
 }
 
-// zip（並行イテレーション）
+// zip (parallel iteration)
 for (name, age) in names.iter().zip(ages.iter()) {
     println!("{}: {}", name, age);
 }
 
-// windows と chunks
+// windows and chunks
 let data = vec![1, 2, 3, 4, 5, 6, 7, 8];
 
-// スライディングウィンドウ
+// Sliding window
 for window in data.windows(3) {
     println!("{:?}", window);  // [1,2,3], [2,3,4], [3,4,5], ...
 }
 
-// チャンク分割
+// Chunk splitting
 for chunk in data.chunks(3) {
     println!("{:?}", chunk);  // [1,2,3], [4,5,6], [7,8]
 }
 ```
 
 ```go
-// Go: for だけ（while も loop も for で表現）
-for i := 0; i < 10; i++ {  // C風 for
+// Go: only for (while and loop are also expressed with for)
+for i := 0; i < 10; i++ {  // C-style for
     fmt.Println(i)
 }
 
-for condition {              // while 相当
+for condition {              // Equivalent to while
     // ...
 }
 
-for {                        // 無限ループ
+for {                        // Infinite loop
     // ...
 }
 
-for i, v := range slice {   // for-range（スライス）
+for i, v := range slice {   // for-range (slice)
     fmt.Println(i, v)
 }
 
-// for-range（マップ）
+// for-range (map)
 for key, value := range myMap {
     fmt.Printf("%s: %v\n", key, value)
 }
 
-// for-range（文字列）— rune（Unicodeコードポイント）単位
+// for-range (string) — iterates by rune (Unicode code point)
 for i, r := range "Hello, 世界" {
     fmt.Printf("index=%d, rune=%c\n", i, r)
 }
 
-// for-range（チャネル）
+// for-range (channel)
 for msg := range ch {
     fmt.Println("Received:", msg)
 }
 
-// インデックスのみ（値を捨てる）
+// Index only (discard value)
 for i := range slice {
     fmt.Println(i)
 }
 
-// 値のみ（インデックスを捨てる）
+// Value only (discard index)
 for _, v := range slice {
     fmt.Println(v)
 }
 ```
 
 ```javascript
-// JavaScript: 4種類の for ループ
+// JavaScript: 4 types of for loops
 
-// 1. 古典的 for
+// 1. Classic for
 for (let i = 0; i < 10; i++) {
     console.log(i);
 }
 
-// 2. for...in（オブジェクトのキーを走査 — 配列には非推奨）
+// 2. for...in (iterates over object keys — not recommended for arrays)
 for (const key in obj) {
     if (obj.hasOwnProperty(key)) {
         console.log(`${key}: ${obj[key]}`);
     }
 }
 
-// 3. for...of（イテラブルの値を走査 — ES6+）
+// 3. for...of (iterates over iterable values — ES6+)
 for (const item of array) {
     console.log(item);
 }
 
-// 4. forEach メソッド（配列専用）
+// 4. forEach method (array-only)
 array.forEach((item, index) => {
     console.log(`${index}: ${item}`);
 });
 
-// for...of の応用
-// Map の走査
+// Applications of for...of
+// Iterating over a Map
 for (const [key, value] of map) {
     console.log(`${key}: ${value}`);
 }
 
-// Set の走査
+// Iterating over a Set
 for (const item of set) {
     console.log(item);
 }
 
-// entries()（インデックス付き）
+// entries() (with index)
 for (const [i, item] of array.entries()) {
     console.log(`${i}: ${item}`);
 }
 
-// 注意: for...in vs for...of
-// for...in: プロトタイプチェーンのプロパティも列挙（危険）
-// for...of: Symbol.iterator プロトコルに従う（安全）
+// Note: for...in vs for...of
+// for...in: also enumerates prototype chain properties (dangerous)
+// for...of: follows the Symbol.iterator protocol (safe)
 ```
 
-### 2.2 while と loop
+### 2.2 while and loop
 
 ```rust
-// Rust: loop（無限ループ、値を返せる）
+// Rust: loop (infinite loop that can return a value)
 let result = loop {
     let input = get_input();
     if input.is_valid() {
-        break input.value();  // break で値を返す
+        break input.value();  // Return a value with break
     }
     println!("Invalid input, try again");
 };
 
-// ラベル付きループ（ネストしたループの制御）
+// Labeled loops (controlling nested loops)
 'outer: for i in 0..10 {
     for j in 0..10 {
         if i + j > 15 {
-            break 'outer;  // 外側のループを脱出
+            break 'outer;  // Break out of the outer loop
         }
         if j % 2 == 0 {
-            continue;  // 内側のループの次の反復へ
+            continue;  // Skip to the next iteration of the inner loop
         }
         println!("{}, {}", i, j);
     }
 }
 
-// while let（パターンマッチ付き）
+// while let (with pattern matching)
 while let Some(item) = iterator.next() {
     println!("{}", item);
 }
 
-// while let チェーン（Rust 1.64+）
+// while let chain (Rust 1.64+)
 while let Some(item) = stack.pop() {
     match item {
         Item::Value(v) => results.push(v),
@@ -794,7 +794,7 @@ while let Some(item) = stack.pop() {
     }
 }
 
-// loop + match パターン（状態機械の実装）
+// loop + match pattern (state machine implementation)
 enum State { Init, Running, Paused, Done }
 
 let mut state = State::Init;
@@ -824,15 +824,15 @@ loop {
 ```
 
 ```python
-# Python: while ループ
+# Python: while loops
 
-# 基本的な while
+# Basic while
 count = 0
 while count < 10:
     print(count)
     count += 1
 
-# while + else（ループが正常終了した場合に else が実行される）
+# while + else (else executes when the loop completes normally)
 def find_item(items, target):
     i = 0
     while i < len(items):
@@ -841,31 +841,31 @@ def find_item(items, target):
             break
         i += 1
     else:
-        # break で抜けなかった場合に実行
+        # Executes when not exited via break
         print("Not found")
 
-# do-while 相当（Python には do-while がない）
+# do-while equivalent (Python has no do-while)
 while True:
     user_input = input("Enter a number (0 to quit): ")
     if user_input == "0":
         break
     process(user_input)
 
-# イテレータを while で消費
+# Consuming an iterator with while
 it = iter(data)
 while (chunk := list(islice(it, 100))):
     process_batch(chunk)
 ```
 
 ```go
-// Go: for だけで全てのループを表現
+// Go: all loop types expressed with for
 
-// while 相当
+// Equivalent to while
 for condition {
     // ...
 }
 
-// do-while 相当
+// Equivalent to do-while
 for {
     doSomething()
     if !condition {
@@ -873,7 +873,7 @@ for {
     }
 }
 
-// ラベル付きループ
+// Labeled loops
 OuterLoop:
     for i := 0; i < 10; i++ {
         for j := 0; j < 10; j++ {
@@ -885,7 +885,7 @@ OuterLoop:
 ```
 
 ```java
-// Java: do-while（少なくとも1回実行）
+// Java: do-while (executes at least once)
 Scanner scanner = new Scanner(System.in);
 String input;
 do {
@@ -894,12 +894,12 @@ do {
     processCommand(input);
 } while (!input.equals("quit"));
 
-// Java: 拡張 for ループ（for-each）
+// Java: enhanced for loop (for-each)
 for (String item : collection) {
     System.out.println(item);
 }
 
-// Java: ラベル付き break/continue
+// Java: labeled break/continue
 outer:
 for (int i = 0; i < matrix.length; i++) {
     for (int j = 0; j < matrix[i].length; j++) {
@@ -911,16 +911,16 @@ for (int i = 0; i < matrix.length; i++) {
 }
 ```
 
-### 2.3 イテレータメソッド（関数型スタイル）
+### 2.3 Iterator Methods (Functional Style)
 
 ```typescript
-// TypeScript: メソッドチェーン
+// TypeScript: method chaining
 const result = numbers
     .filter(n => n > 0)
     .map(n => n * 2)
     .reduce((sum, n) => sum + n, 0);
 
-// vs 命令型
+// vs imperative style
 let result = 0;
 for (const n of numbers) {
     if (n > 0) {
@@ -928,7 +928,7 @@ for (const n of numbers) {
     }
 }
 
-// 実務的なメソッドチェーンの例
+// Practical method chaining example
 interface User {
     name: string;
     age: number;
@@ -936,7 +936,7 @@ interface User {
     isActive: boolean;
 }
 
-// 部門ごとのアクティブユーザー数を集計
+// Count active users per department
 const departmentCounts = users
     .filter(user => user.isActive)
     .reduce((acc, user) => {
@@ -944,39 +944,39 @@ const departmentCounts = users
         return acc;
     }, {} as Record<string, number>);
 
-// グループ化（Object.groupBy — ES2024）
+// Grouping (Object.groupBy — ES2024)
 const grouped = Object.groupBy(users, user => user.department);
 
-// flatMap の活用
+// Using flatMap
 const allTags = articles
     .flatMap(article => article.tags)
-    .filter((tag, i, arr) => arr.indexOf(tag) === i);  // 重複除去
+    .filter((tag, i, arr) => arr.indexOf(tag) === i);  // Remove duplicates
 
-// find と findIndex
+// find and findIndex
 const firstAdmin = users.find(u => u.role === "admin");
 const adminIndex = users.findIndex(u => u.role === "admin");
 
-// some と every
+// some and every
 const hasAdmin = users.some(u => u.role === "admin");
 const allActive = users.every(u => u.isActive);
 ```
 
 ```rust
-// Rust: イテレータ（ゼロコスト抽象化）
+// Rust: iterators (zero-cost abstraction)
 let result: i32 = numbers.iter()
     .filter(|&&n| n > 0)
     .map(|&n| n * 2)
     .sum();
-// コンパイル後は手書きのループと同等の性能
+// After compilation, performance is equivalent to a hand-written loop
 
-// 実務的なイテレータの例
+// Practical iterator example
 struct Employee {
     name: String,
     department: String,
     salary: u64,
 }
 
-// 部門ごとの平均給与
+// Average salary per department
 let dept_averages: HashMap<String, f64> = employees.iter()
     .fold(HashMap::new(), |mut acc, emp| {
         let entry = acc.entry(emp.department.clone())
@@ -991,63 +991,63 @@ let dept_averages: HashMap<String, f64> = employees.iter()
     })
     .collect();
 
-// partition: 条件で2つに分割
+// partition: split into two based on a condition
 let (evens, odds): (Vec<i32>, Vec<i32>) = numbers.iter()
     .partition(|&&n| n % 2 == 0);
 
-// unzip: ペアのイテレータを2つのコレクションに分割
+// unzip: split an iterator of pairs into two collections
 let (names, ages): (Vec<&str>, Vec<u32>) = people.iter()
     .map(|p| (p.name.as_str(), p.age))
     .unzip();
 
-// チェーンの遅延評価を活用した効率的な検索
+// Efficient search leveraging lazy evaluation of chained operations
 let first_match = huge_dataset.iter()
     .filter(|item| expensive_check(item))
     .map(|item| transform(item))
-    .next();  // 最初の1つだけ計算（残りは評価されない）
+    .next();  // Only computes the first one (rest is not evaluated)
 ```
 
 ```python
-# Python: 内包表記（Pythonic なループ）
+# Python: comprehensions (Pythonic loops)
 
-# リスト内包表記
+# List comprehension
 squares = [x**2 for x in range(10)]
 evens = [x for x in range(20) if x % 2 == 0]
 
-# ネストした内包表記
+# Nested comprehension
 pairs = [(x, y) for x in range(3) for y in range(3) if x != y]
 
-# 辞書内包表記
+# Dictionary comprehension
 word_lengths = {word: len(word) for word in words}
 
-# 集合内包表記
+# Set comprehension
 unique_lengths = {len(word) for word in words}
 
-# ジェネレータ式（メモリ効率が良い）
+# Generator expression (memory-efficient)
 total = sum(x**2 for x in range(1000000))
 
-# map, filter, reduce（関数型スタイル）
+# map, filter, reduce (functional style)
 from functools import reduce
 
 squared = list(map(lambda x: x**2, numbers))
 positive = list(filter(lambda x: x > 0, numbers))
 total = reduce(lambda acc, x: acc + x, numbers, 0)
 
-# 実務では内包表記の方が Pythonic
-# map/filter よりリスト内包表記が推奨される
-squared = [x**2 for x in numbers]              # map 相当
-positive = [x for x in numbers if x > 0]       # filter 相当
+# In practice, comprehensions are more Pythonic
+# List comprehensions are preferred over map/filter
+squared = [x**2 for x in numbers]              # Equivalent to map
+positive = [x for x in numbers if x > 0]       # Equivalent to filter
 ```
 
 ---
 
-## 3. 早期リターンとガード節
+## 3. Early Returns and Guard Clauses
 
-### 3.1 ガード節パターン
+### 3.1 Guard Clause Pattern
 
 ```rust
-// ガード節パターン（ネストを減らす）
-// ❌ ネストが深い
+// Guard clause pattern (reduces nesting)
+// Bad — deeply nested
 fn process(input: Option<&str>) -> Result<String, Error> {
     if let Some(s) = input {
         if !s.is_empty() {
@@ -1064,7 +1064,7 @@ fn process(input: Option<&str>) -> Result<String, Error> {
     }
 }
 
-// ✅ ガード節で早期リターン
+// Good — early return with guard clauses
 fn process(input: Option<&str>) -> Result<String, Error> {
     let s = input.ok_or(Error::Missing)?;
     if s.is_empty() { return Err(Error::Empty); }
@@ -1074,9 +1074,9 @@ fn process(input: Option<&str>) -> Result<String, Error> {
 ```
 
 ```python
-# Python: ガード節
+# Python: guard clauses
 
-# ❌ ネストが深い
+# Bad — deeply nested
 def process_order(order):
     if order is not None:
         if order.is_valid():
@@ -1092,7 +1092,7 @@ def process_order(order):
     else:
         return {"error": "No order"}
 
-# ✅ ガード節で早期リターン
+# Good — early return with guard clauses
 def process_order(order):
     if order is None:
         return {"error": "No order"}
@@ -1106,7 +1106,7 @@ def process_order(order):
 ```
 
 ```go
-// Go: ガード節が標準スタイル
+// Go: guard clauses are the standard style
 func processUser(userID string) (*User, error) {
     if userID == "" {
         return nil, fmt.Errorf("empty user ID")
@@ -1130,7 +1130,7 @@ func processUser(userID string) (*User, error) {
 ```
 
 ```typescript
-// TypeScript: ガード節 + 型の絞り込み
+// TypeScript: guard clauses + type narrowing
 function processInput(input: unknown): string {
     if (input === null || input === undefined) {
         return "No input";
@@ -1138,7 +1138,7 @@ function processInput(input: unknown): string {
     if (typeof input !== "string") {
         return "Not a string";
     }
-    // ここで input は string 型に絞り込まれている
+    // Here input is narrowed to the string type
     if (input.length === 0) {
         return "Empty string";
     }
@@ -1149,57 +1149,57 @@ function processInput(input: unknown): string {
 }
 ```
 
-### 3.2 ループ内の continue と break
+### 3.2 continue and break Within Loops
 
 ```python
-# continue: 現在の反復をスキップ
+# continue: skip the current iteration
 for item in items:
     if not item.is_valid():
-        continue  # 無効なアイテムをスキップ
+        continue  # Skip invalid items
     if item.is_deleted():
-        continue  # 削除済みをスキップ
+        continue  # Skip deleted items
     process(item)
 
-# break: ループを脱出
+# break: exit the loop
 for item in items:
     if item.matches(target):
         result = item
         break
 else:
-    # break で抜けなかった場合（見つからなかった場合）
+    # Executes when not exited via break (i.e., not found)
     result = None
 ```
 
 ```rust
-// Rust: ラベル付き break/continue
+// Rust: labeled break/continue
 'search: for row in &matrix {
     for &cell in row {
         if cell == target {
             println!("Found: {}", cell);
-            break 'search;  // 外側のループも脱出
+            break 'search;  // Break out of the outer loop
         }
     }
 }
 
-// break で値を返す（loop の場合）
+// Return a value with break (for loop)
 let found = 'outer: loop {
     for item in &collection {
         if item.matches(&criteria) {
-            break 'outer Some(item);  // 外側の loop から値を返す
+            break 'outer Some(item);  // Return a value from the outer loop
         }
     }
-    break None;  // 見つからなかった場合
+    break None;  // Not found
 };
 ```
 
 ---
 
-## 4. 制御フローの高度なパターン
+## 4. Advanced Control Flow Patterns
 
-### 4.1 テーブル駆動ディスパッチ
+### 4.1 Table-Driven Dispatch
 
 ```python
-# if-elif チェーンの代替: 辞書ディスパッチ
+# Alternative to if-elif chains: dictionary dispatch
 def handle_command(command: str, args: list[str]) -> str:
     handlers = {
         "help": lambda args: show_help(),
@@ -1216,7 +1216,7 @@ def handle_command(command: str, args: list[str]) -> str:
 ```
 
 ```typescript
-// TypeScript: ディスパッチマップ
+// TypeScript: dispatch map
 type Handler = (req: Request) => Response;
 
 const routes: Record<string, Handler> = {
@@ -1235,7 +1235,7 @@ function router(req: Request): Response {
 ```
 
 ```go
-// Go: ディスパッチテーブル
+// Go: dispatch table
 type CommandHandler func(args []string) error
 
 var commands = map[string]CommandHandler{
@@ -1254,10 +1254,10 @@ func dispatch(name string, args []string) error {
 }
 ```
 
-### 4.2 状態機械パターン
+### 4.2 State Machine Pattern
 
 ```rust
-// Rust: 列挙型による状態機械
+// Rust: state machine using enums
 enum ConnectionState {
     Disconnected,
     Connecting { attempt: u32, max_attempts: u32 },
@@ -1286,13 +1286,13 @@ fn handle_event(state: ConnectionState, event: Event) -> ConnectionState {
         (ConnectionState::Disconnecting, Event::Done) => {
             ConnectionState::Disconnected
         }
-        (state, _) => state,  // 無関係なイベントは無視
+        (state, _) => state,  // Ignore irrelevant events
     }
 }
 ```
 
 ```python
-# Python: 状態機械をクラスで実装
+# Python: state machine implemented with classes
 from enum import Enum, auto
 
 class State(Enum):
@@ -1358,16 +1358,16 @@ class StateMachine:
         self.state = State.DONE
 ```
 
-### 4.3 再帰 vs ループ
+### 4.3 Recursion vs Loops
 
 ```python
-# 再帰による木構造の走査
+# Recursive tree traversal
 def tree_sum(node):
     if node is None:
         return 0
     return node.value + tree_sum(node.left) + tree_sum(node.right)
 
-# ループ（スタックを使った明示的な走査）
+# Loop (explicit traversal using a stack)
 def tree_sum_iterative(root):
     if root is None:
         return 0
@@ -1384,74 +1384,74 @@ def tree_sum_iterative(root):
 ```
 
 ```rust
-// Rust: 末尾再帰の最適化（手動）
-// 再帰版
+// Rust: manual tail recursion optimization
+// Recursive version
 fn factorial(n: u64) -> u64 {
     if n <= 1 { 1 } else { n * factorial(n - 1) }
 }
 
-// ループ版（スタックオーバーフローの心配なし）
+// Loop version (no risk of stack overflow)
 fn factorial_iter(n: u64) -> u64 {
     (1..=n).product()
 }
 
-// アキュムレータパターン（末尾再帰風）
+// Accumulator pattern (tail-recursive style)
 fn factorial_acc(n: u64, acc: u64) -> u64 {
     if n <= 1 { acc } else { factorial_acc(n - 1, n * acc) }
 }
 ```
 
 ```haskell
--- Haskell: 末尾再帰最適化（TCO）
--- 非末尾再帰（スタックを消費）
+-- Haskell: tail call optimization (TCO)
+-- Non-tail recursive (consumes stack)
 factorial :: Integer -> Integer
 factorial 0 = 1
 factorial n = n * factorial (n - 1)
 
--- 末尾再帰（アキュムレータ）
+-- Tail recursive (with accumulator)
 factorial' :: Integer -> Integer
 factorial' n = go n 1
   where
     go 0 acc = acc
     go n acc = go (n - 1) (n * acc)
 
--- fold で表現（最も簡潔）
+-- Expressed with fold (most concise)
 factorial'' :: Integer -> Integer
 factorial'' n = foldl' (*) 1 [1..n]
 ```
 
 ---
 
-## 5. ループ最適化テクニック
+## 5. Loop Optimization Techniques
 
-### 5.1 ループ不変式の外出し
+### 5.1 Hoisting Loop Invariants
 
 ```python
-# ❌ ループ内で毎回計算
+# Bad — computed on every iteration
 for i in range(len(data)):
-    normalized = data[i] / sum(data)  # sum(data) が毎回計算される
+    normalized = data[i] / sum(data)  # sum(data) is computed every iteration
     results.append(normalized)
 
-# ✅ ループ外で一度だけ計算
+# Good — computed once outside the loop
 total = sum(data)
 for i in range(len(data)):
     normalized = data[i] / total
     results.append(normalized)
 
-# さらに Pythonic に
+# Even more Pythonic
 total = sum(data)
 results = [x / total for x in data]
 ```
 
-### 5.2 ループの展開とバッチ処理
+### 5.2 Loop Unrolling and Batch Processing
 
 ```python
-# バッチ処理（データベース操作など）
-# ❌ 1件ずつ INSERT（遅い）
+# Batch processing (for database operations, etc.)
+# Bad — one INSERT at a time (slow)
 for item in items:
     db.execute("INSERT INTO table VALUES (?)", (item,))
 
-# ✅ バッチ INSERT（高速）
+# Good — batch INSERT (fast)
 BATCH_SIZE = 1000
 for i in range(0, len(items), BATCH_SIZE):
     batch = items[i:i + BATCH_SIZE]
@@ -1459,14 +1459,14 @@ for i in range(0, len(items), BATCH_SIZE):
 ```
 
 ```rust
-// Rust: chunks によるバッチ処理
+// Rust: batch processing with chunks
 let data: Vec<Record> = load_records();
 
 for chunk in data.chunks(100) {
     db.bulk_insert(chunk)?;
 }
 
-// par_chunks で並列バッチ処理（rayon）
+// Parallel batch processing with par_chunks (rayon)
 use rayon::prelude::*;
 data.par_chunks(100)
     .for_each(|chunk| {
@@ -1474,38 +1474,38 @@ data.par_chunks(100)
     });
 ```
 
-### 5.3 短絡評価の活用
+### 5.3 Leveraging Short-Circuit Evaluation
 
 ```python
-# 短絡評価: 条件が確定した時点で評価を停止
-# any() — 最初の True で停止
+# Short-circuit evaluation: stops evaluating once the result is determined
+# any() — stops at the first True
 has_error = any(item.is_error() for item in items)
 
-# all() — 最初の False で停止
+# all() — stops at the first False
 all_valid = all(item.is_valid() for item in items)
 
-# 大量データの場合、ジェネレータ式で遅延評価
+# For large datasets, use generator expressions for lazy evaluation
 has_match = any(
     expensive_check(item)
     for item in huge_dataset
-)  # 最初のマッチで停止、全件チェックしない
+)  # Stops at the first match; does not check all items
 ```
 
 ---
 
-## 6. 言語間の制御フロー設計比較
+## 6. Cross-Language Control Flow Design Comparison
 
-### 6.1 例外的制御フロー
+### 6.1 Exceptional Control Flow
 
 ```python
-# Python: for-else（ループが break せずに終了した場合に else が実行）
+# Python: for-else (else executes when the loop finishes without break)
 def find_prime_factor(n):
     for i in range(2, int(n**0.5) + 1):
         if n % i == 0:
             return i
-    return n  # 素数の場合
+    return n  # If n is prime
 
-# Python: try-except を制御フローに使う（Pythonic）
+# Python: using try-except for control flow (Pythonic)
 # EAFP: Easier to Ask Forgiveness than Permission
 try:
     value = dictionary[key]
@@ -1518,29 +1518,29 @@ if key in dictionary:
 else:
     value = default_value
 
-# 推奨: dict.get() を使う
+# Recommended: use dict.get()
 value = dictionary.get(key, default_value)
 ```
 
 ```go
-// Go: defer（関数終了時に実行）— 制御フローの一種
+// Go: defer (executes when the function exits) — a form of control flow
 func processFile(path string) error {
     f, err := os.Open(path)
     if err != nil {
         return err
     }
-    defer f.Close()  // 関数終了時に確実にクローズ
+    defer f.Close()  // Guaranteed to close when the function exits
 
-    // 複数の defer は LIFO（後入れ先出し）で実行
+    // Multiple defers execute in LIFO (last-in, first-out) order
     defer fmt.Println("Step 3")
     defer fmt.Println("Step 2")
     defer fmt.Println("Step 1")
-    // 出力: Step 1, Step 2, Step 3
+    // Output: Step 1, Step 2, Step 3
 
     return processData(f)
 }
 
-// Go: panic/recover（例外的な状況のみ）
+// Go: panic/recover (only for exceptional situations)
 func safeDivide(a, b float64) (result float64, err error) {
     defer func() {
         if r := recover(); r != nil {
@@ -1555,10 +1555,10 @@ func safeDivide(a, b float64) (result float64, err error) {
 }
 ```
 
-### 6.2 コルーチンと制御フロー
+### 6.2 Coroutines and Control Flow
 
 ```python
-# Python: async/await による制御フロー
+# Python: control flow with async/await
 import asyncio
 
 async def fetch_all(urls):
@@ -1571,7 +1571,7 @@ async def fetch_one(session, url):
     async with session.get(url) as response:
         return await response.json()
 
-# 非同期イテレーション
+# Asynchronous iteration
 async def process_stream(stream):
     async for chunk in stream:
         await process_chunk(chunk)
@@ -1596,12 +1596,12 @@ async fn fetch_one(url: &str) -> Result<String, Error> {
 
 ---
 
-## 7. アンチパターンとベストプラクティス
+## 7. Anti-Patterns and Best Practices
 
-### 7.1 よくあるアンチパターン
+### 7.1 Common Anti-Patterns
 
 ```python
-# ❌ アンチパターン1: フラグ変数の乱用
+# Bad — Anti-pattern 1: overuse of flag variables
 found = False
 for item in items:
     if item == target:
@@ -1610,11 +1610,11 @@ for item in items:
 if found:
     process(item)
 
-# ✅ 改善: 早期リターンまたは組み込み関数
+# Good — use early return or built-in functions
 if target in items:
     process(target)
 
-# または
+# Or
 try:
     index = items.index(target)
     process(items[index])
@@ -1623,7 +1623,7 @@ except ValueError:
 ```
 
 ```python
-# ❌ アンチパターン2: 深いネスト
+# Bad — Anti-pattern 2: deep nesting
 def validate_and_process(data):
     if data is not None:
         if isinstance(data, dict):
@@ -1642,7 +1642,7 @@ def validate_and_process(data):
     else:
         return Error("No data")
 
-# ✅ 改善: ガード節
+# Good — guard clauses
 def validate_and_process(data):
     if data is None:
         return Error("No data")
@@ -1658,7 +1658,7 @@ def validate_and_process(data):
 ```
 
 ```javascript
-// ❌ アンチパターン3: callback hell
+// Bad — Anti-pattern 3: callback hell
 getUser(userId, (err, user) => {
     if (err) return handleError(err);
     getOrders(user.id, (err, orders) => {
@@ -1670,7 +1670,7 @@ getUser(userId, (err, user) => {
     });
 });
 
-// ✅ 改善: async/await
+// Good — async/await
 async function processUserOrder(userId) {
     try {
         const user = await getUser(userId);
@@ -1684,99 +1684,99 @@ async function processUserOrder(userId) {
 ```
 
 ```python
-# ❌ アンチパターン4: ループ内の不必要な再計算
+# Bad — Anti-pattern 4: unnecessary recomputation within loops
 for i in range(len(items)):
     for j in range(len(items)):
         distance = compute_distance(items[i], items[j])
         if distance < threshold:
             pairs.append((i, j))
 
-# ✅ 改善: 対称性を活用して計算量を半減
+# Good — leverage symmetry to cut computation in half
 for i in range(len(items)):
-    for j in range(i + 1, len(items)):  # j > i のみ計算
+    for j in range(i + 1, len(items)):  # Only compute for j > i
         distance = compute_distance(items[i], items[j])
         if distance < threshold:
             pairs.append((i, j))
-            pairs.append((j, i))  # 対称なペアも追加（必要な場合）
+            pairs.append((j, i))  # Also add the symmetric pair (if needed)
 ```
 
-### 7.2 ベストプラクティスまとめ
+### 7.2 Best Practices Summary
 
 ```
-1. ネストを浅く保つ
-   → ガード節（早期リターン）を活用
-   → 最大3段階のネストを目安に
+1. Keep nesting shallow
+   → Use guard clauses (early returns)
+   → Aim for a maximum of 3 levels of nesting
 
-2. 式ベースの分岐を活用する
-   → Rust/Kotlin: if 式、match 式
-   → 変数の不変性を保つ
+2. Leverage expression-based branching
+   → Rust/Kotlin: if expressions, match expressions
+   → Maintain variable immutability
 
-3. 適切なループ構文を選ぶ
-   → イテレータベース（for-in）が現代の主流
-   → 関数型メソッドチェーン（map/filter/reduce）を活用
-   → インデックスベースの for は最後の手段
+3. Choose the appropriate loop construct
+   → Iterator-based (for-in) is the modern mainstream
+   → Leverage functional method chaining (map/filter/reduce)
+   → Index-based for is a last resort
 
-4. 短絡評価を意識する
-   → any/all、&&/|| の短絡評価を活用
-   → 重い計算は遅延評価で
+4. Be mindful of short-circuit evaluation
+   → Leverage short-circuit evaluation with any/all, &&/||
+   → Use lazy evaluation for expensive computations
 
-5. テーブル駆動にする
-   → 長い if-elif/switch チェーンはディスパッチテーブルに
-   → 保守性と拡張性が向上
+5. Use table-driven approaches
+   → Convert long if-elif/switch chains to dispatch tables
+   → Improves maintainability and extensibility
 
-6. 網羅性を保証する
-   → match/switch で全ケースを明示的に処理
-   → ワイルドカードの安易な使用を避ける
-   → TypeScript: never 型で網羅性チェック
+6. Guarantee exhaustiveness
+   → Explicitly handle all cases in match/switch
+   → Avoid careless use of wildcards
+   → TypeScript: exhaustiveness checking with the never type
 
-7. ループ最適化を意識する
-   → ループ不変式の外出し
-   → バッチ処理の活用
-   → 不必要な再計算の排除
+7. Be mindful of loop optimization
+   → Hoist loop invariants
+   → Leverage batch processing
+   → Eliminate unnecessary recomputation
 ```
 
 
 ---
 
-## 実践演習
+## Hands-On Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that satisfies the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate input data
+- Implement proper error handling
+- Write test code as well
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: basic implementation template
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Exercise for basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main processing logic"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Retrieve processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1785,26 +1785,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "An exception should have been raised"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation to add the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: advanced patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Exercise for advanced patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1812,7 +1812,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1823,14 +1823,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Remove by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1838,7 +1838,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1846,44 +1846,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # Size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1892,7 +1892,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1907,56 +1907,56 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient version: {slow_time:.4f}s")
+    print(f"Efficient version:   {fast_time:.6f}s")
+    print(f"Speedup factor: {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key Points:**
+- Be mindful of algorithmic time complexity
+- Choose the appropriate data structures
+- Measure the effect with benchmarks
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not only through theory but also by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend solidly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently applied in day-to-day development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## まとめ
+## Summary
 
-| 構文 | 文 vs 式 | 特徴 |
-|------|---------|------|
-| if (Python, JS) | 文 | 古典的、三項演算子は式 |
-| if (Rust, Kotlin) | 式 | 値を返せる |
-| switch (JS, C) | 文 | fall-through に注意 |
-| switch (Java 14+) | 式 | アロー構文、yield |
-| match (Rust) | 式 | 網羅性チェック、安全 |
-| when (Kotlin) | 式 | 範囲、型チェック対応 |
-| for-in | - | イテレータベース（現代の主流） |
-| for-range (Go) | - | スライス、マップ、チャネル対応 |
-| .filter().map() | 式 | 関数型スタイル |
-| loop (Rust) | 式 | break で値を返せる |
-| while let (Rust) | - | パターンマッチ付きループ |
+| Syntax | Statement vs Expression | Characteristics |
+|--------|------------------------|----------------|
+| if (Python, JS) | Statement | Classic; ternary operator is an expression |
+| if (Rust, Kotlin) | Expression | Can return a value |
+| switch (JS, C) | Statement | Beware of fall-through |
+| switch (Java 14+) | Expression | Arrow syntax, yield |
+| match (Rust) | Expression | Exhaustiveness check, safe |
+| when (Kotlin) | Expression | Supports ranges and type checking |
+| for-in | - | Iterator-based (modern mainstream) |
+| for-range (Go) | - | Supports slices, maps, and channels |
+| .filter().map() | Expression | Functional style |
+| loop (Rust) | Expression | Can return a value with break |
+| while let (Rust) | - | Loop with pattern matching |
 
-### 言語ごとのループ構文比較
+### Loop Syntax Comparison by Language
 
-| 言語 | C風 for | for-in | while | do-while | 無限ループ | ラベル |
-|------|---------|--------|-------|----------|-----------|--------|
+| Language | C-style for | for-in | while | do-while | Infinite loop | Labels |
+|----------|-------------|--------|-------|----------|--------------|--------|
 | C | `for(;;)` | - | `while` | `do-while` | `for(;;)` | goto |
 | Java | `for(;;)` | `for(:)` | `while` | `do-while` | `while(true)` | label |
 | Python | - | `for-in` | `while` | - | `while True` | - |
@@ -1967,11 +1967,11 @@ benchmark()
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
 ---
 
-## 参考文献
+## References
 1. Scott, M. "Programming Language Pragmatics." 4th Ed, Ch.6, Morgan Kaufmann, 2015.
 2. Klabnik, S. & Nichols, C. "The Rust Programming Language." Ch.3, 2023.
 3. Bloch, J. "Effective Java." 3rd Ed, Item 58-65, Addison-Wesley, 2018.

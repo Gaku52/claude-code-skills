@@ -1,68 +1,69 @@
-# パターンマッチ
+# Pattern Matching
 
-> パターンマッチは「データの構造に基づいて分岐する」強力な制御構造。switch文の進化版であり、関数型プログラミングの中心的な機能。
+> Pattern matching is a powerful control structure that "branches based on the structure of data." It is an evolution of the switch statement and a central feature of functional programming.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] パターンマッチの種類と表現力を理解する
-- [ ] 網羅性チェックの重要性を理解する
-- [ ] 各言語のパターンマッチ機能を比較できる
-- [ ] 実務でのパターンマッチ活用パターンを習得する
-- [ ] パターンマッチのアンチパターンを回避できる
-- [ ] ADT（代数的データ型）との組み合わせを理解する
+- [ ] Understand the types and expressiveness of pattern matching
+- [ ] Understand the importance of exhaustiveness checking
+- [ ] Compare pattern matching features across languages
+- [ ] Master practical pattern matching usage patterns
+- [ ] Avoid pattern matching anti-patterns
+- [ ] Understand the combination of ADTs (Algebraic Data Types) with pattern matching
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [分岐とループ](./00-branching-and-loops.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding of the content in [Branching and Loops](./00-branching-and-loops.md)
 
 ---
 
-## 1. パターンマッチの基本概念
+## 1. Fundamental Concepts of Pattern Matching
 
-### 1.1 パターンマッチとは何か
+### 1.1 What Is Pattern Matching?
 
 ```
-パターンマッチ = 値の「構造」を調べて、合致するパターンに応じた処理を実行する仕組み
+Pattern matching = a mechanism that examines the "structure" of a value and executes
+processing according to the matching pattern
 
-switch文との違い:
-  switch: 値の「等値比較」のみ
-  match:  値の「構造分解」+ 「条件」+ 「束縛」が可能
+Difference from switch statements:
+  switch: only "equality comparison" of values
+  match:  enables "destructuring" + "conditions" + "binding" of values
 
-パターンマッチの構成要素:
-  1. リテラルパターン     — 具体的な値との一致
-  2. 変数パターン        — 任意の値を束縛
-  3. ワイルドカードパターン — 任意の値にマッチ（束縛なし）
-  4. 構造体パターン       — データ構造の分解
-  5. タプルパターン       — タプルの分解
-  6. 列挙型パターン       — バリアントの分解
-  7. ガードパターン       — 追加条件の指定
-  8. OR パターン         — 複数パターンの論理和
-  9. 範囲パターン        — 値の範囲指定
-  10. 束縛パターン       — マッチした値に名前を付ける
+Components of pattern matching:
+  1. Literal pattern       — matching a specific value
+  2. Variable pattern      — binding any value
+  3. Wildcard pattern      — matching any value (no binding)
+  4. Struct pattern        — destructuring data structures
+  5. Tuple pattern         — destructuring tuples
+  6. Enum pattern          — destructuring variants
+  7. Guard pattern         — specifying additional conditions
+  8. OR pattern            — logical OR of multiple patterns
+  9. Range pattern         — specifying a range of values
+  10. Binding pattern      — naming a matched value
 ```
 
-### 1.2 Rust のパターンマッチ（最も完成度が高い）
+### 1.2 Rust's Pattern Matching (The Most Complete)
 
 ```rust
-// Rust: match による構造的パターンマッチ
+// Rust: structural pattern matching with match
 
 // ========================================
-// リテラルパターン
+// Literal patterns
 // ========================================
 match x {
     1 => println!("one"),
-    2 | 3 => println!("two or three"),  // OR パターン
-    4..=9 => println!("four to nine"),  // 範囲パターン
-    _ => println!("other"),             // ワイルドカード
+    2 | 3 => println!("two or three"),  // OR pattern
+    4..=9 => println!("four to nine"),  // Range pattern
+    _ => println!("other"),             // Wildcard
 }
 
 // ========================================
-// 構造体の分解（Destructuring）
+// Struct destructuring
 // ========================================
 struct Point { x: i32, y: i32 }
 
@@ -74,7 +75,7 @@ match point {
     Point { x, y } => println!("({}, {})", x, y),
 }
 
-// フィールドの部分マッチ（残りを無視）
+// Partial field matching (ignoring the rest)
 struct Config {
     host: String,
     port: u16,
@@ -90,7 +91,7 @@ match config {
 }
 
 // ========================================
-// 列挙型の分解
+// Enum destructuring
 // ========================================
 enum Message {
     Quit,
@@ -107,7 +108,7 @@ match msg {
 }
 
 // ========================================
-// ネストしたパターン
+// Nested patterns
 // ========================================
 match value {
     Some(Some(x)) if x > 0 => println!("positive: {}", x),
@@ -116,7 +117,7 @@ match value {
     None => println!("outer none"),
 }
 
-// ネストした列挙型
+// Nested enums
 enum Expr {
     Num(f64),
     Add(Box<Expr>, Box<Expr>),
@@ -134,7 +135,7 @@ fn eval(expr: &Expr) -> f64 {
 }
 
 // ========================================
-// ガード条件（match guard）
+// Guard conditions (match guard)
 // ========================================
 match num {
     n if n < 0 => println!("negative"),
@@ -143,7 +144,7 @@ match num {
     n => println!("positive odd: {}", n),
 }
 
-// 外部変数を参照するガード
+// Guard referencing external variables
 let threshold = 100;
 match value {
     v if v > threshold => println!("above threshold"),
@@ -152,7 +153,7 @@ match value {
 }
 
 // ========================================
-// 束縛（@ パターン）— 値にマッチしつつ名前を付ける
+// Binding (@ pattern) — match a value while naming it
 // ========================================
 match age {
     n @ 0..=12 => println!("child: {}", n),
@@ -162,7 +163,7 @@ match age {
     _ => unreachable!(),
 }
 
-// 列挙型の中身に名前を付ける
+// Naming the contents of an enum
 match msg {
     Message::Write(ref text @ _) if text.len() > 100 => {
         println!("Long message: {}...", &text[..100]);
@@ -172,7 +173,7 @@ match msg {
 }
 
 // ========================================
-// スライスパターン
+// Slice patterns
 // ========================================
 match slice {
     [] => println!("empty"),
@@ -181,7 +182,7 @@ match slice {
     [first, .., last] => println!("first={}, last={}", first, last),
 }
 
-// スライスパターンの実務的な使用例
+// Practical use of slice patterns
 fn parse_command(parts: &[&str]) -> Command {
     match parts {
         ["help"] => Command::Help,
@@ -194,38 +195,38 @@ fn parse_command(parts: &[&str]) -> Command {
 }
 
 // ========================================
-// 参照パターン
+// Reference patterns
 // ========================================
 let reference = &42;
 match reference {
     &val => println!("Got a value: {}", val),
 }
 
-// ref キーワード（借用を作る）
+// ref keyword (creates a borrow)
 let value = String::from("hello");
 match value {
     ref s => println!("Borrowed: {}", s),
-    // value はまだ使える
+    // value can still be used
 }
 
-// ref mut キーワード
+// ref mut keyword
 let mut value = vec![1, 2, 3];
 match value {
     ref mut v => v.push(4),
 }
 ```
 
-### 1.3 パターンマッチが使える場所（Rust）
+### 1.3 Places Where Pattern Matching Can Be Used (Rust)
 
 ```rust
-// match 式以外でもパターンマッチが使える
+// Pattern matching can be used beyond just match expressions
 
-// 1. let 束縛
+// 1. let bindings
 let (x, y, z) = (1, 2, 3);
 let Point { x, y } = point;
 let Some(value) = optional else { return; };  // let-else (Rust 1.65+)
 
-// 2. if let（単一パターンの簡潔なマッチ）
+// 2. if let (concise match for a single pattern)
 if let Some(value) = optional {
     println!("Got: {}", value);
 }
@@ -235,23 +236,23 @@ while let Some(item) = stack.pop() {
     process(item);
 }
 
-// 4. for ループ
+// 4. for loops
 for (index, value) in collection.iter().enumerate() {
     println!("{}: {}", index, value);
 }
 
-// 5. 関数の引数
+// 5. Function arguments
 fn print_point(&Point { x, y }: &Point) {
     println!("({}, {})", x, y);
 }
 
-// 6. クロージャの引数
+// 6. Closure arguments
 let points: Vec<Point> = get_points();
 let sum_x: i32 = points.iter()
     .map(|&Point { x, .. }| x)
     .sum();
 
-// 7. let-else パターン（Rust 1.65+）
+// 7. let-else pattern (Rust 1.65+)
 fn parse_config(input: &str) -> Result<Config, Error> {
     let Some(line) = input.lines().next() else {
         return Err(Error::EmptyInput);
@@ -267,15 +268,15 @@ fn parse_config(input: &str) -> Result<Config, Error> {
 
 ---
 
-## 2. 各言語のパターンマッチ
+## 2. Pattern Matching Across Languages
 
-### 2.1 Python（3.10+ match文）
+### 2.1 Python (3.10+ match Statement)
 
 ```python
-# Python 3.10: Structural Pattern Matching（PEP 634）
+# Python 3.10: Structural Pattern Matching (PEP 634)
 
 # ========================================
-# リテラルパターンとOR パターン
+# Literal patterns and OR patterns
 # ========================================
 match command:
     case "quit":
@@ -288,7 +289,7 @@ match command:
         print("Unknown")
 
 # ========================================
-# シーケンスパターン（タプル、リスト）
+# Sequence patterns (tuples, lists)
 # ========================================
 match point:
     case (0, 0):
@@ -302,7 +303,7 @@ match point:
     case (x, y):
         print(f"({x}, {y})")
 
-# 可変長シーケンスパターン
+# Variable-length sequence patterns
 match sequence:
     case []:
         print("Empty")
@@ -316,7 +317,7 @@ match sequence:
         print(f"First: {first}, last: {last}, middle: {middle}")
 
 # ========================================
-# マッピングパターン（辞書）
+# Mapping patterns (dictionaries)
 # ========================================
 match config:
     case {"type": "postgres", "host": host, "port": port}:
@@ -324,12 +325,12 @@ match config:
     case {"type": "sqlite", "path": path}:
         connect_sqlite(path)
     case {"type": "redis", **rest}:
-        connect_redis(**rest)  # 残りのキーを捕捉
+        connect_redis(**rest)  # Capture remaining keys
     case _:
         raise ValueError("Unknown database type")
 
 # ========================================
-# クラスパターン
+# Class patterns
 # ========================================
 from dataclasses import dataclass
 
@@ -367,10 +368,10 @@ match event:
         scroll_down(n)
 
 # ========================================
-# 型パターン
+# Type patterns
 # ========================================
 match value:
-    case bool():        # bool は int のサブクラスなので先にチェック
+    case bool():        # bool is a subclass of int, so check it first
         print(f"Boolean: {value}")
     case int(n) if n > 0:
         print(f"Positive int: {n}")
@@ -388,7 +389,7 @@ match value:
         print(f"Other: {value}")
 
 # ========================================
-# ガード条件（if）
+# Guard conditions (if)
 # ========================================
 match point:
     case (x, y) if x > 0 and y > 0:
@@ -403,7 +404,7 @@ match point:
         print("On axis")
 
 # ========================================
-# 実務的な例: JSON API レスポンスの処理
+# Practical example: processing JSON API responses
 # ========================================
 def handle_api_response(response: dict) -> str:
     match response:
@@ -422,7 +423,7 @@ def handle_api_response(response: dict) -> str:
             return "Unknown response format"
 
 # ========================================
-# 実務的な例: AST（抽象構文木）の評価
+# Practical example: evaluating an AST (Abstract Syntax Tree)
 # ========================================
 def evaluate(expr):
     match expr:
@@ -450,13 +451,13 @@ def evaluate(expr):
             raise ValueError(f"Unknown expression: {expr}")
 ```
 
-### 2.2 TypeScript（判別ユニオン + switch）
+### 2.2 TypeScript (Discriminated Unions + switch)
 
 ```typescript
-// TypeScript: 判別ユニオンで擬似パターンマッチ
+// TypeScript: pseudo pattern matching with discriminated unions
 
 // ========================================
-// 基本的な判別ユニオン
+// Basic discriminated union
 // ========================================
 type Shape =
     | { kind: "circle"; radius: number }
@@ -472,11 +473,11 @@ function area(shape: Shape): number {
         case "triangle":
             return (shape.base * shape.height) / 2;
     }
-    // TypeScript は網羅性をチェック（kind の全値を処理しないとエラー）
+    // TypeScript checks exhaustiveness (error if not all kind values are handled)
 }
 
 // ========================================
-// ts-pattern ライブラリでより強力なパターンマッチ
+// More powerful pattern matching with the ts-pattern library
 // ========================================
 import { match, P } from 'ts-pattern';
 
@@ -489,10 +490,10 @@ const result = match(shape)
         `Rectangle: ${s.width}x${s.height}`)
     .with({ kind: "triangle" }, s =>
         `Triangle: base=${s.base}`)
-    .exhaustive();  // 網羅性チェック
+    .exhaustive();  // Exhaustiveness check
 
 // ========================================
-// ts-pattern の高度な使用例
+// Advanced ts-pattern usage
 // ========================================
 type ApiResponse =
     | { status: "loading" }
@@ -514,7 +515,7 @@ function renderResponse(response: ApiResponse): string {
 }
 
 // ========================================
-// TypeScript: 型ガードとパターンマッチの組み合わせ
+// TypeScript: combining type guards with pattern matching
 // ========================================
 type Result<T, E> =
     | { ok: true; value: T }
@@ -522,16 +523,16 @@ type Result<T, E> =
 
 function processResult<T, E>(result: Result<T, E>): string {
     if (result.ok) {
-        // result.value にアクセス可能（型が絞り込まれる）
+        // result.value is accessible (type is narrowed)
         return `Success: ${result.value}`;
     } else {
-        // result.error にアクセス可能
+        // result.error is accessible
         return `Error: ${result.error}`;
     }
 }
 
 // ========================================
-// 複雑な判別ユニオンの実務例: Redux アクション
+// Complex discriminated union practical example: Redux actions
 // ========================================
 type Action =
     | { type: "INCREMENT"; amount: number }
@@ -573,7 +574,7 @@ function reducer(state: State, action: Action): State {
 }
 
 // ========================================
-// never 型による網羅性チェックのユーティリティ
+// Exhaustiveness checking utility with the never type
 // ========================================
 function assertNever(value: never): never {
     throw new Error(`Unexpected value: ${value}`);
@@ -585,24 +586,24 @@ function handleShape(shape: Shape): string {
         case "rect": return "Rectangle";
         case "triangle": return "Triangle";
         default: return assertNever(shape);
-        // 新しい Shape を追加すると、ここでコンパイルエラー
+        // Adding a new Shape will cause a compile error here
     }
 }
 ```
 
-### 2.3 Haskell（パターンマッチの元祖）
+### 2.3 Haskell (The Origin of Pattern Matching)
 
 ```haskell
--- Haskell: 関数定義でのパターンマッチ
+-- Haskell: pattern matching in function definitions
 
 -- ========================================
--- 基本的な関数パターンマッチ
+-- Basic function pattern matching
 -- ========================================
 factorial :: Integer -> Integer
 factorial 0 = 1
 factorial n = n * factorial (n - 1)
 
--- ガード条件
+-- Guard conditions
 bmiCategory :: Double -> String
 bmiCategory bmi
   | bmi < 18.5 = "Underweight"
@@ -611,7 +612,7 @@ bmiCategory bmi
   | otherwise   = "Obese"
 
 -- ========================================
--- case 式
+-- case expression
 -- ========================================
 describe :: [a] -> String
 describe xs = case xs of
@@ -621,25 +622,25 @@ describe xs = case xs of
     _      -> "many"
 
 -- ========================================
--- リストのパターン（cons パターン）
+-- List patterns (cons pattern)
 -- ========================================
 head' :: [a] -> a
 head' (x:_) = x
 head' []    = error "empty list"
 
--- リストの再帰処理
+-- Recursive list processing
 sum' :: Num a => [a] -> a
 sum' []     = 0
 sum' (x:xs) = x + sum' xs
 
--- リストパターンの応用
+-- Applications of list patterns
 zip' :: [a] -> [b] -> [(a, b)]
 zip' _ []          = []
 zip' [] _          = []
 zip' (x:xs) (y:ys) = (x, y) : zip' xs ys
 
 -- ========================================
--- タプルのパターン
+-- Tuple patterns
 -- ========================================
 addVectors :: (Double, Double) -> (Double, Double) -> (Double, Double)
 addVectors (x1, y1) (x2, y2) = (x1 + x2, y1 + y2)
@@ -648,7 +649,7 @@ fst3 :: (a, b, c) -> a
 fst3 (x, _, _) = x
 
 -- ========================================
--- 代数的データ型のパターンマッチ
+-- Algebraic data type pattern matching
 -- ========================================
 data Shape = Circle Double
            | Rectangle Double Double
@@ -662,7 +663,7 @@ area (Triangle a b c)  = let s = (a + b + c) / 2
                           in sqrt (s * (s-a) * (s-b) * (s-c))
 
 -- ========================================
--- Maybe 型のパターンマッチ
+-- Maybe type pattern matching
 -- ========================================
 safeDivide :: Double -> Double -> Maybe Double
 safeDivide _ 0 = Nothing
@@ -673,7 +674,7 @@ fromMaybe def Nothing  = def
 fromMaybe _   (Just x) = x
 
 -- ========================================
--- Either 型のパターンマッチ
+-- Either type pattern matching
 -- ========================================
 data AppError = NotFound String
               | Unauthorized
@@ -687,7 +688,7 @@ handleError (Left (ValidationError errs)) = "Validation: " ++ unwords errs
 handleError (Right _)                     = "Success"
 
 -- ========================================
--- レコード構文のパターンマッチ
+-- Record syntax pattern matching
 -- ========================================
 data User = User
     { userName  :: String
@@ -701,34 +702,34 @@ greetUser User { userName = name, userAge = age }
     | otherwise = "Hello, " ++ name ++ "."
 
 -- ========================================
--- as パターン（@）
+-- as pattern (@)
 -- ========================================
 firstLetter :: String -> String
 firstLetter ""       = "Empty"
 firstLetter all@(x:_) = "First letter of " ++ all ++ " is " ++ [x]
 
 -- ========================================
--- 二分木のパターンマッチ
+-- Binary tree pattern matching
 -- ========================================
 data Tree a = Leaf | Node (Tree a) a (Tree a)
               deriving (Show)
 
--- 木の要素数
+-- Number of elements in a tree
 treeSize :: Tree a -> Int
 treeSize Leaf         = 0
 treeSize (Node l _ r) = 1 + treeSize l + treeSize r
 
--- 木の深さ
+-- Depth of a tree
 treeDepth :: Tree a -> Int
 treeDepth Leaf         = 0
 treeDepth (Node l _ r) = 1 + max (treeDepth l) (treeDepth r)
 
--- 木のフラット化
+-- Flattening a tree
 flatten :: Tree a -> [a]
 flatten Leaf         = []
 flatten (Node l x r) = flatten l ++ [x] ++ flatten r
 
--- 要素の検索（二分探索木）
+-- Searching for an element (binary search tree)
 search :: Ord a => a -> Tree a -> Bool
 search _ Leaf = False
 search target (Node left value right)
@@ -736,22 +737,22 @@ search target (Node left value right)
     | target < value  = search target left
     | otherwise       = search target right
 
--- 要素の挿入（二分探索木）
+-- Inserting an element (binary search tree)
 insert :: Ord a => a -> Tree a -> Tree a
 insert x Leaf = Node Leaf x Leaf
 insert x (Node left value right)
     | x < value  = Node (insert x left) value right
     | x > value  = Node left value (insert x right)
-    | otherwise   = Node left value right  -- 重複は無視
+    | otherwise   = Node left value right  -- Ignore duplicates
 ```
 
 ### 2.4 Scala
 
 ```scala
-// Scala: 最も表現力豊かなパターンマッチの1つ
+// Scala: one of the most expressive pattern matching systems
 
 // ========================================
-// 基本的なパターンマッチ
+// Basic pattern matching
 // ========================================
 val result = x match {
   case 1 => "one"
@@ -760,7 +761,7 @@ val result = x match {
 }
 
 // ========================================
-// case class の分解
+// case class destructuring
 // ========================================
 case class Person(name: String, age: Int)
 case class Address(city: String, country: String)
@@ -772,7 +773,7 @@ person match {
 }
 
 // ========================================
-// sealed trait（代数的データ型）
+// sealed trait (algebraic data type)
 // ========================================
 sealed trait Expr
 case class Num(value: Double) extends Expr
@@ -788,10 +789,10 @@ def eval(expr: Expr, env: Map[String, Double]): Double = expr match {
   case Neg(e) => -eval(e, env)
   case Var(name) => env.getOrElse(name, throw new RuntimeException(s"Undefined: $name"))
 }
-// sealed trait → 網羅性チェック
+// sealed trait → exhaustiveness check
 
 // ========================================
-// 型パターン
+// Type patterns
 // ========================================
 def describe(x: Any): String = x match {
   case i: Int if i > 0 => s"positive int: $i"
@@ -804,7 +805,7 @@ def describe(x: Any): String = x match {
 }
 
 // ========================================
-// 抽出子（Extractor）パターン — unapply メソッド
+// Extractor pattern — unapply method
 // ========================================
 object Email {
   def unapply(s: String): Option[(String, String)] = {
@@ -819,7 +820,7 @@ object Email {
   case _ => "Not an email"
 }
 
-// カスタム抽出子
+// Custom extractors
 object Even {
   def unapply(n: Int): Boolean = n % 2 == 0
 }
@@ -834,7 +835,7 @@ object Positive {
 }
 
 // ========================================
-// パーシャル関数（PartialFunction）
+// Partial functions (PartialFunction)
 // ========================================
 val handler: PartialFunction[Int, String] = {
   case 200 => "OK"
@@ -842,16 +843,16 @@ val handler: PartialFunction[Int, String] = {
   case 500 => "Internal Server Error"
 }
 
-// isDefinedAt でチェック
+// Check with isDefinedAt
 handler.isDefinedAt(200) // true
 handler.isDefinedAt(302) // false
 
-// collect で安全に適用
+// Safely apply with collect
 val codes = List(200, 301, 404, 500)
 val messages = codes.collect(handler) // List("OK", "Not Found", "Internal Server Error")
 
 // ========================================
-// for 内包表記でのパターンマッチ
+// Pattern matching in for comprehensions
 // ========================================
 val pairs = List((1, "one"), (2, "two"), (3, "three"))
 for {
@@ -860,7 +861,7 @@ for {
 } yield s"$num = $name"
 // List("2 = two", "3 = three")
 
-// Option のパターンマッチ in for
+// Pattern matching with Option in for
 val users = Map("alice" -> 30, "bob" -> 25)
 val emails = Map("alice" -> "alice@example.com")
 
@@ -874,17 +875,17 @@ for {
 ### 2.5 Elixir
 
 ```elixir
-# Elixir: パターンマッチが言語の核心
+# Elixir: pattern matching is at the core of the language
 
 # ========================================
-# 基本的なパターンマッチ（= は束縛演算子）
+# Basic pattern matching (= is the binding operator)
 # ========================================
 {:ok, result} = {:ok, 42}       # result = 42
 [head | tail] = [1, 2, 3, 4]    # head = 1, tail = [2, 3, 4]
 %{name: name} = %{name: "Gaku", age: 30}  # name = "Gaku"
 
 # ========================================
-# case 式
+# case expression
 # ========================================
 case File.read("config.txt") do
   {:ok, content} ->
@@ -896,7 +897,7 @@ case File.read("config.txt") do
 end
 
 # ========================================
-# 関数定義でのパターンマッチ（複数の関数ヘッド）
+# Pattern matching in function definitions (multiple function heads)
 # ========================================
 defmodule Math do
   def factorial(0), do: 1
@@ -908,7 +909,7 @@ defmodule Math do
 end
 
 # ========================================
-# マップのパターンマッチ
+# Map pattern matching
 # ========================================
 defmodule UserHandler do
   def process(%{role: "admin", name: name}) do
@@ -929,16 +930,16 @@ defmodule UserHandler do
 end
 
 # ========================================
-# ピン演算子（^）— 再束縛の防止
+# Pin operator (^) — prevents rebinding
 # ========================================
 x = 1
 case {1, 2, 3} do
-  {^x, y, z} -> "x is 1, y=#{y}, z=#{z}"  # ^x は x の現在の値（1）にマッチ
+  {^x, y, z} -> "x is 1, y=#{y}, z=#{z}"  # ^x matches the current value of x (1)
   _ -> "no match"
 end
 
 # ========================================
-# with 式（パイプライン的なパターンマッチ）
+# with expression (pipeline-style pattern matching)
 # ========================================
 def create_user(params) do
   with {:ok, name} <- validate_name(params["name"]),
@@ -956,19 +957,19 @@ end
 ### 2.6 OCaml / F#
 
 ```ocaml
-(* OCaml: ML系のパターンマッチ *)
+(* OCaml: ML-family pattern matching *)
 
-(* 基本的なパターンマッチ *)
+(* Basic pattern matching *)
 let rec factorial = function
   | 0 -> 1
   | n -> n * factorial (n - 1)
 
-(* リストのパターンマッチ *)
+(* List pattern matching *)
 let rec sum = function
   | [] -> 0
   | x :: xs -> x + sum xs
 
-(* 代数的データ型 *)
+(* Algebraic data types *)
 type shape =
   | Circle of float
   | Rectangle of float * float
@@ -981,7 +982,7 @@ let area = function
     let s = (a +. b +. c) /. 2.0 in
     Float.sqrt (s *. (s -. a) *. (s -. b) *. (s -. c))
 
-(* Option 型 *)
+(* Option type *)
 let safe_divide a b =
   match b with
   | 0.0 -> None
@@ -991,7 +992,7 @@ let unwrap_or default = function
   | None -> default
   | Some x -> x
 
-(* ネストしたパターン *)
+(* Nested patterns *)
 type expr =
   | Num of float
   | Add of expr * expr
@@ -1004,13 +1005,13 @@ let rec eval = function
   | Mul (a, b) -> eval a *. eval b
   | Neg e -> -.(eval e)
 
-(* as パターン *)
+(* as pattern *)
 let describe_list = function
   | [] -> "empty"
   | [_] -> "singleton"
   | (_ :: _ :: _ as lst) -> Printf.sprintf "list of %d" (List.length lst)
 
-(* when ガード *)
+(* when guard *)
 let categorize n = match n with
   | n when n < 0 -> "negative"
   | 0 -> "zero"
@@ -1020,79 +1021,79 @@ let categorize n = match n with
 
 ---
 
-## 3. 網羅性チェック（Exhaustiveness Checking）
+## 3. Exhaustiveness Checking
 
-### 3.1 なぜ網羅性チェックが重要か
+### 3.1 Why Exhaustiveness Checking Matters
 
 ```
-網羅性チェック = 「全てのケースが処理されているか」をコンパイル時に検証
+Exhaustiveness checking = verifying at compile time that "all cases are handled"
 
-なぜ重要か？
-  1. 新しいバリアントを追加した時、処理漏れをコンパイルエラーで検出
-  2. 実行時の予期しない動作を防止
-  3. デッドコード（到達不能なパターン）の検出
-  4. リファクタリング時の安全性を保証
+Why is it important?
+  1. When a new variant is added, missing handling is detected as a compile error
+  2. Prevents unexpected behavior at runtime
+  3. Detects dead code (unreachable patterns)
+  4. Guarantees safety during refactoring
 
-網羅性チェックの仕組み:
-  - コンパイラがパターンの集合を分析
-  - 全ての可能な値がカバーされているか検証
-  - カバーされていない場合はコンパイルエラー（または警告）
+How exhaustiveness checking works:
+  - The compiler analyzes the set of patterns
+  - Verifies whether all possible values are covered
+  - Issues a compile error (or warning) if not covered
 ```
 
-### 3.2 各言語の網羅性チェック
+### 3.2 Exhaustiveness Checking by Language
 
 ```rust
-// Rust: 網羅性チェック（最も厳密）
+// Rust: exhaustiveness checking (the most strict)
 enum Color { Red, Green, Blue }
 
 fn describe(c: Color) -> &'static str {
     match c {
         Color::Red => "red",
         Color::Green => "green",
-        // Color::Blue が未処理 → コンパイルエラー:
+        // Color::Blue is unhandled → compile error:
         // error[E0004]: non-exhaustive patterns: `Blue` not covered
     }
 }
 
-// 新しいバリアント追加時の安全性
-enum Color { Red, Green, Blue, Yellow }  // Yellow 追加
-// → 全ての match 文でコンパイルエラーが発生
-// → 処理漏れを確実に検出
+// Safety when adding new variants
+enum Color { Red, Green, Blue, Yellow }  // Yellow added
+// → Compile error in all match statements
+// → Missing handling is reliably detected
 
-// Option 型の網羅性
+// Exhaustiveness with Option type
 fn process(opt: Option<i32>) -> String {
     match opt {
         Some(n) if n > 0 => format!("positive: {}", n),
         Some(n) => format!("non-positive: {}", n),
         None => "nothing".to_string(),
-        // 全パターンを網羅 → OK
+        // All patterns covered → OK
     }
 }
 
-// Result 型の網羅性
+// Exhaustiveness with Result type
 fn handle(result: Result<String, AppError>) -> String {
     match result {
         Ok(value) => value,
         Err(AppError::NotFound(msg)) => format!("Not found: {}", msg),
         Err(AppError::Unauthorized) => "Unauthorized".to_string(),
         Err(AppError::Validation(errors)) => format!("Invalid: {:?}", errors),
-        // 全エラーバリアントを網羅する必要がある
+        // All error variants must be covered
     }
 }
 
-// 数値型の網羅性（ワイルドカードが必要）
+// Exhaustiveness with numeric types (wildcard required)
 fn categorize(n: i32) -> &'static str {
     match n {
         0 => "zero",
         1..=100 => "small positive",
-        // i32 の全範囲をカバーする必要がある → _ が必要
+        // Must cover the entire range of i32 → _ is required
         _ => "other",
     }
 }
 ```
 
 ```typescript
-// TypeScript: never 型による網羅性チェック
+// TypeScript: exhaustiveness checking with the never type
 type Color = "red" | "green" | "blue";
 
 function describe(c: Color): string {
@@ -1102,12 +1103,12 @@ function describe(c: Color): string {
         case "blue": return "Blue";
         default:
             const _exhaustive: never = c;
-            // "yellow" を追加すると、ここでコンパイルエラー
+            // Adding "yellow" will cause a compile error here
             return _exhaustive;
     }
 }
 
-// satisfies 演算子での網羅性チェック（TypeScript 4.9+）
+// Exhaustiveness checking with the satisfies operator (TypeScript 4.9+)
 type EventType = "click" | "hover" | "scroll";
 
 const handlers = {
@@ -1115,9 +1116,9 @@ const handlers = {
     hover: (e: MouseEvent) => { /* ... */ },
     scroll: (e: Event) => { /* ... */ },
 } satisfies Record<EventType, Function>;
-// EventType に新しい値を追加すると、handlers でエラーになる
+// Adding a new value to EventType will cause an error in handlers
 
-// マップ型での網羅性チェック
+// Exhaustiveness checking with mapped types
 type StatusCode = 200 | 201 | 400 | 404 | 500;
 
 const statusMessages: Record<StatusCode, string> = {
@@ -1126,25 +1127,25 @@ const statusMessages: Record<StatusCode, string> = {
     400: "Bad Request",
     404: "Not Found",
     500: "Internal Server Error",
-    // StatusCode に値を追加すると、ここにも追加が必要
+    // Adding a value to StatusCode requires adding an entry here too
 };
 ```
 
 ```haskell
--- Haskell: コンパイル時の網羅性チェック（-Wall オプション）
+-- Haskell: compile-time exhaustiveness checking (with -Wall option)
 data Color = Red | Green | Blue
 
 describe :: Color -> String
 describe Red   = "red"
 describe Green = "green"
--- Blue が未処理
+-- Blue is unhandled
 -- GHC: warning: [-Wincomplete-patterns]
 --   Pattern match(es) are non-exhaustive
 --   In an equation for 'describe': Patterns not matched: Blue
 ```
 
 ```scala
-// Scala: sealed trait で網羅性チェック
+// Scala: exhaustiveness checking with sealed traits
 sealed trait Color
 case object Red extends Color
 case object Green extends Color
@@ -1153,17 +1154,17 @@ case object Blue extends Color
 def describe(c: Color): String = c match {
   case Red => "red"
   case Green => "green"
-  // Blue が未処理
+  // Blue is unhandled
   // warning: match may not be exhaustive
   // It would fail on the following input: Blue
 }
 ```
 
-### 3.3 網羅性チェックがない言語での対策
+### 3.3 Strategies for Languages Without Exhaustiveness Checking
 
 ```python
-# Python: match 文に網羅性チェックはない
-# → mypy のプラグインで部分的にチェック可能
+# Python: match statement has no exhaustiveness checking
+# → Partially checkable with mypy plugins
 
 from enum import Enum
 from typing import assert_never
@@ -1182,11 +1183,11 @@ def describe(c: Color) -> str:
         case Color.BLUE:
             return "Blue"
         case _ as unreachable:
-            assert_never(unreachable)  # mypy が網羅性をチェック
+            assert_never(unreachable)  # mypy checks exhaustiveness
 ```
 
 ```go
-// Go: 網羅性チェックはないが、exhaustive リンターが利用可能
+// Go: no exhaustiveness checking, but exhaustive linter is available
 // go install github.com/nishanths/exhaustive/cmd/exhaustive@latest
 
 type Color int
@@ -1203,7 +1204,7 @@ func describe(c Color) string {
         return "red"
     case Green:
         return "green"
-    // Blue が未処理 → exhaustive リンターが警告
+    // Blue is unhandled → exhaustive linter warns
     default:
         return "unknown"
     }
@@ -1212,26 +1213,26 @@ func describe(c Color) string {
 
 ---
 
-## 4. パターンマッチと代数的データ型（ADT）
+## 4. Pattern Matching and Algebraic Data Types (ADT)
 
-### 4.1 ADT とパターンマッチの相性
+### 4.1 The Synergy Between ADTs and Pattern Matching
 
 ```
-代数的データ型（Algebraic Data Types）:
-  直積型（Product Type）: 複数のフィールドを持つ（構造体、タプル）
-  直和型（Sum Type）: 複数のバリアントのいずれか（列挙型、ユニオン型）
+Algebraic Data Types (ADTs):
+  Product Type: has multiple fields (structs, tuples)
+  Sum Type: one of several variants (enums, union types)
 
-パターンマッチは直和型と完璧に組み合わさる:
-  → 各バリアントに対してパターンを定義
-  → 網羅性チェックで安全性を保証
-  → データの構造分解で内部の値にアクセス
+Pattern matching combines perfectly with sum types:
+  → Define patterns for each variant
+  → Guarantee safety with exhaustiveness checking
+  → Access inner values through destructuring
 ```
 
 ```rust
-// Rust: ADT + パターンマッチの実務例
+// Rust: practical example of ADT + pattern matching
 
 // ========================================
-// HTTPレスポンスの型安全な表現
+// Type-safe representation of HTTP responses
 // ========================================
 enum HttpResponse {
     Ok { body: String, headers: HashMap<String, String> },
@@ -1272,7 +1273,7 @@ fn render_response(response: HttpResponse) -> (u16, String) {
 }
 
 // ========================================
-// コンパイラの AST 表現
+// Compiler AST representation
 // ========================================
 enum Type {
     Int,
@@ -1302,24 +1303,24 @@ fn type_to_string(ty: &Type) -> String {
 }
 ```
 
-### 4.2 Option / Maybe パターン
+### 4.2 Option / Maybe Patterns
 
 ```rust
-// Rust: Option<T> の活用パターン
+// Rust: usage patterns for Option<T>
 
-// map — Some の中身を変換
+// map — transform the contents of Some
 let length: Option<usize> = name.map(|n| n.len());
 
-// and_then — ネストした Option をフラット化
+// and_then — flatten nested Options
 let first_char: Option<char> = name.and_then(|n| n.chars().next());
 
-// unwrap_or — デフォルト値
+// unwrap_or — default value
 let display_name = name.unwrap_or("Anonymous");
 
-// unwrap_or_else — 遅延評価のデフォルト値
+// unwrap_or_else — lazily evaluated default value
 let display_name = name.unwrap_or_else(|| generate_default_name());
 
-// ? 演算子（Option の連鎖）
+// ? operator (chaining Options)
 fn get_street_name(user: &User) -> Option<String> {
     let address = user.address.as_ref()?;
     let street = address.street.as_ref()?;
@@ -1329,108 +1330,108 @@ fn get_street_name(user: &User) -> Option<String> {
 // filter
 let even_number: Option<i32> = some_number.filter(|n| n % 2 == 0);
 
-// zip — 2つの Option を結合
+// zip — combine two Options
 let full_name: Option<String> = first_name.zip(last_name)
     .map(|(first, last)| format!("{} {}", first, last));
 
-// ok_or — Option を Result に変換
+// ok_or — convert Option to Result
 let value: Result<i32, AppError> = optional_value
     .ok_or(AppError::NotFound("value".to_string()))?;
 ```
 
 ```haskell
--- Haskell: Maybe の活用パターン
+-- Haskell: usage patterns for Maybe
 
--- fmap（Functor）
+-- fmap (Functor)
 length' :: Maybe String -> Maybe Int
 length' = fmap length
 
--- >>= （Monad bind）
+-- >>= (Monad bind)
 firstChar :: Maybe String -> Maybe Char
 firstChar name = name >>= safeHead
   where
     safeHead []    = Nothing
     safeHead (x:_) = Just x
 
--- do 記法
+-- do notation
 getStreetName :: User -> Maybe String
 getStreetName user = do
   address <- userAddress user
   street <- addressStreet address
   return (streetName street)
 
--- fromMaybe（デフォルト値）
+-- fromMaybe (default value)
 displayName :: Maybe String -> String
 displayName = fromMaybe "Anonymous"
 ```
 
 ---
 
-## 5. パターンマッチのアンチパターン
+## 5. Pattern Matching Anti-Patterns
 
-### 5.1 よくある間違い
+### 5.1 Common Mistakes
 
 ```
-❌ ワイルドカードの過剰使用
+Bad — Overuse of wildcards
 match color {
     Color::Red => "red",
-    _ => "other",  // Green, Blue の個別処理を忘れる可能性
+    _ => "other",  // May forget to individually handle Green, Blue
 }
-// 新しいバリアントが追加されても気づかない
+// Won't notice when a new variant is added
 
-✅ 全バリアントを明示的に処理
+Good — Explicitly handle all variants
 match color {
     Color::Red => "red",
     Color::Green => "green",
     Color::Blue => "blue",
 }
-// 新しいバリアントが追加されるとコンパイルエラー
+// Adding a new variant causes a compile error
 
-❌ パターンの順序ミス
+Bad — Incorrect pattern ordering
 match n {
-    _ => "any",     // 全てマッチ → 以下は到達不能
-    1 => "one",     // 到達不能（unreachable pattern）
+    _ => "any",     // Matches everything → following patterns are unreachable
+    1 => "one",     // Unreachable pattern
 }
 
-❌ ガード条件の網羅性の罠
-match n {
-    x if x > 0 => "positive",
-    x if x < 0 => "negative",
-    // x == 0 のケースが抜けている！
-    // Rust はガード条件の網羅性を保証できない → _ が必要
-}
-
-✅ ガード条件を使う場合は最後にキャッチオール
+Bad — Exhaustiveness trap with guard conditions
 match n {
     x if x > 0 => "positive",
     x if x < 0 => "negative",
-    _ => "zero",  // 0 をキャッチ
+    // The case x == 0 is missing!
+    // Rust cannot guarantee exhaustiveness for guard conditions → _ is required
+}
+
+Good — Use a catch-all at the end when using guard conditions
+match n {
+    x if x > 0 => "positive",
+    x if x < 0 => "negative",
+    _ => "zero",  // Catches 0
 }
 ```
 
-### 5.2 パフォーマンスの考慮
+### 5.2 Performance Considerations
 
 ```
-パターンマッチのコンパイル:
-  1. 決定木（Decision Tree）に変換される
-  2. 各パターンを順番にチェックするのではなく、最適化される
-  3. 一般的に O(1) 〜 O(log n) の計算量
+Pattern match compilation:
+  1. Converted to a decision tree
+  2. Optimized rather than checking each pattern sequentially
+  3. Typically O(1) to O(log n) time complexity
 
-最適化のヒント:
-  - 頻出パターンを先に配置
-  - 不必要なガード条件を避ける
-  - ワイルドカードは最後に配置
+Optimization tips:
+  - Place frequently occurring patterns first
+  - Avoid unnecessary guard conditions
+  - Place wildcards last
 
-Rust のマッチの最適化:
-  - 整数のマッチ → ジャンプテーブルまたは二分探索
-  - 列挙型のマッチ → タグの比較（O(1)）
-  - 文字列のマッチ → ハッシュまたは逐次比較
+Rust match optimizations:
+  - Integer match → jump table or binary search
+  - Enum match → tag comparison (O(1))
+  - String match → hash or sequential comparison
 ```
 
-### 5.3 複雑すぎるパターンの回避
+### 5.3 Avoiding Overly Complex Patterns
 
 ```rust
-// ❌ 複雑すぎるパターン（読みにくい）
+// Bad — overly complex patterns (hard to read)
 match response {
     Ok(Response { status: 200, body: Some(Body { content_type: "json", data, .. }), .. })
         if data.len() > 0 => {
@@ -1450,7 +1451,7 @@ match response {
     _ => handle_unknown(),
 }
 
-// ✅ ヘルパー関数に分解
+// Good — decompose into helper functions
 fn process_response(response: Result<Response, Error>) -> Output {
     match response {
         Ok(resp) => process_ok_response(resp),
@@ -1483,12 +1484,12 @@ fn process_body(body: Option<Body>) -> Output {
 
 ---
 
-## 6. 実務でのパターンマッチ活用
+## 6. Pattern Matching in Practice
 
-### 6.1 コマンドパーサー
+### 6.1 Command Parser
 
 ```rust
-// Rust: CLI コマンドパーサー
+// Rust: CLI command parser
 enum Command {
     Get { key: String },
     Set { key: String, value: String, ttl: Option<u64> },
@@ -1540,10 +1541,10 @@ fn parse_command(input: &str) -> Result<Command, ParseError> {
 }
 ```
 
-### 6.2 JSONバリデーション
+### 6.2 JSON Validation
 
 ```python
-# Python: JSON レスポンスのバリデーション
+# Python: JSON response validation
 def validate_user_data(data: dict) -> list[str]:
     errors = []
 
@@ -1580,10 +1581,10 @@ def validate_user_data(data: dict) -> list[str]:
     return errors
 ```
 
-### 6.3 イベント処理システム
+### 6.3 Event Processing System
 
 ```typescript
-// TypeScript: イベント駆動アーキテクチャ
+// TypeScript: event-driven architecture
 import { match } from 'ts-pattern';
 
 type DomainEvent =
@@ -1628,58 +1629,58 @@ async function handleEvent(event: DomainEvent): Promise<void> {
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not only through theory but also by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend solidly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-| 言語 | パターンマッチ | 網羅性チェック | 特徴 |
-|------|-------------|-------------|------|
-| Rust | match（式） | コンパイル時 | 最も安全、スライスパターン |
-| Haskell | case / 関数定義 | コンパイル時（-Wall） | 元祖、ガード条件 |
-| Scala | match（式） | sealed trait で保証 | 抽出子、表現力最大 |
-| OCaml/F# | match / function | コンパイル時 | ML系の伝統 |
-| Elixir | case / 関数ヘッド | なし | ピン演算子、with 式 |
-| Python | match（3.10+） | なし（mypy で部分的） | 構造的パターン |
-| TypeScript | switch + never | 型レベル | 判別ユニオン、ts-pattern |
-| Java | switch（21+） | sealed class で保証 | パターンマッチング switch |
-| Kotlin | when（式） | sealed class で保証 | 範囲、型チェック |
-
-### パターンの種類と対応言語
-
-| パターン種類 | Rust | Haskell | Scala | Python | TypeScript |
-|------------|------|---------|-------|--------|-----------|
-| リテラル | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 変数束縛 | ✅ | ✅ | ✅ | ✅ | ✅ |
-| ワイルドカード | ✅ | ✅ | ✅ | ✅ | ✅ |
-| OR パターン | ✅ | - | ✅ | ✅ | - |
-| 範囲 | ✅ | - | - | - | - |
-| 構造体分解 | ✅ | ✅ | ✅ | ✅ | ✅(ts-pattern) |
-| ネスト | ✅ | ✅ | ✅ | ✅ | ✅(ts-pattern) |
-| ガード条件 | ✅ | ✅ | ✅ | ✅ | ✅(ts-pattern) |
-| スライス | ✅ | ✅ | - | ✅ | - |
-| @ 束縛 | ✅ | ✅ | ✅ | ✅(as) | - |
-| 参照 | ✅ | - | - | - | - |
-| 抽出子 | - | - | ✅ | - | - |
+Knowledge of this topic is frequently applied in day-to-day development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Language | Pattern Matching | Exhaustiveness Check | Characteristics |
+|----------|-----------------|---------------------|----------------|
+| Rust | match (expression) | Compile-time | Safest, slice patterns |
+| Haskell | case / function definition | Compile-time (-Wall) | Original, guard conditions |
+| Scala | match (expression) | Guaranteed with sealed trait | Extractors, maximum expressiveness |
+| OCaml/F# | match / function | Compile-time | ML-family tradition |
+| Elixir | case / function heads | None | Pin operator, with expression |
+| Python | match (3.10+) | None (partial with mypy) | Structural patterns |
+| TypeScript | switch + never | Type-level | Discriminated unions, ts-pattern |
+| Java | switch (21+) | Guaranteed with sealed class | Pattern matching switch |
+| Kotlin | when (expression) | Guaranteed with sealed class | Ranges, type checking |
+
+### Pattern Types and Supported Languages
+
+| Pattern Type | Rust | Haskell | Scala | Python | TypeScript |
+|-------------|------|---------|-------|--------|-----------|
+| Literal | Yes | Yes | Yes | Yes | Yes |
+| Variable binding | Yes | Yes | Yes | Yes | Yes |
+| Wildcard | Yes | Yes | Yes | Yes | Yes |
+| OR pattern | Yes | - | Yes | Yes | - |
+| Range | Yes | - | - | - | - |
+| Struct destructuring | Yes | Yes | Yes | Yes | Yes(ts-pattern) |
+| Nesting | Yes | Yes | Yes | Yes | Yes(ts-pattern) |
+| Guard condition | Yes | Yes | Yes | Yes | Yes(ts-pattern) |
+| Slice | Yes | Yes | - | Yes | - |
+| @ binding | Yes | Yes | Yes | Yes(as) | - |
+| Reference | Yes | - | - | - | - |
+| Extractor | - | - | Yes | - | - |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
+
+---
+
+## References
 1. "Rust By Example: Pattern matching." doc.rust-lang.org.
 2. "PEP 634: Structural Pattern Matching." python.org, 2021.
 3. Klabnik, S. & Nichols, C. "The Rust Programming Language." Ch.18, 2023.

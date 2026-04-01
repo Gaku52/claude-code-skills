@@ -1,196 +1,196 @@
-# async/await（非同期プログラミング）
+# async/await (Asynchronous Programming)
 
-> async/await は「I/O待ちの間に他の処理を進める」仕組みである。スレッドを使わずに大量の同時接続を効率的に処理する、現代のサーバーサイド・UIプログラミングの基盤技術。
+> async/await is a mechanism that "allows other tasks to proceed while waiting for I/O." It is a foundational technology for modern server-side and UI programming that efficiently handles a large number of concurrent connections without using threads.
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] 非同期処理の必要性と、同期処理との根本的な違いを理解する
-- [ ] イベントループの動作原理を正確に把握する
-- [ ] async/await の構文と内部メカニズムを理解する
-- [ ] Promise / Future / Task の概念と関係を整理する
-- [ ] 各言語（JavaScript, Python, Rust, Go, Java, C#）の非同期モデルの違いを比較する
-- [ ] エラーハンドリング・キャンセル・タイムアウトの設計パターンを習得する
-- [ ] アンチパターンを認識し、本番コードでの落とし穴を回避する
+- [ ] Understand the necessity of asynchronous processing and the fundamental differences from synchronous processing
+- [ ] Accurately grasp the operating principles of event loops
+- [ ] Understand the syntax and internal mechanisms of async/await
+- [ ] Organize the concepts and relationships of Promise / Future / Task
+- [ ] Compare the differences in asynchronous models across languages (JavaScript, Python, Rust, Go, Java, C#)
+- [ ] Master design patterns for error handling, cancellation, and timeouts
+- [ ] Recognize anti-patterns and avoid pitfalls in production code
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [スレッドとプロセス](./00-threads-and-processes.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding of the content in [Threads and Processes](./00-threads-and-processes.md)
 
 ---
 
-## 1. なぜ非同期処理が必要か
+## 1. Why Asynchronous Processing Is Necessary
 
-### 1.1 同期処理の限界
+### 1.1 Limitations of Synchronous Processing
 
-現代のアプリケーションは、ネットワーク通信・データベースアクセス・ファイル操作といった I/O 操作を頻繁に行う。これらの I/O 操作は CPU 演算と比較して桁違いに時間がかかる。
-
-```
-操作別レイテンシの比較（概算値）:
-
-┌───────────────────────────────┬──────────────────┬────────────┐
-│ 操作                          │ レイテンシ        │ CPU換算    │
-├───────────────────────────────┼──────────────────┼────────────┤
-│ L1 キャッシュ参照              │ 1 ns             │ 1 秒       │
-│ L2 キャッシュ参照              │ 4 ns             │ 4 秒       │
-│ メインメモリ参照               │ 100 ns           │ 1.5 分     │
-│ SSD ランダムリード             │ 16,000 ns        │ 4.4 時間   │
-│ HDD シーク                    │ 2,000,000 ns     │ 23 日      │
-│ 同一データセンター内 RTT       │ 500,000 ns       │ 5.7 日     │
-│ 大陸間ネットワーク RTT         │ 150,000,000 ns   │ 4.7 年     │
-└───────────────────────────────┴──────────────────┴────────────┘
-
-→ ネットワーク I/O は CPU 演算の約1億倍遅い
-→ I/O 待ちの間、CPU を遊ばせるのは極めて非効率
-```
-
-同期処理（ブロッキング I/O）では、I/O が完了するまでスレッド全体が停止する。Webサーバーで 1リクエスト＝1スレッドのモデルを採用すると、同時接続数がスレッド数に制限される。
+Modern applications frequently perform I/O operations such as network communication, database access, and file operations. These I/O operations take orders of magnitude more time compared to CPU computations.
 
 ```
-同期Webサーバーの動作:
+Latency Comparison by Operation (Approximate Values):
 
-Thread-1: ──[リクエスト受信]──▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓──[DB応答]──[レスポンス送信]──
-Thread-2: ──[リクエスト受信]──▓▓▓▓▓▓▓▓▓▓──[API応答]──[レスポンス送信]──────
-Thread-3: ──[リクエスト受信]──▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓──[File応答]──[送信]───
-Thread-4: ──待機中（スレッドプール枯渇）──────────────────────────────────
-           ▓▓ = I/O待ちでブロック（CPU は何もしていない）
++---------------------------------+--------------------+--------------+
+| Operation                       | Latency            | CPU Equiv.   |
++---------------------------------+--------------------+--------------+
+| L1 Cache Reference              | 1 ns               | 1 second     |
+| L2 Cache Reference              | 4 ns               | 4 seconds    |
+| Main Memory Reference           | 100 ns             | 1.5 minutes  |
+| SSD Random Read                 | 16,000 ns          | 4.4 hours    |
+| HDD Seek                        | 2,000,000 ns       | 23 days      |
+| Same Datacenter RTT             | 500,000 ns         | 5.7 days     |
+| Intercontinental Network RTT    | 150,000,000 ns     | 4.7 years    |
++---------------------------------+--------------------+--------------+
 
-問題点:
-  - スレッド1本あたり 1MB 程度のスタックメモリを消費
-  - 1万同時接続 → 10GB のメモリが必要
-  - コンテキストスイッチのオーバーヘッド
-  - C10K 問題（1万同時接続の壁）
+> Network I/O is approximately 100 million times slower than CPU computation
+> Leaving the CPU idle during I/O wait is extremely inefficient
 ```
 
-### 1.2 非同期処理の解決策
-
-非同期処理（ノンブロッキング I/O）は、I/O 操作の開始だけを行い、完了通知を待つ間に他の処理を進める。
+In synchronous processing (blocking I/O), the entire thread is halted until I/O completes. When a web server adopts a 1-request = 1-thread model, the number of concurrent connections is limited by the number of threads.
 
 ```
-非同期Webサーバーの動作（イベントループ方式）:
+Synchronous Web Server Behavior:
+
+Thread-1: --[Request Received]--################--[DB Response]--[Send Response]--
+Thread-2: --[Request Received]--##########--[API Response]--[Send Response]------
+Thread-3: --[Request Received]--####################--[File Response]--[Send]---
+Thread-4: --Waiting (thread pool exhausted)------------------------------------------
+           ## = Blocked on I/O (CPU is doing nothing)
+
+Issues:
+  - Each thread consumes approximately 1 MB of stack memory
+  - 10,000 concurrent connections -> 10 GB of memory required
+  - Context switch overhead
+  - C10K problem (the 10,000 concurrent connections barrier)
+```
+
+### 1.2 The Asynchronous Solution
+
+Asynchronous processing (non-blocking I/O) only initiates an I/O operation and proceeds with other tasks while waiting for the completion notification.
+
+```
+Asynchronous Web Server Behavior (Event Loop Model):
 
 Event Loop (1 thread):
-  ──[Req-A 受信]──[DB発行]──[Req-B 受信]──[API発行]──[Req-C 受信]──
-  ──[File発行]──[DB応答→Res-A送信]──[API応答→Res-B送信]──
-  ──[File応答→Res-C送信]──[Req-D 受信]──...
+  --[Req-A Recv]--[DB Issue]--[Req-B Recv]--[API Issue]--[Req-C Recv]--
+  --[File Issue]--[DB Response->Res-A Send]--[API Response->Res-B Send]--
+  --[File Response->Res-C Send]--[Req-D Recv]--...
 
-  → 1スレッドで数千〜数万の同時接続を処理可能
-  → I/O待ち時間を他のリクエスト処理に有効活用
-  → メモリ使用量が劇的に削減
+  -> Can handle thousands to tens of thousands of concurrent connections with 1 thread
+  -> Effectively utilizes I/O wait time for processing other requests
+  -> Dramatically reduces memory usage
 
-利点:
-  ┌────────────────────────┬──────────┬─────────────┐
-  │ 指標                    │ 同期方式  │ 非同期方式   │
-  ├────────────────────────┼──────────┼─────────────┤
-  │ 10,000 同時接続時メモリ  │ ~10 GB   │ ~100 MB     │
-  │ コンテキストスイッチ     │ 頻繁     │ 最小限       │
-  │ スループット             │ 中       │ 高           │
-  │ CPU利用効率             │ 低       │ 高           │
-  │ プログラミング複雑性     │ 低       │ 中〜高       │
-  └────────────────────────┴──────────┴─────────────┘
+Benefits:
+  +----------------------------+------------+---------------+
+  | Metric                     | Sync Model | Async Model   |
+  +----------------------------+------------+---------------+
+  | Memory at 10,000 conns     | ~10 GB     | ~100 MB       |
+  | Context Switches           | Frequent   | Minimal       |
+  | Throughput                 | Medium     | High          |
+  | CPU Utilization Efficiency | Low        | High          |
+  | Programming Complexity     | Low        | Medium-High   |
+  +----------------------------+------------+---------------+
 ```
 
-### 1.3 非同期処理の歴史的進化
+### 1.3 Historical Evolution of Asynchronous Processing
 
-非同期プログラミングは、コールバック地獄からasync/awaitに至るまで段階的に進化してきた。
+Asynchronous programming has evolved incrementally from callback hell to async/await.
 
 ```
-非同期プログラミングの進化:
+Evolution of Asynchronous Programming:
 
-Stage 1: コールバック（Callback）
-  ├── 最も原始的な方式
-  ├── 関数の引数として完了時の処理を渡す
-  └── 問題: コールバック地獄（Pyramid of Doom）
+Stage 1: Callbacks
+  +-- The most primitive approach
+  +-- Pass completion handler as function argument
+  +-- Problem: Callback hell (Pyramid of Doom)
 
 Stage 2: Promise / Future
-  ├── 非同期処理の結果を表すオブジェクト
-  ├── メソッドチェーンで逐次処理を記述
-  └── 問題: まだネストが深くなりがち
+  +-- Objects representing the result of async operations
+  +-- Describe sequential processing via method chaining
+  +-- Problem: Nesting can still become deep
 
 Stage 3: async/await
-  ├── Promise/Future のシンタックスシュガー
-  ├── 同期処理と同じ見た目で非同期処理を記述
-  └── 現在の主流パラダイム
+  +-- Syntactic sugar over Promise/Future
+  +-- Write async code that looks like sync code
+  +-- The current mainstream paradigm
 
-Stage 4: Structured Concurrency（構造化並行性）
-  ├── 非同期タスクのライフサイクルを構造的に管理
-  ├── Python: TaskGroup, Kotlin: coroutineScope
-  └── キャンセル・エラー伝播を安全に処理
+Stage 4: Structured Concurrency
+  +-- Structurally manage the lifecycle of async tasks
+  +-- Python: TaskGroup, Kotlin: coroutineScope
+  +-- Safely handle cancellation and error propagation
 ```
 
 ---
 
-## 2. イベントループの動作原理
+## 2. How Event Loops Work
 
-### 2.1 イベントループとは
+### 2.1 What Is an Event Loop
 
-async/await を理解するには、その基盤であるイベントループの仕組みを正確に把握する必要がある。イベントループは、I/O イベントを監視し、対応するコールバックを実行する無限ループである。
-
-```
-イベントループの基本構造:
-
-┌──────────────────────────────────────────────────────────┐
-│                     イベントループ                        │
-│                                                          │
-│  while (true) {                                          │
-│    1. タイマーキューのコールバックを実行                    │
-│    2. I/O ポーリング（epoll/kqueue/IOCP）                 │
-│    3. 完了した I/O のコールバックを実行                    │
-│    4. マイクロタスクキューを処理                           │
-│    5. 実行すべきタスクがなければスリープ                    │
-│  }                                                       │
-│                                                          │
-│  ┌─────────┐    ┌─────────┐    ┌──────────────┐         │
-│  │ Timer   │    │  I/O    │    │ Microtask    │         │
-│  │ Queue   │    │  Queue  │    │ Queue        │         │
-│  │         │    │         │    │              │         │
-│  │ setTimeout│  │ fs.read │    │ Promise.then │         │
-│  │ setInterval│ │ net.req │    │ queueMicro.. │         │
-│  └─────────┘    └─────────┘    └──────────────┘         │
-└──────────────────────────────────────────────────────────┘
-```
-
-### 2.2 Node.js のイベントループ（libuv）
-
-Node.js のイベントループは libuv ライブラリに基づいており、以下のフェーズを順番に実行する。
+To understand async/await, you need to accurately grasp the mechanism of the event loop that underlies it. An event loop is an infinite loop that monitors I/O events and executes corresponding callbacks.
 
 ```
-Node.js イベントループの詳細フェーズ:
+Basic Structure of an Event Loop:
 
-   ┌───────────────────────────┐
-┌─>│        timers              │ ← setTimeout, setInterval のコールバック
-│  └─────────────┬─────────────┘
-│  ┌─────────────┴─────────────┐
-│  │     pending callbacks     │ ← TCP エラーなどのシステムコールバック
-│  └─────────────┬─────────────┘
-│  ┌─────────────┴─────────────┐
-│  │       idle, prepare       │ ← 内部使用のみ
-│  └─────────────┬─────────────┘      ┌───────────────┐
-│  ┌─────────────┴─────────────┐      │   incoming:    │
-│  │          poll              │<─────┤  connections,  │
-│  └─────────────┬─────────────┘      │  data, etc.    │
-│  ┌─────────────┴─────────────┐      └───────────────┘
-│  │          check            │ ← setImmediate のコールバック
-│  └─────────────┬─────────────┘
-│  ┌─────────────┴─────────────┐
-│  │      close callbacks      │ ← socket.on('close', ...) 等
-│  └─────────────┬─────────────┘
-└─────────────────┘
-
-※ 各フェーズの間にマイクロタスクキュー（Promise）が処理される
++------------------------------------------------------------+
+|                     Event Loop                              |
+|                                                             |
+|  while (true) {                                             |
+|    1. Execute callbacks from the timer queue                |
+|    2. I/O polling (epoll/kqueue/IOCP)                       |
+|    3. Execute callbacks for completed I/O                   |
+|    4. Process the microtask queue                           |
+|    5. Sleep if there are no tasks to execute                |
+|  }                                                          |
+|                                                             |
+|  +-----------+    +-----------+    +----------------+       |
+|  | Timer     |    |  I/O      |    | Microtask      |       |
+|  | Queue     |    |  Queue    |    | Queue          |       |
+|  |           |    |           |    |                |       |
+|  | setTimeout|    | fs.read   |    | Promise.then   |       |
+|  | setInterval|   | net.req   |    | queueMicro..   |       |
+|  +-----------+    +-----------+    +----------------+       |
++------------------------------------------------------------+
 ```
 
-### 2.3 JavaScript での実行順序
+### 2.2 Node.js Event Loop (libuv)
 
-イベントループの理解を深めるため、実行順序を追跡してみよう。
+The Node.js event loop is based on the libuv library and executes the following phases in order.
+
+```
+Detailed Phases of the Node.js Event Loop:
+
+   +-----------------------------+
++->|        timers               | <- setTimeout, setInterval callbacks
+|  +--------------+--------------+
+|  +--------------+--------------+
+|  |     pending callbacks       | <- System callbacks like TCP errors
+|  +--------------+--------------+
+|  +--------------+--------------+
+|  |       idle, prepare         | <- Internal use only
+|  +--------------+--------------+      +-----------------+
+|  +--------------+--------------+      |   incoming:     |
+|  |          poll               |<-----|  connections,   |
+|  +--------------+--------------+      |  data, etc.     |
+|  +--------------+--------------+      +-----------------+
+|  |          check              | <- setImmediate callbacks
+|  +--------------+--------------+
+|  +--------------+--------------+
+|  |      close callbacks        | <- socket.on('close', ...) etc.
+|  +--------------+--------------+
++------------------+
+
+* The microtask queue (Promises) is processed between each phase
+```
+
+### 2.3 Execution Order in JavaScript
+
+Let's trace the execution order to deepen our understanding of the event loop.
 
 ```javascript
-// 実行順序クイズ: 以下のコードの出力順は？
-console.log('1: スクリプト開始');
+// Execution order quiz: What is the output order of the following code?
+console.log('1: Script start');
 
 setTimeout(() => {
     console.log('2: setTimeout');
@@ -208,101 +208,100 @@ queueMicrotask(() => {
     console.log('5: queueMicrotask');
 });
 
-console.log('6: スクリプト終了');
+console.log('6: Script end');
 
-// 出力順:
-// 1: スクリプト開始
-// 6: スクリプト終了
-// 3: Promise.then         ← マイクロタスク（同期コード完了直後）
-// 5: queueMicrotask       ← マイクロタスク
-// 4: Promise.then (chained) ← マイクロタスク
-// 2: setTimeout           ← マクロタスク（次のイベントループ）
+// Output order:
+// 1: Script start
+// 6: Script end
+// 3: Promise.then         <- Microtask (immediately after sync code completes)
+// 5: queueMicrotask       <- Microtask
+// 4: Promise.then (chained) <- Microtask
+// 2: setTimeout           <- Macrotask (next event loop iteration)
 ```
 
 ```
-実行順序の図解:
+Execution Order Diagram:
 
-コールスタック         マイクロタスクキュー    マクロタスクキュー
-┌─────────────┐       ┌─────────────┐       ┌─────────────┐
-│ console.log │       │             │       │             │
-│ ('1: ...')  │       │             │       │             │
-├─────────────┤       │             │       │             │
-│ setTimeout  │ ──────┼─────────────┼──────>│ callback-2  │
-├─────────────┤       │             │       │             │
-│ Promise     │ ─────>│ callback-3  │       │             │
-│ .resolve()  │       │             │       │             │
-├─────────────┤       │             │       │             │
-│ queueMicro  │ ─────>│ callback-5  │       │             │
-│ task        │       │             │       │             │
-├─────────────┤       │             │       │             │
-│ console.log │       │             │       │             │
-│ ('6: ...')  │       │             │       │             │
-└─────────────┘       └─────────────┘       └─────────────┘
-   ↓ スタック空                ↓ 全て実行          ↓ 次に実行
-   Step 1: 1,6出力    Step 2: 3,5,4出力    Step 3: 2出力
+Call Stack              Microtask Queue          Macrotask Queue
++---------------+       +---------------+       +---------------+
+| console.log   |       |               |       |               |
+| ('1: ...')    |       |               |       |               |
++---------------+       |               |       |               |
+| setTimeout    | ------+---------------+------>| callback-2    |
++---------------+       |               |       |               |
+| Promise       | ----->| callback-3    |       |               |
+| .resolve()    |       |               |       |               |
++---------------+       |               |       |               |
+| queueMicro    | ----->| callback-5    |       |               |
+| task          |       |               |       |               |
++---------------+       |               |       |               |
+| console.log   |       |               |       |               |
+| ('6: ...')    |       |               |       |               |
++---------------+       +---------------+       +---------------+
+   v Stack empty              v Execute all         v Execute next
+   Step 1: Output 1,6   Step 2: Output 3,5,4   Step 3: Output 2
 ```
 
 ---
 
-## 3. Promise / Future / Task の基礎概念
+## 3. Fundamental Concepts of Promise / Future / Task
 
-### 3.1 Promise の状態遷移
+### 3.1 Promise State Transitions
 
-Promise（JavaScript）/ Future（Rust, Dart）/ Task（C#）は、非同期処理の結果を表すオブジェクトである。これらは共通の状態遷移モデルを持つ。
+Promise (JavaScript) / Future (Rust, Dart) / Task (C#) are objects representing the result of asynchronous operations. They share a common state transition model.
 
 ```
-Promise の状態遷移図:
+Promise State Transition Diagram:
 
-                     ┌──────────┐
-                     │ Pending  │ ← 初期状態（処理中）
-                     │  (待機)  │
-                     └────┬─────┘
-                          │
-              ┌───────────┴───────────┐
-              │                       │
-         ┌────▼─────┐          ┌─────▼──────┐
-         │ Fulfilled│          │  Rejected  │
-         │  (成功)  │          │   (失敗)   │
-         └──────────┘          └────────────┘
-              │                       │
-              ▼                       ▼
+                     +----------+
+                     | Pending  | <- Initial state (in progress)
+                     +----+-----+
+                          |
+              +-----------+-----------+
+              |                       |
+         +----v-----+          +-----v------+
+         | Fulfilled|          |  Rejected  |
+         | (Success)|          |  (Failure) |
+         +----------+          +------------+
+              |                       |
+              v                       v
          .then(value)            .catch(error)
-         で値を受け取る           でエラーを処理
+         receives the value      handles the error
 
-注意: Pending → Fulfilled / Rejected の遷移は一方向
-      一度確定した状態は変更不可（Immutable Settlement）
+Note: The transition Pending -> Fulfilled / Rejected is one-way
+      Once settled, the state cannot be changed (Immutable Settlement)
 ```
 
-### 3.2 各言語における非同期プリミティブの対応表
+### 3.2 Correspondence Table of Async Primitives Across Languages
 
 ```
-┌────────────────┬──────────────┬─────────────┬───────────────┐
-│ 概念            │ JavaScript   │ Python      │ Rust          │
-├────────────────┼──────────────┼─────────────┼───────────────┤
-│ 非同期結果      │ Promise      │ Coroutine   │ Future        │
-│ 成功値取得      │ .then()      │ await       │ .await        │
-│ エラー処理      │ .catch()     │ try/except  │ ? / match     │
-│ 並行実行        │ Promise.all  │ gather      │ join!         │
-│ 競争           │ Promise.race │ wait_for    │ select!       │
-│ タイムアウト    │ AbortSignal  │ timeout()   │ timeout()     │
-│ キャンセル      │ AbortController│ Task.cancel│ drop          │
-├────────────────┼──────────────┼─────────────┼───────────────┤
-│ 概念            │ C#           │ Go          │ Java          │
-├────────────────┼──────────────┼─────────────┼───────────────┤
-│ 非同期結果      │ Task<T>      │ chan T      │ CompletableFuture │
-│ 成功値取得      │ await        │ <-ch        │ .get() / .join() │
-│ エラー処理      │ try/catch    │ error return│ .exceptionally() │
-│ 並行実行        │ Task.WhenAll │ WaitGroup   │ allOf         │
-│ 競争           │ Task.WhenAny │ select      │ anyOf         │
-│ タイムアウト    │ CancellationToken│ context  │ .orTimeout()  │
-│ キャンセル      │ CancellationToken│ context  │ .cancel()     │
-└────────────────┴──────────────┴─────────────┴───────────────┘
++------------------+----------------+---------------+-----------------+
+| Concept          | JavaScript     | Python        | Rust            |
++------------------+----------------+---------------+-----------------+
+| Async Result     | Promise        | Coroutine     | Future          |
+| Get Success Value| .then()        | await         | .await          |
+| Error Handling   | .catch()       | try/except    | ? / match       |
+| Concurrent Exec  | Promise.all    | gather        | join!           |
+| Racing           | Promise.race   | wait_for      | select!         |
+| Timeout          | AbortSignal    | timeout()     | timeout()       |
+| Cancellation     | AbortController| Task.cancel   | drop            |
++------------------+----------------+---------------+-----------------+
+| Concept          | C#             | Go            | Java            |
++------------------+----------------+---------------+-----------------+
+| Async Result     | Task<T>        | chan T        | CompletableFuture |
+| Get Success Value| await          | <-ch          | .get() / .join() |
+| Error Handling   | try/catch      | error return  | .exceptionally() |
+| Concurrent Exec  | Task.WhenAll   | WaitGroup     | allOf           |
+| Racing           | Task.WhenAny   | select        | anyOf           |
+| Timeout          | CancellationToken| context     | .orTimeout()    |
+| Cancellation     | CancellationToken| context     | .cancel()       |
++------------------+----------------+---------------+-----------------+
 ```
 
-### 3.3 コールバック → Promise → async/await の進化
+### 3.3 Evolution from Callbacks to Promise to async/await
 
 ```javascript
-// ===== Stage 1: コールバック地獄 =====
+// ===== Stage 1: Callback Hell =====
 function loadDashboard(userId, callback) {
     getUser(userId, function(err, user) {
         if (err) return callback(err);
@@ -323,9 +322,9 @@ function loadDashboard(userId, callback) {
         });
     });
 }
-// 問題: ネストが深い、エラー処理が散在、可読性が低い
+// Issues: Deep nesting, scattered error handling, poor readability
 
-// ===== Stage 2: Promise チェーン =====
+// ===== Stage 2: Promise Chain =====
 function loadDashboard(userId) {
     let userData;
     return getUser(userId)
@@ -351,8 +350,8 @@ function loadDashboard(userId) {
             throw err;
         });
 }
-// 改善: フラットなチェーン、統一的なエラー処理
-// 問題: まだ複雑、中間変数の管理が面倒
+// Improvement: Flat chain, unified error handling
+// Issue: Still complex, managing intermediate variables is cumbersome
 
 // ===== Stage 3: async/await =====
 async function loadDashboard(userId) {
@@ -368,21 +367,21 @@ async function loadDashboard(userId) {
         throw err;
     }
 }
-// 改善: 同期処理と同じ見た目、直感的なエラー処理
-// 注意: 上記は逐次実行。並行可能な処理は Promise.all を使う
+// Improvement: Looks like synchronous code, intuitive error handling
+// Note: The above executes sequentially. Use Promise.all for concurrent operations
 
-// ===== Stage 3.5: async/await + 並行実行の最適化 =====
+// ===== Stage 3.5: async/await + Concurrency Optimization =====
 async function loadDashboard(userId) {
     try {
         const user = await getUser(userId);
 
-        // posts と notifications は互いに依存しないので並行実行
+        // posts and notifications are independent, so run concurrently
         const [posts, notifications] = await Promise.all([
             getPosts(user.id),
             getNotifications(user.id),
         ]);
 
-        // comments は posts に依存するので逐次実行
+        // comments depends on posts, so execute sequentially
         const comments = await getComments(posts[0].id);
 
         return { user, posts, comments, notifications };
@@ -395,28 +394,28 @@ async function loadDashboard(userId) {
 
 ---
 
-## 4. JavaScript の async/await 詳説
+## 4. JavaScript async/await in Detail
 
-### 4.1 基本構文と内部動作
+### 4.1 Basic Syntax and Internal Behavior
 
 ```javascript
-// ===== 基本: async 関数は常に Promise を返す =====
+// ===== Basic: async functions always return a Promise =====
 async function greet(name) {
     return `Hello, ${name}!`;
 }
 
-// 上記は以下と等価:
+// The above is equivalent to:
 function greet(name) {
     return Promise.resolve(`Hello, ${name}!`);
 }
 
-// ===== await: Promise の完了を待機する =====
+// ===== await: Wait for a Promise to resolve =====
 async function fetchUserProfile(userId) {
-    // await は Promise が解決されるまで関数の実行を中断し、
-    // イベントループに制御を返す
+    // await suspends function execution until the Promise resolves
+    // and returns control to the event loop
     const response = await fetch(`/api/users/${userId}`);
 
-    // レスポンスが到着したら、ここから再開
+    // When the response arrives, execution resumes here
     if (!response.ok) {
         throw new Error(`HTTP Error: ${response.status}`);
     }
@@ -425,16 +424,16 @@ async function fetchUserProfile(userId) {
     return data;
 }
 
-// ===== await を使えるのは async 関数内のみ =====
-// ES2022 以降: トップレベル await が使用可能（ESM モジュールのみ）
+// ===== await can only be used inside async functions =====
+// ES2022+: Top-level await is available (ESM modules only)
 const config = await import('./config.js');
 const data = await fetch('/api/data').then(r => r.json());
 ```
 
-### 4.2 Promise 並行処理パターン
+### 4.2 Promise Concurrency Patterns
 
 ```javascript
-// ===== Promise.all: 全て成功で完了、1つでも失敗で即座に reject =====
+// ===== Promise.all: Completes when all succeed, rejects immediately on any failure =====
 async function fetchAllResources() {
     try {
         const [users, products, orders] = await Promise.all([
@@ -444,13 +443,13 @@ async function fetchAllResources() {
         ]);
         return { users, products, orders };
     } catch (error) {
-        // いずれか1つが失敗した場合、他の処理も中断される
+        // If any one fails, other operations are also interrupted
         console.error('One of the requests failed:', error);
         throw error;
     }
 }
 
-// ===== Promise.allSettled: 全ての結果を取得（成功/失敗問わず） =====
+// ===== Promise.allSettled: Get all results (regardless of success/failure) =====
 async function fetchAllResourcesGracefully() {
     const results = await Promise.allSettled([
         fetch('/api/users').then(r => r.json()),
@@ -465,13 +464,13 @@ async function fetchAllResourcesGracefully() {
             data[keys[index]] = result.value;
         } else {
             console.warn(`${keys[index]} failed:`, result.reason);
-            data[keys[index]] = []; // フォールバック値
+            data[keys[index]] = []; // Fallback value
         }
     });
     return data;
 }
 
-// ===== Promise.race: 最初に完了（成功/失敗問わず）したものを返す =====
+// ===== Promise.race: Returns the first to complete (success or failure) =====
 async function fetchWithTimeout(url, timeoutMs = 5000) {
     const controller = new AbortController();
 
@@ -488,7 +487,7 @@ async function fetchWithTimeout(url, timeoutMs = 5000) {
     return result.json();
 }
 
-// ===== Promise.any: 最初に成功したものを返す（全失敗で AggregateError） =====
+// ===== Promise.any: Returns the first success (AggregateError if all fail) =====
 async function fetchFromMultipleCDNs(path) {
     try {
         const response = await Promise.any([
@@ -498,17 +497,17 @@ async function fetchFromMultipleCDNs(path) {
         ]);
         return response;
     } catch (error) {
-        // AggregateError: 全ての CDN が失敗
+        // AggregateError: All CDNs failed
         console.error('All CDNs failed:', error.errors);
         throw error;
     }
 }
 ```
 
-### 4.3 エラーハンドリングのベストプラクティス
+### 4.3 Error Handling Best Practices
 
 ```javascript
-// ===== パターン1: try/catch による集約 =====
+// ===== Pattern 1: Centralized try/catch =====
 async function processOrder(orderId) {
     try {
         const order = await fetchOrder(orderId);
@@ -517,7 +516,7 @@ async function processOrder(orderId) {
         await sendConfirmationEmail(order, shipping);
         return { success: true, trackingNumber: shipping.trackingNumber };
     } catch (error) {
-        // エラーの種類に応じた処理
+        // Handle based on error type
         if (error instanceof PaymentError) {
             await refundIfNeeded(orderId);
             return { success: false, reason: 'payment_failed' };
@@ -526,12 +525,12 @@ async function processOrder(orderId) {
             await notifyManualReview(orderId, error);
             return { success: false, reason: 'shipping_unavailable' };
         }
-        // 予期しないエラーは再 throw
+        // Re-throw unexpected errors
         throw error;
     }
 }
 
-// ===== パターン2: Result 型パターン（Go風エラーハンドリング） =====
+// ===== Pattern 2: Result Type Pattern (Go-style error handling) =====
 async function safeAsync(asyncFn) {
     try {
         const result = await asyncFn();
@@ -541,7 +540,7 @@ async function safeAsync(asyncFn) {
     }
 }
 
-// 使用例
+// Usage example
 async function loadUserData(userId) {
     const [user, userErr] = await safeAsync(() => fetchUser(userId));
     if (userErr) {
@@ -557,14 +556,14 @@ async function loadUserData(userId) {
     return { user, posts: posts || [] };
 }
 
-// ===== パターン3: AbortController によるキャンセル =====
+// ===== Pattern 3: Cancellation with AbortController =====
 class ApiClient {
     constructor() {
         this.controllers = new Map();
     }
 
     async fetch(key, url, options = {}) {
-        // 既存のリクエストをキャンセル
+        // Cancel existing request
         if (this.controllers.has(key)) {
             this.controllers.get(key).abort();
         }
@@ -598,12 +597,12 @@ class ApiClient {
 }
 ```
 
-### 4.4 非同期イテレータ（Async Iterators）
+### 4.4 Async Iterators
 
 ```javascript
-// ===== for await...of: 非同期データストリームの逐次処理 =====
+// ===== for await...of: Sequential processing of async data streams =====
 
-// 非同期ジェネレータ関数
+// Async generator function
 async function* fetchPages(baseUrl) {
     let page = 1;
     let hasMore = true;
@@ -619,7 +618,7 @@ async function* fetchPages(baseUrl) {
     }
 }
 
-// 使用例: ページネーションの全データを処理
+// Usage: Process all paginated data
 async function processAllItems(baseUrl) {
     const allItems = [];
 
@@ -631,7 +630,7 @@ async function processAllItems(baseUrl) {
     return allItems;
 }
 
-// ReadableStream からの読み取り（Web Streams API）
+// Reading from a ReadableStream (Web Streams API)
 async function readStream(response) {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -649,38 +648,38 @@ async function readStream(response) {
 
 ---
 
-## 5. Python の asyncio 詳説
+## 5. Python asyncio in Detail
 
-### 5.1 コルーチンの基礎
+### 5.1 Coroutine Basics
 
 ```python
 import asyncio
 from typing import Any
 
-# ===== コルーチン関数: async def で定義 =====
+# ===== Coroutine function: Defined with async def =====
 async def fetch_data(url: str) -> dict:
-    """非同期にデータを取得する"""
-    # コルーチン関数を呼び出すとコルーチンオブジェクトが返る
-    # await するまで実行されない
-    await asyncio.sleep(1)  # I/O 操作のシミュレーション
+    """Fetch data asynchronously"""
+    # Calling a coroutine function returns a coroutine object
+    # It is not executed until awaited
+    await asyncio.sleep(1)  # Simulating an I/O operation
     return {"url": url, "data": "sample"}
 
-# ===== コルーチンの実行方法 =====
+# ===== How to run coroutines =====
 
-# 方法1: asyncio.run()（メインエントリポイント）
+# Method 1: asyncio.run() (main entry point)
 async def main():
     result = await fetch_data("https://api.example.com/data")
     print(result)
 
 asyncio.run(main())
 
-# 方法2: イベントループを直接操作（低レベル）
+# Method 2: Directly manipulate the event loop (low-level)
 loop = asyncio.get_event_loop()
 result = loop.run_until_complete(fetch_data("https://api.example.com"))
 loop.close()
 ```
 
-### 5.2 並行実行パターン
+### 5.2 Concurrent Execution Patterns
 
 ```python
 import asyncio
@@ -694,12 +693,12 @@ class UserDashboard:
     notifications: list
 
 async def fetch_json(session: aiohttp.ClientSession, url: str) -> Any:
-    """汎用的な JSON フェッチ関数"""
+    """Generic JSON fetch function"""
     async with session.get(url) as response:
         response.raise_for_status()
         return await response.json()
 
-# ===== asyncio.gather: 並行実行（最も一般的） =====
+# ===== asyncio.gather: Concurrent execution (most common) =====
 async def load_dashboard(user_id: int) -> UserDashboard:
     async with aiohttp.ClientSession() as session:
         base = "https://api.example.com"
@@ -710,7 +709,7 @@ async def load_dashboard(user_id: int) -> UserDashboard:
         )
         return UserDashboard(user=user, posts=posts, notifications=notifications)
 
-# ===== asyncio.gather: return_exceptions=True で例外もキャッチ =====
+# ===== asyncio.gather: return_exceptions=True to catch exceptions =====
 async def load_dashboard_safe(user_id: int) -> dict:
     async with aiohttp.ClientSession() as session:
         base = "https://api.example.com"
@@ -718,7 +717,7 @@ async def load_dashboard_safe(user_id: int) -> dict:
             fetch_json(session, f"{base}/users/{user_id}"),
             fetch_json(session, f"{base}/users/{user_id}/posts"),
             fetch_json(session, f"{base}/users/{user_id}/notifications"),
-            return_exceptions=True,  # 例外を値として返す
+            return_exceptions=True,  # Return exceptions as values
         )
         return {
             "user": results[0] if not isinstance(results[0], Exception) else None,
@@ -726,9 +725,9 @@ async def load_dashboard_safe(user_id: int) -> dict:
             "notifications": results[2] if not isinstance(results[2], Exception) else [],
         }
 
-# ===== TaskGroup: 構造化並行性（Python 3.11+） =====
+# ===== TaskGroup: Structured Concurrency (Python 3.11+) =====
 async def load_dashboard_structured(user_id: int) -> UserDashboard:
-    """TaskGroup を使った構造化並行性パターン"""
+    """Structured concurrency pattern using TaskGroup"""
     results = {}
 
     async with aiohttp.ClientSession() as session:
@@ -742,9 +741,9 @@ async def load_dashboard_structured(user_id: int) -> UserDashboard:
             tg.create_task(fetch_and_store("posts", f"{base}/users/{user_id}/posts"))
             tg.create_task(fetch_and_store("notifs", f"{base}/users/{user_id}/notifications"))
 
-        # TaskGroup の外に到達 = 全タスク完了
-        # いずれかが例外を投げた場合、他の全タスクがキャンセルされ
-        # ExceptionGroup として集約される
+        # Reaching outside the TaskGroup = all tasks completed
+        # If any task throws an exception, all other tasks are cancelled
+        # and the exceptions are aggregated as an ExceptionGroup
 
     return UserDashboard(
         user=results["user"],
@@ -753,12 +752,12 @@ async def load_dashboard_structured(user_id: int) -> UserDashboard:
     )
 ```
 
-### 5.3 タイムアウトとキャンセル
+### 5.3 Timeout and Cancellation
 
 ```python
 import asyncio
 
-# ===== asyncio.timeout: タイムアウト制御（Python 3.11+） =====
+# ===== asyncio.timeout: Timeout control (Python 3.11+) =====
 async def fetch_with_timeout(url: str, timeout_sec: float = 5.0):
     try:
         async with asyncio.timeout(timeout_sec):
@@ -767,7 +766,7 @@ async def fetch_with_timeout(url: str, timeout_sec: float = 5.0):
         print(f"Timeout after {timeout_sec}s: {url}")
         return None
 
-# ===== asyncio.wait_for: 従来のタイムアウト方式 =====
+# ===== asyncio.wait_for: Traditional timeout approach =====
 async def fetch_with_wait_for(url: str, timeout_sec: float = 5.0):
     try:
         return await asyncio.wait_for(
@@ -778,27 +777,27 @@ async def fetch_with_wait_for(url: str, timeout_sec: float = 5.0):
         print(f"Timeout: {url}")
         return None
 
-# ===== タスクのキャンセル =====
+# ===== Task Cancellation =====
 async def cancellable_operation():
     task = asyncio.create_task(long_running_operation())
 
-    # 5秒後にキャンセル
+    # Cancel after 5 seconds
     await asyncio.sleep(5)
     task.cancel()
 
     try:
         await task
     except asyncio.CancelledError:
-        print("タスクがキャンセルされました")
+        print("Task was cancelled")
 
-# ===== セマフォによる同時実行数制限 =====
+# ===== Limiting concurrency with a Semaphore =====
 async def fetch_many_urls(urls: list[str], max_concurrent: int = 10):
-    """同時接続数を制限しながら大量の URL をフェッチ"""
+    """Fetch a large number of URLs with limited concurrent connections"""
     semaphore = asyncio.Semaphore(max_concurrent)
     results = []
 
     async def limited_fetch(url: str):
-        async with semaphore:  # 同時実行数を max_concurrent に制限
+        async with semaphore:  # Limit concurrency to max_concurrent
             return await fetch_data(url)
 
     results = await asyncio.gather(
@@ -807,15 +806,15 @@ async def fetch_many_urls(urls: list[str], max_concurrent: int = 10):
     return results
 ```
 
-### 5.4 非同期コンテキストマネージャとイテレータ
+### 5.4 Async Context Managers and Iterators
 
 ```python
 import asyncio
 from contextlib import asynccontextmanager
 
-# ===== 非同期コンテキストマネージャ =====
+# ===== Async Context Manager =====
 class AsyncDatabaseConnection:
-    """非同期データベース接続の例"""
+    """Example of an async database connection"""
 
     async def __aenter__(self):
         self.conn = await create_connection()
@@ -823,17 +822,17 @@ class AsyncDatabaseConnection:
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.conn.close()
-        return False  # 例外を伝播
+        return False  # Propagate exceptions
 
     async def query(self, sql: str):
         return await self.conn.execute(sql)
 
-# 使用例
+# Usage
 async def get_users():
     async with AsyncDatabaseConnection() as db:
         return await db.query("SELECT * FROM users")
 
-# ===== デコレータ方式 =====
+# ===== Decorator-based approach =====
 @asynccontextmanager
 async def managed_resource(name: str):
     resource = await acquire_resource(name)
@@ -842,9 +841,9 @@ async def managed_resource(name: str):
     finally:
         await release_resource(resource)
 
-# ===== 非同期イテレータ =====
+# ===== Async Iterator =====
 class AsyncPaginator:
-    """ページネーション付き非同期イテレータ"""
+    """Async iterator with pagination"""
 
     def __init__(self, base_url: str, page_size: int = 20):
         self.base_url = base_url
@@ -863,15 +862,15 @@ class AsyncPaginator:
             raise StopAsyncIteration
         return data["items"]
 
-# 使用例
+# Usage
 async def process_all_users():
     async for page in AsyncPaginator("https://api.example.com/users"):
         for user in page:
             await process_user(user)
 
-# ===== 非同期ジェネレータ =====
+# ===== Async Generator =====
 async def event_stream(url: str):
-    """Server-Sent Events を受信する非同期ジェネレータ"""
+    """Async generator for receiving Server-Sent Events"""
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
             async for line in response.content:
@@ -882,27 +881,27 @@ async def event_stream(url: str):
 
 ---
 
-## 6. Rust の async/await 詳説
+## 6. Rust async/await in Detail
 
-### 6.1 Future トレイトとポーリングモデル
+### 6.1 The Future Trait and Polling Model
 
-Rust の非同期モデルは他の言語と根本的に異なる。Future はゼロコスト抽象化であり、`.await` を呼ぶまで何も実行されない（遅延評価）。
+Rust's async model is fundamentally different from other languages. Futures are zero-cost abstractions, and nothing is executed until `.await` is called (lazy evaluation).
 
 ```rust
-// ===== Future トレイトの定義（標準ライブラリ） =====
+// ===== Future Trait Definition (Standard Library) =====
 pub trait Future {
     type Output;
 
-    // poll が呼ばれるたびに進捗をチェック
+    // Progress is checked each time poll is called
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output>;
 }
 
 pub enum Poll<T> {
-    Ready(T),    // 完了: 値が利用可能
-    Pending,     // 未完了: まだ待機中
+    Ready(T),    // Complete: value is available
+    Pending,     // Incomplete: still waiting
 }
 
-// ===== 手動で Future を実装する例 =====
+// ===== Example of manually implementing a Future =====
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -927,7 +926,7 @@ impl Future for Delay {
         if Instant::now() >= self.when {
             Poll::Ready(())
         } else {
-            // ウェイカーを登録して、後で再ポーリングを要求
+            // Register the waker to request re-polling later
             let waker = cx.waker().clone();
             let when = self.when;
             std::thread::spawn(move || {
@@ -935,47 +934,47 @@ impl Future for Delay {
                 if now < when {
                     std::thread::sleep(when - now);
                 }
-                waker.wake();  // ランタイムに再ポーリングを通知
+                waker.wake();  // Notify the runtime to re-poll
             });
             Poll::Pending
         }
     }
 }
 
-// 使用
+// Usage
 async fn example() {
-    println!("開始");
+    println!("Start");
     Delay::new(Duration::from_secs(2)).await;
-    println!("2秒経過");
+    println!("2 seconds elapsed");
 }
 ```
 
 ```
-Rust の Future ポーリングモデル:
+Rust's Future Polling Model:
 
-  ランタイム (Executor)                Future
-  ┌──────────────────┐               ┌─────────────┐
-  │                  │  poll()       │             │
-  │  1. poll 実行  ──┼──────────────>│  処理実行    │
-  │                  │  Pending     │  まだ未完了   │
-  │  2. 他の処理   <─┼──────────────│             │
-  │     を実行       │              │  (Waker登録) │
-  │                  │              └─────────────┘
-  │  ...時間経過...   │
-  │                  │  wake()
-  │  3. Waker通知  <─┼──────────── OS/タイマー
-  │                  │
-  │  4. 再poll    ──┼──────────────>│  処理再開    │
-  │                  │  Ready(val)  │  完了!       │
-  │  5. 値を取得   <─┼──────────────│             │
-  └──────────────────┘               └─────────────┘
+  Runtime (Executor)                Future
+  +--------------------+               +---------------+
+  |                    |  poll()       |               |
+  |  1. Execute poll --+-------------->|  Process      |
+  |                    |  Pending      |  Not yet done |
+  |  2. Execute other <-+--------------+               |
+  |     tasks          |              |  (Waker reg.) |
+  |                    |              +---------------+
+  |  ...time passes... |
+  |                    |  wake()
+  |  3. Waker notif. <-+------------ OS/Timer
+  |                    |
+  |  4. Re-poll     --+-------------->|  Resume       |
+  |                    |  Ready(val)  |  Done!        |
+  |  5. Get value   <--+--------------+               |
+  +--------------------+               +---------------+
 
-  ※ JavaScript/Python: ランタイムがコルーチンを直接駆動
-  ※ Rust: ランタイムが Future を poll して進捗を確認
-  → Rust の方がきめ細かい制御が可能（ゼロコスト抽象化）
+  * JavaScript/Python: Runtime directly drives coroutines
+  * Rust: Runtime polls Futures to check progress
+  -> Rust allows finer-grained control (zero-cost abstraction)
 ```
 
-### 6.2 tokio ランタイムの詳細
+### 6.2 tokio Runtime Details
 
 ```rust
 use tokio;
@@ -983,7 +982,7 @@ use tokio::time::{sleep, timeout, Duration};
 use tokio::sync::{mpsc, Semaphore};
 use std::sync::Arc;
 
-// ===== 基本的な async main =====
+// ===== Basic async main =====
 #[tokio::main]
 async fn main() {
     let result = fetch_data("https://api.example.com").await;
@@ -993,9 +992,9 @@ async fn main() {
     }
 }
 
-// ===== 並行実行パターン =====
+// ===== Concurrent Execution Patterns =====
 async fn load_dashboard(user_id: u32) -> Result<Dashboard, AppError> {
-    // tokio::join!: 全て並行実行して全完了を待つ
+    // tokio::join!: Execute all concurrently and wait for all to complete
     let (user_result, posts_result, notifs_result) = tokio::join!(
         fetch_user(user_id),
         fetch_posts(user_id),
@@ -1009,7 +1008,7 @@ async fn load_dashboard(user_id: u32) -> Result<Dashboard, AppError> {
     })
 }
 
-// ===== tokio::select!: 最初に完了したものを処理 =====
+// ===== tokio::select!: Process the first to complete =====
 async fn fetch_with_fallback(primary: &str, fallback: &str) -> String {
     tokio::select! {
         result = fetch_data(primary) => {
@@ -1019,37 +1018,37 @@ async fn fetch_with_fallback(primary: &str, fallback: &str) -> String {
             }
         }
         _ = sleep(Duration::from_secs(3)) => {
-            // プライマリがタイムアウト → フォールバック
+            // Primary timed out -> use fallback
             fetch_data(fallback).await.unwrap_or_default()
         }
     }
 }
 
-// ===== タスクスポーン: バックグラウンド実行 =====
+// ===== Task Spawning: Background execution =====
 async fn spawn_example() {
     let handle = tokio::spawn(async {
-        // 別タスクとして非同期実行
+        // Execute asynchronously as a separate task
         heavy_computation().await
     });
 
-    // 他の処理を並行して実行
+    // Execute other work concurrently
     do_other_work().await;
 
-    // タスクの結果を取得
+    // Get the task result
     let result = handle.await.expect("Task panicked");
     println!("Result: {:?}", result);
 }
 
-// ===== セマフォによる同時実行数制限 =====
+// ===== Limiting concurrency with a Semaphore =====
 async fn fetch_many_urls(urls: Vec<String>) -> Vec<Result<String, reqwest::Error>> {
-    let semaphore = Arc::new(Semaphore::new(10)); // 最大10並行
+    let semaphore = Arc::new(Semaphore::new(10)); // Max 10 concurrent
     let mut handles = vec![];
 
     for url in urls {
         let permit = semaphore.clone().acquire_owned().await.unwrap();
         let handle = tokio::spawn(async move {
             let result = reqwest::get(&url).await?.text().await;
-            drop(permit); // 明示的にセマフォを解放
+            drop(permit); // Explicitly release the semaphore
             result
         });
         handles.push(handle);
@@ -1063,26 +1062,26 @@ async fn fetch_many_urls(urls: Vec<String>) -> Vec<Result<String, reqwest::Error
 }
 ```
 
-### 6.3 Rust のストリーム（非同期イテレータ）
+### 6.3 Rust Streams (Async Iterators)
 
 ```rust
 use tokio_stream::{self as stream, StreamExt};
 
-// ===== Stream: 非同期イテレータ =====
+// ===== Stream: Async Iterator =====
 async fn process_stream() {
     let mut stream = stream::iter(vec![1, 2, 3, 4, 5])
         .map(|x| async move {
             sleep(Duration::from_millis(100)).await;
             x * 2
         })
-        .buffered(3); // 最大3つを並行処理
+        .buffered(3); // Process up to 3 concurrently
 
     while let Some(value) = stream.next().await {
         println!("Value: {}", value);
     }
 }
 
-// ===== チャネルベースのストリーム =====
+// ===== Channel-based Stream =====
 async fn event_producer(tx: mpsc::Sender<String>) {
     for i in 0..100 {
         tx.send(format!("Event {}", i)).await.unwrap();
@@ -1097,7 +1096,7 @@ async fn event_consumer(mut rx: mpsc::Receiver<String>) {
 }
 
 async fn channel_example() {
-    let (tx, rx) = mpsc::channel(32); // バッファサイズ 32
+    let (tx, rx) = mpsc::channel(32); // Buffer size 32
 
     tokio::spawn(event_producer(tx));
     event_consumer(rx).await;
@@ -1106,11 +1105,11 @@ async fn channel_example() {
 
 ---
 
-## 7. Go の並行処理（goroutine + channel）
+## 7. Go Concurrency (goroutine + channel)
 
-Go は async/await を採用せず、CSP（Communicating Sequential Processes）モデルに基づく goroutine と channel を使う。
+Go does not adopt async/await; instead, it uses goroutines and channels based on the CSP (Communicating Sequential Processes) model.
 
-### 7.1 goroutine の基礎
+### 7.1 goroutine Basics
 
 ```go
 package main
@@ -1125,7 +1124,7 @@ import (
     "io"
 )
 
-// ===== goroutine: go キーワードで軽量スレッドを起動 =====
+// ===== goroutine: Launch a lightweight thread with the go keyword =====
 func fetchURL(url string) ([]byte, error) {
     resp, err := http.Get(url)
     if err != nil {
@@ -1136,25 +1135,25 @@ func fetchURL(url string) ([]byte, error) {
 }
 
 func main() {
-    // 通常の関数呼び出し（同期）
+    // Normal function call (synchronous)
     data, _ := fetchURL("https://api.example.com/data")
     fmt.Println(string(data))
 
-    // goroutine で非同期実行
+    // Execute asynchronously with goroutine
     go func() {
         data, _ := fetchURL("https://api.example.com/other")
         fmt.Println(string(data))
     }()
 
-    // goroutine が完了する前に main が終了しないよう待機
+    // Wait so main doesn't exit before goroutine completes
     time.Sleep(2 * time.Second)
 }
 ```
 
-### 7.2 channel による通信
+### 7.2 Communication via Channels
 
 ```go
-// ===== channel: goroutine 間の通信チャネル =====
+// ===== channel: Communication channels between goroutines =====
 
 type User struct {
     ID   int    `json:"id"`
@@ -1170,27 +1169,27 @@ func fetchUser(id int, ch chan<- User) {
 
     var user User
     json.NewDecoder(resp.Body).Decode(&user)
-    ch <- user // チャネルに送信
+    ch <- user // Send to channel
 }
 
 func main() {
-    ch := make(chan User, 3) // バッファ付きチャネル
+    ch := make(chan User, 3) // Buffered channel
 
-    // 3つの goroutine を並行起動
+    // Launch 3 goroutines concurrently
     for i := 1; i <= 3; i++ {
         go fetchUser(i, ch)
     }
 
-    // 3つの結果を収集
+    // Collect 3 results
     users := make([]User, 0, 3)
     for i := 0; i < 3; i++ {
-        user := <-ch // チャネルから受信
+        user := <-ch // Receive from channel
         users = append(users, user)
     }
     fmt.Println(users)
 }
 
-// ===== select: 複数チャネルの多重化 =====
+// ===== select: Multiplexing multiple channels =====
 func fetchWithTimeout(url string, timeout time.Duration) ([]byte, error) {
     resultCh := make(chan []byte, 1)
     errCh := make(chan error, 1)
@@ -1214,7 +1213,7 @@ func fetchWithTimeout(url string, timeout time.Duration) ([]byte, error) {
     }
 }
 
-// ===== WaitGroup: goroutine の完了を待機 =====
+// ===== WaitGroup: Wait for goroutines to complete =====
 func fetchMultipleURLs(urls []string) map[string][]byte {
     var mu sync.Mutex
     var wg sync.WaitGroup
@@ -1234,11 +1233,11 @@ func fetchMultipleURLs(urls []string) map[string][]byte {
         }(url)
     }
 
-    wg.Wait() // 全 goroutine の完了を待機
+    wg.Wait() // Wait for all goroutines to complete
     return results
 }
 
-// ===== context: キャンセルとタイムアウト =====
+// ===== context: Cancellation and Timeout =====
 func fetchWithContext(ctx context.Context, url string) ([]byte, error) {
     req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
     if err != nil {
@@ -1254,14 +1253,14 @@ func fetchWithContext(ctx context.Context, url string) ([]byte, error) {
 }
 
 func main() {
-    // 5秒のタイムアウト付きコンテキスト
+    // Context with 5-second timeout
     ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
     defer cancel()
 
     data, err := fetchWithContext(ctx, "https://api.example.com/data")
     if err != nil {
         if ctx.Err() == context.DeadlineExceeded {
-            fmt.Println("リクエストがタイムアウトしました")
+            fmt.Println("Request timed out")
         }
         return
     }
@@ -1270,37 +1269,37 @@ func main() {
 ```
 
 ```
-Go の goroutine スケジューリングモデル（M:N マッピング）:
+Go goroutine Scheduling Model (M:N Mapping):
 
-  OS スレッド (M)        goroutine (G)        プロセッサ (P)
-  ┌──────────┐           ┌────┐┌────┐         ┌──────────┐
-  │ Thread-1 │<──────────│ G1 ││ G2 │<────────│ P1       │
-  │          │           └────┘└────┘         │ LocalQ   │
-  └──────────┘           ┌────┐┌────┐         └──────────┘
-  ┌──────────┐           │ G3 ││ G4 │
-  │ Thread-2 │<──────────└────┘└────┘         ┌──────────┐
-  │          │           ┌────┐               │ P2       │
-  └──────────┘           │ G5 │<──────────────│ LocalQ   │
-  ┌──────────┐           └────┘               └──────────┘
-  │ Thread-3 │ (idle)
-  │          │           ┌────┐┌────┐┌────┐
-  └──────────┘           │ G6 ││ G7 ││ G8 │   ← Global Queue
-                         └────┘└────┘└────┘
+  OS Threads (M)         goroutines (G)       Processors (P)
+  +------------+           +----++----+         +------------+
+  | Thread-1   |<----------| G1 || G2 |<--------| P1         |
+  |            |           +----++----+         | LocalQ     |
+  +------------+           +----++----+         +------------+
+  +------------+           | G3 || G4 |
+  | Thread-2   |<----------+----++----+         +------------+
+  |            |           +----+               | P2         |
+  +------------+           | G5 |<--------------| LocalQ     |
+  +------------+           +----+               +------------+
+  | Thread-3   | (idle)
+  |            |           +----++----++----+
+  +------------+           | G6 || G7 || G8 |   <- Global Queue
+                           +----++----++----+
 
-  - G (goroutine): 約 2-8 KB のスタック（動的に拡張）
-  - M (Machine/OS Thread): OS カーネルスレッド
-  - P (Processor): 論理プロセッサ（GOMAXPROCS で設定）
+  - G (goroutine): ~2-8 KB stack (dynamically grows)
+  - M (Machine/OS Thread): OS kernel thread
+  - P (Processor): Logical processor (set by GOMAXPROCS)
 
-  ワークスティーリング:
-    P1 のキューが空 → P2 のキューから G を「盗む」
-    → 全プロセッサが均等に負荷分散
+  Work Stealing:
+    If P1's queue is empty -> "steal" a G from P2's queue
+    -> Load is balanced evenly across all processors
 ```
 
 ---
 
-## 8. C# と Java の非同期モデル
+## 8. C# and Java Async Models
 
-### 8.1 C# の async/await（Task ベース）
+### 8.1 C# async/await (Task-based)
 
 ```csharp
 using System;
@@ -1310,29 +1309,29 @@ using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Linq;
 
-// ===== 基本的な async/await =====
+// ===== Basic async/await =====
 public class ApiClient
 {
     private readonly HttpClient _httpClient = new HttpClient();
 
     public async Task<string> FetchDataAsync(string url)
     {
-        // await: Task の完了を非同期に待機
+        // await: Asynchronously wait for the Task to complete
         HttpResponseMessage response = await _httpClient.GetAsync(url);
         response.EnsureSuccessStatusCode();
         string content = await response.Content.ReadAsStringAsync();
         return content;
     }
 
-    // ===== 並行実行: Task.WhenAll =====
+    // ===== Concurrent Execution: Task.WhenAll =====
     public async Task<Dashboard> LoadDashboardAsync(int userId)
     {
-        // 3つのタスクを同時に開始
+        // Start 3 tasks simultaneously
         Task<User> userTask = FetchUserAsync(userId);
         Task<List<Post>> postsTask = FetchPostsAsync(userId);
         Task<List<Notification>> notifsTask = FetchNotificationsAsync(userId);
 
-        // 全タスクの完了を待機
+        // Wait for all tasks to complete
         await Task.WhenAll(userTask, postsTask, notifsTask);
 
         return new Dashboard
@@ -1343,7 +1342,7 @@ public class ApiClient
         };
     }
 
-    // ===== CancellationToken: キャンセル制御 =====
+    // ===== CancellationToken: Cancellation control =====
     public async Task<string> FetchWithCancellationAsync(
         string url,
         CancellationToken cancellationToken)
@@ -1356,12 +1355,12 @@ public class ApiClient
         }
         catch (OperationCanceledException)
         {
-            Console.WriteLine("リクエストがキャンセルされました");
+            Console.WriteLine("Request was cancelled");
             return null;
         }
     }
 
-    // ===== タイムアウト付きリクエスト =====
+    // ===== Request with Timeout =====
     public async Task<string> FetchWithTimeoutAsync(
         string url, TimeSpan timeout)
     {
@@ -1370,7 +1369,7 @@ public class ApiClient
     }
 }
 
-// ===== IAsyncEnumerable: 非同期ストリーム（C# 8.0+） =====
+// ===== IAsyncEnumerable: Async Streams (C# 8.0+) =====
 public class PaginatedApi
 {
     public async IAsyncEnumerable<List<Item>> FetchAllPagesAsync(
@@ -1390,7 +1389,7 @@ public class PaginatedApi
     }
 }
 
-// 使用例
+// Usage
 await foreach (var items in api.FetchAllPagesAsync("/api/items"))
 {
     foreach (var item in items)
@@ -1400,7 +1399,7 @@ await foreach (var items in api.FetchAllPagesAsync("/api/items"))
 }
 ```
 
-### 8.2 Java の Virtual Threads（Project Loom, Java 21+）
+### 8.2 Java Virtual Threads (Project Loom, Java 21+)
 
 ```java
 import java.net.http.*;
@@ -1410,7 +1409,7 @@ import java.util.concurrent.*;
 import java.util.List;
 import java.util.stream.Collectors;
 
-// ===== Virtual Threads: 軽量スレッド（Java 21+） =====
+// ===== Virtual Threads: Lightweight Threads (Java 21+) =====
 public class AsyncJavaExample {
 
     private static final HttpClient client = HttpClient.newHttpClient();
@@ -1427,7 +1426,7 @@ public class AsyncJavaExample {
     }
 
     public static void main(String[] args) throws Exception {
-        // ===== 方法1: Virtual Thread を直接起動 =====
+        // ===== Method 1: Directly start a Virtual Thread =====
         Thread vThread = Thread.ofVirtual().start(() -> {
             try {
                 String data = fetchData("https://api.example.com/data");
@@ -1438,7 +1437,7 @@ public class AsyncJavaExample {
         });
         vThread.join();
 
-        // ===== 方法2: ExecutorService + Virtual Threads =====
+        // ===== Method 2: ExecutorService + Virtual Threads =====
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             List<Future<String>> futures = List.of(
                 executor.submit(() -> fetchData("https://api.example.com/users")),
@@ -1447,19 +1446,19 @@ public class AsyncJavaExample {
             );
 
             for (Future<String> future : futures) {
-                System.out.println(future.get()); // 結果取得
+                System.out.println(future.get()); // Get result
             }
         }
 
-        // ===== 方法3: StructuredTaskScope（Structured Concurrency Preview） =====
+        // ===== Method 3: StructuredTaskScope (Structured Concurrency Preview) =====
         try (var scope = new StructuredTaskScope.ShutdownOnFailure()) {
             Future<String> users = scope.fork(() ->
                 fetchData("https://api.example.com/users"));
             Future<String> posts = scope.fork(() ->
                 fetchData("https://api.example.com/posts"));
 
-            scope.join();           // 全タスクの完了を待機
-            scope.throwIfFailed();  // いずれか失敗なら例外
+            scope.join();           // Wait for all tasks to complete
+            scope.throwIfFailed();  // Throw exception if any failed
 
             System.out.println(users.resultNow());
             System.out.println(posts.resultNow());
@@ -1467,7 +1466,7 @@ public class AsyncJavaExample {
     }
 }
 
-// ===== CompletableFuture: 従来の非同期API =====
+// ===== CompletableFuture: Traditional Async API =====
 public class CompletableFutureExample {
 
     public static CompletableFuture<String> fetchAsync(String url) {
@@ -1481,156 +1480,158 @@ public class CompletableFutureExample {
     }
 
     public static void main(String[] args) {
-        // チェーン: thenApply, thenCompose, thenCombine
+        // Chaining: thenApply, thenCompose, thenCombine
         CompletableFuture<String> future = fetchAsync("/api/users/1")
-            .thenApply(json -> parseUser(json))        // 変換
-            .thenCompose(user -> fetchAsync(            // 次の非同期処理
+            .thenApply(json -> parseUser(json))        // Transform
+            .thenCompose(user -> fetchAsync(            // Next async operation
                 "/api/posts?userId=" + user.getId()))
-            .exceptionally(ex -> {                     // エラー処理
+            .exceptionally(ex -> {                     // Error handling
                 System.err.println("Error: " + ex.getMessage());
                 return "[]";
             });
 
-        // 並行実行: allOf
+        // Concurrent execution: allOf
         CompletableFuture<Void> all = CompletableFuture.allOf(
             fetchAsync("/api/users"),
             fetchAsync("/api/posts"),
             fetchAsync("/api/notifications")
         );
-        all.join(); // 全完了を待機
+        all.join(); // Wait for all to complete
     }
 }
 ```
 
 ---
 
-## 9. 非同期ランタイムの比較分析
+## 9. Comparative Analysis of Async Runtimes
 
-### 9.1 アーキテクチャ比較表
-
-```
-┌────────────┬─────────────────┬──────────────────┬───────────────────┐
-│ 特性        │ JavaScript      │ Python           │ Rust              │
-│            │ (Node.js)       │ (asyncio)        │ (tokio)           │
-├────────────┼─────────────────┼──────────────────┼───────────────────┤
-│ 実行モデル  │ シングルスレッド │ シングルスレッド  │ マルチスレッド     │
-│            │ イベントループ   │ イベントループ    │ ワークスティーリング│
-├────────────┼─────────────────┼──────────────────┼───────────────────┤
-│ I/Oバック   │ libuv           │ selector/epoll   │ mio(epoll/kqueue) │
-│ エンド      │ (クロスPF)      │ (OS依存)         │ (クロスPF)        │
-├────────────┼─────────────────┼──────────────────┼───────────────────┤
-│ CPU並列性   │ Worker Threads  │ multiprocessing  │ ネイティブスレッド │
-│            │ (制限的)        │ (GIL回避)        │ (完全並列)        │
-├────────────┼─────────────────┼──────────────────┼───────────────────┤
-│ メモリ      │ V8ヒープ        │ オブジェクト      │ ゼロコスト         │
-│ オーバーヘッド│ (コルーチン中)  │ (コルーチン中)   │ (ステートマシン)  │
-├────────────┼─────────────────┼──────────────────┼───────────────────┤
-│ キャンセル  │ AbortController │ Task.cancel()    │ drop (RAII)       │
-├────────────┼─────────────────┼──────────────────┼───────────────────┤
-│ 成熟度      │ 非常に高い      │ 高い             │ 高い              │
-├────────────┼─────────────────┼──────────────────┼───────────────────┤
-│ 学習曲線    │ 低い            │ 中程度           │ 高い              │
-└────────────┴─────────────────┴──────────────────┴───────────────────┘
-
-┌────────────┬─────────────────┬──────────────────┬───────────────────┐
-│ 特性        │ Go              │ C#               │ Java (21+)        │
-├────────────┼─────────────────┼──────────────────┼───────────────────┤
-│ 実行モデル  │ M:Nスケジューリング│ スレッドプール   │ Virtual Threads   │
-│            │ ワークスティーリング│ + async/await   │ M:Nスケジューリング│
-├────────────┼─────────────────┼──────────────────┼───────────────────┤
-│ I/Oバック   │ netpoller       │ OS依存           │ NIO / Virtual     │
-│ エンド      │ (ランタイム内蔵) │ (IOCP/epoll)    │ Thread挿入        │
-├────────────┼─────────────────┼──────────────────┼───────────────────┤
-│ CPU並列性   │ goroutine自動分散│ Task並列ライブラリ│ スレッドプール     │
-│            │ (GOMAXPROCS)    │ (Parallel.For等) │ (ForkJoinPool)    │
-├────────────┼─────────────────┼──────────────────┼───────────────────┤
-│ メモリ      │ goroutine: ~2KB │ Task: ~300B      │ VThread: ~数百B   │
-│ オーバーヘッド│ (動的スタック)  │ (ヒープ確保)     │ (継続ベース)      │
-├────────────┼─────────────────┼──────────────────┼───────────────────┤
-│ キャンセル  │ context.Context │ CancellationToken│ Thread.interrupt  │
-├────────────┼─────────────────┼──────────────────┼───────────────────┤
-│ 成熟度      │ 非常に高い      │ 非常に高い       │ 成長中            │
-├────────────┼─────────────────┼──────────────────┼───────────────────┤
-│ 学習曲線    │ 低い            │ 中程度           │ 低い(VThread)     │
-└────────────┴─────────────────┴──────────────────┴───────────────────┘
-```
-
-### 9.2 用途別推奨モデル
+### 9.1 Architecture Comparison Table
 
 ```
-ユースケース別の非同期モデル選択ガイド:
++------------+-----------------+------------------+-------------------+
+| Feature    | JavaScript      | Python           | Rust              |
+|            | (Node.js)       | (asyncio)        | (tokio)           |
++------------+-----------------+------------------+-------------------+
+| Execution  | Single-threaded | Single-threaded  | Multi-threaded    |
+| Model      | Event loop      | Event loop       | Work stealing     |
++------------+-----------------+------------------+-------------------+
+| I/O        | libuv           | selector/epoll   | mio(epoll/kqueue) |
+| Backend    | (cross-platform)| (OS-dependent)   | (cross-platform)  |
++------------+-----------------+------------------+-------------------+
+| CPU        | Worker Threads  | multiprocessing  | Native threads    |
+| Parallelism| (limited)       | (bypasses GIL)   | (full parallelism)|
++------------+-----------------+------------------+-------------------+
+| Memory     | V8 heap         | Object           | Zero-cost         |
+| Overhead   | (mid-coroutine) | (mid-coroutine)  | (state machine)   |
++------------+-----------------+------------------+-------------------+
+| Cancellation| AbortController| Task.cancel()    | drop (RAII)       |
++------------+-----------------+------------------+-------------------+
+| Maturity   | Very high       | High             | High              |
++------------+-----------------+------------------+-------------------+
+| Learning   | Low             | Medium           | High              |
+| Curve      |                 |                  |                   |
++------------+-----------------+------------------+-------------------+
 
-┌───────────────────────────┬──────────────────────────────────┐
-│ ユースケース               │ 推奨モデル                        │
-├───────────────────────────┼──────────────────────────────────┤
-│ Webフロントエンド          │ JavaScript async/await           │
-│ (ブラウザ)                │ → 唯一の選択肢、成熟したエコシステム│
-├───────────────────────────┼──────────────────────────────────┤
-│ REST API サーバー          │ Go (goroutine) / Node.js         │
-│ (高スループット)           │ → シンプルかつ高性能              │
-├───────────────────────────┼──────────────────────────────────┤
-│ マイクロサービス           │ Go / Rust / Java (VThread)       │
-│ (低レイテンシ)            │ → Go: 開発速度、Rust: 最高性能    │
-├───────────────────────────┼──────────────────────────────────┤
-│ データパイプライン         │ Python (asyncio + multiprocessing)│
-│ (I/O + CPU混在)           │ → 豊富なデータ処理ライブラリ      │
-├───────────────────────────┼──────────────────────────────────┤
-│ リアルタイム通信           │ Go / Rust / Node.js              │
-│ (WebSocket等)             │ → 大量接続に強い                  │
-├───────────────────────────┼──────────────────────────────────┤
-│ エンタープライズ           │ C# / Java                        │
-│ (既存資産活用)            │ → エコシステムと互換性             │
-├───────────────────────────┼──────────────────────────────────┤
-│ 組み込み/IoT              │ Rust (embassy/no_std)            │
-│ (リソース制約)            │ → ゼロコスト、ランタイムなし可     │
-└───────────────────────────┴──────────────────────────────────┘
++------------+-----------------+------------------+-------------------+
+| Feature    | Go              | C#               | Java (21+)        |
++------------+-----------------+------------------+-------------------+
+| Execution  | M:N scheduling  | Thread pool      | Virtual Threads   |
+| Model      | Work stealing   | + async/await    | M:N scheduling    |
++------------+-----------------+------------------+-------------------+
+| I/O        | netpoller       | OS-dependent     | NIO / Virtual     |
+| Backend    | (built-in)      | (IOCP/epoll)     | Thread integration|
++------------+-----------------+------------------+-------------------+
+| CPU        | Auto-distributed| Task Parallel Lib| Thread pool       |
+| Parallelism| (GOMAXPROCS)    | (Parallel.For)   | (ForkJoinPool)    |
++------------+-----------------+------------------+-------------------+
+| Memory     | goroutine: ~2KB | Task: ~300B      | VThread: ~100s B  |
+| Overhead   | (dynamic stack) | (heap-allocated)  | (continuation)   |
++------------+-----------------+------------------+-------------------+
+| Cancellation| context.Context| CancellationToken| Thread.interrupt  |
++------------+-----------------+------------------+-------------------+
+| Maturity   | Very high       | Very high        | Growing           |
++------------+-----------------+------------------+-------------------+
+| Learning   | Low             | Medium           | Low (VThread)     |
+| Curve      |                 |                  |                   |
++------------+-----------------+------------------+-------------------+
+```
+
+### 9.2 Recommended Models by Use Case
+
+```
+Async Model Selection Guide by Use Case:
+
++-----------------------------+------------------------------------+
+| Use Case                    | Recommended Model                  |
++-----------------------------+------------------------------------+
+| Web Frontend                | JavaScript async/await             |
+| (Browser)                   | -> Only option, mature ecosystem   |
++-----------------------------+------------------------------------+
+| REST API Server             | Go (goroutine) / Node.js           |
+| (High throughput)           | -> Simple and high-performance     |
++-----------------------------+------------------------------------+
+| Microservices               | Go / Rust / Java (VThread)         |
+| (Low latency)               | -> Go: dev speed, Rust: max perf  |
++-----------------------------+------------------------------------+
+| Data Pipelines              | Python (asyncio + multiprocessing) |
+| (Mixed I/O + CPU)           | -> Rich data processing libraries  |
++-----------------------------+------------------------------------+
+| Real-time Communication     | Go / Rust / Node.js                |
+| (WebSocket etc.)            | -> Strong at massive connections   |
++-----------------------------+------------------------------------+
+| Enterprise                  | C# / Java                          |
+| (Leveraging existing assets)| -> Ecosystem and compatibility     |
++-----------------------------+------------------------------------+
+| Embedded/IoT                | Rust (embassy/no_std)              |
+| (Resource constraints)      | -> Zero-cost, no runtime possible  |
++-----------------------------+------------------------------------+
 ```
 
 ---
 
-## 10. アンチパターンと落とし穴
+## 10. Anti-Patterns and Pitfalls
 
-### 10.1 アンチパターン1: 逐次 await の罠（Sequential Await Trap）
+### 10.1 Anti-Pattern 1: Sequential Await Trap
 
-独立した非同期処理を逐次 await すると、本来並行実行できる処理が直列化されてしまう。
+Sequentially awaiting independent async operations serializes what could otherwise run concurrently.
 
 ```javascript
-// ===== BAD: 逐次 await（不必要に遅い） =====
+// ===== BAD: Sequential await (unnecessarily slow) =====
 async function loadPageData(userId) {
-    // これら3つの処理は互いに依存しないが、直列に実行される
-    const user = await fetchUser(userId);        // 200ms 待ち
-    const posts = await fetchPosts(userId);       // 300ms 待ち
-    const notifications = await fetchNotifications(userId); // 150ms 待ち
-    // 合計: 200 + 300 + 150 = 650ms
+    // These 3 operations don't depend on each other, but execute serially
+    const user = await fetchUser(userId);        // 200ms wait
+    const posts = await fetchPosts(userId);       // 300ms wait
+    const notifications = await fetchNotifications(userId); // 150ms wait
+    // Total: 200 + 300 + 150 = 650ms
 
     return { user, posts, notifications };
 }
 
-// ===== GOOD: 並行 await（高速） =====
+// ===== GOOD: Concurrent await (fast) =====
 async function loadPageData(userId) {
-    // Promise.all で並行実行
+    // Execute concurrently with Promise.all
     const [user, posts, notifications] = await Promise.all([
-        fetchUser(userId),        // ─┐
-        fetchPosts(userId),       // ─┤ 並行実行
-        fetchNotifications(userId), // ─┘
+        fetchUser(userId),        // -+
+        fetchPosts(userId),       // -| concurrent execution
+        fetchNotifications(userId), // -+
     ]);
-    // 合計: max(200, 300, 150) = 300ms（約54%高速化）
+    // Total: max(200, 300, 150) = 300ms (approximately 54% faster)
 
     return { user, posts, notifications };
 }
 
-// ===== BEST: 依存関係を考慮した最適化 =====
+// ===== BEST: Optimization considering dependencies =====
 async function loadPageData(userId) {
-    // Step 1: user は他の処理に必要なので先に取得
+    // Step 1: user is needed by other operations, so fetch it first
     const user = await fetchUser(userId);
 
-    // Step 2: posts と notifications は並行可能
+    // Step 2: posts and notifications can run concurrently
     const [posts, notifications] = await Promise.all([
         fetchPosts(user.id),
         fetchNotifications(user.id),
     ]);
 
-    // Step 3: comments は posts に依存
+    // Step 3: comments depends on posts, so execute sequentially
     const comments = await fetchComments(posts[0]?.id);
 
     return { user, posts, notifications, comments };
@@ -1638,31 +1639,31 @@ async function loadPageData(userId) {
 ```
 
 ```
-逐次 vs 並行の実行時間比較:
+Sequential vs Concurrent Execution Time Comparison:
 
-逐次実行:
-  fetchUser ──[200ms]──┐
-                       │
-  fetchPosts ──────────┴──[300ms]──┐
-                                   │
-  fetchNotifs ─────────────────────┴──[150ms]──┐
-                                               │
-  合計: ────────────────────────────────────────┘ 650ms
+Sequential Execution:
+  fetchUser --[200ms]--+
+                       |
+  fetchPosts ----------+--[300ms]--+
+                                   |
+  fetchNotifs --------- -----------+--[150ms]--+
+                                               |
+  Total: ------------------------------------------+ 650ms
 
-並行実行:
-  fetchUser ──[200ms]──┐
-  fetchPosts ──[300ms]─┤ ← 最も遅い処理がボトルネック
-  fetchNotifs [150ms]──┘
-                       │
-  合計: ───────────────┘ 300ms（54% 削減）
+Concurrent Execution:
+  fetchUser --[200ms]--+
+  fetchPosts --[300ms]-+ <- Slowest operation is the bottleneck
+  fetchNotifs [150ms]--+
+                       |
+  Total: --------  ----+ 300ms (54% reduction)
 ```
 
-### 10.2 アンチパターン2: async/await の不適切な混在
+### 10.2 Anti-Pattern 2: Improper Mixing of async/await
 
 ```javascript
-// ===== BAD: Promise と async/await の混在による混乱 =====
+// ===== BAD: Confusion from mixing Promise and async/await =====
 async function processData() {
-    // .then() 内で await を使おうとする（エラーにはならないが紛らわしい）
+    // Trying to use await inside .then() (no error, but confusing)
     const result = fetch('/api/data')
         .then(async (response) => {
             const json = await response.json();
@@ -1674,10 +1675,10 @@ async function processData() {
             return null;
         });
 
-    return result; // これは Promise<Promise<...>> になりうる
+    return result; // This could become Promise<Promise<...>>
 }
 
-// ===== GOOD: async/await で統一 =====
+// ===== GOOD: Consistent async/await =====
 async function processData() {
     try {
         const response = await fetch('/api/data');
@@ -1691,43 +1692,43 @@ async function processData() {
 }
 ```
 
-### 10.3 アンチパターン3: Fire-and-Forget（投げっぱなし）
+### 10.3 Anti-Pattern 3: Fire-and-Forget
 
 ```javascript
-// ===== BAD: await なしで非同期関数を呼ぶ =====
+// ===== BAD: Calling an async function without await =====
 async function handleRequest(req, res) {
     const data = await fetchData(req.params.id);
 
-    // ログ記録を非同期で呼ぶが、await していない
-    saveAuditLog(req.user, 'data_access');  // ← Promise が浮遊
+    // Calling audit log asynchronously without await
+    saveAuditLog(req.user, 'data_access');  // <- Floating Promise
 
-    // 問題1: エラーが捕捉されない（Unhandled Promise Rejection）
-    // 問題2: プロセス終了時にログが失われる可能性
-    // 問題3: デバッグが困難
+    // Issue 1: Errors are not caught (Unhandled Promise Rejection)
+    // Issue 2: Log may be lost on process exit
+    // Issue 3: Difficult to debug
 
     res.json(data);
 }
 
-// ===== GOOD: 意図的な Fire-and-Forget には明示的にエラー処理 =====
+// ===== GOOD: Explicit error handling for intentional fire-and-forget =====
 async function handleRequest(req, res) {
     const data = await fetchData(req.params.id);
 
-    // 方法1: catch で明示的にエラーを処理
+    // Method 1: Explicitly handle errors with catch
     saveAuditLog(req.user, 'data_access')
         .catch(err => console.error('Audit log failed:', err));
 
-    // 方法2: void 演算子で意図的であることを明示
+    // Method 2: Use void operator to indicate intentionality
     void saveAuditLog(req.user, 'data_access')
         .catch(err => console.error('Audit log failed:', err));
 
     res.json(data);
 }
 
-// ===== BEST: バックグラウンドタスクキューを使う =====
+// ===== BEST: Use a background task queue =====
 async function handleRequest(req, res) {
     const data = await fetchData(req.params.id);
 
-    // タスクキューに投入（リトライ・監視付き）
+    // Enqueue to task queue (with retry and monitoring)
     backgroundQueue.enqueue('audit_log', {
         user: req.user,
         action: 'data_access',
@@ -1738,77 +1739,77 @@ async function handleRequest(req, res) {
 }
 ```
 
-### 10.4 アンチパターン4: async 関数内での同期的ブロッキング
+### 10.4 Anti-Pattern 4: Synchronous Blocking Inside async Functions
 
 ```python
 import asyncio
 import time
 
-# ===== BAD: async 関数内で同期的にブロック =====
+# ===== BAD: Blocking synchronously inside async function =====
 async def process_data():
     data = await fetch_data()
 
-    # time.sleep はイベントループをブロックする!
-    time.sleep(5)  # ← 全ての非同期処理が5秒間停止
+    # time.sleep blocks the event loop!
+    time.sleep(5)  # <- All async processing halts for 5 seconds
 
-    # CPU密集処理もイベントループをブロック
-    result = heavy_computation(data)  # ← 計算中は他の処理が進まない
+    # CPU-intensive work also blocks the event loop
+    result = heavy_computation(data)  # <- No other processing progresses during computation
 
     return result
 
-# ===== GOOD: 非同期スリープとスレッドプールを使う =====
+# ===== GOOD: Use async sleep and thread pool =====
 async def process_data():
     data = await fetch_data()
 
-    # asyncio.sleep は他の処理をブロックしない
+    # asyncio.sleep does not block other processing
     await asyncio.sleep(5)
 
-    # CPU密集処理はスレッドプールで実行
+    # Run CPU-intensive work in a thread pool
     loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(None, heavy_computation, data)
 
     return result
 ```
 
-### 10.5 アンチパターン5: Deadlock（デッドロック）
+### 10.5 Anti-Pattern 5: Deadlock
 
 ```python
-# ===== BAD: 同期コード内から asyncio.run() をネスト呼び出し =====
+# ===== BAD: Nested asyncio.run() call inside synchronous code =====
 import asyncio
 
 async def inner():
     return "result"
 
 async def outer():
-    # 既にイベントループが動作中に asyncio.run() を呼ぶとデッドロック
+    # Calling asyncio.run() while an event loop is already running causes deadlock
     result = asyncio.run(inner())  # RuntimeError!
     return result
 
-# ===== GOOD: await を使う =====
+# ===== GOOD: Use await =====
 async def outer():
-    result = await inner()  # 正しい方法
+    result = await inner()  # Correct approach
     return result
 ```
 
 ```csharp
-// ===== BAD: C# での .Result / .Wait() によるデッドロック =====
-// ASP.NET / WPF など SynchronizationContext がある環境で危険
+// ===== BAD: Deadlock from .Result / .Wait() in C# =====
+// Dangerous in environments with SynchronizationContext (ASP.NET / WPF)
 public string GetData()
 {
-    // async メソッドを .Result で同期的に待機
-    // → SynchronizationContext のキャプチャによりデッドロック
-    var result = FetchDataAsync().Result;  // ← デッドロック!
+    // Synchronously waiting on an async method with .Result
+    // -> Deadlock due to SynchronizationContext capture
+    var result = FetchDataAsync().Result;  // <- Deadlock!
     return result;
 }
 
-// ===== GOOD: async を末端まで伝播させる =====
+// ===== GOOD: Propagate async all the way =====
 public async Task<string> GetDataAsync()
 {
-    var result = await FetchDataAsync();  // 正しい
+    var result = await FetchDataAsync();  // Correct
     return result;
 }
 
-// ConfigureAwait(false) で SynchronizationContext を無視
+// ConfigureAwait(false) to ignore SynchronizationContext
 public async Task<string> GetDataAsync()
 {
     var result = await FetchDataAsync().ConfigureAwait(false);
@@ -1818,18 +1819,18 @@ public async Task<string> GetDataAsync()
 
 ---
 
-## 11. 設計パターンとベストプラクティス
+## 11. Design Patterns and Best Practices
 
-### 11.1 リトライパターン（Exponential Backoff）
+### 11.1 Retry Pattern (Exponential Backoff)
 
 ```javascript
-// ===== 指数バックオフ付きリトライ =====
+// ===== Retry with Exponential Backoff =====
 async function fetchWithRetry(url, options = {}) {
     const {
         maxRetries = 3,
-        baseDelay = 1000,    // 初回待機: 1秒
-        maxDelay = 30000,    // 最大待機: 30秒
-        backoffFactor = 2,   // 倍率
+        baseDelay = 1000,    // Initial wait: 1 second
+        maxDelay = 30000,    // Maximum wait: 30 seconds
+        backoffFactor = 2,   // Multiplier
         retryableStatuses = [408, 429, 500, 502, 503, 504],
     } = options;
 
@@ -1852,12 +1853,12 @@ async function fetchWithRetry(url, options = {}) {
             lastError = error;
 
             if (error.name === 'AbortError') {
-                throw error; // キャンセルはリトライしない
+                throw error; // Don't retry cancellations
             }
         }
 
         if (attempt < maxRetries) {
-            // 指数バックオフ + ジッタ
+            // Exponential backoff + jitter
             const delay = Math.min(
                 baseDelay * Math.pow(backoffFactor, attempt),
                 maxDelay
@@ -1874,7 +1875,7 @@ async function fetchWithRetry(url, options = {}) {
     throw lastError;
 }
 
-// 使用例
+// Usage
 const data = await fetchWithRetry('https://api.example.com/data', {
     maxRetries: 5,
     baseDelay: 500,
@@ -1882,37 +1883,37 @@ const data = await fetchWithRetry('https://api.example.com/data', {
 ```
 
 ```
-指数バックオフの可視化:
+Exponential Backoff Visualization:
 
-リトライ回数   待機時間（ジッタなし）   待機時間（ジッタあり、概算）
-    0          リクエスト送信            リクエスト送信
-    ↓          失敗                      失敗
-    1          1,000ms                   500〜1,500ms
-    ↓          失敗                      失敗
-    2          2,000ms                   1,000〜3,000ms
-    ↓          失敗                      失敗
-    3          4,000ms                   2,000〜6,000ms
-    ↓          失敗                      失敗
-    4          8,000ms                   4,000〜12,000ms
-    ↓          失敗                      失敗
-    5          諦める                    諦める
+Retry Count   Wait Time (no jitter)    Wait Time (with jitter, approx.)
+    0          Send request              Send request
+    v          Failure                   Failure
+    1          1,000ms                   500-1,500ms
+    v          Failure                   Failure
+    2          2,000ms                   1,000-3,000ms
+    v          Failure                   Failure
+    3          4,000ms                   2,000-6,000ms
+    v          Failure                   Failure
+    4          8,000ms                   4,000-12,000ms
+    v          Failure                   Failure
+    5          Give up                   Give up
 
-  ジッタ（Jitter）が重要な理由:
-    多数のクライアントが同時に失敗した場合、
-    全クライアントが同じタイミングでリトライすると
-    サーバーに「リトライストーム」が発生する。
-    ランダムなジッタを加えることで負荷を分散する。
+  Why Jitter Matters:
+    When many clients fail simultaneously,
+    if all clients retry at the same timing,
+    a "retry storm" hits the server.
+    Adding random jitter distributes the load.
 ```
 
-### 11.2 サーキットブレーカーパターン
+### 11.2 Circuit Breaker Pattern
 
 ```javascript
-// ===== サーキットブレーカー: 障害の連鎖を防ぐ =====
+// ===== Circuit Breaker: Preventing cascading failures =====
 class CircuitBreaker {
     constructor(options = {}) {
         this.failureThreshold = options.failureThreshold || 5;
-        this.resetTimeout = options.resetTimeout || 60000; // 60秒
-        this.state = 'CLOSED';  // CLOSED → OPEN → HALF_OPEN → CLOSED
+        this.resetTimeout = options.resetTimeout || 60000; // 60 seconds
+        this.state = 'CLOSED';  // CLOSED -> OPEN -> HALF_OPEN -> CLOSED
         this.failureCount = 0;
         this.lastFailureTime = null;
         this.successCount = 0;
@@ -1959,7 +1960,7 @@ class CircuitBreaker {
     }
 }
 
-// 使用例
+// Usage
 const breaker = new CircuitBreaker({
     failureThreshold: 5,
     resetTimeout: 30000,
@@ -1975,48 +1976,48 @@ async function callExternalService() {
 ```
 
 ```
-サーキットブレーカーの状態遷移:
+Circuit Breaker State Transitions:
 
-  ┌──────────┐  失敗がしきい値超過   ┌──────────┐
-  │ CLOSED   │ ────────────────────> │  OPEN    │
-  │ (正常)   │                       │ (遮断)   │
-  │          │                       │          │
-  │ リクエスト│                       │ 即座に   │
-  │ を通す   │                       │ エラー返却│
-  └────▲─────┘                       └────┬─────┘
-       │                                  │
-       │ 連続成功で回復                     │ リセットタイムアウト経過
-       │                                  │
-  ┌────┴─────┐                       ┌────▼─────┐
-  │          │ <──────────────────── │ HALF_OPEN│
-  │          │  テスト成功            │ (半開)   │
-  │          │                       │          │
-  └──────────┘  テスト失敗 → OPEN    │ 限定的に │
-                に戻る               │ リクエスト│
-                                     │ を通す   │
-                                     └──────────┘
+  +----------+  Failures exceed threshold  +----------+
+  | CLOSED   | --------------------------> |  OPEN    |
+  | (Normal) |                             | (Tripped)|
+  |          |                             |          |
+  | Passes   |                             | Immediate|
+  | requests |                             | error    |
+  +----^-----+                             +----+-----+
+       |                                        |
+       | Consecutive successes recover           | Reset timeout elapsed
+       |                                        |
+  +----+-----+                             +----v-----+
+  |          | <--------------------------- | HALF_OPEN|
+  |          |  Test succeeds               | (Probing)|
+  |          |                             |          |
+  +----------+  Test fails -> back to      | Limited  |
+                OPEN                       | requests |
+                                           | allowed  |
+                                           +----------+
 ```
 
-### 11.3 バルクヘッドパターン（セマフォによるリソース分離）
+### 11.3 Bulkhead Pattern (Resource Isolation with Semaphores)
 
 ```python
 import asyncio
 
 class BulkheadExecutor:
     """
-    バルクヘッドパターン: サービスごとに同時実行数を分離し、
-    1つのサービス障害が他のサービスに波及するのを防ぐ
+    Bulkhead Pattern: Isolate concurrency limits per service to prevent
+    a failure in one service from cascading to others
     """
 
     def __init__(self):
         self.semaphores = {}
 
     def register(self, service_name: str, max_concurrent: int):
-        """サービスごとの同時実行数上限を登録"""
+        """Register a concurrency limit per service"""
         self.semaphores[service_name] = asyncio.Semaphore(max_concurrent)
 
     async def execute(self, service_name: str, coro):
-        """指定サービスのバルクヘッド内で非同期処理を実行"""
+        """Execute an async operation within the specified service's bulkhead"""
         sem = self.semaphores.get(service_name)
         if sem is None:
             raise ValueError(f"Unknown service: {service_name}")
@@ -2024,10 +2025,10 @@ class BulkheadExecutor:
         async with sem:
             return await coro
 
-# 使用例
+# Usage
 bulkhead = BulkheadExecutor()
 bulkhead.register("user_service", max_concurrent=20)
-bulkhead.register("payment_service", max_concurrent=5)   # 少なめに制限
+bulkhead.register("payment_service", max_concurrent=5)   # More restrictive
 bulkhead.register("notification_service", max_concurrent=50)
 
 async def handle_order(order_id: int):
@@ -2044,32 +2045,32 @@ async def handle_order(order_id: int):
 
 ---
 
-## 12. 演習問題
+## 12. Exercises
 
-### 12.1 基礎演習（Beginner）
+### 12.1 Beginner Exercises
 
-**演習1: 非同期データ取得の基本**
+**Exercise 1: Basic Async Data Fetching**
 
-以下の仕様を満たす `fetchAllUsers` 関数を JavaScript で実装せよ。
+Implement a `fetchAllUsers` function in JavaScript that meets the following requirements:
 
-- 引数: ユーザーIDの配列 `userIds: number[]`
-- `/api/users/:id` からユーザー情報を並行取得する
-- 全てのユーザー情報を配列で返す
-- 1つでも失敗した場合はエラーをスローする
+- Parameters: An array of user IDs `userIds: number[]`
+- Concurrently fetch user information from `/api/users/:id`
+- Return all user information as an array
+- Throw an error if any request fails
 
 ```javascript
-// 解答テンプレート
+// Solution template
 async function fetchAllUsers(userIds) {
-    // ここに実装
+    // Implement here
 }
 
-// テスト
+// Test
 // const users = await fetchAllUsers([1, 2, 3, 4, 5]);
 // console.log(users); // [{id:1,name:"Alice"}, {id:2,...}, ...]
 ```
 
 <details>
-<summary>解答例（クリックして展開）</summary>
+<summary>Solution (click to expand)</summary>
 
 ```javascript
 async function fetchAllUsers(userIds) {
@@ -2083,7 +2084,7 @@ async function fetchAllUsers(userIds) {
     return Promise.all(promises);
 }
 
-// 改良版: 同時接続数を制限
+// Improved version: Limit concurrent connections
 async function fetchAllUsersLimited(userIds, concurrency = 5) {
     const results = [];
     const executing = new Set();
@@ -2110,29 +2111,29 @@ async function fetchAllUsersLimited(userIds, concurrency = 5) {
 
 </details>
 
-**演習2: Python でタイムアウト付きフェッチを実装**
+**Exercise 2: Implement Fetching with Timeout in Python**
 
-以下の仕様を満たす関数を Python で実装せよ。
+Implement a function in Python that meets the following requirements:
 
-- 複数の URL を並行フェッチする
-- 各リクエストに個別のタイムアウト（デフォルト5秒）を設定する
-- タイムアウトした URL は結果から除外し、成功したもののみ返す
-- 全体のタイムアウト（デフォルト30秒）も設定可能
+- Concurrently fetch multiple URLs
+- Set an individual timeout (default 5 seconds) for each request
+- Exclude timed-out URLs from results, returning only successful ones
+- Support an overall timeout (default 30 seconds)
 
 ```python
-# 解答テンプレート
+# Solution template
 async def fetch_urls_with_timeout(
     urls: list[str],
     per_request_timeout: float = 5.0,
     total_timeout: float = 30.0,
 ) -> dict[str, str]:
-    """成功した URL と結果のマッピングを返す"""
-    # ここに実装
+    """Return a mapping of successful URLs to their results"""
+    # Implement here
     pass
 ```
 
 <details>
-<summary>解答例（クリックして展開）</summary>
+<summary>Solution (click to expand)</summary>
 
 ```python
 import asyncio
@@ -2166,37 +2167,37 @@ async def fetch_urls_with_timeout(
 
 </details>
 
-### 12.2 中級演習（Intermediate）
+### 12.2 Intermediate Exercises
 
-**演習3: 非同期レートリミッター**
+**Exercise 3: Async Rate Limiter**
 
-以下の仕様を満たすレートリミッターを JavaScript で実装せよ。
+Implement a rate limiter in JavaScript that meets the following requirements:
 
-- トークンバケットアルゴリズムを使用
-- 1秒あたり最大 N リクエストに制限
-- 制限超過時はトークン補充まで自動待機
-- async/await で利用可能なインターフェース
+- Use a token bucket algorithm
+- Limit to a maximum of N requests per second
+- Automatically wait for token replenishment when the limit is exceeded
+- Provide an async/await-compatible interface
 
 ```javascript
-// 解答テンプレート
+// Solution template
 class RateLimiter {
     constructor(maxTokens, refillRate) {
-        // ここに実装
+        // Implement here
     }
 
     async acquire() {
-        // トークン取得（制限超過時は待機）
+        // Acquire a token (wait if limit exceeded)
     }
 }
 
-// 使用例
-// const limiter = new RateLimiter(10, 10); // 最大10トークン、毎秒10トークン補充
-// await limiter.acquire(); // トークン取得
-// await fetch('/api/data'); // リクエスト実行
+// Usage
+// const limiter = new RateLimiter(10, 10); // Max 10 tokens, 10 tokens/sec refill
+// await limiter.acquire(); // Acquire token
+// await fetch('/api/data'); // Execute request
 ```
 
 <details>
-<summary>解答例（クリックして展開）</summary>
+<summary>Solution (click to expand)</summary>
 
 ```javascript
 class RateLimiter {
@@ -2226,7 +2227,7 @@ class RateLimiter {
             return;
         }
 
-        // トークン不足: 補充まで待機
+        // Insufficient tokens: wait for replenishment
         const waitTime = ((1 - this.tokens) / this.refillRate) * 1000;
 
         return new Promise(resolve => {
@@ -2234,7 +2235,7 @@ class RateLimiter {
                 this._refill();
                 this.tokens -= 1;
                 resolve();
-                // キューに待機中のものがあれば処理
+                // Process any items waiting in queue
                 this._processQueue();
             }, waitTime);
         });
@@ -2251,7 +2252,7 @@ class RateLimiter {
     }
 }
 
-// 使用例: API呼び出しをレートリミット
+// Usage: Rate-limit API calls
 async function fetchWithRateLimit(urls) {
     const limiter = new RateLimiter(10, 10);
     const results = [];
@@ -2267,21 +2268,21 @@ async function fetchWithRateLimit(urls) {
 
 </details>
 
-### 12.3 上級演習（Advanced）
+### 12.3 Advanced Exercises
 
-**演習4: 非同期タスクスケジューラ**
+**Exercise 4: Async Task Scheduler**
 
-以下の仕様を満たすタスクスケジューラを実装せよ。言語は自由に選択可。
+Implement a task scheduler that meets the following requirements. Language is your choice.
 
-要件:
-- 優先度付きタスクキュー（high / medium / low）
-- 同時実行数の上限を指定可能
-- タスクの依存関係を宣言可能（タスクAはタスクBの完了後に実行）
-- タイムアウト機能
-- キャンセル機能
+Requirements:
+- Priority task queue (high / medium / low)
+- Configurable concurrency limit
+- Declarable task dependencies (task A runs after task B completes)
+- Timeout functionality
+- Cancellation functionality
 
 ```javascript
-// インターフェース例
+// Interface example
 class TaskScheduler {
     constructor(maxConcurrent) { /* ... */ }
 
@@ -2290,7 +2291,7 @@ class TaskScheduler {
     }
 
     async run() {
-        // 全タスクを依存関係と優先度に従って実行
+        // Execute all tasks according to dependencies and priorities
     }
 
     cancel(taskId) { /* ... */ }
@@ -2298,7 +2299,7 @@ class TaskScheduler {
 ```
 
 <details>
-<summary>解答例（クリックして展開）</summary>
+<summary>Solution (click to expand)</summary>
 
 ```javascript
 class TaskScheduler {
@@ -2377,7 +2378,7 @@ class TaskScheduler {
             const slots = this.maxConcurrent - this.running.size;
 
             if (ready.length === 0 && this.running.size === 0) {
-                // デッドロック検出: 実行可能なタスクも実行中タスクもない
+                // Deadlock detection: no executable or running tasks
                 const remaining = [...this.tasks.keys()].filter(
                     id => !this.completed.has(id) && !this.cancelled.has(id)
                 );
@@ -2398,7 +2399,7 @@ class TaskScheduler {
     }
 }
 
-// 使用例
+// Usage
 const scheduler = new TaskScheduler(3);
 
 scheduler.addTask('fetchUser', async () => {
@@ -2421,93 +2422,93 @@ const results = await scheduler.run();
 
 ---
 
-## 13. FAQ（よくある質問）
+## 13. FAQ (Frequently Asked Questions)
 
-### Q1: async/await とマルチスレッドの違いは何か？
+### Q1: What is the difference between async/await and multithreading?
 
-**A1:** async/await は「並行性（Concurrency）」を提供し、マルチスレッドは「並列性（Parallelism）」を提供する。
+**A1:** async/await provides "concurrency," while multithreading provides "parallelism."
 
 ```
-並行性 (Concurrency):
-  1つの実行主体が複数タスクを切り替えながら処理する
-  → 1コアでも実現可能
-  → I/O 待ちの間に他の処理を進める
+Concurrency:
+  A single executor switches between multiple tasks
+  -> Achievable even with 1 core
+  -> Proceeds with other work during I/O wait
 
-  Thread-1: ─[Task-A]─[Task-B]─[Task-A]─[Task-C]─[Task-B]─
+  Thread-1: -[Task-A]-[Task-B]-[Task-A]-[Task-C]-[Task-B]-
 
-並列性 (Parallelism):
-  複数の実行主体が同時に処理する
-  → 複数コアが必要
-  → CPU密集処理の高速化
+Parallelism:
+  Multiple executors process simultaneously
+  -> Requires multiple cores
+  -> Speeds up CPU-intensive processing
 
-  Core-1: ─[Task-A]─[Task-A]─[Task-A]─
-  Core-2: ─[Task-B]─[Task-B]─[Task-B]─
-  Core-3: ─[Task-C]─[Task-C]─[Task-C]─
+  Core-1: -[Task-A]-[Task-A]-[Task-A]-
+  Core-2: -[Task-B]-[Task-B]-[Task-B]-
+  Core-3: -[Task-C]-[Task-C]-[Task-C]-
 
-async/await が有効な場面:
-  - ネットワーク I/O（HTTP, DB, WebSocket）
-  - ファイル I/O
-  - タイマー処理
-  → 待ち時間が多く、CPU はあまり使わない処理
+Where async/await is effective:
+  - Network I/O (HTTP, DB, WebSocket)
+  - File I/O
+  - Timer operations
+  -> Tasks with lots of waiting and little CPU usage
 
-マルチスレッドが有効な場面:
-  - 画像処理・動画エンコード
-  - 科学計算・機械学習
-  - 暗号処理
-  → CPU をフルに使う計算処理
+Where multithreading is effective:
+  - Image processing / video encoding
+  - Scientific computing / machine learning
+  - Cryptographic operations
+  -> Computation tasks that fully utilize the CPU
 ```
 
-### Q2: JavaScript で await を忘れるとどうなるか？
+### Q2: What happens if you forget await in JavaScript?
 
-**A2:** Promise オブジェクトがそのまま返され、意図しない動作になる。
+**A2:** The Promise object is returned as-is, causing unintended behavior.
 
 ```javascript
-// ===== await を忘れた場合の挙動 =====
+// ===== Behavior when await is forgotten =====
 
 async function getUser(id) {
-    const response = fetch(`/api/users/${id}`);  // await がない!
+    const response = fetch(`/api/users/${id}`);  // Missing await!
 
-    // response は Response オブジェクトではなく Promise オブジェクト
+    // response is a Promise object, not a Response object
     console.log(response);          // Promise { <pending> }
-    console.log(response.status);   // undefined（Promise にはstatusプロパティがない）
+    console.log(response.status);   // undefined (Promise has no status property)
 
-    // JSON パースも失敗する
-    // response.json() → TypeError: response.json is not a function
+    // JSON parsing also fails
+    // response.json() -> TypeError: response.json is not a function
 }
 
-// ===== 正しい書き方 =====
+// ===== Correct way =====
 async function getUser(id) {
-    const response = await fetch(`/api/users/${id}`);  // await あり
+    const response = await fetch(`/api/users/${id}`);  // With await
     console.log(response);          // Response {...}
     console.log(response.status);   // 200
     return await response.json();
 }
 
-// ===== ESLint で検出可能 =====
-// eslint ルール: "@typescript-eslint/no-floating-promises": "error"
-// → await されていない Promise を検出してエラーにする
+// ===== Detectable with ESLint =====
+// eslint rule: "@typescript-eslint/no-floating-promises": "error"
+// -> Detects unhandled Promises and reports them as errors
 ```
 
-### Q3: Python の asyncio はマルチコアを活用できるか？
+### Q3: Can Python's asyncio utilize multiple cores?
 
-**A3:** asyncio 単体ではマルチコアを活用できない（GIL の制約）。CPU密集処理には `multiprocessing` や `ProcessPoolExecutor` を組み合わせる。
+**A3:** asyncio alone cannot utilize multiple cores (due to the GIL constraint). For CPU-intensive processing, combine it with `multiprocessing` or `ProcessPoolExecutor`.
 
 ```python
 import asyncio
 from concurrent.futures import ProcessPoolExecutor
 import multiprocessing
 
-# CPU密集処理
+# CPU-intensive task
 def cpu_heavy_task(data):
-    """GIL の影響を受ける CPU 密集処理"""
+    """CPU-intensive processing affected by the GIL"""
     return sum(x ** 2 for x in range(data))
 
 async def process_with_multiprocessing(items: list[int]) -> list[int]:
-    """asyncio + ProcessPoolExecutor で CPU 並列処理"""
+    """CPU parallel processing with asyncio + ProcessPoolExecutor"""
     loop = asyncio.get_event_loop()
 
     with ProcessPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
-        # 各 CPU コアで並列実行
+        # Execute in parallel on each CPU core
         futures = [
             loop.run_in_executor(executor, cpu_heavy_task, item)
             for item in items
@@ -2516,14 +2517,14 @@ async def process_with_multiprocessing(items: list[int]) -> list[int]:
 
     return results
 
-# I/O と CPU のハイブリッド
+# Hybrid of I/O and CPU
 async def hybrid_pipeline(urls: list[str]) -> list:
-    # Phase 1: I/O 密集（asyncio で並行）
+    # Phase 1: I/O-intensive (concurrent with asyncio)
     raw_data = await asyncio.gather(
         *[fetch_data(url) for url in urls]
     )
 
-    # Phase 2: CPU 密集（ProcessPoolExecutor で並列）
+    # Phase 2: CPU-intensive (parallel with ProcessPoolExecutor)
     loop = asyncio.get_event_loop()
     with ProcessPoolExecutor() as executor:
         processed = await asyncio.gather(
@@ -2533,36 +2534,36 @@ async def hybrid_pipeline(urls: list[str]) -> list:
     return processed
 ```
 
-### Q4: Rust で async fn の返り値の型が複雑になるのはなぜか？
+### Q4: Why does the return type of async fn in Rust become complex?
 
-**A4:** Rust の Future は各 async fn ごとに固有の匿名型（ステートマシン）を生成するため、型を明示するのが困難である。
+**A4:** Rust's Futures generate a unique anonymous type (state machine) for each async fn, making it difficult to explicitly specify the type.
 
 ```rust
-// async fn が生成する Future の型は匿名
+// The Future type generated by async fn is anonymous
 async fn fetch_data() -> String {
-    // コンパイラはこの関数を以下のようなステートマシンに変換:
+    // The compiler transforms this function into a state machine like:
     // enum FetchDataFuture {
-    //     State0 { ... },  // await 前
-    //     State1 { ... },  // 最初の await 後
-    //     State2 { ... },  // 2番目の await 後
+    //     State0 { ... },  // Before await
+    //     State1 { ... },  // After first await
+    //     State2 { ... },  // After second await
     //     Done,
     // }
     let resp = reqwest::get("https://example.com").await.unwrap();
     resp.text().await.unwrap()
 }
 
-// 関数ポインタとして保持する場合:
-// 方法1: impl Future（静的ディスパッチ、推奨）
+// When holding as a function pointer:
+// Method 1: impl Future (static dispatch, recommended)
 fn make_future() -> impl Future<Output = String> {
     fetch_data()
 }
 
-// 方法2: Box<dyn Future>（動的ディスパッチ、ヒープ割り当て）
+// Method 2: Box<dyn Future> (dynamic dispatch, heap allocation)
 fn make_boxed_future() -> Pin<Box<dyn Future<Output = String> + Send>> {
     Box::pin(fetch_data())
 }
 
-// 方法3: トレイトオブジェクトとして保持（コレクションに格納する場合）
+// Method 3: Hold as trait object (when storing in collections)
 async fn run_multiple() {
     let futures: Vec<Pin<Box<dyn Future<Output = String>>>> = vec![
         Box::pin(fetch_data()),
@@ -2576,43 +2577,43 @@ async fn run_multiple() {
 }
 ```
 
-### Q5: async/await を使うべきでない場面はあるか？
+### Q5: Are there cases where async/await should not be used?
 
-**A5:** 以下の場合は async/await が不適切または不要である。
+**A5:** The following cases are where async/await is inappropriate or unnecessary.
 
 ```
-async/await が不適切なケース:
+Cases where async/await is inappropriate:
 
-1. CPU 密集処理のみの場合
-   → マルチスレッド/並列処理を使うべき
-   → async/await は I/O 待ちの効率化が目的
+1. CPU-intensive processing only
+   -> Use multithreading/parallel processing instead
+   -> async/await is designed to optimize I/O wait time
 
-2. 処理が全て同期的に完了する場合
-   → 不要なオーバーヘッドが発生
-   → 同期関数でそのまま書けばよい
+2. All processing completes synchronously
+   -> Unnecessary overhead is introduced
+   -> Just write synchronous functions as-is
 
-3. 共有状態が多い並行処理
-   → async/await + 共有状態 = データ競合のリスク
-   → Actor モデルや CSP（Go の channel）の方が安全
+3. Concurrent processing with extensive shared state
+   -> async/await + shared state = risk of data races
+   -> Actor model or CSP (Go channels) is safer
 
-4. 超低レイテンシが要求される場合
-   → イベントループのオーバーヘッドが問題になりうる
-   → io_uring（Linux）や直接的なシステムコールが有効
+4. Ultra-low latency requirements
+   -> Event loop overhead can become problematic
+   -> io_uring (Linux) or direct system calls are effective
 
-5. 既存の同期APIを薄くラップするだけの場合
-   → async で包んでも内部が同期なら意味がない
-   → Python: asyncio.to_thread() で適切にオフロード
+5. Thinly wrapping existing synchronous APIs
+   -> Wrapping in async is meaningless if internals are synchronous
+   -> Python: Properly offload with asyncio.to_thread()
 ```
 
-### Q6: なぜ Go は async/await を採用しなかったのか？
+### Q6: Why didn't Go adopt async/await?
 
-**A6:** Go の設計哲学は「シンプルさ」を最優先する。goroutine + channel の CSP モデルにより、全ての関数が暗黙的に非同期対応となり、async/await のような構文的な区別が不要になる。
+**A6:** Go's design philosophy prioritizes "simplicity" above all else. With the CSP model of goroutines + channels, all functions are implicitly async-capable, eliminating the need for syntactic distinctions like async/await.
 
 ```go
-// Go: 全ての関数が「同期に見える」
+// Go: All functions "look synchronous"
 func fetchUser(id int) (User, error) {
-    // 内部で I/O が発生しても、goroutine スケジューラが
-    // 自動的にコンテキストスイッチする
+    // Even when I/O occurs internally, the goroutine scheduler
+    // automatically context-switches
     resp, err := http.Get(fmt.Sprintf("/api/users/%d", id))
     if err != nil {
         return User{}, err
@@ -2624,7 +2625,7 @@ func fetchUser(id int) (User, error) {
     return user, err
 }
 
-// 並行実行も goroutine + channel で自然に書ける
+// Concurrent execution is natural with goroutines + channels
 func main() {
     ch := make(chan User, 3)
     for i := 1; i <= 3; i++ {
@@ -2641,40 +2642,40 @@ func main() {
 }
 ```
 
-Go の利点: 関数のシグネチャに async が伝染しない（関数の色問題が存在しない）。
-Go の欠点: goroutine のリーク検出が難しい、明示的なキャンセルが必要（context パッケージ）。
+Go's advantage: async does not infect function signatures (the function coloring problem does not exist).
+Go's disadvantage: Goroutine leak detection is difficult; explicit cancellation is required (context package).
 
 ---
 
-## 14. 非同期処理のデバッグとテスト
+## 14. Debugging and Testing Async Code
 
-### 14.1 デバッグ手法
+### 14.1 Debugging Techniques
 
 ```javascript
-// ===== 非同期処理のデバッグテクニック =====
+// ===== Async Processing Debugging Techniques =====
 
-// 1. async スタックトレースの有効化
-// Node.js: --async-stack-traces フラグ（デフォルトで有効、v12+）
+// 1. Enable async stack traces
+// Node.js: --async-stack-traces flag (enabled by default, v12+)
 
-// 2. Promise のラベリング
+// 2. Promise labeling
 async function fetchUser(id) {
     const promise = fetch(`/api/users/${id}`)
         .then(r => r.json());
 
-    // デバッグ用にラベルを付ける
+    // Add a label for debugging
     promise._debugLabel = `fetchUser(${id})`;
     return promise;
 }
 
-// 3. 未処理の Promise 拒否を検出
+// 3. Detect unhandled Promise rejections
 process.on('unhandledRejection', (reason, promise) => {
     console.error('Unhandled Rejection:', reason);
     console.error('Promise:', promise._debugLabel || promise);
-    // 本番環境ではプロセスを安全に終了
+    // In production, safely terminate the process
     process.exit(1);
 });
 
-// 4. 非同期タイミングの計測
+// 4. Measuring async timing
 async function timedFetch(label, asyncFn) {
     const start = performance.now();
     try {
@@ -2689,25 +2690,25 @@ async function timedFetch(label, asyncFn) {
     }
 }
 
-// 使用例
+// Usage
 const user = await timedFetch('fetchUser', () => fetchUser(1));
 ```
 
-### 14.2 テスト手法
+### 14.2 Testing Techniques
 
 ```javascript
-// ===== Jest/Vitest での非同期テスト =====
+// ===== Async Testing with Jest/Vitest =====
 
-// 基本: async テスト関数
+// Basic: async test function
 test('fetchUser returns user data', async () => {
     const user = await fetchUser(1);
     expect(user).toHaveProperty('name');
     expect(user.id).toBe(1);
 });
 
-// モック: 外部APIのモック
+// Mocking: Mock external APIs
 test('loadDashboard aggregates data', async () => {
-    // fetch をモック
+    // Mock fetch
     global.fetch = jest.fn()
         .mockResolvedValueOnce({
             ok: true,
@@ -2723,13 +2724,13 @@ test('loadDashboard aggregates data', async () => {
     expect(dashboard.posts).toHaveLength(1);
 });
 
-// タイムアウトテスト: fake timers
+// Timeout test: fake timers
 test('fetchWithTimeout throws on timeout', async () => {
     jest.useFakeTimers();
 
     const promise = fetchWithTimeout('/api/slow', 1000);
 
-    // 時間を進める
+    // Advance time
     jest.advanceTimersByTime(1500);
 
     await expect(promise).rejects.toThrow('Timeout');
@@ -2737,7 +2738,7 @@ test('fetchWithTimeout throws on timeout', async () => {
     jest.useRealTimers();
 });
 
-// エラーケース
+// Error cases
 test('processOrder handles payment failure', async () => {
     mockPaymentService.mockRejectedValue(new PaymentError('Declined'));
 
@@ -2749,21 +2750,21 @@ test('processOrder handles payment failure', async () => {
 ```
 
 ```python
-# ===== pytest-asyncio での非同期テスト（Python） =====
+# ===== Async Testing with pytest-asyncio (Python) =====
 import pytest
 import asyncio
 from unittest.mock import AsyncMock, patch
 
 @pytest.mark.asyncio
 async def test_fetch_user():
-    """非同期関数の基本テスト"""
+    """Basic async function test"""
     user = await fetch_user(1)
     assert user["name"] == "Alice"
     assert user["id"] == 1
 
 @pytest.mark.asyncio
 async def test_load_dashboard_concurrent():
-    """並行実行のテスト"""
+    """Concurrent execution test"""
     with patch("module.fetch_user", new_callable=AsyncMock) as mock_fetch:
         mock_fetch.return_value = {"id": 1, "name": "Alice"}
 
@@ -2772,7 +2773,7 @@ async def test_load_dashboard_concurrent():
 
 @pytest.mark.asyncio
 async def test_timeout_behavior():
-    """タイムアウトのテスト"""
+    """Timeout test"""
     with pytest.raises(TimeoutError):
         async with asyncio.timeout(0.1):
             await asyncio.sleep(1.0)
@@ -2783,71 +2784,71 @@ async def test_timeout_behavior():
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point in learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just from theory alone, but from actually writing code and observing its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What common mistakes do beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this knowledge applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+The knowledge of this topic is frequently used in everyday development work. It is particularly important during code reviews and architecture design.
 
 ---
 
-## 15. まとめ
+## 15. Summary
 
-### 15.1 言語別非同期モデル総合比較
+### 15.1 Comprehensive Comparison of Language-Specific Async Models
 
-| 言語 | 非同期構文 | ランタイム | 実行モデル | メモリ効率 | 学習曲線 | 適用領域 |
-|------|----------|----------|----------|----------|---------|---------|
-| JavaScript | async/await | イベントループ(libuv) | シングルスレッド | 中 | 低 | Web全般 |
-| Python | async/await | asyncio | シングルスレッド(GIL) | 中 | 中 | I/O密集型 |
-| Rust | async/await | tokio/async-std | マルチスレッド | 高(ゼロコスト) | 高 | システム/高性能 |
-| Go | goroutine+chan | ランタイム内蔵 | M:Nスケジューリング | 高 | 低 | サーバー/インフラ |
-| C# | async/await | TaskScheduler | スレッドプール | 中 | 中 | エンタープライズ |
-| Java | Virtual Threads | Loom | M:Nスケジューリング | 高 | 低 | エンタープライズ |
+| Language | Async Syntax | Runtime | Execution Model | Memory Efficiency | Learning Curve | Application Domain |
+|----------|-------------|---------|----------------|-------------------|---------------|-------------------|
+| JavaScript | async/await | Event loop (libuv) | Single-threaded | Medium | Low | Web in general |
+| Python | async/await | asyncio | Single-threaded (GIL) | Medium | Medium | I/O-intensive |
+| Rust | async/await | tokio/async-std | Multi-threaded | High (zero-cost) | High | Systems/high-performance |
+| Go | goroutine+chan | Built-in runtime | M:N scheduling | High | Low | Servers/infrastructure |
+| C# | async/await | TaskScheduler | Thread pool | Medium | Medium | Enterprise |
+| Java | Virtual Threads | Loom | M:N scheduling | High | Low | Enterprise |
 
-### 15.2 重要原則のチェックリスト
+### 15.2 Key Principles Checklist
 
 ```
-非同期プログラミングの原則:
+Principles of Asynchronous Programming:
 
-[基本原則]
-  □ I/O バウンドな処理に async/await を使う
-  □ CPU バウンドな処理にはスレッド/プロセスプールを使う
-  □ 独立した非同期処理は並行実行する（Promise.all / gather / join!）
-  □ エラーハンドリングを必ず行う（未処理のPromise拒否を放置しない）
+[Fundamental Principles]
+  [ ] Use async/await for I/O-bound tasks
+  [ ] Use thread/process pools for CPU-bound tasks
+  [ ] Execute independent async operations concurrently (Promise.all / gather / join!)
+  [ ] Always handle errors (don't leave unhandled Promise rejections)
 
-[設計原則]
-  □ async は呼び出し元に伝染する（async all the way）
-  □ 同期コード内から async コードをブロッキング呼び出ししない
-  □ セマフォで同時実行数を制限する
-  □ タイムアウトを必ず設定する
+[Design Principles]
+  [ ] async propagates to callers (async all the way)
+  [ ] Don't block-call async code from synchronous code
+  [ ] Limit concurrency with semaphores
+  [ ] Always set timeouts
 
-[運用原則]
-  □ サーキットブレーカーで障害の連鎖を防ぐ
-  □ リトライは指数バックオフ + ジッタで行う
-  □ キャンセル機構を提供する（AbortController / context / CancellationToken）
-  □ 非同期処理の監視（タイミング計測、エラーレート）を行う
+[Operational Principles]
+  [ ] Prevent cascading failures with circuit breakers
+  [ ] Retry with exponential backoff + jitter
+  [ ] Provide cancellation mechanisms (AbortController / context / CancellationToken)
+  [ ] Monitor async processing (timing measurement, error rates)
 ```
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Reading
 
 
 ---
 
-## 参考文献
+## References
 
-1. Hoare, C.A.R. "Communicating Sequential Processes." *Communications of the ACM*, vol. 21, no. 8, 1978, pp. 666-677. CSP モデルの原論文。Go の goroutine + channel の理論的基盤。
-2. "Asynchronous Programming in Rust." The Rust Async Book, rust-lang.github.io/async-book/. Rust の非同期プログラミングの公式ガイド。Future トレイトとポーリングモデルの詳細な解説。
-3. "Node.js Event Loop, Timers, and process.nextTick()." Node.js Documentation, nodejs.org/en/guides/event-loop-timers-and-nexttick. Node.js のイベントループの公式解説。フェーズごとの動作を詳述。
-4. Python Software Foundation. "asyncio -- Asynchronous I/O." Python Documentation, docs.python.org/3/library/asyncio.html. Python asyncio の公式リファレンス。TaskGroup や timeout の使用方法を含む。
-5. Cleary, Stephen. "Async in C# 5.0." O'Reilly Media, 2012. C# における async/await のベストプラクティス。SynchronizationContext とデッドロック回避の解説。
-6. Go Authors. "Effective Go: Concurrency." go.dev/doc/effective_go#concurrency. Go の並行処理パターンの公式ガイド。goroutine と channel の設計思想。
-7. Goetz, Brian et al. "JEP 444: Virtual Threads." OpenJDK, openjdk.org/jeps/444. Java Virtual Threads の仕様。Project Loom による軽量スレッドの設計。
+1. Hoare, C.A.R. "Communicating Sequential Processes." *Communications of the ACM*, vol. 21, no. 8, 1978, pp. 666-677. The original paper on the CSP model. Theoretical foundation for Go's goroutine + channel.
+2. "Asynchronous Programming in Rust." The Rust Async Book, rust-lang.github.io/async-book/. The official guide to asynchronous programming in Rust. Detailed explanation of the Future trait and polling model.
+3. "Node.js Event Loop, Timers, and process.nextTick()." Node.js Documentation, nodejs.org/en/guides/event-loop-timers-and-nexttick. Official explanation of the Node.js event loop. Details behavior by phase.
+4. Python Software Foundation. "asyncio -- Asynchronous I/O." Python Documentation, docs.python.org/3/library/asyncio.html. Official reference for Python asyncio. Includes usage of TaskGroup and timeout.
+5. Cleary, Stephen. "Async in C# 5.0." O'Reilly Media, 2012. Best practices for async/await in C#. Explains SynchronizationContext and deadlock avoidance.
+6. Go Authors. "Effective Go: Concurrency." go.dev/doc/effective_go#concurrency. Official guide to Go concurrency patterns. Design philosophy of goroutines and channels.
+7. Goetz, Brian et al. "JEP 444: Virtual Threads." OpenJDK, openjdk.org/jeps/444. Specification for Java Virtual Threads. Design of lightweight threads via Project Loom.
 ```

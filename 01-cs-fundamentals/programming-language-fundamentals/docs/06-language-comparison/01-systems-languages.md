@@ -1,88 +1,94 @@
-# システム言語比較（C, C++, Rust, Go, Zig）
+# Systems Language Comparison (C, C++, Rust, Go, Zig)
 
-> システム言語は「ハードウェアに近い制御」と「高いパフォーマンス」を提供する。OS、ドライバ、ゲームエンジン、インフラツールの基盤。
+> Systems languages provide "close-to-hardware control" and "high performance." They form the foundation of OSes, drivers, game engines, and infrastructure tools.
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] 主要システム言語の特徴と適用領域を把握する
-- [ ] メモリ管理戦略の違いを理解する
-- [ ] 安全性とパフォーマンスのトレードオフを判断できる
-- [ ] 各言語のビルドシステムとツールチェーンを理解する
-- [ ] プロジェクト要件に応じた言語選択ができる
-- [ ] 各言語のエラーハンドリング戦略を比較できる
+- [ ] Understand the characteristics and application domains of major systems languages
+- [ ] Understand the differences in memory management strategies
+- [ ] Be able to judge the trade-offs between safety and performance
+- [ ] Understand each language's build system and toolchain
+- [ ] Be able to select the appropriate language based on project requirements
+- [ ] Be able to compare error handling strategies across languages
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [スクリプト言語比較（Python, Ruby, JavaScript, PHP, Perl）](./00-scripting-languages.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding of the content in [Scripting Language Comparison (Python, Ruby, JavaScript, PHP, Perl)](./00-scripting-languages.md)
 
 ---
 
-## 1. 比較表
+## 1. Comparison Table
 
 ```
 ┌──────────────┬────────┬────────┬────────┬────────┬────────┐
 │              │ C      │ C++    │ Rust   │ Go     │ Zig    │
 ├──────────────┼────────┼────────┼────────┼────────┼────────┤
-│ 登場年        │ 1972   │ 1985   │ 2015   │ 2012   │ 2016   │
+│ Year Created │ 1972   │ 1985   │ 2015   │ 2012   │ 2016   │
 ├──────────────┼────────┼────────┼────────┼────────┼────────┤
-│ 設計者        │ D.Ritchie│Stroustrup│ Hoare+│ Pike+  │ A.Kelley│
+│ Designer     │ D.Ritchie│Stroustrup│ Hoare+│ Pike+  │ A.Kelley│
 │              │        │        │ Mozilla│ Google │        │
 ├──────────────┼────────┼────────┼────────┼────────┼────────┤
-│ メモリ管理    │ 手動   │ 手動   │ 所有権 │ GC     │ 手動   │
-│              │ malloc │ RAII   │ Borrow │ 並行GC │ alloc  │
-│              │ free   │ smart  │ checker│ 低遅延 │ comptime│
+│ Memory       │ Manual │ Manual │ Owner- │ GC     │ Manual │
+│ Management   │ malloc │ RAII   │ ship   │ Concur.│ alloc  │
+│              │ free   │ smart  │ Borrow │ GC     │ comptime│
+│              │        │ ptr    │ checker│ Low lat│        │
 ├──────────────┼────────┼────────┼────────┼────────┼────────┤
-│ 安全性        │ 低い   │ 中程度 │ 高い   │ 高い   │ 中程度 │
-│              │ UB多   │ UB有   │ UB無(safe)│メモリ安全│ UB有  │
+│ Safety       │ Low    │ Medium │ High   │ High   │ Medium │
+│              │ Many UB│ Has UB │ No UB  │ Memory │ Has UB │
+│              │        │        │ (safe) │ safe   │        │
 ├──────────────┼────────┼────────┼────────┼────────┼────────┤
-│ パフォーマンス│ 最速   │ 最速   │ 最速   │ 高速   │ 最速   │
-│              │        │        │        │ GC pause│        │
+│ Performance  │ Fastest│ Fastest│ Fastest│ Fast   │ Fastest│
+│              │        │        │        │ GC     │        │
+│              │        │        │        │ pause  │        │
 ├──────────────┼────────┼────────┼────────┼────────┼────────┤
-│ コンパイル速度│ 速い   │ 遅い   │ 遅い   │ 非常速 │ 速い   │
-│              │        │ ヘッダ │ 借用検査│        │ 増分   │
+│ Compile Speed│ Fast   │ Slow   │ Slow   │ Very   │ Fast   │
+│              │        │ Headers│ Borrow │ Fast   │ Increm.│
+│              │        │        │ check  │        │        │
 ├──────────────┼────────┼────────┼────────┼────────┼────────┤
-│ 学習コスト    │ 中程度 │ 高い   │ 高い   │ 低い   │ 中程度 │
-│              │        │ 膨大仕様│ 借用   │ 25KW  │        │
+│ Learning     │ Medium │ High   │ High   │ Low    │ Medium │
+│ Curve        │        │ Massive│ Borrow │ 25 KW  │        │
+│              │        │ spec   │        │        │        │
 ├──────────────┼────────┼────────┼────────┼────────┼────────┤
-│ 抽象化       │ 最低限 │ 豊富   │ 豊富   │ 最低限 │ 最低限 │
-│ レベル       │ 関数   │ テンプレ│ トレイト│ インタフェ│ comptime│
-│              │        │ OOP    │ ジェネリ│ ース   │        │
+│ Abstraction  │ Minimal│ Rich   │ Rich   │ Minimal│ Minimal│
+│ Level        │ Funcs  │ Templat│ Traits │ Inter- │ comptime│
+│              │        │ OOP    │ Generic│ faces  │        │
 ├──────────────┼────────┼────────┼────────┼────────┼────────┤
-│ エラー処理   │ 戻り値 │ 例外   │ Result │ error  │ error  │
-│              │ errno  │ RAII   │ Option │ multi  │ union  │
+│ Error        │ Return │ Except.│ Result │ error  │ error  │
+│ Handling     │ errno  │ RAII   │ Option │ multi  │ union  │
 ├──────────────┼────────┼────────┼────────┼────────┼────────┤
-│ 並行処理     │ pthread│ thread │ Send/  │ goroutine│ async  │
+│ Concurrency  │ pthread│ thread │ Send/  │ gorout.│ async  │
 │              │ fork   │ async  │ Sync   │ channel│ evented│
 ├──────────────┼────────┼────────┼────────┼────────┼────────┤
-│ 主な用途      │ OS     │ ゲーム │ インフラ│ クラウド│ 組み込み│
-│              │ 組み込み│ ブラウザ│ CLI    │ ツール │ システム│
-│              │ カーネル│ DB     │ Wasm   │ マイクロ│ ゲーム │
+│ Primary      │ OS     │ Games  │ Infra  │ Cloud  │ Embedded│
+│ Use Cases    │ Embed. │ Browser│ CLI    │ Tools  │ Systems│
+│              │ Kernel │ DB     │ Wasm   │ Micro- │ Games  │
+│              │        │        │        │ service│        │
 ├──────────────┼────────┼────────┼────────┼────────┼────────┤
-│ 標準ライブラリ│ 最小限 │ 大きい │ 中程度 │ 充実   │ 最小限 │
-│              │ libc   │ STL    │ std    │ net等  │ std    │
+│ Standard     │ Minimal│ Large  │ Medium │ Rich   │ Minimal│
+│ Library      │ libc   │ STL    │ std    │ net etc│ std    │
 ├──────────────┼────────┼────────┼────────┼────────┼────────┤
-│ ビルドシステム│ Make   │ CMake  │ Cargo  │ go build│ zig build│
-│              │ Meson  │ Bazel  │        │        │        │
+│ Build System │ Make   │ CMake  │ Cargo  │ go     │ zig    │
+│              │ Meson  │ Bazel  │        │ build  │ build  │
 └──────────────┴────────┴────────┴────────┴────────┴────────┘
 ```
 
 ---
 
-## 2. メモリ管理モデルの詳細比較
+## 2. Detailed Comparison of Memory Management Models
 
-### 2.1 C — 手動メモリ管理
+### 2.1 C — Manual Memory Management
 
 ```c
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 
-// C: 手動メモリ管理 — malloc/free の対で管理
+// C: Manual memory management — managed with malloc/free pairs
 typedef struct {
     char* name;
     int age;
@@ -92,9 +98,9 @@ typedef struct {
 
 User* user_create(const char* name, int age) {
     User* user = (User*)malloc(sizeof(User));
-    if (!user) return NULL;  // メモリ確保失敗
+    if (!user) return NULL;  // Memory allocation failure
 
-    user->name = strdup(name);  // 文字列のコピーを確保
+    user->name = strdup(name);  // Allocate a copy of the string
     if (!user->name) {
         free(user);
         return NULL;
@@ -107,12 +113,12 @@ User* user_create(const char* name, int age) {
 }
 
 int user_add_tag(User* user, const char* tag) {
-    // realloc で配列を拡張
+    // Expand the array with realloc
     char** new_tags = (char**)realloc(
         user->tags,
         sizeof(char*) * (user->tag_count + 1)
     );
-    if (!new_tags) return -1;  // メモリ確保失敗
+    if (!new_tags) return -1;  // Memory allocation failure
 
     user->tags = new_tags;
     user->tags[user->tag_count] = strdup(tag);
@@ -133,11 +139,11 @@ void user_destroy(User* user) {
     free(user);
 }
 
-// 使用例
+// Usage example
 void example(void) {
     User* alice = user_create("Alice", 30);
     if (!alice) {
-        fprintf(stderr, "メモリ確保失敗\n");
+        fprintf(stderr, "Memory allocation failed\n");
         return;
     }
 
@@ -146,34 +152,34 @@ void example(void) {
 
     printf("Name: %s, Age: %d\n", alice->name, alice->age);
 
-    user_destroy(alice);  // 必ず解放する（忘れるとメモリリーク）
-    // alice = NULL;      // ダングリングポインタ防止（推奨）
+    user_destroy(alice);  // Must free (forgetting causes memory leak)
+    // alice = NULL;      // Prevent dangling pointer (recommended)
 }
 
-// 典型的なCのバグ: Use After Free
+// Typical C bug: Use After Free
 void dangerous_example(void) {
     char* name = strdup("Alice");
     free(name);
-    // printf("%s\n", name);  // 未定義動作！ 解放後のメモリにアクセス
+    // printf("%s\n", name);  // Undefined behavior! Accessing freed memory
 }
 
-// 典型的なCのバグ: バッファオーバーフロー
+// Typical C bug: Buffer Overflow
 void buffer_overflow(void) {
     char buf[10];
-    // strcpy(buf, "This is a very long string");  // 危険！
-    strncpy(buf, "This is a very long string", sizeof(buf) - 1);  // 安全
+    // strcpy(buf, "This is a very long string");  // Dangerous!
+    strncpy(buf, "This is a very long string", sizeof(buf) - 1);  // Safe
     buf[sizeof(buf) - 1] = '\0';
 }
 
-// 典型的なCのバグ: ダブルフリー
+// Typical C bug: Double Free
 void double_free_example(void) {
     char* ptr = malloc(100);
     free(ptr);
-    // free(ptr);  // 未定義動作！ 二重解放
+    // free(ptr);  // Undefined behavior! Double free
 }
 ```
 
-### 2.2 C++ — RAII とスマートポインタ
+### 2.2 C++ — RAII and Smart Pointers
 
 ```cpp
 #include <string>
@@ -183,14 +189,14 @@ void double_free_example(void) {
 #include <optional>
 
 // C++: RAII (Resource Acquisition Is Initialization)
-// コンストラクタで獲得、デストラクタで解放
+// Acquire in constructor, release in destructor
 
 class User {
 public:
     User(std::string name, int age)
         : name_(std::move(name)), age_(age) {}
 
-    // デストラクタ — スコープを抜けると自動呼び出し
+    // Destructor — automatically called when going out of scope
     ~User() {
         std::cout << "User " << name_ << " destroyed" << std::endl;
     }
@@ -204,62 +210,62 @@ public:
     const std::vector<std::string>& tags() const { return tags_; }
 
 private:
-    std::string name_;      // std::string が内部メモリを管理
+    std::string name_;      // std::string manages internal memory
     int age_;
-    std::vector<std::string> tags_;  // vector が配列メモリを管理
+    std::vector<std::string> tags_;  // vector manages array memory
 };
 
-// スマートポインタの使い分け
+// Smart pointer usage patterns
 void smart_pointer_example() {
-    // unique_ptr: 唯一の所有権（最も一般的）
+    // unique_ptr: Exclusive ownership (most common)
     auto alice = std::make_unique<User>("Alice", 30);
     alice->add_tag("admin");
 
-    // 所有権の移動（ムーブ）
+    // Ownership transfer (move)
     auto owner = std::move(alice);
-    // alice はもう使えない（nullptr）
+    // alice can no longer be used (nullptr)
 
-    // shared_ptr: 共有所有権（参照カウント）
+    // shared_ptr: Shared ownership (reference counting)
     auto bob = std::make_shared<User>("Bob", 25);
     {
-        auto bob_ref = bob;  // 参照カウント +1
+        auto bob_ref = bob;  // Reference count +1
         std::cout << "ref count: " << bob.use_count() << std::endl;  // 2
     }
-    // bob_ref がスコープを抜けて参照カウント -1
+    // bob_ref goes out of scope, reference count -1
     std::cout << "ref count: " << bob.use_count() << std::endl;  // 1
 
-    // weak_ptr: 循環参照の防止
+    // weak_ptr: Prevents circular references
     std::weak_ptr<User> weak = bob;
     if (auto locked = weak.lock()) {
         std::cout << "User still alive: " << locked->name() << std::endl;
     }
 }
 
-// ムーブセマンティクス（C++11以降）
+// Move semantics (C++11 and later)
 class LargeBuffer {
     std::vector<uint8_t> data_;
 
 public:
     explicit LargeBuffer(size_t size) : data_(size, 0) {}
 
-    // ムーブコンストラクタ — データの所有権を移動（コピーなし）
+    // Move constructor — transfers ownership of data (no copy)
     LargeBuffer(LargeBuffer&& other) noexcept
         : data_(std::move(other.data_)) {}
 
-    // ムーブ代入演算子
+    // Move assignment operator
     LargeBuffer& operator=(LargeBuffer&& other) noexcept {
         data_ = std::move(other.data_);
         return *this;
     }
 
-    // コピーを禁止（大きいデータの意図しないコピーを防ぐ）
+    // Disable copy (prevent unintended copying of large data)
     LargeBuffer(const LargeBuffer&) = delete;
     LargeBuffer& operator=(const LargeBuffer&) = delete;
 
     size_t size() const { return data_.size(); }
 };
 
-// std::optional で null を型安全に扱う
+// Type-safe null handling with std::optional
 std::optional<User> find_user(const std::string& name) {
     if (name == "Alice") {
         return User("Alice", 30);
@@ -273,13 +279,13 @@ void optional_example() {
         std::cout << user->name() << std::endl;
     }
 
-    // value_or でデフォルト値
+    // Default value with value_or
     auto name = find_user("Bob")
         .transform( { return u.name(); })
         .value_or("Unknown");
 }
 
-// コンセプト（C++20）— テンプレートの型制約
+// Concepts (C++20) — Type constraints for templates
 template<typename T>
 concept Printable = requires(T t) {
     { std::cout << t } -> std::same_as<std::ostream&>;
@@ -290,7 +296,7 @@ void print(const T& value) {
     std::cout << value << std::endl;
 }
 
-// Ranges（C++20）— 関数型スタイルのデータ処理
+// Ranges (C++20) — Functional-style data processing
 #include <ranges>
 #include <algorithm>
 
@@ -308,16 +314,16 @@ void ranges_example() {
 }
 ```
 
-### 2.3 Rust — 所有権と借用チェッカー
+### 2.3 Rust — Ownership and the Borrow Checker
 
 ```rust
 use std::collections::HashMap;
 
-// Rust: 所有権システム — コンパイル時にメモリ安全性を保証
-// 3つのルール:
-// 1. 各値は1つの所有者を持つ
-// 2. 所有者がスコープを離れると値は破棄される
-// 3. &T（不変借用）は複数可、&mut T（可変借用）は1つだけ
+// Rust: Ownership system — guarantees memory safety at compile time
+// Three rules:
+// 1. Each value has one owner
+// 2. When the owner goes out of scope, the value is dropped
+// 3. &T (immutable borrow) can have multiple, &mut T (mutable borrow) only one
 
 struct User {
     name: String,
@@ -338,14 +344,14 @@ impl User {
         self.tags.push(tag.into());
     }
 
-    // &self: 不変借用（読み取りのみ）
+    // &self: Immutable borrow (read-only)
     fn display(&self) -> String {
         format!("{} (age: {}, tags: {:?})", self.name, self.age, self.tags)
     }
 
-    // self: 所有権を消費（呼び出し後は使えない）
+    // self: Consumes ownership (cannot be used after calling)
     fn into_name(self) -> String {
-        self.name  // 所有権が移動
+        self.name  // Ownership is moved
     }
 }
 
@@ -354,19 +360,19 @@ fn ownership_example() {
     alice.add_tag("admin");
     alice.add_tag("developer");
 
-    // 不変借用（同時に複数可能）
+    // Immutable borrows (multiple allowed simultaneously)
     let display1 = alice.display();
     let display2 = alice.display();
     println!("{}", display1);
     println!("{}", display2);
 
-    // 所有権の移動
+    // Ownership transfer
     let name = alice.into_name();
     println!("Name: {}", name);
-    // println!("{}", alice.display());  // コンパイルエラー！ aliceはもう使えない
+    // println!("{}", alice.display());  // Compile error! alice can no longer be used
 }
 
-// ライフタイム — 参照の有効期間をコンパイラに伝える
+// Lifetimes — communicate reference validity to the compiler
 fn longest<'a>(x: &'a str, y: &'a str) -> &'a str {
     if x.len() > y.len() { x } else { y }
 }
@@ -386,12 +392,12 @@ impl<'a> Config<'a> {
     }
 }
 
-// Result/Option によるエラーハンドリング
+// Error handling with Result/Option
 use std::fs;
 use std::io;
 
 fn read_config(path: &str) -> Result<HashMap<String, String>, io::Error> {
-    let content = fs::read_to_string(path)?;  // ? 演算子でエラー伝播
+    let content = fs::read_to_string(path)?;  // ? operator propagates errors
     let mut config = HashMap::new();
 
     for line in content.lines() {
@@ -403,7 +409,7 @@ fn read_config(path: &str) -> Result<HashMap<String, String>, io::Error> {
     Ok(config)
 }
 
-// パターンマッチとenum（代数的データ型）
+// Pattern matching and enums (algebraic data types)
 #[derive(Debug)]
 enum Shape {
     Circle { radius: f64 },
@@ -421,11 +427,11 @@ impl Shape {
     }
 }
 
-// トレイト — インターフェースとジェネリクスの基盤
+// Traits — the foundation of interfaces and generics
 trait Summary {
     fn summarize(&self) -> String;
 
-    // デフォルト実装
+    // Default implementation
     fn summarize_short(&self) -> String {
         format!("{}...", &self.summarize()[..20])
     }
@@ -433,16 +439,16 @@ trait Summary {
 
 impl Summary for User {
     fn summarize(&self) -> String {
-        format!("{} ({}歳)", self.name, self.age)
+        format!("{} (age {})", self.name, self.age)
     }
 }
 
-// トレイト境界によるジェネリクス
+// Generics with trait bounds
 fn print_summary(item: &impl Summary) {
     println!("{}", item.summarize());
 }
 
-// where句を使った複雑な制約
+// Complex constraints with where clauses
 fn process_items<T>(items: &[T]) -> Vec<String>
 where
     T: Summary + std::fmt::Debug,
@@ -452,7 +458,7 @@ where
         .collect()
 }
 
-// 並行処理 — Send/Syncトレイトでコンパイル時安全性保証
+// Concurrency — Compile-time safety guaranteed by Send/Sync traits
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -476,28 +482,28 @@ fn concurrent_counter() {
     println!("Counter: {}", *counter.lock().unwrap());  // 10
 }
 
-// チャネルによるメッセージパッシング
+// Message passing with channels
 use std::sync::mpsc;
 
 fn channel_example() {
     let (tx, rx) = mpsc::channel();
 
-    // 送信側
+    // Sender side
     for i in 0..5 {
         let tx = tx.clone();
         thread::spawn(move || {
             tx.send(format!("Message {}", i)).unwrap();
         });
     }
-    drop(tx);  // 元の送信者を閉じる
+    drop(tx);  // Close the original sender
 
-    // 受信側
+    // Receiver side
     for received in rx {
         println!("Got: {}", received);
     }
 }
 
-// async/await（非同期処理）
+// async/await (asynchronous processing)
 use tokio;
 
 #[tokio::main]
@@ -522,7 +528,7 @@ async fn main() {
 }
 ```
 
-### 2.4 Go — ガベージコレクタ + 軽量並行処理
+### 2.4 Go — Garbage Collector + Lightweight Concurrency
 
 ```go
 package main
@@ -535,17 +541,17 @@ import (
     "time"
 )
 
-// Go: GCによるメモリ管理 + goroutine による軽量並行処理
-// 設計哲学: シンプルさ、高速コンパイル、並行処理
+// Go: GC-based memory management + lightweight concurrency via goroutines
+// Design philosophy: Simplicity, fast compilation, concurrency
 
-// 構造体（Go にはクラスがない）
+// Structs (Go has no classes)
 type User struct {
     Name string
     Age  int
     Tags []string
 }
 
-// メソッド（レシーバ付き関数）
+// Methods (functions with receivers)
 func (u *User) AddTag(tag string) {
     u.Tags = append(u.Tags, tag)
 }
@@ -554,21 +560,21 @@ func (u User) Display() string {
     return fmt.Sprintf("%s (age: %d, tags: %v)", u.Name, u.Age, u.Tags)
 }
 
-// インターフェース — 暗黙的実装（implements 宣言不要）
+// Interfaces — implicit implementation (no implements declaration needed)
 type Summarizer interface {
     Summarize() string
 }
 
 func (u User) Summarize() string {
-    return fmt.Sprintf("%s (%d歳)", u.Name, u.Age)
+    return fmt.Sprintf("%s (age %d)", u.Name, u.Age)
 }
 
-// User は Summarizer を暗黙的に実装
+// User implicitly implements Summarizer
 func PrintSummary(s Summarizer) {
     fmt.Println(s.Summarize())
 }
 
-// エラーハンドリング — 明示的な error 値の返却
+// Error handling — explicit error value return
 type AppError struct {
     Code    int
     Message string
@@ -588,7 +594,7 @@ func FindUser(name string) (*User, error) {
     return nil, &AppError{Code: 404, Message: "user not found"}
 }
 
-// errors.Is / errors.As によるエラー判定（Go 1.13+）
+// Error identification with errors.Is / errors.As (Go 1.13+)
 func example() {
     user, err := FindUser("Bob")
     if err != nil {
@@ -603,9 +609,9 @@ func example() {
     fmt.Println(user.Display())
 }
 
-// Goroutine + Channel — Go の並行処理の核
+// Goroutine + Channel — The core of Go's concurrency
 func goroutineExample() {
-    ch := make(chan string, 10)  // バッファ付きチャネル
+    ch := make(chan string, 10)  // Buffered channel
 
     urls := []string{
         "https://example.com",
@@ -615,7 +621,7 @@ func goroutineExample() {
 
     for _, url := range urls {
         go func(u string) {
-            // HTTPリクエストを並行実行
+            // Execute HTTP requests concurrently
             result := fmt.Sprintf("Fetched: %s", u)
             ch <- result
         }(url)
@@ -626,7 +632,7 @@ func goroutineExample() {
     }
 }
 
-// select文 — 複数チャネルの待機
+// select statement — waiting on multiple channels
 func selectExample() {
     ch1 := make(chan string)
     ch2 := make(chan string)
@@ -653,14 +659,14 @@ func selectExample() {
     }
 }
 
-// Context によるキャンセレーション
+// Cancellation with Context
 func contextExample(ctx context.Context) error {
     ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
     defer cancel()
 
     ch := make(chan string, 1)
     go func() {
-        // 長時間処理
+        // Long-running processing
         time.Sleep(3 * time.Second)
         ch <- "done"
     }()
@@ -674,7 +680,7 @@ func contextExample(ctx context.Context) error {
     }
 }
 
-// WaitGroup で複数 goroutine の完了を待機
+// WaitGroup to wait for multiple goroutine completions
 func waitGroupExample() {
     var wg sync.WaitGroup
     results := make([]string, 5)
@@ -691,7 +697,7 @@ func waitGroupExample() {
     fmt.Println(results)
 }
 
-// ジェネリクス（Go 1.18+）
+// Generics (Go 1.18+)
 func MapT any, U any U) []U {
     result := make([]U, len(slice))
     for i, v := range slice {
@@ -710,7 +716,7 @@ func FilterT any bool) []T {
     return result
 }
 
-// 型制約
+// Type constraints
 type Number interface {
     ~int | ~int64 | ~float64
 }
@@ -723,7 +729,7 @@ func SumT Number T {
     return total
 }
 
-// 使用例
+// Usage example
 func genericsExample() {
     names := []string{"Alice", "Bob", "Carol"}
     upper := Map(names, strings.ToUpper)
@@ -738,16 +744,16 @@ func genericsExample() {
 }
 ```
 
-### 2.5 Zig — コンパイル時計算と明示性
+### 2.5 Zig — Compile-Time Computation and Explicitness
 
 ```zig
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-// Zig: 手動メモリ管理 + comptime（コンパイル時計算）
-// 設計哲学: 隠れた制御フローなし、隠れたメモリ割り当てなし
+// Zig: Manual memory management + comptime (compile-time computation)
+// Design philosophy: No hidden control flow, no hidden memory allocations
 
-// アロケータを明示的に渡す（隠れた割り当てなし）
+// Explicitly passing allocators (no hidden allocations)
 const User = struct {
     name: []const u8,
     age: u32,
@@ -776,7 +782,7 @@ const User = struct {
     }
 };
 
-// エラーハンドリング — error union 型
+// Error handling — error union types
 const FileError = error{
     FileNotFound,
     PermissionDenied,
@@ -791,22 +797,22 @@ fn readConfig(path: []const u8) FileError![]const u8 {
     };
     defer file.close();
 
-    // ファイル読み込み
+    // File reading
     return file.readToEndAlloc(std.heap.page_allocator, 1024 * 1024) catch {
         return FileError.OutOfMemory;
     };
 }
 
-// comptime — コンパイル時計算（Zigの最大の特徴）
+// comptime — Compile-time computation (Zig's most distinctive feature)
 fn fibonacci(comptime n: u32) u32 {
     if (n <= 1) return n;
     return fibonacci(n - 1) + fibonacci(n - 2);
 }
 
-// コンパイル時に計算されるので実行時コストゼロ
-const fib_10 = fibonacci(10);  // コンパイル時に 55 と計算される
+// Computed at compile time, so zero runtime cost
+const fib_10 = fibonacci(10);  // Computed as 55 at compile time
 
-// comptime による型生成
+// Type generation with comptime
 fn Matrix(comptime T: type, comptime rows: usize, comptime cols: usize) type {
     return struct {
         data: [rows][cols]T,
@@ -829,7 +835,7 @@ fn Matrix(comptime T: type, comptime rows: usize, comptime cols: usize) type {
     };
 }
 
-// 使用例
+// Usage example
 const Mat3x3 = Matrix(f64, 3, 3);
 
 pub fn main() void {
@@ -837,21 +843,21 @@ pub fn main() void {
     mat.set(0, 0, 1.0);
     mat.set(1, 1, 1.0);
     mat.set(2, 2, 1.0);
-    // 3x3 単位行列
+    // 3x3 identity matrix
 }
 
-// defer / errdefer — リソース管理
+// defer / errdefer — Resource management
 fn processFile(path: []const u8) !void {
     const file = try std.fs.cwd().openFile(path, .{});
-    defer file.close();  // 関数終了時に必ず実行
+    defer file.close();  // Always executed when function exits
 
     const buffer = try std.heap.page_allocator.alloc(u8, 4096);
-    errdefer std.heap.page_allocator.free(buffer);  // エラー時のみ実行
+    errdefer std.heap.page_allocator.free(buffer);  // Executed only on error
 
-    // ファイル処理...
+    // File processing...
 }
 
-// テスト（言語組み込み）
+// Tests (built into the language)
 test "fibonacci" {
     try std.testing.expectEqual(fibonacci(0), 0);
     try std.testing.expectEqual(fibonacci(1), 1);
@@ -869,67 +875,69 @@ test "user creation" {
 
 ---
 
-## 3. エラーハンドリング戦略の比較
+## 3. Comparison of Error Handling Strategies
 
 ```
 ┌──────────┬────────────────────┬──────────────────────────────────┐
-│ 言語      │ 主なメカニズム      │ 特徴                              │
+│ Language │ Primary Mechanism  │ Characteristics                  │
 ├──────────┼────────────────────┼──────────────────────────────────┤
-│ C        │ 戻り値 + errno     │ エラーチェック漏れが起きやすい      │
-│          │                    │ 情報量が少ない                     │
+│ C        │ Return values +    │ Easy to miss error checks        │
+│          │ errno              │ Limited information              │
 ├──────────┼────────────────────┼──────────────────────────────────┤
-│ C++      │ 例外 + RAII        │ スタックアンワインドで自動クリーンアップ│
-│          │ std::expected(C++23)│ noexcept で例外なし関数を明示      │
+│ C++      │ Exceptions + RAII  │ Auto cleanup via stack unwinding │
+│          │ std::expected      │ noexcept to declare exception-   │
+│          │ (C++23)            │ free functions                   │
 ├──────────┼────────────────────┼──────────────────────────────────┤
-│ Rust     │ Result<T,E> +      │ ? 演算子で簡潔なエラー伝播         │
-│          │ Option<T>          │ panic! は回復不能エラーのみ         │
+│ Rust     │ Result<T,E> +      │ Concise error propagation with ? │
+│          │ Option<T>          │ panic! only for unrecoverable    │
+│          │                    │ errors                           │
 ├──────────┼────────────────────┼──────────────────────────────────┤
-│ Go       │ error インターフェース│ (value, error) タプルで返却       │
-│          │ errors.Is/As       │ 明示的だが冗長になりがち            │
+│ Go       │ error interface    │ Return (value, error) tuples     │
+│          │ errors.Is/As       │ Explicit but tends to be verbose │
 ├──────────┼────────────────────┼──────────────────────────────────┤
-│ Zig      │ error union        │ try / catch で簡潔に記述           │
-│          │ errdefer           │ エラー時のクリーンアップが容易       │
+│ Zig      │ error union        │ Concise with try / catch         │
+│          │ errdefer           │ Easy error-time cleanup          │
 └──────────┴────────────────────┴──────────────────────────────────┘
 ```
 
-### 同じエラーハンドリングパターンの比較
+### Comparing the Same Error Handling Pattern
 
 ```c
-// C: 戻り値でエラーを伝える
+// C: Communicating errors via return values
 #include <stdio.h>
 #include <errno.h>
 
 int read_int_from_file(const char* path, int* result) {
     FILE* f = fopen(path, "r");
     if (!f) {
-        return -1;  // エラー（errno にエラーコード）
+        return -1;  // Error (error code in errno)
     }
 
     if (fscanf(f, "%d", result) != 1) {
         fclose(f);
-        return -2;  // パースエラー
+        return -2;  // Parse error
     }
 
     fclose(f);
-    return 0;  // 成功
+    return 0;  // Success
 }
 
-// 呼び出し側
+// Caller side
 void caller(void) {
     int value;
     int ret = read_int_from_file("config.txt", &value);
     if (ret == -1) {
-        fprintf(stderr, "ファイルが開けません: %s\n", strerror(errno));
+        fprintf(stderr, "Cannot open file: %s\n", strerror(errno));
     } else if (ret == -2) {
-        fprintf(stderr, "パースエラー\n");
+        fprintf(stderr, "Parse error\n");
     } else {
-        printf("値: %d\n", value);
+        printf("Value: %d\n", value);
     }
 }
 ```
 
 ```cpp
-// C++: 例外 + std::expected (C++23)
+// C++: Exceptions + std::expected (C++23)
 #include <expected>
 #include <fstream>
 #include <string>
@@ -954,39 +962,39 @@ std::expected<int, ReadError> read_int_from_file(const std::string& path) {
     return value;
 }
 
-// 呼び出し側
+// Caller side
 void caller() {
     auto result = read_int_from_file("config.txt");
     if (result.has_value()) {
-        std::cout << "値: " << result.value() << std::endl;
+        std::cout << "Value: " << result.value() << std::endl;
     } else {
         switch (result.error()) {
             case ReadError::FileNotFound:
-                std::cerr << "ファイルが見つかりません" << std::endl;
+                std::cerr << "File not found" << std::endl;
                 break;
             case ReadError::ParseError:
-                std::cerr << "パースエラー" << std::endl;
+                std::cerr << "Parse error" << std::endl;
                 break;
         }
     }
 
-    // transform でチェーン
+    // Chaining with transform
     auto doubled = read_int_from_file("config.txt")
         .transform( { return v * 2; });
 }
 ```
 
 ```rust
-// Rust: Result + ? 演算子
+// Rust: Result + ? operator
 use std::fs;
 use std::num::ParseIntError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 enum ReadError {
-    #[error("ファイルが開けません: {0}")]
+    #[error("Cannot open file: {0}")]
     FileNotFound(#[from] std::io::Error),
-    #[error("パースエラー: {0}")]
+    #[error("Parse error: {0}")]
     ParseError(#[from] ParseIntError),
 }
 
@@ -996,22 +1004,22 @@ fn read_int_from_file(path: &str) -> Result<i32, ReadError> {
     Ok(value)
 }
 
-// 呼び出し側
+// Caller side
 fn caller() {
     match read_int_from_file("config.txt") {
-        Ok(value) => println!("値: {}", value),
-        Err(ReadError::FileNotFound(e)) => eprintln!("ファイルエラー: {}", e),
-        Err(ReadError::ParseError(e)) => eprintln!("パースエラー: {}", e),
+        Ok(value) => println!("Value: {}", value),
+        Err(ReadError::FileNotFound(e)) => eprintln!("File error: {}", e),
+        Err(ReadError::ParseError(e)) => eprintln!("Parse error: {}", e),
     }
 
-    // map / and_then でチェーン
+    // Chaining with map / and_then
     let doubled = read_int_from_file("config.txt")
         .map(|v| v * 2);
 }
 ```
 
 ```go
-// Go: error インターフェース
+// Go: error interface
 package main
 
 import (
@@ -1041,7 +1049,7 @@ func readIntFromFile(path string) (int, error) {
     if err != nil {
         return 0, &ReadError{
             Kind:    "file_not_found",
-            Message: fmt.Sprintf("ファイルが開けません: %s", path),
+            Message: fmt.Sprintf("Cannot open file: %s", path),
             Err:     err,
         }
     }
@@ -1050,7 +1058,7 @@ func readIntFromFile(path string) (int, error) {
     if err != nil {
         return 0, &ReadError{
             Kind:    "parse_error",
-            Message: "パースエラー",
+            Message: "Parse error",
             Err:     err,
         }
     }
@@ -1058,54 +1066,57 @@ func readIntFromFile(path string) (int, error) {
     return value, nil
 }
 
-// 呼び出し側
+// Caller side
 func caller() {
     value, err := readIntFromFile("config.txt")
     if err != nil {
         var readErr *ReadError
         if errors.As(err, &readErr) {
-            fmt.Printf("エラー種別: %s, メッセージ: %s\n", readErr.Kind, readErr.Message)
+            fmt.Printf("Error type: %s, Message: %s\n", readErr.Kind, readErr.Message)
         } else {
-            fmt.Printf("不明なエラー: %v\n", err)
+            fmt.Printf("Unknown error: %v\n", err)
         }
         return
     }
-    fmt.Printf("値: %d\n", value)
+    fmt.Printf("Value: %d\n", value)
 }
 ```
 
 ---
 
-## 4. ビルドシステムとツールチェーン
+## 4. Build Systems and Toolchains
 
 ```
 ┌──────────┬──────────────┬─────────────────────────────────────┐
-│ 言語      │ ビルドツール  │ 特徴                                 │
+│ Language │ Build Tools  │ Characteristics                     │
 ├──────────┼──────────────┼─────────────────────────────────────┤
-│ C        │ Make, CMake  │ 歴史的に最も使われている               │
-│          │ Meson, Ninja │ ビルドスクリプトの記述が複雑             │
-│          │              │ プラットフォーム依存が大きい             │
+│ C        │ Make, CMake  │ Historically most widely used        │
+│          │ Meson, Ninja │ Build script writing is complex      │
+│          │              │ High platform dependency             │
 ├──────────┼──────────────┼─────────────────────────────────────┤
-│ C++      │ CMake        │ 事実上の標準だが設定が難解              │
-│          │ Bazel        │ 大規模プロジェクト向け（Google製）      │
-│          │ Conan,vcpkg  │ パッケージマネージャ                    │
+│ C++      │ CMake        │ De facto standard but config is hard │
+│          │ Bazel        │ For large projects (by Google)       │
+│          │ Conan,vcpkg  │ Package managers                     │
 ├──────────┼──────────────┼─────────────────────────────────────┤
-│ Rust     │ Cargo        │ ビルド+パッケージ+テスト+ベンチ統合     │
-│          │              │ toml設定、cargo.lock で再現性確保       │
-│          │              │ 最も優れたツールチェーン体験             │
+│ Rust     │ Cargo        │ Integrated build+pkg+test+bench      │
+│          │              │ TOML config, cargo.lock for          │
+│          │              │ reproducibility                      │
+│          │              │ Best-in-class toolchain experience   │
 ├──────────┼──────────────┼─────────────────────────────────────┤
-│ Go       │ go build     │ go mod でモジュール管理                │
-│          │              │ 外部ツール不要、go コマンドで完結       │
-│          │              │ クロスコンパイルが非常に簡単             │
+│ Go       │ go build     │ Module management with go mod        │
+│          │              │ No external tools needed, everything │
+│          │              │ with the go command                  │
+│          │              │ Cross-compilation is very easy       │
 ├──────────┼──────────────┼─────────────────────────────────────┤
-│ Zig      │ zig build    │ build.zig で宣言的ビルド               │
-│          │              │ C/C++ のクロスコンパイラとしても使用可能 │
-│          │              │ libc を同梱                           │
+│ Zig      │ zig build    │ Declarative builds with build.zig   │
+│          │              │ Can also be used as a C/C++ cross-   │
+│          │              │ compiler                             │
+│          │              │ Bundles libc                         │
 └──────────┴──────────────┴─────────────────────────────────────┘
 ```
 
 ```toml
-# Rust: Cargo.toml — 依存管理の模範例
+# Rust: Cargo.toml — Exemplary dependency management
 [package]
 name = "my-cli-tool"
 version = "0.1.0"
@@ -1126,13 +1137,13 @@ predicates = "3"
 tempfile = "3"
 
 [profile.release]
-lto = true        # リンク時最適化
-strip = true      # デバッグ情報除去
-codegen-units = 1 # 最大最適化
+lto = true        # Link-time optimization
+strip = true      # Strip debug info
+codegen-units = 1 # Maximum optimization
 ```
 
 ```go
-// Go: go.mod — シンプルなモジュール管理
+// Go: go.mod — Simple module management
 // go.mod
 module github.com/user/myapp
 
@@ -1144,7 +1155,7 @@ require (
     go.uber.org/zap v1.27.0
 )
 
-// クロスコンパイル（コマンド1つ）
+// Cross-compilation (single command)
 // GOOS=linux GOARCH=amd64 go build -o myapp-linux
 // GOOS=darwin GOARCH=arm64 go build -o myapp-mac
 // GOOS=windows GOARCH=amd64 go build -o myapp.exe
@@ -1152,220 +1163,220 @@ require (
 
 ---
 
-## 5. 適用領域の詳細
+## 5. Application Domain Details
 
-### 5.1 領域別最適言語マッピング
+### 5.1 Best Language by Domain Mapping
 
 ```
-OS カーネル:
-  C:    Linux kernel（3,000万行超）
-  Rust: Linux kernel 新モジュール（6.1から公式サポート）
-  C++:  Windows kernel の一部
+OS Kernels:
+  C:    Linux kernel (over 30 million lines)
+  Rust: Linux kernel new modules (officially supported since 6.1)
+  C++:  Parts of the Windows kernel
 
-ブラウザエンジン:
+Browser Engines:
   C++:  Chromium (Blink), WebKit
-  Rust: Firefox (Servo コンポーネント → Stylo CSS エンジン)
+  Rust: Firefox (Servo components → Stylo CSS engine)
 
-データベース:
+Databases:
   C:    SQLite, PostgreSQL
   C++:  MySQL, MongoDB, RocksDB, ClickHouse
-  Rust: SurrealDB, TiKV, Neon (PostgreSQL互換)
+  Rust: SurrealDB, TiKV, Neon (PostgreSQL-compatible)
   Go:   CockroachDB, TiDB, InfluxDB
 
-ゲームエンジン:
-  C++:  Unreal Engine, Unity (C# + C++内部)
-  Rust: Bevy (新興だが成長中)
-  Zig:  一部のインディーゲームエンジン
+Game Engines:
+  C++:  Unreal Engine, Unity (C# + C++ internals)
+  Rust: Bevy (emerging but growing)
+  Zig:  Some indie game engines
 
-クラウドインフラ:
+Cloud Infrastructure:
   Go:   Docker, Kubernetes, Terraform, Prometheus, Grafana, etcd
-  Rust: Firecracker (AWS Lambda基盤), Bottlerocket, Linkerd2-proxy
+  Rust: Firecracker (AWS Lambda foundation), Bottlerocket, Linkerd2-proxy
 
-CLI ツール:
+CLI Tools:
   Rust: ripgrep, bat, fd, exa/eza, starship, zoxide, delta
   Go:   gh (GitHub CLI), lazygit, fzf, Hugo, k9s
 
-暗号・セキュリティ:
-  Rust: BoringSSL一部, rustls
+Cryptography & Security:
+  Rust: Parts of BoringSSL, rustls
   C:    OpenSSL, libsodium
-  Go:   crypto/tls (標準ライブラリ)
+  Go:   crypto/tls (standard library)
 
-組み込み/IoT:
-  C:    圧倒的シェア（FreeRTOS, Zephyr の一部）
+Embedded / IoT:
+  C:    Overwhelming market share (FreeRTOS, parts of Zephyr)
   Rust: Embassy (async embedded), RTIC
-  Zig:  組み込みLinux, マイクロコントローラ
+  Zig:  Embedded Linux, microcontrollers
 
 WebAssembly:
   Rust: Yew, Leptos, wasm-bindgen
   C/C++: Emscripten
-  Go:   TinyGo (最適化版)
-  Zig:  ネイティブWasm出力
+  Go:   TinyGo (optimized version)
+  Zig:  Native Wasm output
 ```
 
-### 5.2 パフォーマンスベンチマーク
+### 5.2 Performance Benchmarks
 
 ```
-Benchmark: HTTP サーバー（requests/sec, 高いほど良い）
-  C (epoll直接):  500,000+
-  Rust (actix):   400,000+
-  Go (net/http):  200,000+
-  C++ (drogon):   350,000+
-  Zig (zap):      450,000+
+Benchmark: HTTP Server (requests/sec, higher is better)
+  C (direct epoll):  500,000+
+  Rust (actix):      400,000+
+  Go (net/http):     200,000+
+  C++ (drogon):      350,000+
+  Zig (zap):         450,000+
 
-Benchmark: JSON パース（1GB ファイル）
-  C (simdjson):   2.5 GB/s
-  Rust (simd-json): 2.3 GB/s
-  C++ (simdjson): 2.5 GB/s
-  Go (encoding):  0.3 GB/s
-  Go (sonic):     1.5 GB/s
+Benchmark: JSON Parsing (1GB file)
+  C (simdjson):       2.5 GB/s
+  Rust (simd-json):   2.3 GB/s
+  C++ (simdjson):     2.5 GB/s
+  Go (encoding):      0.3 GB/s
+  Go (sonic):         1.5 GB/s
 
-Benchmark: コンパイル時間（中規模プロジェクト）
-  Go:    2-5 秒
-  C:     5-15 秒
-  Zig:   5-15 秒
-  Rust:  30-120 秒（増分は10-30秒）
-  C++:   60-300 秒
+Benchmark: Compile Time (medium-sized project)
+  Go:    2-5 seconds
+  C:     5-15 seconds
+  Zig:   5-15 seconds
+  Rust:  30-120 seconds (incremental: 10-30 seconds)
+  C++:   60-300 seconds
 
-Benchmark: バイナリサイズ（Hello World）
+Benchmark: Binary Size (Hello World)
   C:     16 KB (static: 800 KB)
   Go:    1.8 MB (static by default)
   Rust:  300 KB (stripped)
   Zig:   5 KB (stripped)
   C++:   20 KB (dynamic)
 
-※ 実際のパフォーマンスはワークロードに大きく依存する
-※ ベンチマークは参考値として捉えること
+* Actual performance depends heavily on the workload
+* Treat benchmarks as reference values
 ```
 
 ---
 
-## 6. メモリ安全性の議論
+## 6. The Memory Safety Discussion
 
-### 6.1 米国政府の勧告（2024年）
+### 6.1 U.S. Government Advisory (2024)
 
 ```
-2024年2月、米国ホワイトハウスは「メモリ安全な言語への移行」を勧告:
-- C/C++ のメモリ関連脆弱性がサイバー攻撃の主因
-- CVE の約70%がメモリ安全性に起因
-- Rust, Go, Java, C# 等のメモリ安全な言語を推奨
+In February 2024, the U.S. White House recommended "transition to memory-safe languages":
+- Memory-related vulnerabilities in C/C++ are a primary cause of cyberattacks
+- ~70% of CVEs are caused by memory safety issues
+- Recommended memory-safe languages: Rust, Go, Java, C#, etc.
 
-影響:
-- Linux kernel への Rust 採用が加速
-- Android の新規コードにおける Rust 比率が増加
-- DARPA の TRACTOR プログラム（C → Rust 自動変換研究）
-- NSA のサイバーセキュリティガイダンスで Rust を推奨
+Impact:
+- Accelerated Rust adoption in the Linux kernel
+- Increasing Rust ratio in new Android code
+- DARPA's TRACTOR program (automated C → Rust conversion research)
+- NSA cybersecurity guidance recommending Rust
 ```
 
-### 6.2 各言語のメモリ安全性メカニズム
+### 6.2 Memory Safety Mechanisms by Language
 
 ```
 C:
-  ✗ バッファオーバーフロー
+  ✗ Buffer overflow
   ✗ Use After Free
-  ✗ ダブルフリー
-  ✗ Null ポインタ参照
-  △ AddressSanitizer, Valgrind で動的検出
+  ✗ Double free
+  ✗ Null pointer dereference
+  △ Dynamic detection with AddressSanitizer, Valgrind
 
 C++:
-  △ スマートポインタで一部解決
-  △ RAII でリソース漏れを防止
-  ✗ 生ポインタの unsafe な操作は依然可能
-  △ 静的解析ツール（Clang-Tidy, PVS-Studio）
+  △ Partially solved with smart pointers
+  △ Resource leak prevention with RAII
+  ✗ Unsafe operations with raw pointers still possible
+  △ Static analysis tools (Clang-Tidy, PVS-Studio)
 
 Rust:
-  ✓ 所有権 + 借用チェッカーでコンパイル時に保証
-  ✓ Null なし（Option<T> で表現）
-  ✓ データ競合なし（Send/Sync トレイト）
-  △ unsafe ブロック内は保証なし（最小限に抑える）
+  ✓ Compile-time guarantees via ownership + borrow checker
+  ✓ No null (expressed with Option<T>)
+  ✓ No data races (Send/Sync traits)
+  △ No guarantees inside unsafe blocks (keep to a minimum)
 
 Go:
-  ✓ GC でメモリリーク/ダングリングポインタなし
-  ✓ 境界チェックあり（ランタイム）
-  △ Race detector（動的検出）
-  ✗ Null ポインタ（nil）によるパニックは可能
+  ✓ No memory leaks/dangling pointers thanks to GC
+  ✓ Bounds checking (at runtime)
+  △ Race detector (dynamic detection)
+  ✗ Panics from null pointers (nil) are possible
 
 Zig:
-  △ 手動管理だがアロケータの明示で追跡が容易
-  △ テストアロケータでリーク検出
-  △ undefined behavior はあるが最小限
-  ✓ 安全性チェックをビルドモードで制御可能
+  △ Manual management but allocator explicitness aids tracking
+  △ Leak detection with test allocator
+  △ Undefined behavior exists but is minimized
+  ✓ Safety checks controllable via build mode
 ```
 
 ---
 
-## 7. 並行処理モデルの詳細比較
+## 7. Detailed Concurrency Model Comparison
 
 ```
 ┌──────────────┬──────────────────────────────────────────────┐
 │ C            │ POSIX threads (pthread)                      │
-│              │ - 低レベル、OS スレッドを直接操作             │
+│              │ - Low-level, direct OS thread manipulation   │
 │              │ - mutex, condition variable, semaphore        │
-│              │ - エラーが起きやすい（デッドロック、レース）    │
+│              │ - Error-prone (deadlocks, races)             │
 ├──────────────┼──────────────────────────────────────────────┤
 │ C++          │ std::thread + std::async (C++11)             │
-│              │ std::jthread (C++20, 自動join)               │
+│              │ std::jthread (C++20, auto-join)              │
 │              │ - std::mutex, std::shared_mutex              │
-│              │ - std::atomic で lock-free プログラミング     │
+│              │ - Lock-free programming with std::atomic     │
 │              │ - coroutines (C++20)                         │
 ├──────────────┼──────────────────────────────────────────────┤
 │ Rust         │ std::thread + crossbeam                      │
-│              │ - Send/Sync トレイトでコンパイル時安全性      │
-│              │ - Arc<Mutex<T>> で共有状態                    │
-│              │ - mpsc チャネル、crossbeam チャネル           │
+│              │ - Compile-time safety via Send/Sync traits   │
+│              │ - Shared state with Arc<Mutex<T>>            │
+│              │ - mpsc channels, crossbeam channels          │
 │              │ - async/await (tokio, async-std)              │
-│              │ - Rayon（データ並列処理）                     │
+│              │ - Rayon (data parallelism)                   │
 ├──────────────┼──────────────────────────────────────────────┤
 │ Go           │ goroutine + channel                          │
-│              │ - 軽量（初期 2KB スタック、動的拡張）          │
-│              │ - 数百万の goroutine を実行可能               │
-│              │ - select 文で複数チャネルを待機               │
+│              │ - Lightweight (initial 2KB stack, dynamic)   │
+│              │ - Can run millions of goroutines             │
+│              │ - select statement for multi-channel waiting │
 │              │ - "Don't communicate by sharing memory;       │
 │              │    share memory by communicating"             │
 ├──────────────┼──────────────────────────────────────────────┤
-│ Zig          │ async/await（言語組み込み）                    │
-│              │ - イベント駆動 I/O                            │
-│              │ - std.Thread で OS スレッド                   │
-│              │ - アロケータを通じた制御                       │
+│ Zig          │ async/await (built into the language)        │
+│              │ - Event-driven I/O                           │
+│              │ - OS threads with std.Thread                 │
+│              │ - Control via allocators                     │
 └──────────────┴──────────────────────────────────────────────┘
 ```
 
 ---
 
-## 8. 実践的なプロジェクト構成例
+## 8. Practical Project Structure Examples
 
-### 8.1 Rust CLI プロジェクト
+### 8.1 Rust CLI Project
 
 ```
 my-cli/
 ├── Cargo.toml
 ├── Cargo.lock
 ├── src/
-│   ├── main.rs           # エントリポイント
-│   ├── lib.rs            # ライブラリルート
-│   ├── cli.rs            # clap によるCLI定義
-│   ├── config.rs         # 設定管理
+│   ├── main.rs           # Entry point
+│   ├── lib.rs            # Library root
+│   ├── cli.rs            # CLI definition with clap
+│   ├── config.rs         # Configuration management
 │   ├── commands/
 │   │   ├── mod.rs
-│   │   ├── init.rs       # init サブコマンド
-│   │   └── run.rs        # run サブコマンド
+│   │   ├── init.rs       # init subcommand
+│   │   └── run.rs        # run subcommand
 │   ├── core/
 │   │   ├── mod.rs
-│   │   ├── engine.rs     # コアロジック
-│   │   └── types.rs      # 型定義
+│   │   ├── engine.rs     # Core logic
+│   │   └── types.rs      # Type definitions
 │   └── utils/
 │       ├── mod.rs
-│       └── fs.rs         # ファイルシステムユーティリティ
+│       └── fs.rs         # File system utilities
 ├── tests/
 │   ├── integration_test.rs
 │   └── fixtures/
 ├── benches/
-│   └── benchmark.rs      # criterion によるベンチマーク
+│   └── benchmark.rs      # Benchmarking with criterion
 └── .github/
     └── workflows/
         └── ci.yml
 ```
 
-### 8.2 Go Web API プロジェクト
+### 8.2 Go Web API Project
 
 ```
 myapp/
@@ -1373,20 +1384,20 @@ myapp/
 ├── go.sum
 ├── cmd/
 │   └── server/
-│       └── main.go        # エントリポイント
-├── internal/              # 外部から import 不可
+│       └── main.go        # Entry point
+├── internal/              # Cannot be imported externally
 │   ├── handler/
-│   │   ├── user.go        # ユーザーハンドラ
-│   │   └── middleware.go  # ミドルウェア
+│   │   ├── user.go        # User handler
+│   │   └── middleware.go  # Middleware
 │   ├── service/
-│   │   └── user.go        # ビジネスロジック
+│   │   └── user.go        # Business logic
 │   ├── repository/
-│   │   └── user.go        # データアクセス
+│   │   └── user.go        # Data access
 │   ├── model/
-│   │   └── user.go        # ドメインモデル
+│   │   └── user.go        # Domain model
 │   └── config/
-│       └── config.go      # 設定
-├── pkg/                   # 外部から import 可
+│       └── config.go      # Configuration
+├── pkg/                   # Can be imported externally
 │   └── response/
 │       └── json.go
 ├── migrations/
@@ -1400,140 +1411,141 @@ myapp/
 
 ---
 
-## 9. 選択指針の詳細フローチャート
+## 9. Detailed Selection Guideline Flowchart
 
 ```
-Q1: GC のポーズが許容できるか？
-├── はい → Q2
-└── いいえ → Q3
+Q1: Can you tolerate GC pauses?
+├── Yes → Q2
+└── No → Q3
 
-Q2: シンプルさと高速コンパイルが重要か？
-├── はい → Go
-│   適用: マイクロサービス, CLI, DevOpsツール
-│   利点: 学習が容易、チーム全体で統一しやすい
-└── いいえ → Q4
+Q2: Are simplicity and fast compilation important?
+├── Yes → Go
+│   Use cases: Microservices, CLI, DevOps tools
+│   Advantage: Easy to learn, easy to standardize across teams
+└── No → Q4
 
-Q3: メモリ安全性が必要か？
-├── はい → Rust
-│   適用: インフラ, セキュリティ, Wasm, CLI
-│   利点: コンパイル時安全性保証、ゼロコスト抽象化
-└── いいえ → Q5
+Q3: Is memory safety required?
+├── Yes → Rust
+│   Use cases: Infrastructure, security, Wasm, CLI
+│   Advantage: Compile-time safety guarantees, zero-cost abstractions
+└── No → Q5
 
-Q4: 関数型プログラミングやジェネリクスを多用するか？
-├── はい → Rust
-│   適用: ライブラリ, フレームワーク, 言語ツール
-└── いいえ → Go
-    適用: CRUD API, ネットワークサービス
+Q4: Will you make heavy use of functional programming or generics?
+├── Yes → Rust
+│   Use cases: Libraries, frameworks, language tools
+└── No → Go
+    Use cases: CRUD APIs, network services
 
-Q5: 既存の C/C++ コードベースとの統合が必要か？
-├── C++ コードベース → C++
-│   適用: ゲーム, ブラウザ, 既存システムの拡張
-├── C コードベース → C or Zig
-│   Zig は C ヘッダを直接 import 可能
-└── 新規プロジェクト → Rust or Zig
-    Zig: C の代替、組み込み特化
+Q5: Do you need integration with existing C/C++ codebases?
+├── C++ codebase → C++
+│   Use cases: Games, browsers, extending existing systems
+├── C codebase → C or Zig
+│   Zig can directly import C headers
+└── New project → Rust or Zig
+    Zig: C replacement, embedded-focused
 
-Q6: ゲーム開発か？
-├── はい → C++（Unreal）or Rust（Bevy）
-└── いいえ → 上記フローに従う
+Q6: Is it game development?
+├── Yes → C++ (Unreal) or Rust (Bevy)
+└── No → Follow the flowchart above
 ```
 
-### よくある誤解と補正
+### Common Misconceptions and Corrections
 
 ```
-誤解: 「Go は遅い」
-現実: GC あるが HTTP サーバーでは十分高速。多くの用途で C++ を選ぶ必要はない。
+Misconception: "Go is slow"
+Reality: Has GC but is fast enough for HTTP servers. No need to choose C++
+         for many use cases.
 
-誤解: 「Rust は難しすぎて実用的でない」
-現実: 学習曲線は急だが、慣れれば生産性は高い。
-      借用チェッカーに慣れるまでの2-4週間が山場。
+Misconception: "Rust is too hard to be practical"
+Reality: The learning curve is steep, but productivity is high once proficient.
+         The 2-4 week period of getting used to the borrow checker is the hurdle.
 
-誤解: 「C は古くて使うべきでない」
-現実: 組み込み、カーネル、特殊なシステムでは今でも最適な選択肢。
-      ABI の安定性はCが最も優れている。
+Misconception: "C is old and should not be used"
+Reality: Still the optimal choice for embedded systems, kernels, and specialized
+         systems. C has the best ABI stability.
 
-誤解: 「C++ は複雑すぎる」
-現実: Modern C++ (C++17/20/23) は大幅に改善。
-      ただし全機能を使う必要はない。プロジェクトで使用する機能を限定すべき。
+Misconception: "C++ is too complex"
+Reality: Modern C++ (C++17/20/23) has improved significantly.
+         However, you don't need to use all features. Limit features used per project.
 
-誤解: 「Zig はまだ実験的」
-現実: 本番利用が増加中。Uber の bazel-zig-cc、
-      Bun (JavaScript ランタイム) が Zig で書かれている。
+Misconception: "Zig is still experimental"
+Reality: Production usage is growing. Uber's bazel-zig-cc,
+         Bun (JavaScript runtime) is written in Zig.
 ```
 
 ---
 
-## 10. 学習リソースとロードマップ
+## 10. Learning Resources and Roadmap
 
 ```
 C:
-  入門: K&R "The C Programming Language"
-  実践: "Expert C Programming"
-  期間: 基本文法 2週間、ポインタ習得 1-2ヶ月
+  Beginner: K&R "The C Programming Language"
+  Practical: "Expert C Programming"
+  Duration: Basic syntax 2 weeks, mastering pointers 1-2 months
 
 C++:
-  入門: "A Tour of C++" (Stroustrup)
-  実践: "Effective Modern C++" (Meyers)
-  期間: 基本文法 1ヶ月、Modern C++ 習得 3-6ヶ月
+  Beginner: "A Tour of C++" (Stroustrup)
+  Practical: "Effective Modern C++" (Meyers)
+  Duration: Basic syntax 1 month, mastering Modern C++ 3-6 months
 
 Rust:
-  入門: "The Rust Programming Language" (公式Book)
-  実践: "Rust in Action", "Zero To Production"
-  期間: 基本文法 2-3週間、借用チェッカー克服 1-2ヶ月
+  Beginner: "The Rust Programming Language" (official Book)
+  Practical: "Rust in Action", "Zero To Production"
+  Duration: Basic syntax 2-3 weeks, overcoming borrow checker 1-2 months
 
 Go:
-  入門: "The Go Programming Language" (Donovan & Kernighan)
-  実践: "Let's Go" (Alex Edwards)
-  期間: 基本文法 1-2週間、実務レベル 1-2ヶ月
+  Beginner: "The Go Programming Language" (Donovan & Kernighan)
+  Practical: "Let's Go" (Alex Edwards)
+  Duration: Basic syntax 1-2 weeks, production level 1-2 months
 
 Zig:
-  入門: ziglearn.org, "Zig Guide"
-  実践: zig.guide, std ライブラリのソースコード
-  期間: 基本文法 2-3週間、comptime 習得 1-2ヶ月
+  Beginner: ziglearn.org, "Zig Guide"
+  Practical: zig.guide, std library source code
+  Duration: Basic syntax 2-3 weeks, mastering comptime 1-2 months
 ```
 
 
 ---
 
-## 実践演習
+## Hands-On Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that satisfies the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate input data
+- Implement appropriate error handling
+- Write test code as well
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Basic Implementation Template
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Exercise for basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main processing logic"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Get processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1542,26 +1554,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "Should have raised an exception"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation by adding the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Advanced Patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Exercise for advanced patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1569,7 +1581,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1580,14 +1592,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Delete by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1595,7 +1607,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1603,44 +1615,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # Size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance Optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1649,7 +1661,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1664,53 +1676,53 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient version: {slow_time:.4f}s")
+    print(f"Efficient version:   {fast_time:.6f}s")
+    print(f"Speedup factor: {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key Points:**
+- Be mindful of algorithmic complexity
+- Choose appropriate data structures
+- Measure effectiveness with benchmarks
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point for learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in professional practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+The knowledge in this topic is frequently used in day-to-day development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## まとめ
+## Summary
 
-| 言語 | 哲学 | 最適なユースケース | 2025年の状況 |
+| Language | Philosophy | Best Use Case | Status in 2025 |
 |------|------|-----------------|-------------|
-| C | 最小限の抽象化 | OS, カーネル, 組み込み | 不動の地位。ABI の lingua franca |
-| C++ | ゼロコスト抽象化 | ゲーム, ブラウザ, DB | C++23 で大幅改善。依然として巨大 |
-| Rust | 安全性+パフォーマンス | インフラ, CLI, Wasm | 急成長。Linux kernel 採用で正統性確立 |
-| Go | シンプルさ+並行処理 | クラウド, マイクロサービス | クラウドインフラの事実上の標準言語 |
-| Zig | C のモダン代替 | 組み込み, システム | Bun で知名度上昇。C の後継候補 |
+| C | Minimal abstraction | OS, Kernel, Embedded | Unshakeable position. The lingua franca of ABIs |
+| C++ | Zero-cost abstraction | Games, Browsers, DBs | Major improvements with C++23. Still massive |
+| Rust | Safety + Performance | Infrastructure, CLI, Wasm | Rapid growth. Legitimacy established via Linux kernel adoption |
+| Go | Simplicity + Concurrency | Cloud, Microservices | De facto standard language for cloud infrastructure |
+| Zig | Modern C replacement | Embedded, Systems | Gained visibility through Bun. A successor candidate to C |
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
 ---
 
-## 参考文献
+## References
 1. Blandy, J., Orendorff, J. & Tindall, L. "Programming Rust." 2nd Ed, O'Reilly, 2021.
 2. Donovan, A. & Kernighan, B. "The Go Programming Language." Addison-Wesley, 2015.
 3. Stroustrup, B. "A Tour of C++." 3rd Ed, Addison-Wesley, 2022.

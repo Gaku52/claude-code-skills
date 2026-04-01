@@ -1,96 +1,101 @@
-# スクリプト言語比較（Python, Ruby, JavaScript, PHP, Perl）
+# Scripting Language Comparison (Python, Ruby, JavaScript, PHP, Perl)
 
-> スクリプト言語は「素早く書いて、素早く動かす」ことに最適化された言語群。それぞれの哲学・強み・エコシステムを比較する。
+> Scripting languages are a family of languages optimized for "writing quickly and running quickly." This guide compares their philosophies, strengths, and ecosystems.
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] 主要スクリプト言語の特徴と適用領域を把握する
-- [ ] 各言語の設計哲学の違いを理解する
-- [ ] プロジェクトに応じた言語選択ができる
-- [ ] 各言語のエコシステム・ツールチェーンを理解する
-- [ ] パフォーマンス特性と最適化手法を把握する
-- [ ] 各言語のモダンな開発プラクティスを身につける
+- [ ] Understand the characteristics and application domains of major scripting languages
+- [ ] Understand the differences in design philosophy among each language
+- [ ] Be able to select the appropriate language for a given project
+- [ ] Understand each language's ecosystem and toolchain
+- [ ] Understand performance characteristics and optimization techniques
+- [ ] Master modern development practices for each language
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
+- Basic programming knowledge
+- Understanding of related foundational concepts
 
 ---
 
-## 1. 比較表
+## 1. Comparison Table
 
 ```
 ┌──────────────┬──────────┬──────────┬──────────┬──────────┬──────────┐
 │              │ Python   │ Ruby     │ JS/TS    │ PHP      │ Perl     │
 ├──────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
-│ 設計哲学      │ 明示的   │ 開発者の │ Webの    │ Web特化  │ TMTOWTDI │
-│              │ 読みやすさ│ 幸福     │ 言語     │ 実用性   │ 多様な道 │
+│ Design       │ Explicit │ Developer│ The      │ Web-     │ TMTOWTDI │
+│ Philosophy   │ Readabil.│ Happiness│ Language │ Specific │ Many Ways│
+│              │          │          │ of Web   │ Practical│          │
 ├──────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
-│ 型付け        │ 動的+強い│ 動的+強い│ 動的+弱い│ 動的+弱い│ 動的+弱い│
-│              │ (型ヒント)│          │ (TS:静的)│ (型宣言) │          │
+│ Typing       │ Dynamic+ │ Dynamic+ │ Dynamic+ │ Dynamic+ │ Dynamic+ │
+│              │ Strong   │ Strong   │ Weak     │ Weak     │ Weak     │
+│              │ (Hints)  │          │ (TS:Stat)│ (Decl.)  │          │
 ├──────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
-│ 主な用途      │ AI/ML    │ Web      │ フルスタック│ Web     │ テキスト │
-│              │ データ   │ スクリプト│ ブラウザ  │ CMS     │ 処理     │
-│              │ 自動化   │ DevOps   │ サーバー  │ EC      │ 自動化   │
+│ Primary      │ AI/ML    │ Web      │ Full     │ Web      │ Text     │
+│ Use Cases    │ Data     │ Scripting│ Stack    │ CMS      │ Process. │
+│              │ Automat. │ DevOps   │ Browser  │ E-comm.  │ Automat. │
+│              │          │          │ Server   │          │          │
 ├──────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
-│ パッケージ    │ PyPI     │ RubyGems │ npm      │ Packagist│ CPAN     │
-│ マネージャ    │ pip/uv   │ bundler  │ npm/pnpm │ composer │ cpanm    │
+│ Package      │ PyPI     │ RubyGems │ npm      │ Packagist│ CPAN     │
+│ Manager      │ pip/uv   │ bundler  │ npm/pnpm │ composer │ cpanm    │
 ├──────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
-│ 主要FW       │ Django   │ Rails    │ Express  │ Laravel  │ Catalyst │
+│ Major FW     │ Django   │ Rails    │ Express  │ Laravel  │ Catalyst │
 │              │ FastAPI  │ Sinatra  │ Next.js  │ Symfony  │ Mojolicious│
 ├──────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
-│ 実行速度      │ 遅い     │ 遅い     │ 速い(V8) │ 中程度   │ 中程度   │
-│ (相対)        │          │          │          │ (OPcache)│          │
+│ Exec Speed   │ Slow     │ Slow     │ Fast(V8) │ Moderate │ Moderate │
+│ (Relative)   │          │          │          │ (OPcache)│          │
 ├──────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
-│ 学習コスト    │ 低い     │ 低い     │ 低い     │ 低い     │ 中程度   │
+│ Learning     │ Low      │ Low      │ Low      │ Low      │ Moderate │
+│ Curve        │          │          │          │          │          │
 ├──────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
-│ 求人数        │ 非常に多い│ 中程度   │ 最も多い │ 多い     │ 少ない   │
+│ Job Market   │ Very High│ Moderate │ Highest  │ High     │ Low      │
 ├──────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
-│ 登場年        │ 1991     │ 1993     │ 1995     │ 1995     │ 1987     │
+│ Year Created │ 1991     │ 1993     │ 1995     │ 1995     │ 1987     │
 ├──────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
-│ 作者          │ G.v.Rossum│ Matz    │ B.Eich   │ R.Lerdorf│ L.Wall   │
+│ Creator      │ G.v.Rossum│ Matz    │ B.Eich   │ R.Lerdorf│ L.Wall   │
 ├──────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
-│ 最新安定版    │ 3.12+    │ 3.3+     │ ES2024   │ 8.3+     │ 5.38+    │
-│ (2025時点)    │          │          │ Node 22  │          │          │
+│ Latest       │ 3.12+    │ 3.3+     │ ES2024   │ 8.3+     │ 5.38+    │
+│ Stable       │          │          │ Node 22  │          │          │
+│ (as of 2025) │          │          │          │          │          │
 └──────────────┴──────────┴──────────┴──────────┴──────────┴──────────┘
 ```
 
 ---
 
-## 2. 設計哲学の違い
+## 2. Differences in Design Philosophy
 
-### 2.1 Python — 「明示的は暗黙的に勝る」
+### 2.1 Python — "Explicit is Better Than Implicit"
 
 ```python
 # "There should be one-- and preferably only one --obvious way to do it."
-# 1つの正しいやり方があるべき
+# There should be one correct way to do it
 
-# Zen of Python（import this）
+# Zen of Python (import this)
 # Beautiful is better than ugly.
 # Explicit is better than implicit.
 # Simple is better than complex.
 # Readability counts.
 # Errors should never pass silently.
 
-# 特徴: インデントで構造化、読みやすさ最優先
+# Characteristics: Structure via indentation, readability is top priority
 def process_data(data: list[dict]) -> list[str]:
-    """アクティブなユーザー名を大文字で返す"""
+    """Return active user names in uppercase"""
     return [
         item["name"].upper()
         for item in data
         if item.get("active", False)
     ]
 
-# コンテキストマネージャによるリソース管理
+# Resource management via context managers
 with open("data.csv", "r", encoding="utf-8") as f:
     reader = csv.DictReader(f)
     records = [row for row in reader if row["status"] == "active"]
 
-# デコレータによる横断的関心事の分離
+# Separation of cross-cutting concerns via decorators
 from functools import lru_cache
 
 @lru_cache(maxsize=128)
@@ -99,14 +104,14 @@ def fibonacci(n: int) -> int:
         return n
     return fibonacci(n - 1) + fibonacci(n - 2)
 
-# ジェネレータで大規模データの遅延評価
+# Lazy evaluation of large datasets via generators
 def read_large_file(path: str):
-    """メモリ効率の良い大規模ファイル読み込み"""
+    """Memory-efficient reading of large files"""
     with open(path, "r") as f:
         for line in f:
             yield line.strip()
 
-# 型ヒントによるドキュメントとしての型情報（Python 3.12+）
+# Type hints as documentation (Python 3.12+)
 type Point = tuple[float, float]
 type Matrix[T] = list[list[T]]
 
@@ -114,37 +119,37 @@ def distance(p1: Point, p2: Point) -> float:
     return ((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2) ** 0.5
 ```
 
-**Pythonの設計原則の深掘り**
+**Deep Dive into Python's Design Principles**
 
 ```python
 # 1. EAFP (Easier to Ask Forgiveness than Permission)
-#    許可を求めるより許しを乞う方が容易
+#    It's easier to ask forgiveness than permission
 
-# LBYL（他言語的アプローチ）- 推奨しない
+# LBYL (Look Before You Leap) - Not recommended
 if hasattr(obj, "name"):
     print(obj.name)
 
-# EAFP（Python的アプローチ）- 推奨
+# EAFP (Pythonic approach) - Recommended
 try:
     print(obj.name)
 except AttributeError:
-    print("name属性がありません")
+    print("No 'name' attribute found")
 
-# 2. ダックタイピング
-# 「アヒルのように歩き、アヒルのように鳴くなら、それはアヒルだ」
+# 2. Duck Typing
+# "If it walks like a duck and quacks like a duck, then it is a duck"
 class Duck:
     def quack(self):
-        return "ガーガー"
+        return "Quack quack"
 
 class Person:
     def quack(self):
-        return "私はアヒルのように鳴けます"
+        return "I can quack like a duck"
 
 def make_quack(thing):
-    # Duck型かPerson型かは問わない。quack()メソッドがあればOK
+    # Does not matter if it's a Duck or Person. Having a quack() method is enough
     return thing.quack()
 
-# 3. プロトコルによる構造的部分型（Python 3.8+）
+# 3. Structural subtyping via Protocols (Python 3.8+)
 from typing import Protocol
 
 class Drawable(Protocol):
@@ -152,16 +157,16 @@ class Drawable(Protocol):
 
 class Circle:
     def draw(self) -> None:
-        print("○を描画")
+        print("Drawing a circle")
 
 def render(shape: Drawable) -> None:
-    shape.draw()  # CircleはDrawableを明示的に継承していないがOK
+    shape.draw()  # Circle does not explicitly inherit Drawable, but that's OK
 
-# 4. データクラスによる簡潔なデータモデリング
+# 4. Concise data modeling via dataclasses
 from dataclasses import dataclass, field
 from datetime import datetime
 
-@dataclass(frozen=True)  # frozen=True でイミュータブル
+@dataclass(frozen=True)  # frozen=True makes it immutable
 class User:
     name: str
     email: str
@@ -172,59 +177,59 @@ class User:
     def is_adult(self) -> bool:
         return self.age >= 18
 
-# 5. 構造的パターンマッチ（Python 3.10+）
+# 5. Structural pattern matching (Python 3.10+)
 def handle_command(command: dict) -> str:
     match command:
         case {"action": "create", "name": str(name)}:
-            return f"作成: {name}"
+            return f"Create: {name}"
         case {"action": "delete", "id": int(id_)}:
-            return f"削除: ID={id_}"
+            return f"Delete: ID={id_}"
         case {"action": "list", "filter": {"status": status}}:
-            return f"一覧: status={status}"
+            return f"List: status={status}"
         case _:
-            return "不明なコマンド"
+            return "Unknown command"
 ```
 
-### 2.2 Ruby — 「プログラマの幸福」
+### 2.2 Ruby — "Programmer Happiness"
 
 ```ruby
 # "Ruby is designed to make programmers happy."
-# プログラマの幸福のために設計
+# Designed for programmer happiness
 
-# 特徴: 表現力豊か、すべてがオブジェクト
+# Characteristics: Highly expressive, everything is an object
 5.times { |i| puts i }
 [1, 2, 3].select(&:odd?)  # → [1, 3]
 "hello".reverse.upcase     # → "OLLEH"
 
-# Convention over Configuration（Rails哲学）
+# Convention over Configuration (Rails philosophy)
 
-# 数値もオブジェクト
+# Numbers are objects too
 3.14.round       # → 3
 -42.abs          # → 42
 1.upto(5) { |n| print n }  # → 12345
 
-# シンボルとハッシュの簡潔さ
+# Concise symbols and hashes
 user = { name: "Alice", age: 30, active: true }
 user[:name]  # → "Alice"
 
-# ブロック・Proc・Lambda の豊かな表現力
-# ブロック（最も一般的）
+# Rich expressiveness of Blocks, Procs, and Lambdas
+# Blocks (most common)
 [1, 2, 3].map { |n| n * 2 }  # → [2, 4, 6]
 
-# Proc（手続きオブジェクト）
+# Proc (procedure object)
 doubler = Proc.new { |n| n * 2 }
 [1, 2, 3].map(&doubler)  # → [2, 4, 6]
 
-# Lambda（引数チェック付き手続き）
+# Lambda (procedure with argument checking)
 validator = ->(n) { n.positive? }
 [1, -2, 3, -4].select(&validator)  # → [1, 3]
 
-# メソッドミッシング（メタプログラミング）
+# Method Missing (metaprogramming)
 class DynamicProxy
   def method_missing(name, *args)
     if name.to_s.start_with?("find_by_")
       attribute = name.to_s.sub("find_by_", "")
-      puts "#{attribute}で検索: #{args.first}"
+      puts "Searching by #{attribute}: #{args.first}"
     else
       super
     end
@@ -236,10 +241,10 @@ class DynamicProxy
 end
 
 proxy = DynamicProxy.new
-proxy.find_by_name("Alice")   # → "nameで検索: Alice"
-proxy.find_by_email("a@b.c")  # → "emailで検索: a@b.c"
+proxy.find_by_name("Alice")   # → "Searching by name: Alice"
+proxy.find_by_email("a@b.c")  # → "Searching by email: a@b.c"
 
-# オープンクラス（既存クラスの拡張）
+# Open Classes (extending existing classes)
 class Integer
   def factorial
     return 1 if self <= 1
@@ -249,7 +254,7 @@ end
 
 5.factorial  # → 120
 
-# Enumerableの豊かなメソッド群
+# Rich Enumerable methods
 users = [
   { name: "Alice", age: 30, dept: "Engineering" },
   { name: "Bob",   age: 25, dept: "Marketing" },
@@ -257,65 +262,65 @@ users = [
   { name: "Dave",  age: 28, dept: "Marketing" }
 ]
 
-# グループ化 → 各グループの平均年齢
+# Group by department → average age per group
 users
   .group_by { |u| u[:dept] }
   .transform_values { |members| members.sum { |m| m[:age] }.to_f / members.size }
 # → {"Engineering"=>32.5, "Marketing"=>26.5}
 
-# パターンマッチ（Ruby 3.0+）
+# Pattern Matching (Ruby 3.0+)
 case { name: "Alice", age: 30, roles: [:admin, :user] }
 in { name: String => name, roles: [*, :admin, *] }
-  puts "管理者: #{name}"
+  puts "Admin: #{name}"
 in { name: String => name, age: (..17) }
-  puts "未成年: #{name}"
+  puts "Minor: #{name}"
 else
-  puts "一般ユーザー"
+  puts "Regular user"
 end
 ```
 
-### 2.3 JavaScript / TypeScript — 「Webのユビキタス言語」
+### 2.3 JavaScript / TypeScript — "The Ubiquitous Language of the Web"
 
 ```typescript
-// Web のユビキタス言語
-// ブラウザからサーバーまで1言語で
+// The ubiquitous language of the Web
+// One language from browser to server
 
-// TypeScript: JavaScript + 型安全性
+// TypeScript: JavaScript + type safety
 interface User {
     name: string;
     age: number;
-    email?: string;  // オプショナルプロパティ
+    email?: string;  // Optional property
 }
 
 const greet = (user: User): string => `Hello, ${user.name}!`;
 
-// 特徴: イベント駆動、非同期が自然
+// Characteristics: Event-driven, asynchronous by nature
 const data = await fetch("/api").then(r => r.json());
 
-// ユニオン型とリテラル型
+// Union types and literal types
 type Status = "active" | "inactive" | "pending";
 type Result<T> = { ok: true; value: T } | { ok: false; error: string };
 
 function processResult<T>(result: Result<T>): T | never {
     if (result.ok) {
-        return result.value;  // T型に絞り込み
+        return result.value;  // Narrowed to type T
     }
     throw new Error(result.error);
 }
 
-// ジェネリクスと条件型
+// Generics and conditional types
 type NonNullable<T> = T extends null | undefined ? never : T;
 type Flatten<T> = T extends Array<infer U> ? U : T;
 
-// テンプレートリテラル型
+// Template literal types
 type EventName = `on${Capitalize<"click" | "focus" | "blur">}`;
 // → "onClick" | "onFocus" | "onBlur"
 
-// Mapped Types で型を動的に構築
+// Mapped Types for dynamically constructing types
 type Readonly<T> = { readonly [K in keyof T]: T[K] };
 type Optional<T> = { [K in keyof T]?: T[K] };
 
-// 非同期イテレータ
+// Async iterators
 async function* fetchPages(baseUrl: string): AsyncGenerator<Page[]> {
     let page = 1;
     while (true) {
@@ -327,14 +332,14 @@ async function* fetchPages(baseUrl: string): AsyncGenerator<Page[]> {
     }
 }
 
-// for await...of で消費
+// Consuming with for await...of
 for await (const pages of fetchPages("/api/users")) {
     for (const user of pages) {
         console.log(user.name);
     }
 }
 
-// Proxy によるメタプログラミング
+// Metaprogramming with Proxy
 const validator = new Proxy<Record<string, unknown>>({}, {
     set(target, prop, value) {
         if (typeof prop === "string" && prop.startsWith("age")) {
@@ -347,7 +352,7 @@ const validator = new Proxy<Record<string, unknown>>({}, {
     }
 });
 
-// Decorator（TypeScript 5.0+, Stage 3）
+// Decorator (TypeScript 5.0+, Stage 3)
 function log(target: any, context: ClassMethodDecoratorContext) {
     return function(this: any, ...args: any[]) {
         console.log(`Calling ${String(context.name)} with`, args);
@@ -365,14 +370,14 @@ class Calculator {
 }
 ```
 
-### 2.4 PHP — 「Webに特化した実用家」
+### 2.4 PHP — "The Pragmatist Specialized for the Web"
 
 ```php
 <?php
-// PHP 8.3+: モダンPHP
-// Webサーバーサイドの実用的な言語
+// PHP 8.3+: Modern PHP
+// A pragmatic language for server-side web development
 
-// 列挙型（PHP 8.1+）
+// Enums (PHP 8.1+)
 enum Status: string {
     case Active = 'active';
     case Inactive = 'inactive';
@@ -380,14 +385,14 @@ enum Status: string {
 
     public function label(): string {
         return match($this) {
-            Status::Active => '有効',
-            Status::Inactive => '無効',
-            Status::Pending => '保留中',
+            Status::Active => 'Active',
+            Status::Inactive => 'Inactive',
+            Status::Pending => 'Pending',
         };
     }
 }
 
-// Readonly プロパティとコンストラクタプロモーション
+// Readonly properties and constructor promotion
 class User {
     public function __construct(
         public readonly string $name,
@@ -401,14 +406,14 @@ class User {
     }
 }
 
-// 名前付き引数
+// Named arguments
 $user = new User(
     name: 'Alice',
     age: 30,
     email: 'alice@example.com',
 );
 
-// ファーストクラスCallable構文（PHP 8.1+）
+// First-class callable syntax (PHP 8.1+)
 $users = [
     new User('Alice', 30, 'a@example.com'),
     new User('Bob', 17, 'b@example.com'),
@@ -418,26 +423,26 @@ $users = [
 $adults = array_filter($users, fn(User $u) => $u->isAdult());
 $names = array_map(fn(User $u) => $u->name, $adults);
 
-// Fiber（PHP 8.1+）— 軽量な並行処理
+// Fiber (PHP 8.1+) — Lightweight concurrency
 $fiber = new Fiber(function (): void {
     $value = Fiber::suspend('fiber started');
-    echo "受け取った値: $value\n";
+    echo "Received value: $value\n";
 });
 
 $result = $fiber->start();  // → 'fiber started'
-$fiber->resume('hello');     // → "受け取った値: hello"
+$fiber->resume('hello');     // → "Received value: hello"
 
-// match式（PHP 8.0+）— switchの型安全版
+// match expression (PHP 8.0+) — Type-safe version of switch
 function getStatusCode(string $method): int {
     return match($method) {
         'GET'    => 200,
         'POST'   => 201,
         'DELETE'  => 204,
-        default  => throw new InvalidArgumentException("不明なメソッド: $method"),
+        default  => throw new InvalidArgumentException("Unknown method: $method"),
     };
 }
 
-// Union型・Intersection型（PHP 8.0+/8.1+）
+// Union types & Intersection types (PHP 8.0+/8.1+)
 function processInput(string|int $input): string {
     return match(true) {
         is_string($input) => strtoupper($input),
@@ -445,14 +450,14 @@ function processInput(string|int $input): string {
     };
 }
 
-// Attribute（PHP 8.0+）— アノテーション
+// Attributes (PHP 8.0+) — Annotations
 #[Route('/api/users', methods: ['GET'])]
 #[Middleware('auth')]
 function listUsers(): JsonResponse {
     // ...
 }
 
-// ジェネレータでメモリ効率の良い処理
+// Memory-efficient processing with generators
 function readCsv(string $path): Generator {
     $handle = fopen($path, 'r');
     $headers = fgetcsv($handle);
@@ -463,12 +468,12 @@ function readCsv(string $path): Generator {
 }
 
 foreach (readCsv('large_file.csv') as $row) {
-    // 1行ずつ処理（メモリに全件載せない）
+    // Process one row at a time (not loading everything into memory)
     processRow($row);
 }
 ```
 
-### 2.5 Perl — 「実用性と柔軟性の極致」
+### 2.5 Perl — "The Ultimate in Practicality and Flexibility"
 
 ```perl
 #!/usr/bin/perl
@@ -477,29 +482,29 @@ use warnings;
 use v5.38;
 
 # "There's More Than One Way To Do It" (TMTOWTDI)
-# やり方は1つではない
+# There is more than one way to do it
 
-# 正規表現のネイティブサポート（Perlの最大の強み）
+# Native regular expression support (Perl's greatest strength)
 my $email_pattern = qr/
     ^
-    [a-zA-Z0-9._%+-]+    # ローカル部
-    @                      # @記号
-    [a-zA-Z0-9.-]+        # ドメイン
-    \.                    # ドット
+    [a-zA-Z0-9._%+-]+    # Local part
+    @                      # @ symbol
+    [a-zA-Z0-9.-]+        # Domain
+    \.                    # Dot
     [a-zA-Z]{2,}          # TLD
     $
-/x;  # /x フラグで空白・コメントを許可
+/x;  # /x flag allows whitespace and comments
 
 my $text = "Contact us at info\@example.com or support\@test.org";
 my @emails = ($text =~ /[\w.+-]+@[\w.-]+\.\w{2,}/g);
 say "Found: @emails";
 
-# ワンライナーの力（コマンドラインでの文字列処理）
+# The power of one-liners (text processing on the command line)
 # perl -ne 'print if /ERROR/' access.log
 # perl -pe 's/foo/bar/g' input.txt > output.txt
 # perl -ane 'print "$F[0]\n"' data.tsv
 
-# 正規表現によるテキスト変換
+# Text transformation with regular expressions
 sub parse_log_line {
     my ($line) = @_;
     if ($line =~ /^(\d{4}-\d{2}-\d{2})\s+(\w+)\s+\[(\w+)\]\s+(.*)$/) {
@@ -513,7 +518,7 @@ sub parse_log_line {
     return undef;
 }
 
-# ハッシュ（連想配列）の操作
+# Hash (associative array) operations
 my %config = (
     host    => 'localhost',
     port    => 8080,
@@ -521,10 +526,10 @@ my %config = (
     workers => 4,
 );
 
-# ハッシュスライス
+# Hash slice
 my @connection_info = @config{qw(host port)};
 
-# リファレンスとデリファレンス
+# References and dereferencing
 my $nested = {
     users => [
         { name => 'Alice', age => 30 },
@@ -535,7 +540,7 @@ my $nested = {
 
 say $nested->{users}[0]{name};  # → "Alice"
 
-# Moose/Moo によるモダンなOOP
+# Modern OOP with Moose/Moo
 package User {
     use Moo;
     use Types::Standard qw(Str Int);
@@ -553,42 +558,42 @@ package User {
 
 ---
 
-## 3. エコシステム詳細比較
+## 3. Detailed Ecosystem Comparison
 
-### 3.1 Webフレームワーク
+### 3.1 Web Frameworks
 
 ```
 Python:
-  フルスタック: Django（バッテリー同梱、管理画面自動生成）
-  API特化:     FastAPI（非同期、OpenAPI自動生成）
-  軽量:        Flask, Starlette
-  非同期:      Sanic, aiohttp
+  Full-stack: Django (batteries included, auto-generated admin panel)
+  API-focused: FastAPI (async, auto-generated OpenAPI docs)
+  Lightweight:  Flask, Starlette
+  Async:       Sanic, aiohttp
 
 Ruby:
-  フルスタック: Ruby on Rails（Convention over Configuration）
-  軽量:        Sinatra, Hanami
+  Full-stack: Ruby on Rails (Convention over Configuration)
+  Lightweight: Sinatra, Hanami
   API:         Grape, Roda
-  リアクティブ: Falcon
+  Reactive:    Falcon
 
 JavaScript/TypeScript:
-  フルスタック: Next.js（SSR/SSG/ISR）, Nuxt.js（Vue版）
+  Full-stack: Next.js (SSR/SSG/ISR), Nuxt.js (Vue version)
   API:         Express, Fastify, Hono
-  型安全API:   tRPC, NestJS
-  フルスタックTS: Remix, SvelteKit, Astro
+  Type-safe API: tRPC, NestJS
+  Full-stack TS: Remix, SvelteKit, Astro
 
 PHP:
-  フルスタック: Laravel（Eloquent ORM, Blade, Artisan CLI）
-  エンタープライズ: Symfony（Bundle系、柔軟性高い）
+  Full-stack: Laravel (Eloquent ORM, Blade, Artisan CLI)
+  Enterprise:  Symfony (Bundle system, highly flexible)
   API:         Slim, Lumen
-  リアクティブ: Swoole + Hyperf
+  Reactive:    Swoole + Hyperf
 
 Perl:
-  フルスタック: Catalyst, Dancer2
-  非同期:      Mojolicious
-  CGI:        CGI.pm（レガシーだが歴史的に重要）
+  Full-stack: Catalyst, Dancer2
+  Async:       Mojolicious
+  CGI:        CGI.pm (legacy but historically important)
 ```
 
-### 3.2 パッケージ管理の比較
+### 3.2 Package Management Comparison
 
 ```python
 # Python: pip / uv / poetry
@@ -597,7 +602,7 @@ fastapi>=0.100.0
 pydantic>=2.0.0
 sqlalchemy>=2.0.0
 
-# --- pyproject.toml (モダンなアプローチ) ---
+# --- pyproject.toml (modern approach) ---
 # [project]
 # name = "myapp"
 # version = "0.1.0"
@@ -606,7 +611,7 @@ sqlalchemy>=2.0.0
 #     "pydantic>=2.0.0",
 # ]
 
-# uv（超高速パッケージマネージャ、Rust製）
+# uv (ultra-fast package manager, written in Rust)
 # uv pip install fastapi
 # uv venv
 # uv sync
@@ -672,10 +677,10 @@ end
 }
 ```
 
-### 3.3 テストフレームワーク
+### 3.3 Test Framework Comparison
 
 ```python
-# Python: pytest（最もポピュラー）
+# Python: pytest (most popular)
 import pytest
 from myapp.calculator import Calculator
 
@@ -702,30 +707,30 @@ class TestCalculator:
 ```
 
 ```ruby
-# Ruby: RSpec（BDD スタイル）
+# Ruby: RSpec (BDD style)
 RSpec.describe Calculator do
   subject(:calc) { described_class.new }
 
   describe '#add' do
-    it '2つの数を足す' do
+    it 'adds two numbers' do
       expect(calc.add(2, 3)).to eq(5)
     end
 
-    context '負の数の場合' do
-      it '正しく計算する' do
+    context 'with negative numbers' do
+      it 'calculates correctly' do
         expect(calc.add(-1, 1)).to eq(0)
       end
     end
   end
 
   describe '#divide' do
-    it 'ゼロ除算でエラー' do
+    it 'raises error on division by zero' do
       expect { calc.divide(1, 0) }.to raise_error(ZeroDivisionError)
     end
   end
 end
 
-# Minitest（標準ライブラリ、軽量）
+# Minitest (standard library, lightweight)
 class TestCalculator < Minitest::Test
   def setup
     @calc = Calculator.new
@@ -809,107 +814,107 @@ class CalculatorTest extends TestCase
 
 ---
 
-## 4. 適用領域の詳細比較
+## 4. Detailed Comparison of Application Domains
 
-### 4.1 領域別最適言語
+### 4.1 Best Language by Domain
 
 ```
-AI / 機械学習           → Python（事実上の唯一の選択肢）
-                          理由: NumPy, PyTorch, TensorFlow, scikit-learn
-                          Jupyter Notebook での探索的分析
+AI / Machine Learning    → Python (virtually the only choice)
+                          Reason: NumPy, PyTorch, TensorFlow, scikit-learn
+                          Exploratory analysis with Jupyter Notebook
 
-Web バックエンド         → 全て可能。JS/TS, Python, Ruby, PHP
-                          大規模: Java/Go を検討すべき
-                          スタートアップ: Rails or Next.js
+Web Backend             → All viable. JS/TS, Python, Ruby, PHP
+                          Large-scale: Consider Java/Go
+                          Startups: Rails or Next.js
 
-Web フロントエンド       → JavaScript / TypeScript（唯一の選択肢）
+Web Frontend            → JavaScript / TypeScript (the only choice)
                           React, Vue, Svelte, Angular
 
-データ分析              → Python（Pandas, Polars, Matplotlib）
-                          R（統計特化、学術分野）
+Data Analysis           → Python (Pandas, Polars, Matplotlib)
+                          R (statistics-focused, academic use)
 
-自動化スクリプト         → Python（汎用性）, Bash（OS操作）
-                          Perl（テキスト処理に特化）
+Automation Scripts      → Python (versatility), Bash (OS operations)
+                          Perl (specialized for text processing)
 
-DevOps / インフラ        → Python（Ansible, SaltStack）
-                          Go（Docker, K8s, Terraform）
-                          Ruby（Chef, Vagrant - 歴史的）
+DevOps / Infrastructure → Python (Ansible, SaltStack)
+                          Go (Docker, K8s, Terraform)
+                          Ruby (Chef, Vagrant - historical)
 
-CMS / EC               → PHP（WordPress, WooCommerce, Magento）
-                          世界のWebサイトの75%以上がPHPで動作
+CMS / E-commerce        → PHP (WordPress, WooCommerce, Magento)
+                          Over 75% of websites worldwide run on PHP
 
-スタートアップ MVP      → Ruby on Rails（最速プロトタイピング）
-                          Next.js（フルスタックTS）
-                          Django（管理画面自動生成）
+Startup MVP             → Ruby on Rails (fastest prototyping)
+                          Next.js (full-stack TS)
+                          Django (auto-generated admin panel)
 
-ゲームスクリプティング    → Lua（Unity, Roblox）
-                          Python（Blender, ツール）
-                          GDScript（Godot）
+Game Scripting          → Lua (Unity, Roblox)
+                          Python (Blender, tools)
+                          GDScript (Godot)
 
-教育                    → Python（Scratch → Python パスが定番）
-                          JavaScript（即座にブラウザで結果確認）
+Education               → Python (Scratch → Python is the standard path)
+                          JavaScript (instant results in the browser)
 ```
 
-### 4.2 実務シナリオ別の言語選択
+### 4.2 Language Selection by Real-World Scenario
 
 ```
-シナリオ1: SaaS バックエンド API
-  推奨: TypeScript (NestJS/Fastify) or Python (FastAPI)
-  理由: 型安全性、OpenAPI自動生成、非同期対応
-  避けるべき: Perl（エコシステムが古い）
+Scenario 1: SaaS Backend API
+  Recommended: TypeScript (NestJS/Fastify) or Python (FastAPI)
+  Reason: Type safety, auto-generated OpenAPI docs, async support
+  Avoid: Perl (ecosystem is dated)
 
-シナリオ2: データパイプライン
-  推奨: Python (Pandas + Airflow)
-  理由: データ処理ライブラリの充実度
-  代替: Node.js（ストリーム処理に強い）
+Scenario 2: Data Pipeline
+  Recommended: Python (Pandas + Airflow)
+  Reason: Rich data processing libraries
+  Alternative: Node.js (strong stream processing)
 
-シナリオ3: レガシーシステムのリプレース
-  PHP → Laravel: 段階的な移行が容易
-  Ruby → Rails: ActiveRecord による DB 抽象化
-  Perl → Python: 正規表現処理の移植が比較的容易
+Scenario 3: Legacy System Replacement
+  PHP → Laravel: Easy incremental migration
+  Ruby → Rails: DB abstraction via ActiveRecord
+  Perl → Python: Relatively easy to port regex processing
 
-シナリオ4: EC サイト構築
-  推奨: PHP (Laravel + Stripe/PayPal SDK)
-  理由: 実績あるエコシステム、ホスティング容易
-  代替: Next.js (Shopify Hydrogen)
+Scenario 4: E-commerce Site
+  Recommended: PHP (Laravel + Stripe/PayPal SDK)
+  Reason: Proven ecosystem, easy hosting
+  Alternative: Next.js (Shopify Hydrogen)
 
-シナリオ5: バッチ処理・ETL
-  推奨: Python (SQLAlchemy + Celery)
-  理由: DB接続ライブラリの充実、タスクキュー
-  代替: Node.js（I/O多い場合に有利）
+Scenario 5: Batch Processing / ETL
+  Recommended: Python (SQLAlchemy + Celery)
+  Reason: Rich DB connection libraries, task queues
+  Alternative: Node.js (advantageous for I/O-heavy workloads)
 ```
 
 ---
 
-## 5. パフォーマンス比較
+## 5. Performance Comparison
 
-### 5.1 ベンチマーク（概算値）
+### 5.1 Benchmarks (Approximate Values)
 
 ```
-フィボナッチ(40) の実行時間（相対値、V8 JavaScript = 1.0）:
+Fibonacci(40) execution time (relative, V8 JavaScript = 1.0):
 
-JavaScript (V8/Node.js)  : 1.0x  （JITコンパイルが優秀）
-PHP 8.3 (OPcache+JIT)   : 1.5x  （PHP 8のJITで大幅改善）
-Ruby 3.3 (YJIT)         : 2.0x  （YJITで大幅改善）
-Python 3.12              : 8.0x  （インタープリタ、GIL）
-Perl 5.38                : 6.0x  （最適化済みインタープリタ）
+JavaScript (V8/Node.js)  : 1.0x  (Excellent JIT compilation)
+PHP 8.3 (OPcache+JIT)   : 1.5x  (Major improvement with PHP 8 JIT)
+Ruby 3.3 (YJIT)         : 2.0x  (Major improvement with YJIT)
+Python 3.12              : 8.0x  (Interpreter, GIL)
+Perl 5.38                : 6.0x  (Optimized interpreter)
 
-※ 実際の Web アプリケーションではI/O待ちが支配的なため、
-   CPU ベンチマークほどの差は出ない場合が多い
+* In real web applications, I/O wait tends to dominate,
+  so the gap is often much smaller than CPU benchmarks suggest
 ```
 
-### 5.2 各言語のパフォーマンス改善の歴史
+### 5.2 Performance Improvement History by Language
 
 ```python
-# Python のパフォーマンス改善策
-# 1. PyPy（JITコンパイラ実装） — CPython比で5-10倍高速
-# 2. Cython（C拡張の自動生成）
-# 3. NumPy/Polars（C/Rust実装のデータ処理）
-# 4. asyncio（I/O並行処理）
-# 5. multiprocessing（GIL回避のマルチプロセス）
-# 6. Python 3.13+: Free-threaded Python（GIL除去実験）
+# Python performance improvement strategies
+# 1. PyPy (JIT compiler implementation) — 5-10x faster than CPython
+# 2. Cython (automatic C extension generation)
+# 3. NumPy/Polars (data processing implemented in C/Rust)
+# 4. asyncio (concurrent I/O processing)
+# 5. multiprocessing (multi-process to bypass GIL)
+# 6. Python 3.13+: Free-threaded Python (experimental GIL removal)
 
-# asyncio による並行 I/O
+# Concurrent I/O with asyncio
 import asyncio
 import aiohttp
 
@@ -922,7 +927,7 @@ async def fetch_one(session: aiohttp.ClientSession, url: str) -> str:
     async with session.get(url) as response:
         return await response.text()
 
-# multiprocessing による CPU 並列処理
+# CPU parallelism with multiprocessing
 from multiprocessing import Pool
 
 def heavy_computation(n: int) -> int:
@@ -933,15 +938,15 @@ with Pool(processes=4) as pool:
 ```
 
 ```ruby
-# Ruby のパフォーマンス改善策
-# 1. YJIT (Yet Another JIT) — Ruby 3.1+ に統合、3.3で成熟
-# 2. Ractor（並列処理、GVL回避）
-# 3. Fiber Scheduler（非同期I/O）
+# Ruby performance improvement strategies
+# 1. YJIT (Yet Another JIT) — Integrated in Ruby 3.1+, mature in 3.3
+# 2. Ractor (parallel processing, bypasses GVL)
+# 3. Fiber Scheduler (async I/O)
 
-# Ractor による並列処理（Ruby 3.0+）
+# Parallel processing with Ractor (Ruby 3.0+)
 ractors = 4.times.map do |i|
   Ractor.new(i) do |id|
-    # 各Ractorは独立したGVLを持つ
+    # Each Ractor has its own independent GVL
     result = (1..1_000_000).sum
     [id, result]
   end
@@ -950,14 +955,14 @@ end
 results = ractors.map(&:take)
 puts results.inspect
 
-# Fiber Scheduler による非同期I/O
+# Async I/O with Fiber Scheduler
 require 'async'
 
 Async do
   urls = ['https://example.com', 'https://example.org']
   tasks = urls.map do |url|
     Async do
-      # 非ブロッキングHTTPリクエスト
+      # Non-blocking HTTP request
       response = Net::HTTP.get(URI(url))
       response.length
     end
@@ -967,10 +972,10 @@ end
 ```
 
 ```javascript
-// Node.js のパフォーマンス特性
-// V8エンジンのJITコンパイルにより、スクリプト言語で最高レベルの性能
+// Node.js performance characteristics
+// V8 engine's JIT compilation provides the highest performance among scripting languages
 
-// Worker Threads（CPU集約的処理の並列化）
+// Worker Threads (parallelizing CPU-intensive processing)
 import { Worker, isMainThread, parentPort, workerData } from 'worker_threads';
 
 if (isMainThread) {
@@ -989,7 +994,7 @@ if (isMainThread) {
     parentPort.postMessage(sum);
 }
 
-// Stream APIによるメモリ効率の良い処理
+// Memory-efficient processing with Stream API
 import { createReadStream } from 'fs';
 import { createInterface } from 'readline';
 
@@ -1009,12 +1014,12 @@ console.log(`Error lines: ${lineCount}`);
 
 ---
 
-## 6. 型システムの比較
+## 6. Type System Comparison
 
-### 6.1 段階的型付け（Gradual Typing）
+### 6.1 Gradual Typing
 
 ```python
-# Python: 型ヒント（実行時には無視される）
+# Python: Type hints (ignored at runtime)
 from typing import TypeVar, Generic, Protocol
 
 T = TypeVar('T')
@@ -1036,12 +1041,12 @@ class Stack(Generic[T]):
             raise IndexError("Stack is empty")
         return self._items[-1]
 
-# mypy / Pyright で静的チェック
+# Static checking with mypy / Pyright
 stack: Stack[int] = Stack()
 stack.push(42)
 stack.push("hello")  # mypy: error: Argument 1 has incompatible type "str"
 
-# TypedDict（辞書の型指定）
+# TypedDict (typed dictionaries)
 from typing import TypedDict, NotRequired
 
 class UserDict(TypedDict):
@@ -1054,9 +1059,9 @@ def process_user(user: UserDict) -> str:
 ```
 
 ```typescript
-// TypeScript: 高度な型システム
+// TypeScript: Advanced type system
 
-// Discriminated Unions（判別ユニオン）
+// Discriminated Unions
 type Shape =
     | { kind: "circle"; radius: number }
     | { kind: "rectangle"; width: number; height: number }
@@ -1071,7 +1076,7 @@ function area(shape: Shape): number {
         case "triangle":
             return (shape.base * shape.height) / 2;
     }
-    // TypeScript: exhaustiveness check（網羅性チェック）
+    // TypeScript: exhaustiveness check
 }
 
 // Template Literal Types
@@ -1083,7 +1088,7 @@ type APIRoute = `${HTTPMethod} ${APIPath}`;
 type ReturnTypeOf<T> = T extends (...args: any[]) => infer R ? R : never;
 type ArrayElement<T> = T extends (infer E)[] ? E : never;
 
-// Branded Types（ブランド型でプリミティブを区別）
+// Branded Types (distinguishing primitives with brand types)
 type UserId = number & { readonly __brand: "UserId" };
 type OrderId = number & { readonly __brand: "OrderId" };
 
@@ -1092,15 +1097,15 @@ function createUserId(id: number): UserId {
 }
 
 function getUser(id: UserId): void { /* ... */ }
-// getUser(createOrderId(1)); // コンパイルエラー！
+// getUser(createOrderId(1)); // Compile error!
 ```
 
 ```php
 <?php
-// PHP: 型宣言の強化（PHP 8.0+）
+// PHP: Enhanced type declarations (PHP 8.0+)
 declare(strict_types=1);
 
-// Union型 + Intersection型
+// Union types + Intersection types
 function processInput(string|int $input): string|int {
     return match(true) {
         is_string($input) => strtoupper($input),
@@ -1108,7 +1113,7 @@ function processInput(string|int $input): string|int {
     };
 }
 
-// PHPStan / Psalm による高度な静的解析
+// Advanced static analysis with PHPStan / Psalm
 /**
  * @template T
  * @param array<T> $items
@@ -1119,7 +1124,7 @@ function filter_items(array $items, callable $predicate): array {
     return array_values(array_filter($items, $predicate));
 }
 
-// DNF型（Disjunctive Normal Form, PHP 8.2+）
+// DNF types (Disjunctive Normal Form, PHP 8.2+)
 function process((Countable&Iterator)|null $input): int {
     if ($input === null) {
         return 0;
@@ -1130,36 +1135,42 @@ function process((Countable&Iterator)|null $input): int {
 
 ---
 
-## 7. 並行処理モデルの比較
+## 7. Concurrency Model Comparison
 
 ```
 ┌──────────┬────────────────┬──────────────────────────────┐
-│ 言語      │ 並行モデル      │ 特徴                          │
+│ Language │ Concurrency    │ Characteristics              │
+│          │ Model          │                              │
 ├──────────┼────────────────┼──────────────────────────────┤
-│ Python   │ asyncio        │ シングルスレッド非同期I/O        │
-│          │ multiprocessing│ マルチプロセス（GIL回避）       │
-│          │ threading      │ I/O bound のみ有効（GIL制約）   │
+│ Python   │ asyncio        │ Single-threaded async I/O    │
+│          │ multiprocessing│ Multi-process (bypasses GIL) │
+│          │ threading      │ Effective for I/O-bound only │
+│          │                │ (GIL constraint)             │
 ├──────────┼────────────────┼──────────────────────────────┤
-│ Ruby     │ Fiber          │ 協調的スレッド（軽量）          │
-│          │ Ractor         │ 並列処理（GVL独立）            │
-│          │ Thread         │ I/O bound のみ有効（GVL制約）   │
+│ Ruby     │ Fiber          │ Cooperative threading (light)│
+│          │ Ractor         │ Parallel processing          │
+│          │                │ (independent GVL)            │
+│          │ Thread         │ Effective for I/O-bound only │
+│          │                │ (GVL constraint)             │
 ├──────────┼────────────────┼──────────────────────────────┤
-│ JS/TS    │ Event Loop     │ シングルスレッド + 非同期I/O     │
-│          │ Worker Threads │ CPU集約的処理の並列化           │
-│          │ Cluster        │ マルチプロセスサーバー           │
+│ JS/TS    │ Event Loop     │ Single-threaded + async I/O  │
+│          │ Worker Threads │ Parallelization of           │
+│          │                │ CPU-intensive processing     │
+│          │ Cluster        │ Multi-process server         │
 ├──────────┼────────────────┼──────────────────────────────┤
-│ PHP      │ Fiber          │ 協調的スレッド（PHP 8.1+）      │
-│          │ Swoole         │ 非同期イベント駆動              │
-│          │ FrankenPHP     │ ワーカーモード                  │
+│ PHP      │ Fiber          │ Cooperative threading        │
+│          │                │ (PHP 8.1+)                   │
+│          │ Swoole         │ Async event-driven           │
+│          │ FrankenPHP     │ Worker mode                  │
 ├──────────┼────────────────┼──────────────────────────────┤
-│ Perl     │ threads        │ インタープリタクローン           │
-│          │ fork           │ プロセスフォーク                │
-│          │ AnyEvent       │ イベント駆動                   │
+│ Perl     │ threads        │ Interpreter cloning          │
+│          │ fork           │ Process forking              │
+│          │ AnyEvent       │ Event-driven                 │
 └──────────┴────────────────┴──────────────────────────────┘
 ```
 
 ```python
-# Python: asyncio + aiohttp の実践例
+# Python: Practical example with asyncio + aiohttp
 import asyncio
 import aiohttp
 from dataclasses import dataclass
@@ -1176,7 +1187,7 @@ async def fetch_url(session: aiohttp.ClientSession, url: str) -> FetchResult:
         return FetchResult(url=url, status=resp.status, body_length=len(body))
 
 async def fetch_all(urls: list[str], concurrency: int = 10) -> list[FetchResult]:
-    """セマフォで同時接続数を制限しつつ並行フェッチ"""
+    """Concurrent fetching with semaphore-limited simultaneous connections"""
     semaphore = asyncio.Semaphore(concurrency)
 
     async def bounded_fetch(session: aiohttp.ClientSession, url: str) -> FetchResult:
@@ -1187,13 +1198,13 @@ async def fetch_all(urls: list[str], concurrency: int = 10) -> list[FetchResult]
         tasks = [bounded_fetch(session, url) for url in urls]
         return await asyncio.gather(*tasks, return_exceptions=True)
 
-# 実行
+# Execution
 urls = [f"https://httpbin.org/get?id={i}" for i in range(100)]
 results = asyncio.run(fetch_all(urls, concurrency=20))
 ```
 
 ```typescript
-// TypeScript/Node.js: Promise.allSettled + 並行制御
+// TypeScript/Node.js: Promise.allSettled + concurrency control
 interface FetchResult {
     url: string;
     status: number;
@@ -1206,7 +1217,7 @@ async function fetchWithConcurrency(
 ): Promise<FetchResult[]> {
     const results: FetchResult[] = [];
 
-    // chunks に分割して並行実行
+    // Split into chunks and execute concurrently
     for (let i = 0; i < urls.length; i += concurrency) {
         const chunk = urls.slice(i, i + concurrency);
         const settled = await Promise.allSettled(
@@ -1232,76 +1243,76 @@ async function fetchWithConcurrency(
 
 ---
 
-## 8. 開発ツールチェーンの比較
+## 8. Development Toolchain Comparison
 
-### 8.1 リンター・フォーマッター
+### 8.1 Linters & Formatters
 
 ```
 Python:
-  リンター: Ruff（超高速、Rust製）, Flake8, Pylint
-  フォーマッター: Ruff format, Black
-  型チェッカー: mypy, Pyright (Pylance)
-  推奨: Ruff + Pyright（2025年のベストプラクティス）
+  Linter: Ruff (ultra-fast, written in Rust), Flake8, Pylint
+  Formatter: Ruff format, Black
+  Type Checker: mypy, Pyright (Pylance)
+  Recommended: Ruff + Pyright (2025 best practice)
 
 Ruby:
-  リンター/フォーマッター: RuboCop（統合型）
-  型チェッカー: Sorbet, Steep + RBS
-  推奨: RuboCop + Sorbet
+  Linter/Formatter: RuboCop (integrated)
+  Type Checker: Sorbet, Steep + RBS
+  Recommended: RuboCop + Sorbet
 
 JavaScript/TypeScript:
-  リンター: ESLint（+ typescript-eslint）, Biome
-  フォーマッター: Prettier, Biome
-  型チェッカー: tsc（TypeScript Compiler）
-  推奨: Biome（リント+フォーマット統合、Rust製で高速）
+  Linter: ESLint (+ typescript-eslint), Biome
+  Formatter: Prettier, Biome
+  Type Checker: tsc (TypeScript Compiler)
+  Recommended: Biome (integrated lint + format, fast Rust implementation)
 
 PHP:
-  リンター: PHPStan, Psalm
-  フォーマッター: PHP-CS-Fixer, Laravel Pint
-  推奨: PHPStan Level 9 + PHP-CS-Fixer
+  Linter: PHPStan, Psalm
+  Formatter: PHP-CS-Fixer, Laravel Pint
+  Recommended: PHPStan Level 9 + PHP-CS-Fixer
 
 Perl:
-  リンター: Perl::Critic
-  フォーマッター: Perl::Tidy
-  推奨: Perl::Critic + Perl::Tidy
+  Linter: Perl::Critic
+  Formatter: Perl::Tidy
+  Recommended: Perl::Critic + Perl::Tidy
 ```
 
-### 8.2 REPL・対話的開発
+### 8.2 REPL & Interactive Development
 
 ```
 Python:
-  標準: python3（REPL）
-  強化: IPython（タブ補完、マジックコマンド）
-  ノートブック: Jupyter Notebook / JupyterLab
-  → データサイエンスの探索的開発に最適
+  Standard: python3 (REPL)
+  Enhanced: IPython (tab completion, magic commands)
+  Notebook: Jupyter Notebook / JupyterLab
+  → Ideal for exploratory development in data science
 
 Ruby:
-  標準: irb（Interactive Ruby）
-  強化: pry（デバッグ機能付きREPL）
-  → binding.pry でブレークポイント設定可能
+  Standard: irb (Interactive Ruby)
+  Enhanced: pry (REPL with debugging features)
+  → Can set breakpoints with binding.pry
 
 JavaScript/Node.js:
-  標準: node（REPL）
-  ブラウザ: DevTools Console
-  → ブラウザ内で即座に実行・確認できる
+  Standard: node (REPL)
+  Browser: DevTools Console
+  → Instant execution and verification in the browser
 
 PHP:
-  標準: php -a（対話モード）
-  強化: PsySH（Laravel tinker が利用）
-  → tinker で Eloquent モデルを対話的に操作
+  Standard: php -a (interactive mode)
+  Enhanced: PsySH (used by Laravel tinker)
+  → Interactively manipulate Eloquent models with tinker
 
 Perl:
-  標準: perl -de0（デバッガをREPL代わりに）
-  強化: Reply, Devel::REPL
+  Standard: perl -de0 (using debugger as REPL)
+  Enhanced: Reply, Devel::REPL
 ```
 
-### 8.3 デプロイ方法の比較
+### 8.3 Deployment Method Comparison
 
 ```
 Python:
   PaaS: Heroku, Railway, Render
-  サーバーレス: AWS Lambda, Cloud Functions
-  コンテナ: Docker + Gunicorn/Uvicorn
-  推奨Dockerfile:
+  Serverless: AWS Lambda, Cloud Functions
+  Container: Docker + Gunicorn/Uvicorn
+  Recommended Dockerfile:
     FROM python:3.12-slim
     WORKDIR /app
     COPY requirements.txt .
@@ -1310,61 +1321,61 @@ Python:
     CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 Ruby:
-  PaaS: Heroku（最も相性が良い）, Render
-  コンテナ: Docker + Puma
-  推奨: Kamal（Rails公式のデプロイツール、Docker ベース）
+  PaaS: Heroku (best compatibility), Render
+  Container: Docker + Puma
+  Recommended: Kamal (Rails official deployment tool, Docker-based)
 
 JavaScript/Node.js:
   Edge: Cloudflare Workers, Vercel Edge Functions
-  サーバーレス: AWS Lambda, Vercel Functions
-  PaaS: Vercel（Next.js最適）, Netlify
-  コンテナ: Docker + PM2/Node直接
+  Serverless: AWS Lambda, Vercel Functions
+  PaaS: Vercel (optimal for Next.js), Netlify
+  Container: Docker + PM2/Node directly
 
 PHP:
-  共有ホスティング: ほぼ全てのサーバーで動作（最大の利点）
-  PaaS: Laravel Forge, Vapor（サーバーレス）
-  コンテナ: Docker + PHP-FPM + Nginx
-  → 最も安価にデプロイできる言語の1つ
+  Shared Hosting: Runs on virtually any server (biggest advantage)
+  PaaS: Laravel Forge, Vapor (serverless)
+  Container: Docker + PHP-FPM + Nginx
+  → One of the cheapest languages to deploy
 ```
 
 ---
 
-## 9. 各言語のモダン化の歩み
+## 9. Modernization Journey of Each Language
 
-### 9.1 Python の進化
+### 9.1 Python's Evolution
 
 ```
-Python 3.0  (2008): 2→3 の破壊的変更（Unicode標準、print関数化）
-Python 3.5  (2015): async/await, 型ヒント(PEP 484)
-Python 3.6  (2016): f-string, 変数アノテーション
+Python 3.0  (2008): Breaking changes from 2→3 (Unicode standard, print as function)
+Python 3.5  (2015): async/await, type hints (PEP 484)
+Python 3.6  (2016): f-strings, variable annotations
 Python 3.7  (2018): dataclasses, breakpoint()
-Python 3.8  (2019): ウォルラス演算子(:=), Protocol
-Python 3.9  (2020): 辞書のマージ演算子(|), 型ヒント簡略化
-Python 3.10 (2021): 構造的パターンマッチ(match/case)
-Python 3.11 (2022): 10-60%高速化, 例外グループ
-Python 3.12 (2023): 型パラメータ構文, f-string改善
-Python 3.13 (2024): Free-threaded実験的サポート(GIL除去)
+Python 3.8  (2019): Walrus operator (:=), Protocol
+Python 3.9  (2020): Dictionary merge operator (|), simplified type hints
+Python 3.10 (2021): Structural pattern matching (match/case)
+Python 3.11 (2022): 10-60% faster, exception groups
+Python 3.12 (2023): Type parameter syntax, f-string improvements
+Python 3.13 (2024): Experimental free-threaded support (GIL removal)
 ```
 
-### 9.2 Ruby の進化
+### 9.2 Ruby's Evolution
 
 ```
-Ruby 1.9  (2007): YARV VM, エンコーディング, 新ハッシュ構文
-Ruby 2.0  (2013): キーワード引数, Module#prepend
-Ruby 2.3  (2015): 安全ナビゲーション演算子(&.)
-Ruby 2.6  (2018): JIT(MJIT), 無限Range
-Ruby 3.0  (2020): Ractor(並列), Fiber Scheduler, RBS, パターンマッチ
-Ruby 3.1  (2021): YJIT, デバッグ改善
-Ruby 3.2  (2022): WASI対応, Regexp改善
-Ruby 3.3  (2023): YJIT性能向上, Prism Parser
+Ruby 1.9  (2007): YARV VM, encoding, new hash syntax
+Ruby 2.0  (2013): Keyword arguments, Module#prepend
+Ruby 2.3  (2015): Safe navigation operator (&.)
+Ruby 2.6  (2018): JIT (MJIT), endless Range
+Ruby 3.0  (2020): Ractor (parallel), Fiber Scheduler, RBS, pattern matching
+Ruby 3.1  (2021): YJIT, debugging improvements
+Ruby 3.2  (2022): WASI support, Regexp improvements
+Ruby 3.3  (2023): YJIT performance improvements, Prism Parser
 ```
 
-### 9.3 JavaScript の進化
+### 9.3 JavaScript's Evolution
 
 ```
 ES5     (2009): strict mode, Array extras (map, filter, reduce)
 ES6/2015(2015): let/const, arrow, class, Promise, module, template literal
-ES2016  (2016): Array.includes, ** 演算子
+ES2016  (2016): Array.includes, ** operator
 ES2017  (2017): async/await, Object.entries/values
 ES2018  (2018): rest/spread properties, for await...of
 ES2019  (2019): Array.flat/flatMap, Optional catch
@@ -1375,44 +1386,44 @@ ES2023  (2023): Array findLast, Hashbang, Change Array by Copy
 ES2024  (2024): Grouping (Object.groupBy), Promise.withResolvers
 ```
 
-### 9.4 PHP の進化
+### 9.4 PHP's Evolution
 
 ```
-PHP 5.3  (2009): 名前空間, クロージャ, 遅延静的束縛
-PHP 5.4  (2012): トレイト, 短い配列構文, ビルトインサーバー
-PHP 7.0  (2015): 戻り値型宣言, null合体演算子, 2倍の性能
-PHP 7.4  (2019): Arrow関数, 型付きプロパティ, プリロード
-PHP 8.0  (2020): JIT, Union型, match式, Named引数, Attribute
-PHP 8.1  (2021): Enum, Fiber, Readonly, Intersection型
-PHP 8.2  (2022): Readonly class, DNF型, 動的プロパティ非推奨
-PHP 8.3  (2023): 型付きクラス定数, json_validate, Override属性
-PHP 8.4  (2024): プロパティフック, 非対称可視性
+PHP 5.3  (2009): Namespaces, closures, late static binding
+PHP 5.4  (2012): Traits, short array syntax, built-in server
+PHP 7.0  (2015): Return type declarations, null coalescing operator, 2x performance
+PHP 7.4  (2019): Arrow functions, typed properties, preloading
+PHP 8.0  (2020): JIT, union types, match expression, named arguments, attributes
+PHP 8.1  (2021): Enums, Fibers, Readonly, intersection types
+PHP 8.2  (2022): Readonly classes, DNF types, dynamic properties deprecated
+PHP 8.3  (2023): Typed class constants, json_validate, Override attribute
+PHP 8.4  (2024): Property hooks, asymmetric visibility
 ```
 
 ---
 
-## 10. 実践的なプロジェクト構成例
+## 10. Practical Project Structure Examples
 
-### 10.1 Python（FastAPI）プロジェクト
+### 10.1 Python (FastAPI) Project
 
 ```
 myapp/
-├── pyproject.toml          # プロジェクト設定・依存関係
+├── pyproject.toml          # Project settings & dependencies
 ├── src/
 │   └── myapp/
 │       ├── __init__.py
-│       ├── main.py          # FastAPI アプリケーション
-│       ├── config.py        # 設定管理
-│       ├── models/          # Pydantic モデル
+│       ├── main.py          # FastAPI application
+│       ├── config.py        # Configuration management
+│       ├── models/          # Pydantic models
 │       │   ├── __init__.py
 │       │   └── user.py
-│       ├── routers/         # APIルーター
+│       ├── routers/         # API routers
 │       │   ├── __init__.py
 │       │   └── users.py
-│       ├── services/        # ビジネスロジック
+│       ├── services/        # Business logic
 │       │   ├── __init__.py
 │       │   └── user_service.py
-│       └── repositories/    # データアクセス
+│       └── repositories/    # Data access
 │           ├── __init__.py
 │           └── user_repo.py
 ├── tests/
@@ -1422,20 +1433,20 @@ myapp/
 └── docker-compose.yml
 ```
 
-### 10.2 Ruby on Rails プロジェクト
+### 10.2 Ruby on Rails Project
 
 ```
 myapp/
-├── Gemfile                  # 依存関係
+├── Gemfile                  # Dependencies
 ├── config/
-│   ├── routes.rb            # ルーティング
-│   ├── database.yml         # DB設定
-│   └── application.rb       # アプリ設定
+│   ├── routes.rb            # Routing
+│   ├── database.yml         # DB configuration
+│   └── application.rb       # Application settings
 ├── app/
 │   ├── controllers/
 │   │   └── users_controller.rb
 │   ├── models/
-│   │   └── user.rb          # ActiveRecord モデル
+│   │   └── user.rb          # ActiveRecord model
 │   ├── views/
 │   │   └── users/
 │   │       ├── index.html.erb
@@ -1443,65 +1454,65 @@ myapp/
 │   └── services/
 │       └── user_service.rb
 ├── db/
-│   └── migrate/             # マイグレーションファイル
-├── spec/                    # RSpec テスト
+│   └── migrate/             # Migration files
+├── spec/                    # RSpec tests
 │   ├── models/
 │   └── requests/
 └── Dockerfile
 ```
 
-### 10.3 Next.js（TypeScript）プロジェクト
+### 10.3 Next.js (TypeScript) Project
 
 ```
 myapp/
-├── package.json             # 依存関係
-├── tsconfig.json            # TypeScript設定
-├── next.config.ts           # Next.js設定
+├── package.json             # Dependencies
+├── tsconfig.json            # TypeScript config
+├── next.config.ts           # Next.js config
 ├── src/
 │   ├── app/                 # App Router
-│   │   ├── layout.tsx       # ルートレイアウト
-│   │   ├── page.tsx         # ホームページ
+│   │   ├── layout.tsx       # Root layout
+│   │   ├── page.tsx         # Home page
 │   │   ├── users/
-│   │   │   ├── page.tsx     # ユーザー一覧
+│   │   │   ├── page.tsx     # User list
 │   │   │   └── [id]/
-│   │   │       └── page.tsx # ユーザー詳細
+│   │   │       └── page.tsx # User detail
 │   │   └── api/
 │   │       └── users/
 │   │           └── route.ts # API Route Handler
 │   ├── components/
-│   │   ├── ui/              # 汎用UIコンポーネント
-│   │   └── features/        # 機能別コンポーネント
-│   ├── lib/                 # ユーティリティ
-│   └── types/               # 型定義
+│   │   ├── ui/              # General-purpose UI components
+│   │   └── features/        # Feature-specific components
+│   ├── lib/                 # Utilities
+│   └── types/               # Type definitions
 ├── tests/
 │   └── users.test.tsx
 └── Dockerfile
 ```
 
-### 10.4 Laravel（PHP）プロジェクト
+### 10.4 Laravel (PHP) Project
 
 ```
 myapp/
-├── composer.json            # 依存関係
-├── artisan                  # CLIツール
+├── composer.json            # Dependencies
+├── artisan                  # CLI tool
 ├── app/
 │   ├── Http/
 │   │   ├── Controllers/
 │   │   │   └── UserController.php
 │   │   └── Middleware/
 │   ├── Models/
-│   │   └── User.php         # Eloquent モデル
+│   │   └── User.php         # Eloquent model
 │   └── Services/
 │       └── UserService.php
-├── config/                  # 設定ファイル
+├── config/                  # Configuration files
 ├── database/
-│   ├── migrations/          # マイグレーション
-│   └── seeders/             # シーダー
+│   ├── migrations/          # Migrations
+│   └── seeders/             # Seeders
 ├── resources/
-│   └── views/               # Blade テンプレート
+│   └── views/               # Blade templates
 ├── routes/
-│   ├── web.php              # Webルート
-│   └── api.php              # APIルート
+│   ├── web.php              # Web routes
+│   └── api.php              # API routes
 ├── tests/
 │   ├── Feature/
 │   └── Unit/
@@ -1510,94 +1521,94 @@ myapp/
 
 ---
 
-## 11. 各言語の「キラーアプリ」
+## 11. "Killer Apps" of Each Language
 
 ```
 Python:
-  - NumPy / PyTorch / TensorFlow: AI/MLの事実上の標準
-  - Jupyter Notebook: 対話的データ分析
-  - Django Admin: 自動生成管理画面
-  - Ansible: インフラ自動化
-  - Scrapy: Webスクレイピング
+  - NumPy / PyTorch / TensorFlow: De facto standards for AI/ML
+  - Jupyter Notebook: Interactive data analysis
+  - Django Admin: Auto-generated admin panel
+  - Ansible: Infrastructure automation
+  - Scrapy: Web scraping
 
 Ruby:
-  - Ruby on Rails: Webアプリケーション開発の革命
-  - Homebrew: macOS パッケージマネージャ
-  - Vagrant: 仮想環境管理（歴史的）
-  - Fastlane: モバイルアプリCI/CD
-  - Jekyll: 静的サイトジェネレータ（GitHub Pages標準）
+  - Ruby on Rails: Revolution in web application development
+  - Homebrew: macOS package manager
+  - Vagrant: Virtual environment management (historical)
+  - Fastlane: Mobile app CI/CD
+  - Jekyll: Static site generator (GitHub Pages standard)
 
 JavaScript/TypeScript:
-  - React / Vue / Angular: フロントエンドUI
-  - Next.js: フルスタックフレームワーク
-  - Electron: デスクトップアプリ（VS Code, Discord, Slack）
-  - React Native: モバイルアプリ
+  - React / Vue / Angular: Frontend UI
+  - Next.js: Full-stack framework
+  - Electron: Desktop apps (VS Code, Discord, Slack)
+  - React Native: Mobile apps
   - Three.js: 3D WebGL
 
 PHP:
-  - WordPress: 世界のWebの43%
-  - Laravel: モダンPHP開発
-  - Magento / WooCommerce: EC
-  - MediaWiki: Wikipedia のエンジン
-  - Drupal: エンタープライズCMS
+  - WordPress: 43% of the web
+  - Laravel: Modern PHP development
+  - Magento / WooCommerce: E-commerce
+  - MediaWiki: The engine behind Wikipedia
+  - Drupal: Enterprise CMS
 
 Perl:
-  - CPAN: 先駆的パッケージリポジトリ
-  - cPanel: サーバー管理
-  - Bugzilla: バグトラッキング
-  - Movable Type: 初期のブログシステム
-  - BioPerl: バイオインフォマティクス
+  - CPAN: Pioneering package repository
+  - cPanel: Server management
+  - Bugzilla: Bug tracking
+  - Movable Type: Early blogging system
+  - BioPerl: Bioinformatics
 ```
 
 ---
 
-## 12. 学習ロードマップ
+## 12. Learning Roadmap
 
-### 12.1 初学者向け推奨パス
+### 12.1 Recommended Paths for Beginners
 
 ```
-完全な初心者:
+Complete Beginners:
   Python → JavaScript/TypeScript
-  理由: Pythonで基礎概念を学び、JSでWeb開発を学ぶ
+  Reason: Learn foundational concepts with Python, then web development with JS
 
-Web開発志望:
-  JavaScript/TypeScript → (必要に応じて) PHP or Ruby
-  理由: フロントエンドは必須。バックエンドは選択
+Aspiring Web Developers:
+  JavaScript/TypeScript → (as needed) PHP or Ruby
+  Reason: Frontend is essential. Backend is a choice
 
-データサイエンス志望:
-  Python → SQL → (必要に応じて) R
-  理由: Pythonのデータエコシステムは圧倒的
+Aspiring Data Scientists:
+  Python → SQL → (as needed) R
+  Reason: Python's data ecosystem is overwhelming
 
-スタートアップ志望:
+Aspiring Startup Developers:
   TypeScript (Next.js) or Ruby (Rails)
-  理由: 最速でMVPを作れる
+  Reason: Fastest path to building an MVP
 ```
 
-### 12.2 各言語の学習に必要な時間の目安
+### 12.2 Estimated Learning Time by Language
 
 ```
-基本文法を覚える:
-  Python:     2-4 週間（最も直感的）
-  Ruby:       2-4 週間（Python経験者なら1-2週間）
-  JavaScript: 2-4 週間（非同期処理の理解にやや時間がかかる）
-  PHP:        2-4 週間（Webの文脈で学ぶと早い）
-  TypeScript: 1-2 週間（JS経験者）/ 4-6週間（初学者）
-  Perl:       4-6 週間（構文が特殊、正規表現の学習も含む）
+Learning Basic Syntax:
+  Python:     2-4 weeks (most intuitive)
+  Ruby:       2-4 weeks (1-2 weeks if experienced with Python)
+  JavaScript: 2-4 weeks (async processing takes a bit longer to grasp)
+  PHP:        2-4 weeks (faster when learned in a web context)
+  TypeScript: 1-2 weeks (JS experienced) / 4-6 weeks (beginners)
+  Perl:       4-6 weeks (unique syntax, includes learning regex)
 
-フレームワークを使いこなす:
-  Django:     4-8 週間
-  Rails:      4-8 週間（Convention が多い分、覚えることも多い）
-  Next.js:    4-8 週間（React の理解が前提）
-  Laravel:    4-8 週間
-  Express:    2-4 週間（最も軽量）
+Mastering a Framework:
+  Django:     4-8 weeks
+  Rails:      4-8 weeks (many conventions to learn)
+  Next.js:    4-8 weeks (requires React understanding)
+  Laravel:    4-8 weeks
+  Express:    2-4 weeks (most lightweight)
 
-実務レベル:
-  全ての言語で 6-12 ヶ月（実プロジェクト経験が必須）
+Production Level:
+  All languages: 6-12 months (real project experience is essential)
 ```
 
 ---
 
-## 13. 言語間移行ガイド
+## 13. Language Migration Guide
 
 ### 13.1 Python → TypeScript
 
@@ -1612,7 +1623,7 @@ def process_users(users: list[dict]) -> list[str]:
 ```
 
 ```typescript
-// TypeScript（同じロジック）
+// TypeScript (same logic)
 interface User {
     name: string;
     active?: boolean;
@@ -1644,7 +1655,7 @@ end
 ```
 
 ```python
-# Python（同じロジック）
+# Python (same logic)
 class UserService:
     def __init__(self, repo):
         self._repo = repo
@@ -1677,7 +1688,7 @@ class UserService {
 ```
 
 ```python
-# Python（同じロジック）
+# Python (same logic)
 class UserService:
     def __init__(self, repo: UserRepository) -> None:
         self._repo = repo
@@ -1694,54 +1705,54 @@ class UserService:
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point for learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in professional practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+The knowledge in this topic is frequently used in day-to-day development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## まとめ
+## Summary
 
-| 言語 | 一言で表すなら | 最強の領域 | 2025年の状況 |
+| Language | In a Nutshell | Strongest Domain | Status in 2025 |
 |------|-------------|----------|-------------|
-| Python | 万能の優等生 | AI/ML/データ | 不動の地位。AI時代の最重要言語 |
-| Ruby | 開発者の幸福 | Web（Rails） | Rails 8 で復調。スタートアップで健在 |
-| JavaScript | Webの支配者 | フルスタックWeb | ブラウザ唯一の言語。エコシステム最大 |
-| TypeScript | JS+型安全 | 大規模Web開発 | 事実上のJS標準。採用率80%超 |
-| PHP | Web特化の実用家 | CMS/EC | PHP 8系で大幅改善。WordPress健在 |
-| Perl | テキスト処理の達人 | レガシー/バイオ | 新規採用は少ないが、既存システムで現役 |
+| Python | The versatile honor student | AI/ML/Data | Unshakeable position. The most important language of the AI era |
+| Ruby | Developer happiness | Web (Rails) | Resurgent with Rails 8. Still healthy in startups |
+| JavaScript | Ruler of the Web | Full-stack Web | The only browser language. Largest ecosystem |
+| TypeScript | JS + type safety | Large-scale Web dev | De facto JS standard. Over 80% adoption rate |
+| PHP | Web-specialized pragmatist | CMS/E-commerce | Major improvements with PHP 8.x. WordPress still going strong |
+| Perl | Master of text processing | Legacy/Bio | Few new adoptions, but still active in existing systems |
 
-### 選択のフローチャート
+### Selection Flowchart
 
 ```
-Q1: 何を作りたい？
-├── AI/ML/データ分析 → Python（一択）
-├── Web フロントエンド → JavaScript/TypeScript（一択）
-├── Web バックエンド
-│   ├── スタートアップ → Rails or Next.js
-│   ├── 大規模エンタープライズ → Java/Go（スクリプト言語を超える場合）
-│   ├── CMS/EC → PHP (Laravel/WordPress)
-│   └── APIサーバー → TypeScript (NestJS) or Python (FastAPI)
-├── モバイルアプリ → TypeScript (React Native) or Swift/Kotlin
-├── 自動化スクリプト → Python or Bash
-└── テキスト処理 → Python（汎用）or Perl（正規表現超特化）
+Q1: What do you want to build?
+├── AI/ML/Data Analysis → Python (the only choice)
+├── Web Frontend → JavaScript/TypeScript (the only choice)
+├── Web Backend
+│   ├── Startup → Rails or Next.js
+│   ├── Large-scale Enterprise → Java/Go (when scripting languages are insufficient)
+│   ├── CMS/E-commerce → PHP (Laravel/WordPress)
+│   └── API Server → TypeScript (NestJS) or Python (FastAPI)
+├── Mobile App → TypeScript (React Native) or Swift/Kotlin
+├── Automation Scripts → Python or Bash
+└── Text Processing → Python (general) or Perl (regex super-specialized)
 ```
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
 ---
 
-## 参考文献
+## References
 1. "Stack Overflow Developer Survey 2024." stackoverflow.com.
 2. Van Rossum, G. "The Python Tutorial." docs.python.org.
 3. Matsumoto, Y. "The Ruby Programming Language." O'Reilly, 2008.
