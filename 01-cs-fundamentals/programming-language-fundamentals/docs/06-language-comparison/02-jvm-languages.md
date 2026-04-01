@@ -1,86 +1,90 @@
-# JVM 言語比較（Java, Kotlin, Scala, Clojure）
+# JVM Language Comparison (Java, Kotlin, Scala, Clojure)
 
-> JVM（Java Virtual Machine）上で動く言語群。Javaの巨大なエコシステムを共有しつつ、それぞれが異なる哲学で進化。
+> A family of languages that run on the JVM (Java Virtual Machine). They share Java's massive ecosystem while each evolving with a different philosophy.
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] JVM 言語のエコシステムと互換性を理解する
-- [ ] 各言語の特徴と使い分けを把握する
-- [ ] JVM のアーキテクチャとパフォーマンス特性を理解する
-- [ ] 各言語の型システムの違いを比較できる
-- [ ] 実務プロジェクトでの言語選択の判断基準を持つ
-- [ ] GraalVM やバーチャルスレッドなど最新動向を把握する
+- [ ] Understand the JVM language ecosystem and compatibility
+- [ ] Understand the characteristics and appropriate use of each language
+- [ ] Understand JVM architecture and performance characteristics
+- [ ] Be able to compare type system differences across languages
+- [ ] Have criteria for language selection in real-world projects
+- [ ] Understand the latest developments such as GraalVM and virtual threads
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [システム言語比較（C, C++, Rust, Go, Zig）](./01-systems-languages.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding of the content in [Systems Language Comparison (C, C++, Rust, Go, Zig)](./01-systems-languages.md)
 
 ---
 
-## 1. 比較表
+## 1. Comparison Table
 
 ```
 ┌──────────────┬──────────┬──────────┬──────────┬──────────┐
 │              │ Java     │ Kotlin   │ Scala    │ Clojure  │
 ├──────────────┼──────────┼──────────┼──────────┼──────────┤
-│ 登場年        │ 1995     │ 2011     │ 2003     │ 2007     │
+│ Year Created │ 1995     │ 2011     │ 2003     │ 2007     │
 ├──────────────┼──────────┼──────────┼──────────┼──────────┤
-│ 設計者        │ Gosling  │ JetBrains│ Odersky  │ Hickey   │
+│ Designer     │ Gosling  │ JetBrains│ Odersky  │ Hickey   │
 │              │ (Sun)    │          │          │          │
 ├──────────────┼──────────┼──────────┼──────────┼──────────┤
-│ パラダイム    │ OOP      │ OOP+FP  │ OOP+FP  │ FP       │
-│              │          │ マルチ   │ マルチ   │ Lisp系   │
+│ Paradigm     │ OOP      │ OOP+FP  │ OOP+FP  │ FP       │
+│              │          │ Multi   │ Multi   │ Lisp     │
 ├──────────────┼──────────┼──────────┼──────────┼──────────┤
-│ 型付け        │ 静的     │ 静的     │ 静的     │ 動的     │
-│              │ nominal  │ 型推論強 │ 型推論最強│          │
+│ Typing       │ Static   │ Static   │ Static   │ Dynamic  │
+│              │ Nominal  │ Strong   │ Strongest│          │
+│              │          │ Inference│ Inference│          │
 ├──────────────┼──────────┼──────────┼──────────┼──────────┤
-│ Null安全      │ なし     │ あり     │ Option  │ nil      │
-│              │ (NPE)   │ (言語組込)│          │          │
+│ Null Safety  │ None     │ Yes      │ Option  │ nil      │
+│              │ (NPE)   │ (Built-in)│         │          │
 ├──────────────┼──────────┼──────────┼──────────┼──────────┤
-│ 主な用途      │ 企業     │ Android │ データ   │ Web      │
-│              │ バックエンド│ サーバー │ 分散処理 │ データ   │
+│ Primary      │ Enter-   │ Android │ Data     │ Web      │
+│ Use Cases    │ prise    │ Server  │ Distrib. │ Data     │
+│              │ Backend  │ Side    │ Process. │          │
 ├──────────────┼──────────┼──────────┼──────────┼──────────┤
-│ 主要FW       │ Spring   │ Ktor    │ Akka     │ Ring     │
+│ Major FW     │ Spring   │ Ktor    │ Akka     │ Ring     │
 │              │ Quarkus  │ Spring  │ Play     │ Luminus  │
 │              │ Micronaut│ Exposed │ ZIO      │ Pedestal │
 ├──────────────┼──────────┼──────────┼──────────┼──────────┤
-│ ビルドツール  │ Gradle   │ Gradle  │ sbt      │ Leiningen│
+│ Build Tool   │ Gradle   │ Gradle  │ sbt      │ Leiningen│
 │              │ Maven    │ Maven   │ Mill     │ deps.edn │
 ├──────────────┼──────────┼──────────┼──────────┼──────────┤
-│ テストFW     │ JUnit    │ Kotest  │ ScalaTest│ clojure  │
+│ Test FW      │ JUnit    │ Kotest  │ ScalaTest│ clojure  │
 │              │ Mockito  │ MockK   │ Specs2   │ .test    │
 ├──────────────┼──────────┼──────────┼──────────┼──────────┤
-│ 学習コスト    │ 中程度   │ 低い    │ 高い     │ 高い     │
-│              │          │ (Java経験│          │ (Lisp系) │
-│              │          │  あれば) │          │          │
+│ Learning     │ Medium   │ Low     │ High     │ High     │
+│ Curve        │          │ (if Java│          │ (Lisp    │
+│              │          │  exp.)  │          │  family) │
 ├──────────────┼──────────┼──────────┼──────────┼──────────┤
-│ 冗長性        │ やや高い │ 低い    │ 最も低い │ 低い     │
+│ Verbosity    │ Somewhat │ Low     │ Lowest   │ Low      │
+│              │ High     │         │          │          │
 ├──────────────┼──────────┼──────────┼──────────┼──────────┤
-│ Java相互運用  │ 100%    │ 100%    │ 95%     │ 良好     │
+│ Java Interop │ 100%    │ 100%    │ 95%     │ Good     │
 ├──────────────┼──────────┼──────────┼──────────┼──────────┤
-│ 求人数        │ 最も多い │ 急増中   │ 減少傾向 │ ニッチ   │
+│ Job Market   │ Highest  │ Rapidly  │ Declining│ Niche    │
+│              │          │ Growing  │ Trend    │          │
 └──────────────┴──────────┴──────────┴──────────┴──────────┘
 ```
 
 ---
 
-## 2. JVM アーキテクチャの理解
+## 2. Understanding JVM Architecture
 
-### 2.1 JVM の仕組み
+### 2.1 How the JVM Works
 
 ```
 ┌────────────────────────────────────────────────────────┐
 │                   JVM Architecture                     │
 ├────────────────────────────────────────────────────────┤
 │  .java / .kt / .scala / .clj                          │
-│       ↓ コンパイル                                     │
-│  .class ファイル（JVMバイトコード）                      │
-│       ↓ クラスローディング                              │
+│       ↓ Compilation                                    │
+│  .class files (JVM bytecode)                           │
+│       ↓ Class Loading                                  │
 │  ┌────────────────────────────────────────────┐       │
 │  │  Class Loader                               │       │
 │  │  - Bootstrap / Extension / Application      │       │
@@ -102,31 +106,31 @@
 └────────────────────────────────────────────────────────┘
 ```
 
-### 2.2 JVM の利点
+### 2.2 Advantages of the JVM
 
 ```
-1. Write Once, Run Anywhere（WORA）
-   - 同一のバイトコードが全プラットフォームで動作
-   - Linux, macOS, Windows, Docker コンテナ
+1. Write Once, Run Anywhere (WORA)
+   - The same bytecode runs on all platforms
+   - Linux, macOS, Windows, Docker containers
 
-2. JIT コンパイラによる最適化
-   - C1: クライアント向け、速いコンパイル
-   - C2: サーバー向け、深い最適化
-   - 実行パターンに基づく投機的最適化
-   - インライン化、ループアンローリング、エスケープ分析
+2. JIT Compiler Optimizations
+   - C1: Client-oriented, fast compilation
+   - C2: Server-oriented, deep optimization
+   - Speculative optimization based on execution patterns
+   - Inlining, loop unrolling, escape analysis
 
-3. GC（ガベージコレクタ）の進化
-   - G1 GC: デフォルト（Java 9+）、バランス型
-   - ZGC: 低遅延（<1ms pause）、大ヒープ向け
-   - Shenandoah: 低遅延、Red Hat 開発
-   - Epsilon: No-op GC（ベンチマーク用）
+3. GC (Garbage Collector) Evolution
+   - G1 GC: Default (Java 9+), balanced
+   - ZGC: Low-latency (<1ms pause), for large heaps
+   - Shenandoah: Low-latency, developed by Red Hat
+   - Epsilon: No-op GC (for benchmarking)
 
-4. 豊富なエコシステム
-   - Maven Central: 50万+ ライブラリ
-   - Spring, Hibernate, Apache プロジェクト群
-   - 30年の蓄積された知見とベストプラクティス
+4. Rich Ecosystem
+   - Maven Central: 500,000+ libraries
+   - Spring, Hibernate, Apache project family
+   - 30 years of accumulated knowledge and best practices
 
-5. 監視・プロファイリング
+5. Monitoring & Profiling
    - JMX, JFR (Java Flight Recorder)
    - VisualVM, JProfiler, async-profiler
    - Micrometer + Prometheus + Grafana
@@ -134,16 +138,16 @@
 
 ---
 
-## 3. 各言語の詳細比較
+## 3. Detailed Comparison of Each Language
 
-### 3.1 Java — 安定と進化のバランス
+### 3.1 Java — Balancing Stability and Evolution
 
 ```java
-// Java 21+: モダン Java は大きく進化した
+// Java 21+: Modern Java has evolved significantly
 
-// Record（Java 14+）— 不変データクラス
+// Record (Java 14+) — Immutable data classes
 public record User(String name, int age, List<String> tags) {
-    // コンパクトコンストラクタでバリデーション
+    // Compact constructor for validation
     public User {
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("name must not be blank");
@@ -151,7 +155,7 @@ public record User(String name, int age, List<String> tags) {
         if (age < 0) {
             throw new IllegalArgumentException("age must be non-negative");
         }
-        tags = List.copyOf(tags);  // 防御的コピー（不変リスト）
+        tags = List.copyOf(tags);  // Defensive copy (immutable list)
     }
 
     public boolean isAdult() {
@@ -159,7 +163,7 @@ public record User(String name, int age, List<String> tags) {
     }
 }
 
-// Sealed Classes（Java 17+）— 継承の制限
+// Sealed Classes (Java 17+) — Restricting inheritance
 public sealed interface Shape
     permits Circle, Rectangle, Triangle {
 
@@ -178,18 +182,18 @@ public record Triangle(double base, double height) implements Shape {
     public double area() { return base * height / 2; }
 }
 
-// パターンマッチ（Java 21+）
+// Pattern Matching (Java 21+)
 public String describe(Shape shape) {
     return switch (shape) {
-        case Circle c when c.radius() > 10 -> "大きな円: r=" + c.radius();
-        case Circle c -> "円: r=" + c.radius();
-        case Rectangle r when r.width() == r.height() -> "正方形: " + r.width();
-        case Rectangle r -> "長方形: " + r.width() + "x" + r.height();
-        case Triangle t -> "三角形: base=" + t.base();
+        case Circle c when c.radius() > 10 -> "Large circle: r=" + c.radius();
+        case Circle c -> "Circle: r=" + c.radius();
+        case Rectangle r when r.width() == r.height() -> "Square: " + r.width();
+        case Rectangle r -> "Rectangle: " + r.width() + "x" + r.height();
+        case Triangle t -> "Triangle: base=" + t.base();
     };
 }
 
-// Virtual Threads（Java 21+）— 軽量スレッド（Project Loom）
+// Virtual Threads (Java 21+) — Lightweight threads (Project Loom)
 public List<String> fetchAllUrls(List<String> urls) throws Exception {
     try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
         List<Future<String>> futures = urls.stream()
@@ -204,7 +208,7 @@ public List<String> fetchAllUrls(List<String> urls) throws Exception {
     }
 }
 
-// Structured Concurrency（Preview, Java 21+）
+// Structured Concurrency (Preview, Java 21+)
 public record UserProfile(User user, List<Order> orders) {}
 
 public UserProfile fetchUserProfile(long userId) throws Exception {
@@ -218,7 +222,7 @@ public UserProfile fetchUserProfile(long userId) throws Exception {
     }
 }
 
-// Stream API の活用
+// Stream API usage
 public Map<String, Double> averageAgeByDepartment(List<Employee> employees) {
     return employees.stream()
         .collect(Collectors.groupingBy(
@@ -227,7 +231,7 @@ public Map<String, Double> averageAgeByDepartment(List<Employee> employees) {
         ));
 }
 
-// テキストブロック（Java 15+）
+// Text Blocks (Java 15+)
 public String generateJson(User user) {
     return """
         {
@@ -238,14 +242,14 @@ public String generateJson(User user) {
         """.formatted(user.name(), user.age(), user.isAdult());
 }
 
-// Optional の適切な使い方
+// Proper use of Optional
 public Optional<User> findActiveUser(String name) {
     return userRepository.findByName(name)
         .filter(User::isActive)
         .map(user -> enrichWithProfile(user));
 }
 
-// var（ローカル変数型推論、Java 10+）
+// var (local variable type inference, Java 10+)
 var users = List.of(
     new User("Alice", 30, List.of("admin")),
     new User("Bob", 25, List.of("user"))
@@ -257,53 +261,53 @@ var adultNames = users.stream()
     .sorted()
     .toList();
 
-// String Templates（Preview, Java 22+）
+// String Templates (Preview, Java 22+)
 // var message = STR."Hello, \{user.name()}! You are \{user.age()} years old.";
 ```
 
-### 3.2 Kotlin — 簡潔さと安全性の追求
+### 3.2 Kotlin — Pursuing Conciseness and Safety
 
 ```kotlin
-// Kotlin: JetBrains が開発、Android 公式言語
-// Java との 100% 互換を保ちつつ大幅に簡潔・安全
+// Kotlin: Developed by JetBrains, official Android language
+// 100% compatible with Java while being significantly more concise and safe
 
-// データクラス（equals, hashCode, toString, copy を自動生成）
+// Data class (auto-generates equals, hashCode, toString, copy)
 data class User(
     val name: String,
     val age: Int,
-    val email: String? = null,  // Nullable（明示的）
+    val email: String? = null,  // Nullable (explicit)
     val tags: List<String> = emptyList()
 ) {
     fun isAdult(): Boolean = age >= 18
 
-    // copy メソッドで部分的な変更
+    // Partial modification with copy method
     fun withTag(tag: String): User = copy(tags = tags + tag)
 }
 
-// Null安全 — Kotlin の最大の武器
+// Null Safety — Kotlin's greatest weapon
 fun processUser(name: String?) {
-    // ?. セーフコール演算子
-    val length = name?.length  // nameがnullならnull
+    // ?. Safe call operator
+    val length = name?.length  // null if name is null
 
-    // ?: エルビス演算子
+    // ?: Elvis operator
     val displayName = name ?: "Unknown"
 
-    // ?.let でnullでない場合のみ実行
+    // ?.let executes only when non-null
     name?.let { n ->
         println("Name is: $n")
     }
 
-    // !! 非null断言（NPE の可能性があるので最小限に）
+    // !! Non-null assertion (minimize usage as it can cause NPE)
     // val forcedLength = name!!.length
 
-    // スマートキャスト
+    // Smart cast
     if (name != null) {
-        // ここでは name は String 型（non-null）
+        // Here name is String type (non-null)
         println(name.length)
     }
 }
 
-// Sealed class + when — 網羅的パターンマッチ
+// Sealed class + when — Exhaustive pattern matching
 sealed interface Result<out T> {
     data class Success<T>(val value: T) : Result<T>
     data class Failure(val error: Throwable) : Result<Nothing>
@@ -311,13 +315,13 @@ sealed interface Result<out T> {
 }
 
 fun <T> handleResult(result: Result<T>): String = when (result) {
-    is Result.Success -> "成功: ${result.value}"
-    is Result.Failure -> "失敗: ${result.error.message}"
-    is Result.Loading -> "読み込み中..."
-    // sealed なので else が不要（コンパイラが網羅性を検証）
+    is Result.Success -> "Success: ${result.value}"
+    is Result.Failure -> "Failure: ${result.error.message}"
+    is Result.Loading -> "Loading..."
+    // No else needed since it's sealed (compiler verifies exhaustiveness)
 }
 
-// 拡張関数 — 既存クラスにメソッドを追加
+// Extension functions — Add methods to existing classes
 fun String.toSlug(): String =
     this.lowercase()
         .replace(Regex("[^a-z0-9\\s-]"), "")
@@ -326,7 +330,7 @@ fun String.toSlug(): String =
 
 // "Hello World!".toSlug() → "hello-world"
 
-// 高階関数とラムダ
+// Higher-order functions and lambdas
 fun <T> List<T>.customFilter(predicate: (T) -> Boolean): List<T> {
     val result = mutableListOf<T>()
     for (item in this) {
@@ -337,16 +341,16 @@ fun <T> List<T>.customFilter(predicate: (T) -> Boolean): List<T> {
     return result
 }
 
-// スコープ関数（let, run, with, apply, also）
+// Scope functions (let, run, with, apply, also)
 fun createUser(): User {
     return User(name = "Alice", age = 30).apply {
-        println("Created user: $name")  // this は User
+        println("Created user: $name")  // this is User
     }.also { user ->
-        auditLog.log("User created: ${user.name}")  // it/user は User
+        auditLog.log("User created: ${user.name}")  // it/user is User
     }
 }
 
-// Coroutines — 構造化された非同期処理
+// Coroutines — Structured asynchronous processing
 import kotlinx.coroutines.*
 
 suspend fun fetchUserProfile(userId: Long): UserProfile = coroutineScope {
@@ -359,19 +363,19 @@ suspend fun fetchUserProfile(userId: Long): UserProfile = coroutineScope {
     )
 }
 
-// Flow — リアクティブストリーム
+// Flow — Reactive streams
 import kotlinx.coroutines.flow.*
 
 fun observeUsers(): Flow<List<User>> = flow {
     while (true) {
         val users = userRepository.findAll()
         emit(users)
-        delay(5000)  // 5秒ごとに更新
+        delay(5000)  // Update every 5 seconds
     }
 }.distinctUntilChanged()
- .catch { e -> emit(emptyList()) }  // エラーハンドリング
+ .catch { e -> emit(emptyList()) }  // Error handling
 
-// DSL ビルダー
+// DSL Builder
 class HtmlBuilder {
     private val elements = mutableListOf<String>()
 
@@ -398,10 +402,10 @@ fun html(block: HtmlBuilder.() -> Unit): String {
     return builder.build()
 }
 
-// DSL の使用例
+// DSL usage example
 val page = html {
-    h1("ユーザー一覧")
-    p("アクティブなユーザー:")
+    h1("User List")
+    p("Active users:")
     ul {
         li("Alice")
         li("Bob")
@@ -409,7 +413,7 @@ val page = html {
     }
 }
 
-// Delegation（委譲）
+// Delegation
 interface Repository<T> {
     fun findAll(): List<T>
     fun findById(id: Long): T?
@@ -425,61 +429,61 @@ class CachedRepository<T>(
     }
 }
 
-// Value class（インライン化される軽量ラッパー）
+// Value class (lightweight wrapper that gets inlined)
 @JvmInline
 value class UserId(val value: Long)
 
 @JvmInline
 value class OrderId(val value: Long)
 
-fun getUser(id: UserId): User = TODO()  // UserId と OrderId を混同しない
+fun getUser(id: UserId): User = TODO()  // Cannot confuse UserId and OrderId
 fun getOrder(id: OrderId): Order = TODO()
 
-// Kotlin Multiplatform（KMP）
-// expect/actual で各プラットフォーム固有の実装を切り替え
+// Kotlin Multiplatform (KMP)
+// Switch platform-specific implementations with expect/actual
 // expect fun platformName(): String
 // actual fun platformName(): String = "JVM" / "JS" / "Native"
 ```
 
-### 3.3 Scala — 表現力と型安全性の極致
+### 3.3 Scala — The Ultimate in Expressiveness and Type Safety
 
 ```scala
-// Scala 3: Dotty コンパイラベース、大幅に簡潔化
+// Scala 3: Based on the Dotty compiler, significantly more concise
 
-// case class（Javaのrecordに相当、より強力）
+// case class (equivalent to Java's record, but more powerful)
 case class User(name: String, age: Int, tags: List[String] = Nil):
   def isAdult: Boolean = age >= 18
   def withTag(tag: String): User = copy(tags = tags :+ tag)
 
-// enum（Scala 3の代数的データ型）
+// enum (Scala 3 algebraic data types)
 enum Shape:
   case Circle(radius: Double)
   case Rectangle(width: Double, height: Double)
   case Triangle(base: Double, height: Double)
 
-// パターンマッチ（Scalaの核心機能）
+// Pattern matching (Scala's core feature)
 def area(shape: Shape): Double = shape match
   case Shape.Circle(r) => Math.PI * r * r
   case Shape.Rectangle(w, h) => w * h
   case Shape.Triangle(b, h) => b * h / 2
 
-// ガード付きパターンマッチ
+// Pattern matching with guards
 def describe(shape: Shape): String = shape match
-  case Shape.Circle(r) if r > 10 => s"大きな円: r=$r"
-  case Shape.Circle(r) => s"円: r=$r"
-  case Shape.Rectangle(w, h) if w == h => s"正方形: $w"
-  case Shape.Rectangle(w, h) => s"長方形: ${w}x$h"
-  case Shape.Triangle(b, h) => s"三角形: base=$b"
+  case Shape.Circle(r) if r > 10 => s"Large circle: r=$r"
+  case Shape.Circle(r) => s"Circle: r=$r"
+  case Shape.Rectangle(w, h) if w == h => s"Square: $w"
+  case Shape.Rectangle(w, h) => s"Rectangle: ${w}x$h"
+  case Shape.Triangle(b, h) => s"Triangle: base=$b"
 
-// 高度な型システム
-// Union型（Scala 3）
+// Advanced type system
+// Union types (Scala 3)
 type StringOrInt = String | Int
 
 def process(value: StringOrInt): String = value match
   case s: String => s.toUpperCase
   case i: Int => i.toString
 
-// Intersection型
+// Intersection types
 trait Printable:
   def print(): Unit
 
@@ -490,7 +494,7 @@ def sendToPrinter(item: Printable & Serializable): Unit =
   val bytes = item.serialize()
   item.print()
 
-// Opaque Types（ゼロコスト型ラッパー）
+// Opaque Types (zero-cost type wrappers)
 object Types:
   opaque type UserId = Long
   opaque type Email = String
@@ -506,7 +510,7 @@ object Types:
   extension (email: Email)
     def value: String = email
 
-// Given / Using（Scala 3の暗黙パラメータ）
+// Given / Using (Scala 3 implicit parameters)
 // Contextual Abstraction
 trait JsonEncoder[A]:
   def encode(value: A): String
@@ -521,11 +525,11 @@ given JsonEncoder[Int] with
 def toJsonA(using encoder: JsonEncoder[A]): String =
   encoder.encode(value)
 
-// 使用例
+// Usage example
 val json = toJson(User("Alice", 30))
 // → {"name":"Alice","age":30}
 
-// for内包表記（モナディック合成）
+// For comprehensions (monadic composition)
 def findUserOrders(userId: Long): Option[List[Order]] =
   for
     user <- userRepository.findById(userId)
@@ -533,7 +537,7 @@ def findUserOrders(userId: Long): Option[List[Order]] =
     orders <- orderRepository.findByUser(user)
   yield orders
 
-// Future を使った非同期処理
+// Asynchronous processing with Future
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -546,7 +550,7 @@ def fetchUserProfile(userId: Long): Future[UserProfile] =
     orders <- ordersFuture
   yield UserProfile(user, orders)
 
-// ZIO による効果的プログラミング（Scala エコシステムの最前線）
+// Effectful programming with ZIO (cutting edge of Scala ecosystem)
 import zio.*
 
 def fetchUser(id: Long): ZIO[UserService, AppError, User] =
@@ -558,7 +562,7 @@ def program: ZIO[UserService & OrderService, AppError, UserProfile] =
     orders <- fetchOrders(user.id)
   yield UserProfile(user, orders)
 
-// コレクション操作（Scalaの真骨頂）
+// Collection operations (Scala's crown jewel)
 val employees = List(
   Employee("Alice", 30, "Engineering", 80000),
   Employee("Bob", 25, "Marketing", 60000),
@@ -567,7 +571,7 @@ val employees = List(
   Employee("Eve", 32, "Engineering", 85000)
 )
 
-// 部門別の平均給与（トップ3のみ）
+// Average salary by department (top 3 only)
 val result = employees
   .groupBy(_.department)
   .view
@@ -577,8 +581,8 @@ val result = employees
   .take(3)
 // → List(("Engineering", 85000.0), ("Marketing", 62500.0))
 
-// 型レベルプログラミング（高度）
-// Phantom Types でコンパイル時に状態を検証
+// Type-level programming (advanced)
+// Verify state at compile time with Phantom Types
 sealed trait DoorState
 sealed trait Open extends DoorState
 sealed trait Closed extends DoorState
@@ -589,16 +593,16 @@ class Door[S <: DoorState]:
 
 val door = Door[Closed]
 val openDoor = door.open       // OK
-// val invalid = openDoor.open  // コンパイルエラー！ すでに開いている
+// val invalid = openDoor.open  // Compile error! Already open
 
-// Extension Methods（Scala 3）
+// Extension Methods (Scala 3)
 extension (s: String)
   def words: List[String] = s.split("\\s+").toList
   def wordCount: Int = words.length
 
 "Hello World Scala".wordCount  // → 3
 
-// Match Types（Scala 3）— 型レベルパターンマッチ
+// Match Types (Scala 3) — Type-level pattern matching
 type Elem[X] = X match
   case String => Char
   case Array[t] => t
@@ -609,30 +613,30 @@ type Elem[X] = X match
 // Elem[List[Double]] =:= Double
 ```
 
-### 3.4 Clojure — データ指向プログラミング
+### 3.4 Clojure — Data-Oriented Programming
 
 ```clojure
-;; Clojure: JVM上のモダンLisp
-;; 設計哲学: シンプル、不変、データ中心
+;; Clojure: A modern Lisp on the JVM
+;; Design philosophy: Simple, immutable, data-centric
 
-;; すべてが式（expression）
-;; S式: (関数 引数1 引数2 ...)
+;; Everything is an expression
+;; S-expression: (function arg1 arg2 ...)
 (println "Hello, World!")
 
-;; 不変データ構造（永続的データ構造）
+;; Immutable data structures (persistent data structures)
 (def user {:name "Alice"
            :age 30
            :tags ["admin" "developer"]})
 
-;; assoc: キーを追加/更新（元のデータは変更されない）
+;; assoc: Add/update a key (original data is unchanged)
 (def updated-user (assoc user :email "alice@example.com"))
-;; user は変わらない
+;; user remains unchanged
 
-;; update: 関数を適用して更新
+;; update: Apply a function to update
 (def older-user (update user :age inc))
 ;; → {:name "Alice", :age 31, :tags ["admin" "developer"]}
 
-;; ネストしたデータの更新
+;; Updating nested data
 (def company {:name "Acme"
               :address {:city "Tokyo"
                         :zip "100-0001"}})
@@ -640,8 +644,8 @@ type Elem[X] = X match
 (def updated (assoc-in company [:address :city] "Osaka"))
 (def with-floor (update-in company [:address] assoc :floor 5))
 
-;; スレッディングマクロ — データ変換パイプライン
-;; -> (thread-first): 最初の引数として渡す
+;; Threading macros — Data transformation pipelines
+;; -> (thread-first): Pass as the first argument
 (-> "Hello, World!"
     .toUpperCase
     (.replace "," "")
@@ -649,20 +653,20 @@ type Elem[X] = X match
     first)
 ;; → "HELLO"
 
-;; ->> (thread-last): 最後の引数として渡す
+;; ->> (thread-last): Pass as the last argument
 (->> (range 1 101)
      (filter odd?)
      (map #(* % %))
      (reduce +))
 ;; → 1^2 + 3^2 + 5^2 + ... + 99^2
 
-;; 高階関数とトランスデューサ
+;; Higher-order functions and transducers
 (def users [{:name "Alice" :age 30 :active true}
             {:name "Bob"   :age 17 :active true}
             {:name "Carol" :age 25 :active false}
             {:name "Dave"  :age 35 :active true}])
 
-;; 従来のアプローチ（中間コレクションが生成される）
+;; Traditional approach (intermediate collections are created)
 (->> users
      (filter :active)
      (filter #(>= (:age %) 18))
@@ -670,7 +674,7 @@ type Elem[X] = X match
      (sort))
 ;; → ("Alice" "Dave")
 
-;; トランスデューサ（中間コレクションなし、効率的）
+;; Transducers (no intermediate collections, efficient)
 (def xf (comp
          (filter :active)
          (filter #(>= (:age %) 18))
@@ -679,7 +683,7 @@ type Elem[X] = X match
 (into [] xf users)
 ;; → ["Alice" "Dave"]
 
-;; マルチメソッド — 柔軟なポリモーフィズム
+;; Multimethods — Flexible polymorphism
 (defmulti area :shape)
 
 (defmethod area :circle [{:keys [radius]}]
@@ -694,24 +698,24 @@ type Elem[X] = X match
 (area {:shape :circle :radius 5})        ;; → 78.54
 (area {:shape :rectangle :width 4 :height 5})  ;; → 20
 
-;; プロトコル — Java インターフェースに近い概念
+;; Protocols — A concept close to Java interfaces
 (defprotocol Summarizable
   (summarize [this]))
 
 (defrecord User [name age]
   Summarizable
   (summarize [this]
-    (str name " (" age "歳)")))
+    (str name " (age " age ")")))
 
 (defrecord Article [title author]
   Summarizable
   (summarize [this]
     (str "\"" title "\" by " author)))
 
-(summarize (->User "Alice" 30))       ;; → "Alice (30歳)"
-(summarize (->Article "FP入門" "Bob")) ;; → "\"FP入門\" by Bob"
+(summarize (->User "Alice" 30))              ;; → "Alice (age 30)"
+(summarize (->Article "Intro to FP" "Bob"))  ;; → "\"Intro to FP\" by Bob"
 
-;; Spec — データのバリデーションと生成
+;; Spec — Data validation and generation
 (require '[clojure.spec.alpha :as s])
 
 (s/def ::name (s/and string? #(> (count %) 0)))
@@ -722,85 +726,85 @@ type Elem[X] = X match
 
 (s/valid? ::user {:name "Alice" :age 30})             ;; → true
 (s/valid? ::user {:name "" :age 30})                   ;; → false
-(s/explain ::user {:name "" :age 30})                  ;; エラー理由を表示
+(s/explain ::user {:name "" :age 30})                  ;; Shows error reason
 
-;; Atom — 安全な共有状態の管理
+;; Atom — Safe shared state management
 (def counter (atom 0))
-(swap! counter inc)     ;; アトミックに +1
-(swap! counter + 10)    ;; アトミックに +10
-@counter                ;; → 11 （デリファレンス）
+(swap! counter inc)     ;; Atomically +1
+(swap! counter + 10)    ;; Atomically +10
+@counter                ;; → 11 (dereference)
 
-;; Agent — 非同期の状態更新
+;; Agent — Asynchronous state updates
 (def log-agent (agent []))
 (send log-agent conj "Event 1")
 (send log-agent conj "Event 2")
-;; 別スレッドで順次処理される
+;; Processed sequentially on a separate thread
 
-;; core.async — CSP スタイルの並行処理
+;; core.async — CSP-style concurrency
 (require '[clojure.core.async :as async])
 
 (let [ch (async/chan 10)]
-  ;; 送信側
+  ;; Sender side
   (async/go
     (doseq [i (range 5)]
       (async/>! ch i))
     (async/close! ch))
 
-  ;; 受信側
+  ;; Receiver side
   (async/go-loop []
     (when-let [v (async/<! ch)]
       (println "Received:" v)
       (recur))))
 
-;; REPL駆動開発 — Clojureの真髄
-;; 1. REPLでデータを探索
-;; 2. 関数を定義・テスト
-;; 3. データ変換パイプラインを段階的に構築
-;; 4. 名前空間にまとめる
-;; → 「コード → コンパイル → 実行」のサイクルが不要
+;; REPL-Driven Development — The essence of Clojure
+;; 1. Explore data in the REPL
+;; 2. Define and test functions
+;; 3. Build data transformation pipelines incrementally
+;; 4. Organize into namespaces
+;; → No "code → compile → run" cycle needed
 ```
 
 ---
 
-## 4. Java のモダンな進化（Java 17 - 25）
+## 4. Java's Modern Evolution (Java 17 - 25)
 
 ```
 Java 17 (LTS, 2021):
-  - Sealed Classes（継承の制限）
+  - Sealed Classes (restricting inheritance)
   - Pattern Matching for instanceof
-  - テキストブロック
+  - Text Blocks
   - Records
 
 Java 21 (LTS, 2023):
-  - Virtual Threads（Project Loom）— 軽量スレッド
+  - Virtual Threads (Project Loom) — Lightweight threads
   - Pattern Matching for switch
   - Record Patterns
   - Sequenced Collections
-  - String Templates（Preview）
+  - String Templates (Preview)
 
 Java 22-25 (2024-2025):
-  - Structured Concurrency（構造化された並行処理）
-  - Scoped Values（ThreadLocal の改善）
-  - Stream Gatherers（カスタムストリーム操作）
-  - Foreign Function & Memory API（JNI 代替）
-  - Vector API（SIMD 操作）
-  - Value Types（Project Valhalla, Preview）
+  - Structured Concurrency
+  - Scoped Values (improvement over ThreadLocal)
+  - Stream Gatherers (custom stream operations)
+  - Foreign Function & Memory API (JNI replacement)
+  - Vector API (SIMD operations)
+  - Value Types (Project Valhalla, Preview)
 
-重要なトレンド:
-  → Java は6ヶ月リリースサイクルで急速に進化
-  → Kotlin の良い機能を Java が取り入れる傾向
-  → Records, Sealed Classes, Pattern Matching が Java をモダン化
-  → Virtual Threads で並行処理のパラダイムが変わる
+Key Trends:
+  → Java is evolving rapidly with 6-month release cycles
+  → Tendency for Java to adopt good features from Kotlin
+  → Records, Sealed Classes, Pattern Matching are modernizing Java
+  → Virtual Threads are changing the concurrency paradigm
 ```
 
 ---
 
-## 5. フレームワーク比較
+## 5. Framework Comparison
 
-### 5.1 Web フレームワーク
+### 5.1 Web Frameworks
 
 ```java
-// Java: Spring Boot — エンタープライズの王者
+// Java: Spring Boot — The king of enterprise
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
@@ -835,7 +839,7 @@ public class UserController {
     }
 }
 
-// Spring Data JPA — リポジトリの自動実装
+// Spring Data JPA — Auto-implemented repositories
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByEmail(String email);
     List<User> findByAgeGreaterThan(int age);
@@ -846,7 +850,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
 ```
 
 ```kotlin
-// Kotlin: Ktor — 軽量な非同期 Web フレームワーク
+// Kotlin: Ktor — Lightweight async web framework
 fun Application.module() {
     install(ContentNegotiation) {
         json(Json {
@@ -885,7 +889,7 @@ fun Application.module() {
     }
 }
 
-// Exposed — Kotlin の型安全な SQL DSL
+// Exposed — Kotlin's type-safe SQL DSL
 object Users : Table("users") {
     val id = long("id").autoIncrement()
     val name = varchar("name", 255)
@@ -909,13 +913,13 @@ fun findActiveAdults(): List<UserRow> = transaction {
 ```
 
 ```scala
-// Scala: ZIO HTTP + Tapir — 型安全な API 定義
+// Scala: ZIO HTTP + Tapir — Type-safe API definition
 import sttp.tapir.*
 import sttp.tapir.json.zio.*
 import zio.*
 import zio.json.*
 
-// API エンドポイントの型安全な定義
+// Type-safe API endpoint definition
 val getUserEndpoint = endpoint
   .get
   .in("api" / "users" / pathLong)
@@ -928,20 +932,20 @@ val listUsersEndpoint = endpoint
   .in(queryInt.default(0))
   .out(jsonBody[List[UserDto]])
 
-// エンドポイントの実装
+// Endpoint implementation
 val getUserRoute = getUserEndpoint.zServerLogic { id =>
   userService.findById(id)
     .map(_.toDto)
     .mapError(_ => StatusCode.NotFound)
 }
 
-// OpenAPI ドキュメントの自動生成
+// Auto-generated OpenAPI documentation
 val docs = OpenAPIDocsInterpreter()
   .toOpenAPI(List(getUserEndpoint, listUsersEndpoint), "User API", "1.0.0")
 ```
 
 ```clojure
-;; Clojure: Ring + Compojure — 関数ベースの Web フレームワーク
+;; Clojure: Ring + Compojure — Function-based web framework
 (ns myapp.handler
   (:require [compojure.core :refer [defroutes GET POST]]
             [compojure.route :as route]
@@ -970,10 +974,10 @@ val docs = OpenAPIDocsInterpreter()
       wrap-json-response))
 ```
 
-### 5.2 データ処理フレームワーク
+### 5.2 Data Processing Frameworks
 
 ```scala
-// Scala: Apache Spark — 大規模データ処理の標準
+// Scala: Apache Spark — The standard for large-scale data processing
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 
@@ -984,13 +988,13 @@ val spark = SparkSession.builder()
 
 import spark.implicits._
 
-// CSV 読み込み
+// CSV reading
 val users = spark.read
   .option("header", "true")
   .option("inferSchema", "true")
   .csv("users.csv")
 
-// データ変換と集計
+// Data transformation and aggregation
 val result = users
   .filter($"age" >= 18)
   .groupBy($"department")
@@ -1009,7 +1013,7 @@ result.show()
 // |Marketing   |   80|    72000 |   130000 |
 // +------------+-----+----------+----------+
 
-// Dataset API（型安全）
+// Dataset API (type-safe)
 case class UserEvent(userId: Long, action: String, timestamp: Long)
 
 val events = spark.read.parquet("events.parquet").as[UserEvent]
@@ -1018,12 +1022,12 @@ val activeUsers = events
   .filter(_.action == "login")
   .groupByKey(_.userId)
   .count()
-  .filter(_._2 >= 5)  // 5回以上ログインしたユーザー
+  .filter(_._2 >= 5)  // Users who logged in 5 or more times
 ```
 
 ---
 
-## 6. テスト戦略の比較
+## 6. Test Strategy Comparison
 
 ```java
 // Java: JUnit 5 + AssertJ + Mockito
@@ -1032,7 +1036,7 @@ import org.junit.jupiter.params.*;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-@DisplayName("UserService テスト")
+@DisplayName("UserService Tests")
 class UserServiceTest {
 
     @Mock
@@ -1047,7 +1051,7 @@ class UserServiceTest {
     }
 
     @Test
-    @DisplayName("アクティブユーザーの一覧を取得する")
+    @DisplayName("Should return active users")
     void shouldReturnActiveUsers() {
         var users = List.of(
             new User("Alice", 30, true),
@@ -1066,7 +1070,7 @@ class UserServiceTest {
 
     @ParameterizedTest
     @ValueSource(ints = {0, 17})
-    @DisplayName("未成年はアダルトではない")
+    @DisplayName("Minors should not be adults")
     void shouldNotBeAdult(int age) {
         var user = new User("Test", age, true);
         assertThat(user.isAdult()).isFalse();
@@ -1075,7 +1079,7 @@ class UserServiceTest {
 ```
 
 ```kotlin
-// Kotlin: Kotest — 多様なテストスタイル
+// Kotlin: Kotest — Diverse test styles
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.collections.shouldHaveSize
@@ -1088,7 +1092,7 @@ class UserServiceTest : DescribeSpec({
     val userService = UserService(userRepository)
 
     describe("findActiveUsers") {
-        it("アクティブユーザーのみを返す") {
+        it("should return only active users") {
             val users = listOf(
                 User("Alice", 30, active = true),
                 User("Bob", 25, active = false),
@@ -1102,8 +1106,8 @@ class UserServiceTest : DescribeSpec({
             result.map { it.name } shouldContainExactly listOf("Alice", "Carol")
         }
 
-        context("ユーザーが存在しない場合") {
-            it("空のリストを返す") {
+        context("when no users exist") {
+            it("should return an empty list") {
                 every { userRepository.findAll() } returns emptyList()
 
                 val result = userService.findActiveUsers()
@@ -1128,7 +1132,7 @@ class UserServiceTest : DescribeSpec({
 ```
 
 ```clojure
-;; Clojure: clojure.test + test.check（プロパティベーステスト）
+;; Clojure: clojure.test + test.check (property-based testing)
 (ns myapp.user-test
   (:require [clojure.test :refer [deftest testing is are]]
             [clojure.test.check :as tc]
@@ -1137,7 +1141,7 @@ class UserServiceTest : DescribeSpec({
             [myapp.user :as user]))
 
 (deftest test-find-active-users
-  (testing "アクティブユーザーのみを返す"
+  (testing "should return only active users"
     (let [users [{:name "Alice" :age 30 :active true}
                  {:name "Bob"   :age 25 :active false}
                  {:name "Carol" :age 35 :active true}]
@@ -1145,10 +1149,10 @@ class UserServiceTest : DescribeSpec({
       (is (= 2 (count result)))
       (is (= ["Alice" "Carol"] (map :name result)))))
 
-  (testing "ユーザーが空の場合"
+  (testing "when users are empty"
     (is (empty? (user/find-active [])))))
 
-;; プロパティベーステスト
+;; Property-based testing
 (def user-gen
   (gen/hash-map
     :name gen/string-alphanumeric
@@ -1158,7 +1162,7 @@ class UserServiceTest : DescribeSpec({
 (def active-users-subset-property
   (prop/for-all [users (gen/vector user-gen)]
     (let [active (user/find-active users)]
-      ;; アクティブユーザーは元のユーザーの部分集合
+      ;; Active users are a subset of the original users
       (every? #(some #{%} users) active))))
 
 (tc/quick-check 1000 active-users-subset-property)
@@ -1166,33 +1170,33 @@ class UserServiceTest : DescribeSpec({
 
 ---
 
-## 7. GraalVM とネイティブイメージ
+## 7. GraalVM and Native Images
 
 ```
-GraalVM: Oracle が開発する高性能 JVM
-  → JIT コンパイラの改善（Graal コンパイラ）
-  → Native Image: AOT コンパイルで起動を高速化
-  → 多言語実行（Java, JavaScript, Python, Ruby, R, LLVM）
+GraalVM: A high-performance JVM developed by Oracle
+  → JIT compiler improvements (Graal compiler)
+  → Native Image: AOT compilation for faster startup
+  → Polyglot execution (Java, JavaScript, Python, Ruby, R, LLVM)
 
-Native Image の利点:
-  - 起動時間: 数秒 → 数十ミリ秒
-  - メモリ使用量: 数百MB → 数十MB
-  - パッケージサイズ: JRE不要（単体実行可能バイナリ）
+Native Image Benefits:
+  - Startup time: Seconds → Tens of milliseconds
+  - Memory usage: Hundreds of MB → Tens of MB
+  - Package size: No JRE needed (standalone executable binary)
 
-制約:
-  - リフレクションの制限（設定が必要）
-  - 動的クラスローディングの制限
-  - コンパイル時間が長い
+Constraints:
+  - Reflection limitations (configuration required)
+  - Dynamic class loading restrictions
+  - Long compilation times
 
-対応フレームワーク:
-  - Quarkus: Native Image ファースト
-  - Micronaut: コンパイル時DI
+Supported Frameworks:
+  - Quarkus: Native Image first
+  - Micronaut: Compile-time DI
   - Spring Native / Spring Boot 3.x
-  - Helidon: Oracle の軽量フレームワーク
+  - Helidon: Oracle's lightweight framework
 ```
 
 ```java
-// Quarkus: GraalVM Native Image に最適化
+// Quarkus: Optimized for GraalVM Native Image
 @Path("/api/users")
 @Produces(MediaType.APPLICATION_JSON)
 public class UserResource {
@@ -1216,74 +1220,74 @@ public class UserResource {
     }
 }
 
-// ビルドコマンド:
+// Build command:
 // ./mvnw package -Pnative
-// → 起動時間: ~0.02秒（通常のJVMは ~1秒）
-// → メモリ: ~30MB（通常のJVMは ~200MB）
+// → Startup time: ~0.02s (normal JVM is ~1s)
+// → Memory: ~30MB (normal JVM is ~200MB)
 ```
 
 ---
 
-## 8. 選択指針の詳細
+## 8. Detailed Selection Guidelines
 
 ```
-Q1: チームの規模と経験は？
-├── 大規模チーム(20+人), Java経験豊富 → Java (Spring Boot)
-│   理由: 人材確保が容易、ドキュメント・知見が豊富
-├── 中規模チーム(5-20人), モダン志向 → Kotlin (Ktor/Spring)
-│   理由: Javaとの互換性を保ちつつ生産性向上
-├── 小規模チーム(1-5人), FP志向 → Scala or Clojure
-│   理由: 少人数で高い表現力を活かせる
-└── Android開発含む → Kotlin（一択）
+Q1: What is the team size and experience?
+├── Large team (20+ people), rich Java experience → Java (Spring Boot)
+│   Reason: Easy to recruit, abundant documentation and knowledge
+├── Medium team (5-20 people), modern orientation → Kotlin (Ktor/Spring)
+│   Reason: Improved productivity while maintaining Java compatibility
+├── Small team (1-5 people), FP-oriented → Scala or Clojure
+│   Reason: Small teams can leverage high expressiveness
+└── Including Android development → Kotlin (the only choice)
 
-Q2: パフォーマンス要件は？
-├── 低遅延が必須 → Java (Virtual Threads) or Kotlin (Coroutines)
-├── 大規模データ処理 → Scala (Spark)
-├── 起動速度が重要 → Java/Kotlin + GraalVM Native Image
-└── スループット重視 → Java (Reactor) or Kotlin (Flow)
+Q2: What are the performance requirements?
+├── Low-latency required → Java (Virtual Threads) or Kotlin (Coroutines)
+├── Large-scale data processing → Scala (Spark)
+├── Fast startup important → Java/Kotlin + GraalVM Native Image
+└── Throughput-focused → Java (Reactor) or Kotlin (Flow)
 
-Q3: プロジェクトの種類は？
-├── エンタープライズ CRUD → Java (Spring Boot) or Kotlin (Spring)
-├── マイクロサービス → Kotlin (Ktor) or Java (Quarkus)
-├── データパイプライン → Scala (Spark) or Java (Flink)
-├── イベント駆動システム → Scala (Akka/ZIO) or Kotlin (Coroutines)
-├── REPL駆動の探索的開発 → Clojure
-└── Android アプリ → Kotlin（Google公式）
+Q3: What type of project is it?
+├── Enterprise CRUD → Java (Spring Boot) or Kotlin (Spring)
+├── Microservices → Kotlin (Ktor) or Java (Quarkus)
+├── Data pipeline → Scala (Spark) or Java (Flink)
+├── Event-driven system → Scala (Akka/ZIO) or Kotlin (Coroutines)
+├── REPL-driven exploratory development → Clojure
+└── Android app → Kotlin (Google official)
 
-Q4: 長期メンテナンス性は？
-├── 10年以上の運用 → Java
-│   理由: 後方互換性の保証、LTSリリース
-├── 5-10年 → Kotlin or Java
-│   理由: JetBrains + Google の支援
-├── 技術的挑戦 → Scala
-│   理由: 表現力最高だがチーム教育コスト高い
-└── スタートアップ → Kotlin or Clojure
-    理由: 少人数で高い生産性
+Q4: What about long-term maintainability?
+├── 10+ years of operation → Java
+│   Reason: Backward compatibility guarantees, LTS releases
+├── 5-10 years → Kotlin or Java
+│   Reason: JetBrains + Google backing
+├── Technical challenge → Scala
+│   Reason: Highest expressiveness but high team education cost
+└── Startup → Kotlin or Clojure
+    Reason: High productivity with small teams
 ```
 
 ---
 
-## 9. Java ⇄ Kotlin 移行ガイド
+## 9. Java ⇄ Kotlin Migration Guide
 
-### 9.1 段階的移行の手順
+### 9.1 Incremental Migration Steps
 
 ```
-1. 新規ファイルを Kotlin で作成（Java プロジェクトに混在可能）
-2. テストコードを Kotlin に変換（リスクが低い）
-3. ユーティリティクラスを Kotlin に変換
-4. 新機能はすべて Kotlin で実装
-5. 段階的に既存 Java コードを変換（IntelliJ の自動変換を活用）
+1. Create new files in Kotlin (can coexist in a Java project)
+2. Convert test code to Kotlin (low risk)
+3. Convert utility classes to Kotlin
+4. Implement all new features in Kotlin
+5. Gradually convert existing Java code (leverage IntelliJ's auto-conversion)
 
-注意点:
-  - build.gradle に kotlin プラグインを追加するだけで共存可能
-  - Java から Kotlin を呼び出す際は @JvmStatic, @JvmOverloads を活用
-  - Kotlin から Java を呼び出す際はプラットフォーム型に注意
+Notes:
+  - Just adding the Kotlin plugin to build.gradle enables coexistence
+  - Use @JvmStatic, @JvmOverloads when calling Kotlin from Java
+  - Be aware of platform types when calling Java from Kotlin
 ```
 
-### 9.2 主要な変換パターン
+### 9.2 Key Conversion Patterns
 
 ```java
-// Java: POJO（ボイラープレートが多い）
+// Java: POJO (lots of boilerplate)
 public class User {
     private final String name;
     private final int age;
@@ -1322,13 +1326,13 @@ public class User {
 ```
 
 ```kotlin
-// Kotlin: data class（1行で同等の機能）
+// Kotlin: data class (equivalent functionality in one line)
 data class User(val name: String, val age: Int, val email: String?)
-// equals, hashCode, toString, copy, componentN が自動生成
+// equals, hashCode, toString, copy, componentN are auto-generated
 ```
 
 ```java
-// Java: null チェックの連鎖
+// Java: Chain of null checks
 public String getUserCity(Order order) {
     if (order != null) {
         User user = order.getUser();
@@ -1344,13 +1348,13 @@ public String getUserCity(Order order) {
 ```
 
 ```kotlin
-// Kotlin: セーフコール演算子
+// Kotlin: Safe call operator
 fun getUserCity(order: Order?): String =
     order?.user?.address?.city ?: "Unknown"
 ```
 
 ```java
-// Java: Stream APIの型推論の限界
+// Java: Limitations of Stream API type inference
 List<String> names = users.stream()
     .filter(u -> u.getAge() >= 18)
     .map(User::getName)
@@ -1359,19 +1363,19 @@ List<String> names = users.stream()
 ```
 
 ```kotlin
-// Kotlin: コレクション操作がより自然
+// Kotlin: More natural collection operations
 val names = users
     .filter { it.age >= 18 }
     .map { it.name }
     .sorted()
-// toList() 不要（すでにList）
+// No toList() needed (already a List)
 ```
 
 ---
 
-## 10. 実践的なプロジェクト構成
+## 10. Practical Project Structure
 
-### 10.1 Spring Boot + Kotlin プロジェクト
+### 10.1 Spring Boot + Kotlin Project
 
 ```
 myapp/
@@ -1417,45 +1421,45 @@ myapp/
 
 ---
 
-## 実践演習
+## Hands-On Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that satisfies the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate input data
+- Implement appropriate error handling
+- Write test code as well
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Basic Implementation Template
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Exercise for basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main processing logic"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Get processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1464,26 +1468,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "Should have raised an exception"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation by adding the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Advanced Patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Exercise for advanced patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1491,7 +1495,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1502,14 +1506,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Delete by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1517,7 +1521,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1525,44 +1529,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # Size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance Optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1571,7 +1575,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1586,62 +1590,62 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient version: {slow_time:.4f}s")
+    print(f"Efficient version:   {fast_time:.6f}s")
+    print(f"Speedup factor: {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key Points:**
+- Be mindful of algorithmic complexity
+- Choose appropriate data structures
+- Measure effectiveness with benchmarks
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point for learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in professional practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+The knowledge in this topic is frequently used in day-to-day development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## まとめ
+## Summary
 
-| 言語 | 哲学 | 最適な場面 | 2025年の状況 |
+| Language | Philosophy | Best Use Case | Status in 2025 |
 |------|------|----------|-------------|
-| Java | 安定・エンタープライズ | 大規模業務システム | Java 21 で大幅進化。Virtual Threads が革命的 |
-| Kotlin | 簡潔・安全・実用的 | Android, サーバーサイド | KMP で iOS/Web にも展開。勢い継続 |
-| Scala | 表現力・型安全・FP | データ処理, 分散システム | Scala 3 で再出発。Spark エコシステム健在 |
-| Clojure | シンプル・不変・REPL | データ処理, Web | ニッチだが根強い支持。REPL駆動開発の先駆者 |
+| Java | Stability & Enterprise | Large-scale business systems | Major evolution with Java 21. Virtual Threads are revolutionary |
+| Kotlin | Concise, Safe, Practical | Android, Server-side | Expanding to iOS/Web with KMP. Momentum continues |
+| Scala | Expressiveness, Type Safety, FP | Data processing, Distributed systems | Fresh start with Scala 3. Spark ecosystem remains strong |
+| Clojure | Simple, Immutable, REPL | Data processing, Web | Niche but with strong following. Pioneer of REPL-driven development |
 
-### 選択の一言ガイド
+### Quick Selection Guide
 
 ```
-迷ったら Java — 最も安全な選択、人材も確保しやすい
-モダンに書きたいなら Kotlin — Java の良さ + 現代的な機能
-データ処理なら Scala — Spark エコシステムの強さ
-哲学を求めるなら Clojure — データ指向プログラミングの極致
-Android なら Kotlin — Google 公式、一択
+When in doubt, Java — The safest choice, easiest to find talent
+For modern code, Kotlin — Java's strengths + modern features
+For data processing, Scala — The power of the Spark ecosystem
+For philosophy, Clojure — The ultimate in data-oriented programming
+For Android, Kotlin — Google official, the only choice
 ```
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
 ---
 
-## 参考文献
+## References
 1. Odersky, M. "Programming in Scala." 5th Ed, Artima, 2023.
 2. Jemerov, D. & Isakova, S. "Kotlin in Action." 2nd Ed, Manning, 2024.
 3. Bloch, J. "Effective Java." 3rd Ed, Addison-Wesley, 2018.

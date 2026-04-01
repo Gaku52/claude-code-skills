@@ -1,490 +1,490 @@
-# 型推論（Type Inference）
+# Type Inference
 
-> **型推論は「型を書かなくても、コンパイラが自動的に型を決定する」仕組みである。静的型付けの安全性と動的型付けの簡潔さを両立させる、プログラミング言語設計の中核技術の一つ。**
+> **Type inference is the mechanism by which "the compiler automatically determines types without the programmer writing them." It is one of the core technologies in programming language design that achieves both the safety of static typing and the conciseness of dynamic typing.**
 
-## この章で学ぶこと
+## Learning Objectives
 
-- [ ] 型推論の数学的基盤と歴史的背景を理解する
-- [ ] Hindley-Milner 型推論アルゴリズムの動作原理を説明できる
-- [ ] 双方向型チェックの仕組みと利点を把握する
-- [ ] 主要言語（TypeScript, Rust, Go, Haskell, Kotlin, Scala）の型推論の範囲と特性を比較できる
-- [ ] 型推論と明示的型注釈の適切な使い分けを判断できる
-- [ ] 制約ベース型推論の手動実行ができる
-- [ ] 型推論が失敗するケースを予測し、適切に対処できる
+- [ ] Understand the mathematical foundations and historical background of type inference
+- [ ] Explain the operating principles of the Hindley-Milner type inference algorithm
+- [ ] Grasp the mechanism and advantages of bidirectional type checking
+- [ ] Compare the scope and characteristics of type inference across major languages (TypeScript, Rust, Go, Haskell, Kotlin, Scala)
+- [ ] Judge the appropriate use of type inference versus explicit type annotations
+- [ ] Manually execute constraint-based type inference
+- [ ] Predict cases where type inference fails and handle them appropriately
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [静的型付け vs 動的型付け](./00-static-vs-dynamic.md) の内容を理解していること
-
----
-
-## 目次
-
-1. [型推論の基礎と歴史](#1-型推論の基礎と歴史)
-2. [型推論の分類体系](#2-型推論の分類体系)
-3. [Hindley-Milner 型推論アルゴリズム](#3-hindley-milner-型推論アルゴリズム)
-4. [双方向型チェック](#4-双方向型チェック)
-5. [言語別の型推論詳解](#5-言語別の型推論詳解)
-6. [型推論の限界と対処法](#6-型推論の限界と対処法)
-7. [アンチパターンとベストプラクティス](#7-アンチパターンとベストプラクティス)
-8. [実践演習（3段階）](#8-実践演習3段階)
-9. [FAQ（よくある質問）](#9-faqよくある質問)
-10. [まとめと次のステップ](#10-まとめと次のステップ)
-11. [参考文献](#11-参考文献)
+- Basic programming knowledge
+- Understanding of related fundamental concepts
+- Familiarity with the content of [Static Typing vs Dynamic Typing](./00-static-vs-dynamic.md)
 
 ---
 
-## 1. 型推論の基礎と歴史
+## Table of Contents
 
-### 1.1 型推論とは何か
+1. [Foundations and History of Type Inference](#1-foundations-and-history-of-type-inference)
+2. [Classification System of Type Inference](#2-classification-system-of-type-inference)
+3. [Hindley-Milner Type Inference Algorithm](#3-hindley-milner-type-inference-algorithm)
+4. [Bidirectional Type Checking](#4-bidirectional-type-checking)
+5. [Detailed Type Inference by Language](#5-detailed-type-inference-by-language)
+6. [Limitations of Type Inference and Countermeasures](#6-limitations-of-type-inference-and-countermeasures)
+7. [Anti-Patterns and Best Practices](#7-anti-patterns-and-best-practices)
+8. [Practical Exercises (3 Levels)](#8-practical-exercises-3-levels)
+9. [FAQ (Frequently Asked Questions)](#9-faq-frequently-asked-questions)
+10. [Summary and Next Steps](#10-summary-and-next-steps)
+11. [References](#11-references)
 
-型推論（Type Inference）とは、プログラマが明示的に型注釈（type annotation）を記述しなくても、コンパイラやインタプリタが式や変数の型を自動的に決定する機構である。
+---
+
+## 1. Foundations and History of Type Inference
+
+### 1.1 What Is Type Inference
+
+Type inference is a mechanism by which the compiler or interpreter automatically determines the types of expressions and variables without the programmer explicitly writing type annotations.
 
 ```
-型注釈なし（型推論に委ねる）:
-  let x = 42             // コンパイラが x: int と推論
+Without type annotations (delegating to type inference):
+  let x = 42             // Compiler infers x: int
 
-型注釈あり（明示的に指定）:
-  let x: int = 42        // プログラマが型を指定
+With type annotations (explicitly specified):
+  let x: int = 42        // Programmer specifies the type
 
-両方とも同じ結果を生む。型推論は「冗長な型注釈」を省略可能にする。
+Both produce the same result. Type inference makes "redundant type annotations" optional.
 ```
 
-型推論の根本的な価値は、**型安全性を犠牲にせずにコードの可読性と簡潔さを向上させること**にある。動的型付け言語のような書きやすさを、静的型付けの安全保証のもとで実現する。
+The fundamental value of type inference lies in **improving code readability and conciseness without sacrificing type safety**. It achieves the ease of writing found in dynamically typed languages under the safety guarantees of static typing.
 
-### 1.2 歴史的背景
+### 1.2 Historical Background
 
-型推論の歴史は、数理論理学と計算機科学の交差点に位置する。
+The history of type inference is situated at the intersection of mathematical logic and computer science.
 
 ```
-型推論の歴史年表
+Timeline of Type Inference History
 ================================================================
 
-1958  Curry の型割り当て
-      └── コンビナトリ論理学における型の自動割り当て
+1958  Curry's type assignment
+      └── Automatic type assignment in combinatory logic
 
-1969  Hindley の主型スキーム（Principal Type Scheme）
-      └── 「最も一般的な型」が一意に存在することの証明
+1969  Hindley's Principal Type Scheme
+      └── Proof that a unique "most general type" exists
 
-1978  Milner の Algorithm W
-      └── ML言語のための効率的な型推論アルゴリズム
+1978  Milner's Algorithm W
+      └── Efficient type inference algorithm for the ML language
 
-1982  Damas-Milner 型システム
-      └── let多相（let-polymorphism）の形式化
+1982  Damas-Milner Type System
+      └── Formalization of let-polymorphism
 
-1985  ML言語ファミリの確立
-      └── SML, OCaml の基盤
+1985  Establishment of the ML language family
+      └── Foundation for SML, OCaml
 
 1990  Haskell 1.0
-      └── Hindley-Milner の完全実装 + 型クラス
+      └── Full implementation of Hindley-Milner + type classes
 
-2004  C# 3.0 の var キーワード
-      └── 主流言語への型推論の導入開始
+2004  C# 3.0's var keyword
+      └── Beginning of type inference adoption in mainstream languages
 
 2012  TypeScript 0.8
-      └── JavaScript エコシステムへの型推論の導入
+      └── Introduction of type inference to the JavaScript ecosystem
 
 2014  Swift 1.0
-      └── Apple エコシステムでの双方向型推論
+      └── Bidirectional type inference in the Apple ecosystem
 
 2015  Rust 1.0
-      └── 所有権システムと統合された型推論
+      └── Type inference integrated with the ownership system
 
-2016  Java の var（JEP 286 提案）
-      └── 2018年 Java 10 で正式導入
+2016  Java's var (JEP 286 proposal)
+      └── Officially introduced in Java 10 in 2018
 
-2021  Go 1.18 ジェネリクス
-      └── 型パラメータ推論の追加
+2021  Go 1.18 Generics
+      └── Addition of type parameter inference
 
 ================================================================
 ```
 
-### 1.3 型推論の基本的な動作原理
+### 1.3 Basic Operating Principles of Type Inference
 
-型推論は一般的に以下の5段階のプロセスで動作する。
+Type inference generally operates through the following 5-stage process.
 
 ```
-型推論の基本プロセス
+Basic Process of Type Inference
 ================================================================
 
-Step 1: リテラルの型を確定
+Step 1: Determine types of literals
   42        --> int
   3.14      --> float
   "hello"   --> string
   true      --> bool
 
-Step 2: 変数の型を推論
-  x = 42    --> x: int （右辺の型から左辺を決定）
+Step 2: Infer variable types
+  x = 42    --> x: int (determine left side from right-side type)
 
-Step 3: 式の型を推論
-  x + 1     --> int + int --> int（演算子の型規則を適用）
+Step 3: Infer expression types
+  x + 1     --> int + int --> int (apply operator type rules)
 
-Step 4: 関数の型を推論
-  f(x) = x + 1  --> f: int -> int（引数と戻り値の型を決定）
+Step 4: Infer function types
+  f(x) = x + 1  --> f: int -> int (determine argument and return types)
 
-Step 5: 制約の解決
-  未決定の型変数に対して、収集した制約を解いて型を決定
+Step 5: Resolve constraints
+  For undetermined type variables, solve collected constraints to determine types
 
 ================================================================
 
-具体例: let result = if condition then 42 else 0
+Concrete example: let result = if condition then 42 else 0
 
-  1. condition: bool（if の条件は bool）
-  2. 42: int, 0: int（リテラルの型）
-  3. then節と else節の型が一致 → int
-  4. result: int（if式全体の型）
+  1. condition: bool (if condition is bool)
+  2. 42: int, 0: int (literal types)
+  3. then-branch and else-branch types match → int
+  4. result: int (type of entire if expression)
 ```
 
-### 1.4 型推論が解決する問題
+### 1.4 The Problem Type Inference Solves
 
-型推論が存在しない世界では、プログラマは全ての式に型注釈を記述しなければならない。これは特にジェネリクスやコレクション操作において深刻な冗長性を生む。
+In a world without type inference, programmers would have to write type annotations for every expression. This creates severe redundancy, especially with generics and collection operations.
 
 ```typescript
-// 型推論がない場合（Java 5 スタイルの冗長な記述）
+// Without type inference (verbose Java 5 style)
 Map<String, List<Pair<Integer, String>>> map =
     new HashMap<String, List<Pair<Integer, String>>>();
 
-// 型推論がある場合（Java 10+ / TypeScript スタイル）
+// With type inference (Java 10+ / TypeScript style)
 const map = new HashMap<String, List<Pair<Integer, String>>>();
-// あるいは
+// Or
 let map = new Map<string, [number, string][]>();
 ```
 
-この差は、コードの行数が増えるほど、そしてジェネリック型がネストするほど顕著になる。
+This difference becomes more pronounced as code lines increase and generic types become more deeply nested.
 
 ---
 
-## 2. 型推論の分類体系
+## 2. Classification System of Type Inference
 
-### 2.1 推論の方向による分類
+### 2.1 Classification by Direction of Inference
 
-型推論には、情報がどの方向に流れるかによって複数のアプローチが存在する。
+Multiple approaches to type inference exist, depending on which direction information flows.
 
 ```
-型推論の方向分類
+Directional Classification of Type Inference
 ================================================================
 
-[1] ボトムアップ推論（Bottom-up / Synthesis）
+[1] Bottom-up Inference (Synthesis)
     ─────────────────────────────────
-    葉（リテラル・変数）から根（式全体）へ型情報が伝播
+    Type information propagates from leaves (literals/variables) to root (entire expression)
 
     let x = 42          42: int --> x: int
     let y = x + 1       x: int, 1: int, (+): int->int->int --> y: int
 
-    特徴: 局所的な型情報だけで推論可能
-    採用: Go, C（一部）
+    Characteristics: Can infer from local type information only
+    Adopted by: Go, C (partial)
 
-[2] トップダウン推論（Top-down / Checking）
+[2] Top-down Inference (Checking)
     ─────────────────────────────────
-    期待される型が上位のコンテキストから下位の式へ伝播
+    Expected types propagate from higher context down to subexpressions
 
     let x: number[] = [1, 2, 3]
-                       ↓ number[] を期待
-                       各要素が number であることをチェック
+                       ↓ Expects number[]
+                       Checks that each element is number
 
-    特徴: 文脈依存の推論が可能
-    採用: Haskell（一部）, Scala 3
+    Characteristics: Context-dependent inference possible
+    Adopted by: Haskell (partial), Scala 3
 
-[3] 双方向推論（Bidirectional）
+[3] Bidirectional Inference
     ─────────────────────────────────
-    ボトムアップとトップダウンを組み合わせ
+    Combines bottom-up and top-down
 
     const f: (x: number) => string = x => x.toString();
-         ↑ トップダウン: x: number        ↑ ボトムアップ: string
+         ↑ Top-down: x: number        ↑ Bottom-up: string
 
-    特徴: 最も柔軟で実用的
-    採用: TypeScript, Kotlin, Swift, Scala 3
+    Characteristics: Most flexible and practical
+    Adopted by: TypeScript, Kotlin, Swift, Scala 3
 
 ================================================================
 ```
 
-### 2.2 推論の範囲による分類
+### 2.2 Classification by Scope of Inference
 
 ```
-推論スコープの分類と比較表
+Inference Scope Classification and Comparison Table
 ================================================================
 
-スコープ         | 説明                    | 採用言語
------------------+-------------------------+------------------
-ローカル推論     | 関数本体内のみ          | Go, C++（auto）
-関数内推論       | 関数シグネチャを含む     | TypeScript, Kotlin
-モジュール推論   | モジュール全体           | Rust（一部）
-グローバル推論   | プログラム全体           | Haskell, ML, OCaml
+Scope            | Description                | Adopted Languages
+-----------------+----------------------------+------------------
+Local inference  | Function body only         | Go, C++ (auto)
+Intra-function   | Including function sig     | TypeScript, Kotlin
+Module inference  | Entire module              | Rust (partial)
+Global inference  | Entire program             | Haskell, ML, OCaml
 
 ================================================================
 
-ローカル推論:
-  関数の境界（引数・戻り値）では型注釈が必須。
-  推論は各関数の本体内に閉じる。
+Local inference:
+  Type annotations are required at function boundaries (arguments/return values).
+  Inference is confined to each function's body.
 
-  例 (Rust):
-    fn add(a: i32, b: i32) -> i32 {  // 境界は明示
-        let sum = a + b;              // ローカルは推論
+  Example (Rust):
+    fn add(a: i32, b: i32) -> i32 {  // Boundaries are explicit
+        let sum = a + b;              // Local is inferred
         sum
     }
 
-グローバル推論:
-  型注釈が一切なくても、プログラム全体から型を決定。
-  Hindley-Milner アルゴリズムがこれを可能にする。
+Global inference:
+  Determines types from the entire program even without any type annotations.
+  The Hindley-Milner algorithm makes this possible.
 
-  例 (Haskell):
+  Example (Haskell):
     add x y = x + y
-    -- 推論: add :: Num a => a -> a -> a
-    -- 型注釈なしでも完全に型安全
+    -- Inferred: add :: Num a => a -> a -> a
+    -- Fully type-safe even without type annotations
 ```
 
-### 2.3 推論の強さによる分類
+### 2.3 Classification by Strength of Inference
 
-| レベル | 説明 | 具体例 | 言語 |
+| Level | Description | Concrete Example | Languages |
 |--------|------|--------|------|
-| Level 0 | 推論なし | 全て明示的型注釈 | C（伝統的）, Java（<10） |
-| Level 1 | 変数のみ | `var x = 42` | Go, Java 10+, C++ auto |
-| Level 2 | 変数 + 戻り値 | ローカル関数の戻り値推論 | TypeScript, Kotlin |
-| Level 3 | 変数 + 戻り値 + 文脈 | コールバック引数の推論 | TypeScript, Swift |
-| Level 4 | 全式（型クラス制約付き） | 完全な Hindley-Milner | Haskell, ML, OCaml |
+| Level 0 | No inference | All explicit type annotations | C (traditional), Java (<10) |
+| Level 1 | Variables only | `var x = 42` | Go, Java 10+, C++ auto |
+| Level 2 | Variables + return values | Local function return value inference | TypeScript, Kotlin |
+| Level 3 | Variables + return values + context | Callback argument inference | TypeScript, Swift |
+| Level 4 | All expressions (with type class constraints) | Full Hindley-Milner | Haskell, ML, OCaml |
 
 ---
 
-## 3. Hindley-Milner 型推論アルゴリズム
+## 3. Hindley-Milner Type Inference Algorithm
 
-### 3.1 概要
+### 3.1 Overview
 
-Hindley-Milner（HM）型推論は、最も有名かつ理論的に完成された型推論アルゴリズムである。1969年の Hindley の研究と1978年の Milner の Algorithm W を基盤とし、1982年の Damas-Milner 型システムとして形式化された。
+Hindley-Milner (HM) type inference is the most famous and theoretically complete type inference algorithm. It is based on Hindley's 1969 research and Milner's 1978 Algorithm W, and was formalized as the Damas-Milner type system in 1982.
 
-**HM型推論の3大特性:**
+**Three Key Properties of HM Type Inference:**
 
-1. **完全性（Completeness）**: 型が付く全てのプログラムに対して、必ず型を推論できる
-2. **主型性（Principal Type Property）**: 推論される型は常に「最も一般的な型」である
-3. **決定可能性（Decidability）**: 推論は常に有限時間で終了する
+1. **Completeness**: For every program that can be typed, a type can always be inferred
+2. **Principal Type Property**: The inferred type is always the "most general type"
+3. **Decidability**: Inference always terminates in finite time
 
-### 3.2 Algorithm W の詳細
+### 3.2 Algorithm W in Detail
 
-Algorithm W は HM 型推論の標準的な実装アルゴリズムである。
+Algorithm W is the standard implementation algorithm for HM type inference.
 
 ```
-Algorithm W の動作手順
+Operating Procedure of Algorithm W
 ================================================================
 
-入力: 型環境 Γ, 式 e
-出力: 代入 S, 型 τ
+Input: Type environment Gamma, expression e
+Output: Substitution S, type tau
 
-W(Γ, e) = case e of
+W(Gamma, e) = case e of
 
-  [変数] x:
-    Γ(x) を参照し、型スキームをインスタンス化
-    → 新しい型変数で置換した単相型を返す
+  [Variable] x:
+    Look up Gamma(x) and instantiate the type scheme
+    → Return a monotype with fresh type variables substituted
 
-  [適用] e1 e2:
-    (S1, τ1) = W(Γ, e1)
-    (S2, τ2) = W(S1(Γ), e2)
-    β = 新しい型変数
-    S3 = unify(S2(τ1), τ2 → β)
-    → (S3 ∘ S2 ∘ S1, S3(β))
+  [Application] e1 e2:
+    (S1, tau1) = W(Gamma, e1)
+    (S2, tau2) = W(S1(Gamma), e2)
+    beta = fresh type variable
+    S3 = unify(S2(tau1), tau2 → beta)
+    → (S3 . S2 . S1, S3(beta))
 
-  [抽象] λx.e:
-    β = 新しい型変数
-    (S1, τ1) = W(Γ ∪ {x: β}, e)
-    → (S1, S1(β) → τ1)
+  [Abstraction] lambda x.e:
+    beta = fresh type variable
+    (S1, tau1) = W(Gamma ∪ {x: beta}, e)
+    → (S1, S1(beta) → tau1)
 
   [let] let x = e1 in e2:
-    (S1, τ1) = W(Γ, e1)
-    σ = generalize(S1(Γ), τ1)   ← ここで多相化
-    (S2, τ2) = W(S1(Γ) ∪ {x: σ}, e2)
-    → (S2 ∘ S1, τ2)
+    (S1, tau1) = W(Gamma, e1)
+    sigma = generalize(S1(Gamma), tau1)   ← Polymorphization here
+    (S2, tau2) = W(S1(Gamma) ∪ {x: sigma}, e2)
+    → (S2 . S1, tau2)
 
 ================================================================
 ```
 
-### 3.3 単一化（Unification）アルゴリズム
+### 3.3 Unification Algorithm
 
-単一化は、2つの型表現を等しくする代入（substitution）を見つけるアルゴリズムである。HM型推論の心臓部を成す。
-
-```
-単一化アルゴリズム: unify(τ1, τ2)
-================================================================
-
-unify(α, τ)           = { α := τ }     （α が τ に出現しない場合）
-unify(τ, α)           = { α := τ }     （α が τ に出現しない場合）
-unify(Int, Int)        = {}              （同じ基底型）
-unify(τ1→τ2, τ3→τ4)  = let S1 = unify(τ1, τ3)
-                              S2 = unify(S1(τ2), S1(τ4))
-                          in S2 ∘ S1
-unify(τ1, τ2)         = エラー          （単一化不可能）
-
-================================================================
-
-出現チェック（Occurs Check）:
-  unify(α, List<α>) は無限型を生むため失敗
-  α = List<α> = List<List<α>> = List<List<List<α>>> = ...
-
-  ※ 出現チェックを省略すると無限ループの原因になる
-```
-
-### 3.4 手動トレースの具体例
-
-以下の関数に対して、HM型推論を手動でトレースする。
+Unification is the algorithm that finds a substitution that makes two type expressions equal. It forms the heart of HM type inference.
 
 ```
-対象関数: let compose f g x = f (g x)
-
-Step 1: 型変数の割り当て
+Unification algorithm: unify(tau1, tau2)
 ================================================================
-  f: α
-  g: β
-  x: γ
-  compose: δ
 
-Step 2: 式の解析と制約収集
+unify(alpha, tau)         = { alpha := tau }     (if alpha does not occur in tau)
+unify(tau, alpha)         = { alpha := tau }     (if alpha does not occur in tau)
+unify(Int, Int)           = {}                   (same base type)
+unify(tau1→tau2, tau3→tau4) = let S1 = unify(tau1, tau3)
+                                  S2 = unify(S1(tau2), S1(tau4))
+                              in S2 . S1
+unify(tau1, tau2)         = error                (cannot unify)
+
 ================================================================
-  式 (g x):
-    g は関数なので β = γ → ε  （ε は新しい型変数）
-    g x の型は ε
 
-  式 f (g x):
-    f は関数なので α = ε → ζ  （ζ は新しい型変数）
-    f (g x) の型は ζ
+Occurs Check:
+  unify(alpha, List<alpha>) fails because it would produce an infinite type
+  alpha = List<alpha> = List<List<alpha>> = List<List<List<alpha>>> = ...
 
-  compose f g x の型は ζ
+  * Omitting the occurs check causes infinite loops
+```
 
-Step 3: 制約の解決（単一化）
+### 3.4 Concrete Manual Trace Example
+
+We manually trace HM type inference for the following function.
+
+```
+Target function: let compose f g x = f (g x)
+
+Step 1: Assign type variables
 ================================================================
-  制約一覧:
-    β = γ → ε
-    α = ε → ζ
+  f: alpha
+  g: beta
+  x: gamma
+  compose: delta
 
-  代入:
-    β ↦ γ → ε
-    α ↦ ε → ζ
-
-Step 4: 最終的な型の組み立て
+Step 2: Analyze expressions and collect constraints
 ================================================================
-  compose: α → β → γ → ζ
-         = (ε → ζ) → (γ → ε) → γ → ζ
+  Expression (g x):
+    g is a function so beta = gamma → epsilon  (epsilon is a fresh type variable)
+    Type of g x is epsilon
 
-  一般的な型変数名に置換:
+  Expression f (g x):
+    f is a function so alpha = epsilon → zeta  (zeta is a fresh type variable)
+    Type of f (g x) is zeta
+
+  Type of compose f g x is zeta
+
+Step 3: Resolve constraints (unification)
+================================================================
+  Constraint list:
+    beta = gamma → epsilon
+    alpha = epsilon → zeta
+
+  Substitution:
+    beta ↦ gamma → epsilon
+    alpha ↦ epsilon → zeta
+
+Step 4: Assemble the final type
+================================================================
+  compose: alpha → beta → gamma → zeta
+         = (epsilon → zeta) → (gamma → epsilon) → gamma → zeta
+
+  Rename to standard type variable names:
   compose :: (b -> c) -> (a -> b) -> a -> c
 
-  これは Haskell の (.) 演算子と同じ型である。
+  This is the same type as Haskell's (.) operator.
 ================================================================
 ```
 
-### 3.5 let多相（Let-Polymorphism）
+### 3.5 Let-Polymorphism
 
-HM型推論の最も重要な特徴の一つが **let多相** である。これは `let` 束縛で定義された値に多相型（polymorphic type）を付与する機構である。
+One of the most important features of HM type inference is **let-polymorphism**. This is a mechanism that assigns polymorphic types to values defined with `let` bindings.
 
 ```haskell
--- let多相の例
+-- Example of let-polymorphism
 let id = \x -> x        -- id :: forall a. a -> a
-in (id 42, id "hello")  -- id を int と string の両方で使用可能
+in (id 42, id "hello")  -- id can be used with both int and string
 
--- lambda 内では多相化されない（単相制限）
+-- Within a lambda, polymorphization does not occur (monomorphism restriction)
 (\id -> (id 42, id "hello")) (\x -> x)
--- ↑ これは型エラー！
--- id が単相型に制限されるため、int と string の両方では使えない
+-- ↑ This is a type error!
+-- Because id is restricted to a monomorphic type, it cannot be used with both int and string
 ```
 
 ```
-let多相と単相の違い
+Difference between let-polymorphism and monomorphism
 ================================================================
 
-let式:
-  let id = λx.x in ...
-  → id は多相型 ∀α. α → α を持つ
-  → id 42 と id "hello" が同時に使える
+let expression:
+  let id = lambda x.x in ...
+  → id has polymorphic type forall alpha. alpha → alpha
+  → Both id 42 and id "hello" can be used simultaneously
 
-lambda式:
-  (λid. ...) (λx.x)
-  → id は単相型 α → α を持つ
-  → α は一つの具体型に固定される
+lambda expression:
+  (lambda id. ...) (lambda x.x)
+  → id has monomorphic type alpha → alpha
+  → alpha is fixed to a single concrete type
 
-この区別が HM 型推論の決定可能性を保証する鍵である。
-System F（ランク2以上の多相）では型推論が決定不能になる。
+This distinction is the key to guaranteeing the decidability of HM type inference.
+In System F (rank-2 and above polymorphism), type inference becomes undecidable.
 
 ================================================================
 ```
 
 ---
 
-## 4. 双方向型チェック（Bidirectional Type Checking）
+## 4. Bidirectional Type Checking
 
-### 4.1 概要
+### 4.1 Overview
 
-双方向型チェックは、HM型推論に代わる現代的な型推論手法である。TypeScript, Kotlin, Swift, Scala 3 などの実用言語で広く採用されている。
+Bidirectional type checking is a modern type inference technique that replaces HM type inference. It is widely adopted in practical languages such as TypeScript, Kotlin, Swift, and Scala 3.
 
-**基本原理**: 型情報を2つの方向で伝播させる。
+**Basic Principle**: Propagate type information in two directions.
 
 ```
-双方向型チェックの2つのモード
+Two Modes of Bidirectional Type Checking
 ================================================================
 
-[推論モード（Synthesis / Infer）]
-  式から型を合成する（ボトムアップ）
+[Synthesis Mode (Infer)]
+  Synthesize types from expressions (bottom-up)
 
-  Γ ⊢ e ⇒ τ   「環境 Γ のもとで、式 e の型は τ と推論される」
+  Gamma ⊢ e ⇒ tau   "Under environment Gamma, the type of expression e is inferred as tau"
 
-  例:
-    42 ⇒ number          リテラルの型を合成
-    x ⇒ Γ(x)            変数の型を環境から取得
-    f(e) ⇒ τ2           f: τ1→τ2 かつ e ⇐ τ1 のとき
+  Examples:
+    42 ⇒ number          Synthesize literal type
+    x ⇒ Gamma(x)         Retrieve variable type from environment
+    f(e) ⇒ tau2          When f: tau1→tau2 and e ⇐ tau1
 
-[チェックモード（Checking / Check）]
-  式が期待される型を持つか検証する（トップダウン）
+[Checking Mode (Check)]
+  Verify that an expression has the expected type (top-down)
 
-  Γ ⊢ e ⇐ τ   「環境 Γ のもとで、式 e は型 τ を持つ」
+  Gamma ⊢ e ⇐ tau   "Under environment Gamma, expression e has type tau"
 
-  例:
-    λx.e ⇐ τ1→τ2       引数 x に τ1 を割り当て、e ⇐ τ2 をチェック
-    if c then e1 else e2 ⇐ τ   e1 ⇐ τ かつ e2 ⇐ τ をチェック
+  Examples:
+    lambda x.e ⇐ tau1→tau2   Assign tau1 to argument x, check e ⇐ tau2
+    if c then e1 else e2 ⇐ tau   Check e1 ⇐ tau and e2 ⇐ tau
 
 ================================================================
 ```
 
-### 4.2 推論モードとチェックモードの切り替え
+### 4.2 Switching Between Synthesis and Checking Modes
 
 ```
-双方向型チェックの情報フロー図
+Information Flow Diagram of Bidirectional Type Checking
 ================================================================
 
 const handler: (event: MouseEvent) => void = (e) => {
   console.log(e.clientX);
 };
 
-解析過程:
+Analysis process:
 
-  1. handler の型注釈を読み取る
-     期待型: (event: MouseEvent) => void
+  1. Read handler's type annotation
+     Expected type: (event: MouseEvent) => void
             │
-  2. ────── チェックモード ──────────────────────
+  2. ────── Checking mode ──────────────────────
             │
             ▼
      (e) => { console.log(e.clientX); }
      ⇐ (event: MouseEvent) => void
 
-  3. e に MouseEvent を割り当て
+  3. Assign MouseEvent to e
      e: MouseEvent
             │
-  4. ────── 推論モード ──────────────────────────
+  4. ────── Synthesis mode ──────────────────────────
             │
             ▼
-     e.clientX ⇒ number    （MouseEvent のプロパティ）
+     e.clientX ⇒ number    (property of MouseEvent)
      console.log(e.clientX) ⇒ void
 
-  5. 戻り値の型チェック
-     void ⇐ void  ✓ 成功
+  5. Return type check
+     void ⇐ void  ✓ Success
 
 ================================================================
 ```
 
-### 4.3 TypeScript における双方向型チェックの具体例
+### 4.3 Concrete Example of Bidirectional Type Checking in TypeScript
 
 ```typescript
-// 【コード例1】コールバックの型推論
-// 配列のメソッドチェーンで双方向型チェックが動作する例
+// [Code Example 1] Type inference for callbacks
+// Example of bidirectional type checking in action during array method chains
 
 interface User {
     id: number;
@@ -499,74 +499,74 @@ const users: User[] = [
     { id: 3, name: "Charlie", age: 35, active: true },
 ];
 
-// 双方向型チェックの連鎖
+// Chain of bidirectional type checking
 const result = users
-    .filter(u => u.active)       // u: User（users の要素型から推論）
-    .map(u => u.name)            // u: User, 戻り値: string
-    .map(name => name.length)    // name: string（前段の戻り値型から推論）
+    .filter(u => u.active)       // u: User (inferred from users' element type)
+    .map(u => u.name)            // u: User, return: string
+    .map(name => name.length)    // name: string (inferred from previous stage's return type)
     .reduce((sum, len) => sum + len, 0); // sum: number, len: number
 
-// result: number（全てのチェーンを通じて型推論が伝播）
+// result: number (type inference propagates through the entire chain)
 ```
 
-### 4.4 HM型推論との比較
+### 4.4 Comparison with HM Type Inference
 
 ```
-HM型推論 vs 双方向型チェック
+HM Type Inference vs Bidirectional Type Checking
 ================================================================
 
-                    HM型推論          双方向型チェック
+                    HM Inference          Bidirectional
 ------------------------------------------------------------
-推論の完全性        完全              部分的（注釈が必要な場合あり）
-主型性              あり              なし（注釈に依存）
-サブタイピング      困難              自然にサポート
-オーバーロード      困難              自然にサポート
-高階多相            let多相のみ       ランク1多相（注釈で拡張可）
-実装の複雑さ        中程度            低い
-エラーメッセージ    やや不明確        明確（方向が分かるため）
-採用言語            Haskell, ML       TypeScript, Kotlin, Swift
+Inference completeness  Complete           Partial (annotations may be needed)
+Principal type          Yes                No (depends on annotations)
+Subtyping               Difficult          Naturally supported
+Overloading             Difficult          Naturally supported
+Higher-rank poly        Let-polymorphism   Rank-1 (extensible with annotations)
+Implementation          Moderate           Low complexity
+Error messages          Somewhat unclear   Clear (direction is known)
+Adopted languages       Haskell, ML        TypeScript, Kotlin, Swift
 
 ================================================================
 
-HM型推論が優れている点:
-  - 型注釈が一切不要でも完全に推論できる
-  - 推論結果が常に「最も一般的な型」（主型）
+Where HM type inference excels:
+  - Can fully infer without any type annotations
+  - Inferred result is always the "most general type" (principal type)
 
-双方向型チェックが優れている点:
-  - サブタイピング（継承・共変反変）との相性が良い
-  - メソッドオーバーロードを自然に扱える
-  - 型エラーのメッセージが分かりやすい
-  - 実装がシンプルで段階的に拡張しやすい
+Where bidirectional type checking excels:
+  - Good compatibility with subtyping (inheritance, covariance/contravariance)
+  - Naturally handles method overloading
+  - Type error messages are easier to understand
+  - Implementation is simple and incrementally extensible
 
 ================================================================
 ```
 
-### 4.5 フロー感応型（Flow-Sensitive Typing）
+### 4.5 Flow-Sensitive Typing
 
-双方向型チェックの発展形として、制御フローに基づく型の絞り込み（narrowing）がある。TypeScript はこの機能を強力にサポートしている。
+As an extension of bidirectional type checking, there is type narrowing based on control flow. TypeScript strongly supports this feature.
 
 ```typescript
-// 【コード例2】フロー感応型の詳細な動作
+// [Code Example 2] Detailed operation of flow-sensitive typing
 
 function processValue(value: string | number | null | undefined) {
-    // この時点: value: string | number | null | undefined
+    // At this point: value: string | number | null | undefined
 
     if (value == null) {
-        // null チェック後: value: null | undefined
+        // After null check: value: null | undefined
         return "no value";
     }
-    // ここでは: value: string | number（null と undefined が除外）
+    // Here: value: string | number (null and undefined excluded)
 
     if (typeof value === "string") {
-        // typeof ガード後: value: string
+        // After typeof guard: value: string
         return value.toUpperCase();
     }
-    // ここでは: value: number（string が除外）
+    // Here: value: number (string excluded)
 
     return value.toFixed(2);
 }
 
-// 判別共用体（Discriminated Union）による絞り込み
+// Narrowing with discriminated unions
 type Shape =
     | { kind: "circle"; radius: number }
     | { kind: "rectangle"; width: number; height: number }
@@ -588,41 +588,41 @@ function area(shape: Shape): number {
 ```
 
 ```
-フロー感応型の型状態遷移図
+Flow-Sensitive Type State Transition Diagram
 ================================================================
 
 function example(x: A | B | C) {
 
-  x の型: A | B | C
+  Type of x: A | B | C
   │
   ├─ if (isA(x)) ──────────► x: A ──► return
   │
-  │  x の型: B | C   （A が除外された）
+  │  Type of x: B | C   (A excluded)
   │
   ├─ if (isB(x)) ──────────► x: B ──► return
   │
-  │  x の型: C       （B も除外された）
+  │  Type of x: C       (B also excluded)
   │
   └─ else ──────────────────► x: C ──► return
 
-  各分岐で型が段階的に絞り込まれる
-  （型の状態が制御フローに沿って変化する）
+  Types are progressively narrowed at each branch
+  (Type state changes along the control flow)
 
 ================================================================
 ```
 
 ---
 
-## 5. 言語別の型推論詳解
+## 5. Detailed Type Inference by Language
 
 ### 5.1 TypeScript
 
-TypeScript は JavaScript に型システムを追加した言語であり、双方向型チェックをベースとした実用的な型推論を提供する。
+TypeScript is a language that adds a type system to JavaScript and provides practical type inference based on bidirectional type checking.
 
 ```typescript
-// 【コード例3】TypeScript の型推論の全範囲
+// [Code Example 3] Full range of TypeScript's type inference
 
-// --- ローカル変数の推論 ---
+// --- Local variable inference ---
 let x = 42;                    // x: number
 let s = "hello";               // s: string
 let b = true;                  // b: boolean
@@ -630,158 +630,158 @@ let arr = [1, 2, 3];           // arr: number[]
 let obj = { name: "Alice" };   // obj: { name: string }
 let tuple = [1, "a"] as const; // tuple: readonly [1, "a"]
 
-// --- 関数の戻り値の推論 ---
+// --- Function return value inference ---
 function add(a: number, b: number) {
-    return a + b;   // 戻り値: number と推論
+    return a + b;   // Return value: inferred as number
 }
 
 function greet(name: string) {
-    return `Hello, ${name}!`;  // 戻り値: string と推論
+    return `Hello, ${name}!`;  // Return value: inferred as string
 }
 
-// --- 関数の引数は推論されない（明示が必要）---
-// function add(a, b) { ... }  // noImplicitAny エラー
+// --- Function arguments are NOT inferred (must be explicit) ---
+// function add(a, b) { ... }  // noImplicitAny error
 
-// --- コンテキストからの推論（Contextual Typing）---
+// --- Contextual typing (inference from context) ---
 const names = ["Alice", "Bob", "Charlie"];
 names.map(name => name.toUpperCase());
-//         ↑ name: string（配列の要素型から推論）
+//         ↑ name: string (inferred from array element type)
 
-// --- const アサーションと推論 ---
+// --- const assertion and inference ---
 const config = {
     host: "localhost",
     port: 3000,
 } as const;
 // config: { readonly host: "localhost"; readonly port: 3000 }
-// リテラル型として推論される
+// Inferred as literal types
 
-// --- 条件型の推論 ---
+// --- Conditional type inference ---
 type Awaited<T> = T extends Promise<infer U> ? U : T;
 type Result = Awaited<Promise<string>>; // Result = string
 
-// --- テンプレートリテラル型の推論 ---
+// --- Template literal type inference ---
 type EventName = `on${Capitalize<"click" | "focus" | "blur">}`;
 // EventName = "onClick" | "onFocus" | "onBlur"
 
-// --- satisfies 演算子（TypeScript 4.9+）---
+// --- satisfies operator (TypeScript 4.9+) ---
 const palette = {
     red: [255, 0, 0],
     green: "#00ff00",
     blue: [0, 0, 255],
 } satisfies Record<string, string | number[]>;
-// 型チェックしつつ、推論された型を保持
-// palette.red は number[] として推論される（string | number[] ではなく）
+// Type checks while preserving the inferred type
+// palette.red is inferred as number[] (not string | number[])
 ```
 
-**TypeScript の型推論の限界:**
+**Limitations of TypeScript's type inference:**
 
 ```typescript
-// 推論が失敗する / 不十分なケース
+// Cases where inference fails / is insufficient
 
-// 1. 空の配列
-const arr = [];      // arr: any[] （型が決定できない）
-const arr: string[] = []; // 明示が必要
+// 1. Empty arrays
+const arr = [];      // arr: any[] (type cannot be determined)
+const arr: string[] = []; // Explicit annotation required
 
-// 2. 複数の型候補がある場合
+// 2. Multiple type candidates
 const x = Math.random() > 0.5 ? 42 : "hello";
-// x: string | number （ユニオン型に推論される）
+// x: string | number (inferred as union type)
 
-// 3. コールバックのオーバーロード
+// 3. Callback overloads
 declare function on(event: "click", handler: (e: MouseEvent) => void): void;
 declare function on(event: "focus", handler: (e: FocusEvent) => void): void;
-// オーバーロードの解決は型推論だけでは完全でない場合がある
+// Overload resolution may not be complete with type inference alone
 
-// 4. 再帰的な型
+// 4. Recursive types
 type JSON = string | number | boolean | null | JSON[] | { [key: string]: JSON };
-// 推論コンテキストによっては明示的な型注釈が必要
+// Depending on the inference context, explicit type annotations may be needed
 ```
 
 ### 5.2 Rust
 
-Rust はローカル型推論と所有権（ownership）システムを統合した独自の型推論を持つ。
+Rust has a unique type inference that integrates local type inference with the ownership system.
 
 ```rust
-// 【コード例4】Rust の型推論の特徴
+// [Code Example 4] Characteristics of Rust's type inference
 
-// --- 基本的なローカル推論 ---
-let x = 42;                    // x: i32（デフォルト整数型）
-let y = 3.14;                  // y: f64（デフォルト浮動小数点型）
+// --- Basic local inference ---
+let x = 42;                    // x: i32 (default integer type)
+let y = 3.14;                  // y: f64 (default floating-point type)
 let s = String::from("hello"); // s: String
 let v = vec![1, 2, 3];         // v: Vec<i32>
 
-// --- 文脈からの推論（後方参照） ---
-let mut v = Vec::new();    // この時点では Vec<_>（型未定）
-v.push(42);                // push の引数から Vec<i32> と確定
-// Rust は「前方」だけでなく「後方」の使用箇所からも推論する
+// --- Inference from context (backward reference) ---
+let mut v = Vec::new();    // At this point Vec<_> (type undetermined)
+v.push(42);                // Determined as Vec<i32> from push's argument
+// Rust infers not only from "forward" but also "backward" usage sites
 
-// --- ターボフィッシュ構文（明示的型パラメータ） ---
+// --- Turbofish syntax (explicit type parameters) ---
 let parsed = "42".parse::<i32>().unwrap();
-// parse() の戻り値型が文脈から決まらないため、::<i32> で指定
+// parse()'s return type cannot be determined from context, so specify with ::<i32>
 
-// --- クロージャの型推論 ---
+// --- Closure type inference ---
 let add = |a, b| a + b;
 let result: i32 = add(1, 2);
-// クロージャの引数型は使用箇所から推論される
+// Closure argument types are inferred from usage sites
 
-// --- 所有権と型推論の相互作用 ---
+// --- Interaction between ownership and type inference ---
 let s1 = String::from("hello");
-let s2 = s1;       // s1 から s2 へ所有権がムーブ
-// s1 はここで無効化される（型推論 + 所有権チェック）
-// println!("{}", s1); // コンパイルエラー: value used after move
+let s2 = s1;       // Ownership moves from s1 to s2
+// s1 is invalidated here (type inference + ownership checking)
+// println!("{}", s1); // Compilation error: value used after move
 
-// --- ライフタイム省略規則と型推論 ---
-// ライフタイムもある意味での「型推論」
+// --- Lifetime elision rules and type inference ---
+// Lifetimes are also a form of "type inference"
 fn first_word(s: &str) -> &str {
-    // ライフタイム省略規則により、
-    // fn first_word<'a>(s: &'a str) -> &'a str と推論
+    // By lifetime elision rules, inferred as
+    // fn first_word<'a>(s: &'a str) -> &'a str
     s.split_whitespace().next().unwrap_or("")
 }
 
-// --- 関数の引数・戻り値は推論されない ---
+// --- Function arguments/return values are NOT inferred ---
 fn add(a: i32, b: i32) -> i32 {
-    a + b   // 関数シグネチャでは常に型注釈が必要
+    a + b   // Type annotations are always required in function signatures
 }
 
-// --- トレイト境界と型推論 ---
+// --- Trait bounds and type inference ---
 fn print_all<T: std::fmt::Display>(items: &[T]) {
     for item in items {
-        println!("{}", item); // T: Display であることが保証
+        println!("{}", item); // T: Display is guaranteed
     }
 }
-// print_all(&[1, 2, 3]); // T = i32 と推論
-// print_all(&["a", "b"]); // T = &str と推論
+// print_all(&[1, 2, 3]); // T = i32 inferred
+// print_all(&["a", "b"]); // T = &str inferred
 ```
 
 ### 5.3 Go
 
-Go は意図的にシンプルな型推論を採用している。これは Go の設計哲学「シンプルさ（simplicity）」を反映している。
+Go intentionally adopts simple type inference. This reflects Go's design philosophy of "simplicity."
 
 ```go
-// Go の型推論: := 短縮変数宣言
+// Go's type inference: := short variable declaration
 
-// --- 基本的な推論 ---
+// --- Basic inference ---
 x := 42              // x: int
 s := "hello"         // s: string
 f := 3.14            // f: float64
 b := true            // b: bool
 arr := []int{1,2,3}  // arr: []int
 
-// --- var 宣言との比較 ---
-var x1 int            // ゼロ値初期化、型明示
-var x2 = 42           // 型推論
-x3 := 42              // 短縮宣言 + 型推論（最も簡潔）
+// --- Comparison with var declaration ---
+var x1 int            // Zero-value initialization, explicit type
+var x2 = 42           // Type inference
+x3 := 42              // Short declaration + type inference (most concise)
 
-// --- 複数変数の同時推論 ---
+// --- Simultaneous multi-variable inference ---
 a, b, c := 1, "hello", true
 // a: int, b: string, c: bool
 
-// --- 関数の引数・戻り値は推論されない ---
+// --- Function arguments/return values are NOT inferred ---
 func add(a int, b int) int {
     return a + b
 }
 
-// --- Go 1.18+ ジェネリクスの型パラメータ推論 ---
-func MapT any, U any U) []U {
+// --- Go 1.18+ generic type parameter inference ---
+func Map[T any, U any](s []T, f func(T) U) []U {
     result := make([]U, len(s))
     for i, v := range s {
         result[i] = f(v)
@@ -789,72 +789,72 @@ func MapT any, U any U) []U {
     return result
 }
 
-// 呼び出し時に型パラメータを省略可能
+// Type parameters can be omitted at call site
 nums := []int{1, 2, 3}
-strs := Map(nums, func(n int) string {  // T=int, U=string と推論
+strs := Map(nums, func(n int) string {  // T=int, U=string inferred
     return fmt.Sprintf("%d", n)
 })
 ```
 
 ### 5.4 Haskell
 
-Haskell は HM 型推論を完全に実装しており、型注釈なしでも全てのプログラムに型が付く。
+Haskell fully implements HM type inference, and all programs can be typed even without type annotations.
 
 ```haskell
--- Haskell: 最も強力な型推論
+-- Haskell: The most powerful type inference
 
--- 推論: id :: a -> a
+-- Inferred: id :: a -> a
 id x = x
 
--- 推論: const :: a -> b -> a
+-- Inferred: const :: a -> b -> a
 const x _ = x
 
--- 推論: flip :: (a -> b -> c) -> b -> a -> c
+-- Inferred: flip :: (a -> b -> c) -> b -> a -> c
 flip f x y = f y x
 
--- 推論: map :: (a -> b) -> [a] -> [b]
+-- Inferred: map :: (a -> b) -> [a] -> [b]
 map _ []     = []
 map f (x:xs) = f x : map f xs
 
--- 推論: foldr :: (a -> b -> b) -> b -> [a] -> b
+-- Inferred: foldr :: (a -> b -> b) -> b -> [a] -> b
 foldr _ z []     = z
 foldr f z (x:xs) = f x (foldr f z xs)
 
--- 推論: (.) :: (b -> c) -> (a -> b) -> a -> c
+-- Inferred: (.) :: (b -> c) -> (a -> b) -> a -> c
 (.) f g x = f (g x)
 
--- 型クラス制約の自動推論
--- 推論: sort :: Ord a => [a] -> [a]
+-- Automatic inference of type class constraints
+-- Inferred: sort :: Ord a => [a] -> [a]
 sort []     = []
 sort (x:xs) = sort [y | y <- xs, y <= x]
            ++ [x]
            ++ sort [y | y <- xs, y > x]
--- Ord 制約は (<=) と (>) の使用から自動的に推論される
+-- The Ord constraint is automatically inferred from the use of (<=) and (>)
 
--- モナドの型推論
--- 推論: readAndPrint :: IO ()
+-- Type inference with monads
+-- Inferred: readAndPrint :: IO ()
 readAndPrint = do
     line <- getLine        -- line :: String
-    putStrLn (map toUpper line)  -- 全体 :: IO ()
+    putStrLn (map toUpper line)  -- Whole thing :: IO ()
 ```
 
-### 5.5 Kotlin と Scala 3
+### 5.5 Kotlin and Scala 3
 
 ```kotlin
-// Kotlin: スマートキャストと型推論
+// Kotlin: Smart casts and type inference
 
-// 基本的な型推論
+// Basic type inference
 val x = 42              // x: Int
 val s = "hello"         // s: String
 val list = listOf(1, 2) // list: List<Int>
 
-// スマートキャスト（フロー感応型の一種）
+// Smart cast (a form of flow-sensitive typing)
 fun process(obj: Any) {
     if (obj is String) {
-        // obj は自動的に String にキャストされる
-        println(obj.length)  // キャスト不要
+        // obj is automatically cast to String
+        println(obj.length)  // No cast needed
     }
-    // when 式でも同様
+    // Same with when expressions
     when (obj) {
         is Int -> println(obj + 1)      // obj: Int
         is String -> println(obj.length) // obj: String
@@ -862,33 +862,33 @@ fun process(obj: Any) {
     }
 }
 
-// ラムダの型推論
+// Lambda type inference
 val transform: (String) -> Int = { it.length }
-// it: String（期待型から推論）
+// it: String (inferred from expected type)
 
-// ビルダーパターンでの推論
+// Inference in builder pattern
 val result = buildList {
-    add(1)       // Int を追加
-    add(2)       // 型が一致
+    add(1)       // Add Int
+    add(2)       // Type matches
     addAll(listOf(3, 4))
 }
 // result: List<Int>
 ```
 
 ```scala
-// Scala 3: 高度な型推論
+// Scala 3: Advanced type inference
 
-// 基本的な推論
+// Basic inference
 val x = 42              // x: Int
 val s = "hello"         // s: String
 
-// コンテキスト関数の推論
+// Context function inference
 given ord: Ordering[Int] = Ordering.Int
-def sortedT(using Ordering[T]): List[T] =
+def sorted[T](list: List[T])(using Ordering[T]): List[T] =
   list.sorted
-// using パラメータは given インスタンスから推論
+// using parameters are inferred from given instances
 
-// マッチ型の推論
+// Match type inference
 type Elem[X] = X match
   case String      => Char
   case Array[t]    => t
@@ -896,186 +896,186 @@ type Elem[X] = X match
 
 // Elem[String] = Char, Elem[Array[Int]] = Int
 
-// ユニオン型とインターセクション型
+// Union and intersection types
 val x: String | Int = if true then "hello" else 42
-// 推論された型のユニオン
+// Inferred union type
 
-// 拡張メソッドの推論
+// Extension method inference
 extension (s: String)
   def words: List[String] = s.split("\\s+").toList
-// "hello world".words の型: List[String]
+// Type of "hello world".words: List[String]
 ```
 
-### 5.6 言語間の型推論能力比較表
+### 5.6 Cross-Language Type Inference Capability Comparison Table
 
 ```
-言語別の型推論能力比較
+Type Inference Capability Comparison by Language
 ================================================================
 
-機能                | TS    | Rust  | Go    | Haskell | Kotlin | Scala3
---------------------+-------+-------+-------+---------+--------+-------
-ローカル変数推論    | ○     | ○     | ○     | ○       | ○      | ○
-関数戻り値推論      | ○     | ×     | ×     | ○       | △      | ○
-関数引数推論        | ×     | ×     | ×     | ○       | ×      | ×
-コールバック引数推論| ○     | ○     | △     | ○       | ○      | ○
-ジェネリクス推論    | ○     | ○     | △     | ○       | ○      | ○
-フロー感応型        | ○     | ×*    | ×     | ×       | ○      | △
-型クラス/制約推論   | ×     | ○     | ×     | ○       | ×      | ○
-ライフタイム推論    | N/A   | ○     | N/A   | N/A     | N/A    | N/A
-パターンマッチ推論  | △     | ○     | ×     | ○       | ○      | ○
+Feature                 | TS    | Rust  | Go    | Haskell | Kotlin | Scala3
+------------------------+-------+-------+-------+---------+--------+-------
+Local variable inference| O     | O     | O     | O       | O      | O
+Function return infer   | O     | X     | X     | O       | D      | O
+Function argument infer | X     | X     | X     | O       | X      | X
+Callback argument infer | O     | O     | D     | O       | O      | O
+Generics inference      | O     | O     | D     | O       | O      | O
+Flow-sensitive typing   | O     | X*    | X     | X       | O      | D
+Type class/constraint   | X     | O     | X     | O       | X      | O
+Lifetime inference      | N/A   | O     | N/A   | N/A     | N/A    | N/A
+Pattern match inference | D     | O     | X     | O       | O      | O
 
-○: 完全サポート  △: 部分サポート  ×: 非サポート
-*: Rust は借用チェッカーが類似の機能を提供
+O: Full support  D: Partial support  X: Not supported
+*: Rust's borrow checker provides similar functionality
 
 ================================================================
 ```
 
 ---
 
-## 6. 型推論の限界と対処法
+## 6. Limitations of Type Inference and Countermeasures
 
-### 6.1 推論が失敗する5つの典型パターン
+### 6.1 Five Typical Patterns Where Inference Fails
 
 ```
-型推論が失敗するパターン一覧
+Patterns Where Type Inference Fails
 ================================================================
 
-パターン1: 空のコレクション
+Pattern 1: Empty collections
 ------------------------------------------------------------
   let arr = [];               // TypeScript: any[]
-  let v = Vec::new();         // Rust: Vec<_> 型未定
+  let v = Vec::new();         // Rust: Vec<_> type undetermined
 
-  対処: 型注釈を追加
+  Countermeasure: Add type annotations
   let arr: number[] = [];
   let v: Vec<i32> = Vec::new();
 
-パターン2: 複数の型候補（オーバーロード）
+Pattern 2: Multiple type candidates (overloads)
 ------------------------------------------------------------
-  // 複数の解釈が可能な場合
-  let result = parse(input);  // parse の戻り値型が複数ある
+  // When multiple interpretations are possible
+  let result = parse(input);  // parse has multiple return types
 
-  対処: 型注釈またはターボフィッシュ
+  Countermeasure: Type annotation or turbofish
   let result: User = parse(input);
   let result = input.parse::<i32>();
 
-パターン3: 再帰的データ構造
+Pattern 3: Recursive data structures
 ------------------------------------------------------------
-  // 自己参照する型は推論が困難
+  // Self-referencing types are difficult to infer
   type Tree = { value: number; children: Tree[] };
   let tree = { value: 1, children: [] };
-  // children: never[]（Tree[] と推論されない）
+  // children: never[] (not inferred as Tree[])
 
-  対処: 明示的型注釈
+  Countermeasure: Explicit type annotation
   let tree: Tree = { value: 1, children: [] };
 
-パターン4: 高階関数の部分適用
+Pattern 4: Partial application of higher-order functions
 ------------------------------------------------------------
-  // 部分適用時に型が確定しない
-  const apply = (f: Function) => f; // 型情報が失われる
+  // Type is not determined during partial application
+  const apply = (f: Function) => f; // Type information is lost
 
-  対処: ジェネリクスを使用
+  Countermeasure: Use generics
   const apply = <T, U>(f: (x: T) => U) => f;
 
-パターン5: 異なるブランチの型不一致
+Pattern 5: Type mismatch across different branches
 ------------------------------------------------------------
-  // 条件分岐で異なる型を返す場合
+  // Returning different types from conditional branches
   function getValue(flag: boolean) {
       if (flag) return 42;
       else return "hello";
   }
-  // 戻り値: number | string（意図しないユニオン型）
+  // Return: number | string (unintended union type)
 
-  対処: 戻り値型を明示するか、設計を見直す
+  Countermeasure: Explicitly annotate return type, or reconsider the design
 
 ================================================================
 ```
 
-### 6.2 型注釈を書くべき場所・省略すべき場所
+### 6.2 Where to Write Type Annotations and Where to Omit Them
 
 ```
-型注釈の判断基準マトリクス
+Type Annotation Decision Matrix
 ================================================================
 
-                            推論結果が     推論結果が
-                            明白           不明瞭
+                            Inference result   Inference result
+                            is obvious         is unclear
                         ┌──────────────┬──────────────┐
-  公開API               │  書く(*)     │  必ず書く    │
-  （関数引数・戻り値）   │              │              │
+  Public API             │  Write(*)    │  Must write  │
+  (function args/returns)│              │              │
                         ├──────────────┼──────────────┤
-  内部実装               │  省略OK      │  書く        │
-  （ローカル変数等）     │              │              │
+  Internal implementation│  OK to omit  │  Write       │
+  (local variables etc.) │              │              │
                         └──────────────┴──────────────┘
 
-  (*) 公開APIは推論が明白でもドキュメントとして型注釈を書くべき
+  (*) Even if inference is obvious, write annotations for public APIs as documentation
 
 ================================================================
 
-具体的ガイドライン:
+Specific guidelines:
 
-  必ず書く:
-    [1] 関数の引数型（公開・非公開問わず）
-    [2] 公開関数の戻り値型
-    [3] 空のコレクションの初期化
-    [4] any / unknown 型が推論される場合
-    [5] 型キャスト（as / type assertion）の結果
+  Must write:
+    [1] Function argument types (public or private)
+    [2] Public function return types
+    [3] Empty collection initialization
+    [4] When any / unknown type is inferred
+    [5] Results of type casts (as / type assertion)
 
-  省略してよい:
-    [1] リテラルからの代入（let x = 42）
-    [2] 明白な関数呼び出しの結果（let len = str.length）
-    [3] コールバック引数（names.map(n => ...)）
-    [4] 中間変数（パイプラインの途中結果）
-    [5] 構造分割代入（const { name, age } = user）
+  OK to omit:
+    [1] Assignment from literals (let x = 42)
+    [2] Obvious function call results (let len = str.length)
+    [3] Callback arguments (names.map(n => ...))
+    [4] Intermediate variables (intermediate results in pipelines)
+    [5] Destructuring assignment (const { name, age } = user)
 
 ================================================================
 ```
 
-### 6.3 型推論のパフォーマンスへの影響
+### 6.3 Impact of Type Inference on Performance
 
-型推論は一般的にコンパイル時間に影響を与える。特に大規模プロジェクトでは無視できないこともある。
+Type inference generally affects compilation time. In large-scale projects, this can become non-negligible.
 
 ```
-型推論のコンパイル時間への影響
+Impact of Type Inference on Compilation Time
 ================================================================
 
-言語        | 推論の計算量       | 大規模プロジェクトでの影響
-------------+-------------------+---------------------------
-Haskell     | ほぼ線形 O(n)     | 型クラス解決で遅くなる場合あり
-Rust        | ほぼ線形 O(n)     | トレイト解決 + 借用チェックが支配的
-TypeScript  | 最悪指数関数的     | 条件型のネストで遅くなる場合あり
-Go          | 線形 O(n)         | 影響は軽微
-Scala 3     | 最悪指数関数的     | 暗黙の解決（given/using）が重い場合あり
+Language    | Inference complexity  | Impact on large projects
+------------+---------------------+---------------------------
+Haskell     | Nearly linear O(n)  | Can slow down during type class resolution
+Rust        | Nearly linear O(n)  | Trait resolution + borrow checking dominates
+TypeScript  | Worst-case exponential| Can slow down with nested conditional types
+Go          | Linear O(n)         | Impact is minimal
+Scala 3     | Worst-case exponential| Can be heavy with given/using resolution
 
 ================================================================
 
-TypeScript で型推論がコンパイルを遅くする例:
-  // 深いネストの条件型
+Example where type inference slows down TypeScript compilation:
+  // Deeply nested conditional types
   type DeepPartial<T> = {
     [P in keyof T]?: T[P] extends object
       ? DeepPartial<T[P]>
       : T[P];
   };
-  // 大きなオブジェクト型に適用すると爆発的に遅くなる可能性
+  // Can become explosively slow when applied to large object types
 
-  対策:
-  - 型の再帰深度を制限する
-  - 中間型に明示的な型注釈を付ける
-  - interface を type alias より優先する（構造比較のキャッシュが効く）
+  Countermeasures:
+  - Limit recursion depth of types
+  - Add explicit type annotations to intermediate types
+  - Prefer interface over type alias (structural comparison caching is more effective)
 
 ================================================================
 ```
 
 ---
 
-## 7. アンチパターンとベストプラクティス
+## 7. Anti-Patterns and Best Practices
 
-### 7.1 アンチパターン1: 過剰な型注釈（Annotation Overkill）
+### 7.1 Anti-Pattern 1: Annotation Overkill
 
-型推論が正確に動作する場所に冗長な型注釈を追加すると、コードの可読性が低下し、保守性も悪化する。
+Adding redundant type annotations where type inference works accurately reduces code readability and degrades maintainability.
 
 ```typescript
-// *** アンチパターン: 過剰な型注釈 ***
+// *** Anti-Pattern: Annotation Overkill ***
 
-// BAD: 全てに型注釈を付ける（冗長）
+// BAD: Annotating everything (redundant)
 const name: string = "Alice";
 const age: number = 30;
 const active: boolean = true;
@@ -1083,7 +1083,7 @@ const scores: number[] = [90, 85, 92];
 const user: { name: string; age: number } = { name: "Alice", age: 30 };
 const doubled: number[] = scores.map((s: number): number => s * 2);
 
-// GOOD: 推論に任せる（簡潔）
+// GOOD: Delegate to inference (concise)
 const name = "Alice";
 const age = 30;
 const active = true;
@@ -1093,43 +1093,43 @@ const doubled = scores.map(s => s * 2);
 ```
 
 ```
-なぜ問題なのか:
+Why this is a problem:
 ================================================================
 
-1. 可読性の低下
-   - 型注釈がノイズになり、ロジックが見えにくくなる
-   - 情報の重複（右辺からも型は明らか）
+1. Reduced readability
+   - Type annotations become noise, obscuring the logic
+   - Information duplication (type is also obvious from the right-hand side)
 
-2. 保守性の悪化
-   - 値を変更したとき、型注釈も同時に変更が必要
-   - 型注釈と実際の型が乖離するリスク
+2. Degraded maintainability
+   - When changing values, type annotations must also be updated simultaneously
+   - Risk of type annotations diverging from actual types
 
-3. リファクタリングの困難化
-   - 冗長な型注釈があると、型の変更が広範囲に波及
+3. Harder refactoring
+   - Redundant type annotations cause type changes to ripple widely
 
-判断基準:
-  「この型注釈を消しても、読む人は型が分かるか？」
-  → Yes なら省略してよい
-  → No なら書くべき
+Decision criterion:
+  "If I remove this type annotation, can the reader still figure out the type?"
+  → Yes: OK to omit
+  → No: Should write it
 
 ================================================================
 ```
 
-### 7.2 アンチパターン2: any への逃避（Any Escape Hatch）
+### 7.2 Anti-Pattern 2: Any Escape Hatch
 
-型推論が困難な場面で安易に `any` 型を使用すると、型安全性が破壊される。
+Casually using the `any` type when type inference is difficult destroys type safety.
 
 ```typescript
-// *** アンチパターン: any への逃避 ***
+// *** Anti-Pattern: Any Escape Hatch ***
 
-// BAD: any で型チェックを無効化
+// BAD: Disabling type checking with any
 function processData(data: any): any {
     return data.map((item: any) => item.name.toUpperCase());
-    // 全ての型情報が失われている
-    // data が配列でなくても、item.name が存在しなくてもコンパイルが通る
+    // All type information is lost
+    // Compiles even if data is not an array or item.name doesn't exist
 }
 
-// GOOD: 適切な型を定義する
+// GOOD: Define appropriate types
 interface DataItem {
     name: string;
     value: number;
@@ -1137,16 +1137,16 @@ interface DataItem {
 
 function processData(data: DataItem[]): string[] {
     return data.map(item => item.name.toUpperCase());
-    // 型安全: data が DataItem[] でなければコンパイルエラー
+    // Type-safe: compilation error if data is not DataItem[]
 }
 
-// BETTER: ジェネリクスで汎用化する
+// BETTER: Generalize with generics
 function processData<T extends { name: string }>(data: T[]): string[] {
     return data.map(item => item.name.toUpperCase());
-    // name プロパティを持つ任意の型の配列を受け付ける
+    // Accepts arrays of any type that has a name property
 }
 
-// 段階的な改善: any → unknown → 具体型
+// Gradual improvement: any → unknown → concrete type
 function safeProcess(data: unknown): string[] {
     if (!Array.isArray(data)) {
         throw new Error("Expected array");
@@ -1161,38 +1161,38 @@ function safeProcess(data: unknown): string[] {
 ```
 
 ```
-any vs unknown vs never の使い分け
+Usage of any vs unknown vs never
 ================================================================
 
-型        | 安全性 | 用途
+Type      | Safety | Purpose
 ----------+--------+------------------------------------------
-any       | ×      | 型チェックの完全な無効化（極力避ける）
-unknown   | ○      | 型が不明だが安全に扱いたい場合
-never     | ○      | 到達不能なコードの型（網羅性チェック）
-object    | △      | null でないオブジェクト全般
+any       | X      | Complete disabling of type checking (avoid)
+unknown   | O      | When type is unknown but want safe handling
+never     | O      | Type of unreachable code (exhaustiveness check)
+object    | D      | Any non-null object
 
-any の正当な用途:
-  - 外部ライブラリの型定義がない場合の一時的な措置
-  - テストコードでのモック（型安全性より柔軟性を優先）
-  - 移行期間中の段階的な型付け
+Legitimate uses of any:
+  - Temporary measure when external library lacks type definitions
+  - Mocks in test code (prioritizing flexibility over type safety)
+  - Gradual typing during migration period
 
 ================================================================
 ```
 
-### 7.3 アンチパターン3: 不適切な型アサーション
+### 7.3 Anti-Pattern 3: Inappropriate Type Assertions
 
 ```typescript
-// *** アンチパターン: 型アサーションの乱用 ***
+// *** Anti-Pattern: Misuse of type assertions ***
 
-// BAD: 根拠のない型アサーション
+// BAD: Unfounded type assertions
 const data = JSON.parse(response) as User;
-// JSON.parse は any を返す。User である保証はない。
+// JSON.parse returns any. There is no guarantee it is User.
 
-// BAD: ダブルアサーション（型安全性の完全な破壊）
+// BAD: Double assertion (complete destruction of type safety)
 const x = ("hello" as unknown) as number;
-// string を number に強制変換（ランタイムエラーの温床）
+// Forces string to number (source of runtime errors)
 
-// GOOD: 型ガードで安全に絞り込む
+// GOOD: Safely narrow with type guards
 function isUser(obj: unknown): obj is User {
     return (
         typeof obj === "object" &&
@@ -1206,11 +1206,11 @@ function isUser(obj: unknown): obj is User {
 
 const data: unknown = JSON.parse(response);
 if (isUser(data)) {
-    // ここでは data: User と推論される（型ガードによる絞り込み）
+    // Here data is inferred as User (narrowed by type guard)
     console.log(data.name);
 }
 
-// BETTER: zod 等のバリデーションライブラリを使用
+// BETTER: Use validation libraries like zod
 import { z } from "zod";
 const UserSchema = z.object({
     name: z.string(),
@@ -1219,54 +1219,54 @@ const UserSchema = z.object({
 type User = z.infer<typeof UserSchema>;
 
 const data = UserSchema.parse(JSON.parse(response));
-// data: User（バリデーション済み）
+// data: User (validated)
 ```
 
-### 7.4 ベストプラクティスまとめ
+### 7.4 Best Practices Summary
 
 ```
-型推論のベストプラクティス
+Best Practices for Type Inference
 ================================================================
 
-[1] 公開APIの境界では型注釈を必ず書く
-    → 関数の引数、戻り値、エクスポートされる型
+[1] Always write type annotations at public API boundaries
+    → Function arguments, return values, exported types
 
-[2] ローカル変数は推論に任せる
-    → let x = 42; で十分。let x: number = 42; は冗長
+[2] Let inference handle local variables
+    → let x = 42; is sufficient. let x: number = 42; is redundant
 
-[3] 空のコレクションには型注釈を付ける
+[3] Add type annotations to empty collections
     → const arr: string[] = [];
 
-[4] any を避け、unknown を使う
-    → 型が不明な場合は unknown + 型ガード
+[4] Avoid any, use unknown
+    → For unknown types, use unknown + type guards
 
-[5] 型アサーション（as）より型ガードを優先する
-    → ランタイムの安全性を確保
+[5] Prefer type guards over type assertions (as)
+    → Ensures runtime safety
 
-[6] 推論結果が不明確な場合は型注釈を追加する
-    → 読み手の理解を助ける
+[6] Add type annotations when inference results are unclear
+    → Aids reader comprehension
 
-[7] const アサーションを活用する
-    → as const でリテラル型を保持
+[7] Utilize const assertions
+    → Preserve literal types with as const
 
-[8] IDE の型表示を活用して推論結果を確認する
-    → ホバーで推論された型を確認する習慣を付ける
+[8] Use IDE type display to verify inference results
+    → Develop the habit of checking inferred types by hovering
 
 ================================================================
 ```
 
 ---
 
-## 8. 実践演習（3段階）
+## 8. Practical Exercises (3 Levels)
 
-### 演習1: [基礎] 型推論の確認と理解
+### Exercise 1: [Basic] Verifying and Understanding Type Inference
 
-**目的**: 各言語の型推論がどこまで自動的に型を決定するかを体験する。
+**Objective**: Experience how far each language's type inference automatically determines types.
 
-**課題 1-1**: TypeScript で以下のコードを記述し、IDE のホバー機能で各変数の推論型を確認せよ。
+**Task 1-1**: Write the following code in TypeScript and use the IDE's hover feature to check the inferred type of each variable.
 
 ```typescript
-// 各変数の型を IDE で確認し、コメントに記入せよ
+// Check the type of each variable in the IDE and write it in comments
 const a = 42;                          // a: ???
 const b = [1, "hello", true];          // b: ???
 const c = { x: 1, y: "hello" };       // c: ???
@@ -1279,7 +1279,7 @@ const h = [1, 2, 3].filter(x => x > 1);         // h: ???
 const i = [1, 2, 3].reduce((acc, x) => acc + x); // i: ???
 ```
 
-**期待される回答:**
+**Expected Answers:**
 
 ```typescript
 const a = 42;                          // a: number
@@ -1294,69 +1294,69 @@ const h = [1, 2, 3].filter(x => x > 1);         // h: number[]
 const i = [1, 2, 3].reduce((acc, x) => acc + x); // i: number
 ```
 
-**課題 1-2**: Rust で以下のコードをコンパイルし、コンパイラの型推論を確認せよ。
+**Task 1-2**: Compile the following code in Rust and verify the compiler's type inference.
 
 ```rust
 fn main() {
-    let a = 42;                    // 型は？
-    let b = vec![1, 2, 3];        // 型は？
-    let c = "hello".to_string();  // 型は？
-    let d = (1, "hello", true);   // 型は？
+    let a = 42;                    // Type?
+    let b = vec![1, 2, 3];        // Type?
+    let c = "hello".to_string();  // Type?
+    let d = (1, "hello", true);   // Type?
 
-    // 以下の行を追加して、型がどう変わるか確認
-    let e: u8 = a;  // これはコンパイルエラーになるか？
-    // ヒント: a のデフォルト型は i32 だが、
-    //         e の型注釈の影響を受けるか？
+    // Add the following line and check how the type changes
+    let e: u8 = a;  // Does this cause a compilation error?
+    // Hint: a's default type is i32, but
+    //       does e's type annotation affect it?
 }
 ```
 
-### 演習2: [応用] 型推論の限界を体験し解決する
+### Exercise 2: [Applied] Experiencing and Resolving Type Inference Limitations
 
-**目的**: 型推論が失敗するケースを作成し、適切な型注釈で解決する方法を学ぶ。
+**Objective**: Create cases where type inference fails and learn how to resolve them with appropriate type annotations.
 
-**課題 2-1**: TypeScript で型推論が失敗する5つのケースを作成し、それぞれ修正せよ。
+**Task 2-1**: Create 5 cases where TypeScript type inference fails, and fix each one.
 
 ```typescript
-// ケース1: 空の配列
-const items = [];  // any[] になる → 修正せよ
+// Case 1: Empty array
+const items = [];  // Becomes any[] → Fix this
 
-// ケース2: 条件式の型拡大
+// Case 2: Type widening in conditional expressions
 const value = Math.random() > 0.5 ? 42 : "hello";
-// string | number になるが、number だけにしたい → 修正せよ
+// Becomes string | number, but we want only number → Fix this
 
-// ケース3: オブジェクトリテラルの余剰プロパティ
+// Case 3: Excess properties in object literals
 interface Config {
     host: string;
     port: number;
 }
 const config = { host: "localhost", port: 3000, debug: true };
-// Config として使いたいが debug が余剰 → 修正せよ
+// Want to use as Config but debug is excess → Fix this
 
-// ケース4: Promise チェーンの型
+// Case 4: Promise chain types
 async function fetchData() {
     const response = await fetch("/api/users");
-    const data = await response.json(); // data: any → 修正せよ
+    const data = await response.json(); // data: any → Fix this
     return data;
 }
 
-// ケース5: ジェネリクスの型パラメータが推論されない
-function identity(x) { return x; }  // 修正せよ
+// Case 5: Generic type parameter not inferred
+function identity(x) { return x; }  // Fix this
 ```
 
-**模範解答:**
+**Model Answers:**
 
 ```typescript
-// ケース1: 型注釈を追加
+// Case 1: Add type annotation
 const items: string[] = [];
 
-// ケース2: 条件式を修正、または型注釈
+// Case 2: Fix the conditional expression, or add type annotation
 const value: number = Math.random() > 0.5 ? 42 : 0;
 
-// ケース3: satisfies を使用
+// Case 3: Use satisfies
 const config = { host: "localhost", port: 3000, debug: true } satisfies Config;
-// または型注釈: const config: Config = { host: "localhost", port: 3000 };
+// Or type annotation: const config: Config = { host: "localhost", port: 3000 };
 
-// ケース4: 型パラメータを指定
+// Case 4: Specify type parameter
 interface User { id: number; name: string; }
 async function fetchData(): Promise<User[]> {
     const response = await fetch("/api/users");
@@ -1364,153 +1364,153 @@ async function fetchData(): Promise<User[]> {
     return data;
 }
 
-// ケース5: ジェネリクスを使用
+// Case 5: Use generics
 function identity<T>(x: T): T { return x; }
 ```
 
-**課題 2-2**: Rust で型推論が失敗するケースを3つ作成し、それぞれターボフィッシュまたは型注釈で解決せよ。
+**Task 2-2**: Create 3 cases where Rust type inference fails, and resolve each with turbofish or type annotations.
 
 ```rust
 fn main() {
-    // ケース1: parse の戻り値型が不定
-    let n = "42".parse().unwrap(); // 修正せよ
+    // Case 1: parse return type is indeterminate
+    let n = "42".parse().unwrap(); // Fix this
 
-    // ケース2: collect の型が不定
-    let v = (0..10).collect(); // 修正せよ
+    // Case 2: collect type is indeterminate
+    let v = (0..10).collect(); // Fix this
 
-    // ケース3: Default トレイトの型が不定
-    let d = Default::default(); // 修正せよ
+    // Case 3: Default trait type is indeterminate
+    let d = Default::default(); // Fix this
 }
 ```
 
-**模範解答:**
+**Model Answers:**
 
 ```rust
 fn main() {
-    // ケース1: ターボフィッシュで型を指定
+    // Case 1: Specify type with turbofish
     let n = "42".parse::<i32>().unwrap();
-    // または型注釈: let n: i32 = "42".parse().unwrap();
+    // Or type annotation: let n: i32 = "42".parse().unwrap();
 
-    // ケース2: ターボフィッシュまたは型注釈
+    // Case 2: Turbofish or type annotation
     let v: Vec<i32> = (0..10).collect();
-    // または: let v = (0..10).collect::<Vec<i32>>();
+    // Or: let v = (0..10).collect::<Vec<i32>>();
 
-    // ケース3: 型注釈
+    // Case 3: Type annotation
     let d: i32 = Default::default();
-    // または: let d = i32::default();
+    // Or: let d = i32::default();
 }
 ```
 
-### 演習3: [発展] Hindley-Milner 型推論の手動実行
+### Exercise 3: [Advanced] Manual Execution of Hindley-Milner Type Inference
 
-**目的**: HM 型推論アルゴリズムを手動で実行し、型推論の内部動作を理解する。
+**Objective**: Manually execute the HM type inference algorithm and understand the internal workings of type inference.
 
-**課題 3-1**: 以下の関数に対して、HM 型推論を手動でトレースせよ。
-
-```
-対象関数: let apply f x = f x
-```
-
-**手動トレース手順:**
+**Task 3-1**: Manually trace HM type inference for the following function.
 
 ```
-Step 1: 型変数の割り当て
+Target function: let apply f x = f x
+```
+
+**Manual Trace Procedure:**
+
+```
+Step 1: Assign type variables
 ================================================================
-  apply: α
-  f: β
-  x: γ
-  式 (f x) の型: δ
+  apply: alpha
+  f: beta
+  x: gamma
+  Type of expression (f x): delta
 
-Step 2: 制約の収集
+Step 2: Collect constraints
 ================================================================
-  f は引数 x に適用されるので、f は関数型:
-    β = γ → δ
+  f is applied to argument x, so f is a function type:
+    beta = gamma → delta
 
-  apply f x の結果は (f x) なので:
-    α = β → γ → δ
+  The result of apply f x is (f x), so:
+    alpha = beta → gamma → delta
 
-Step 3: 単一化
+Step 3: Unification
 ================================================================
-  β = γ → δ を α に代入:
-    α = (γ → δ) → γ → δ
+  Substitute beta = gamma → delta into alpha:
+    alpha = (gamma → delta) → gamma → delta
 
-Step 4: 一般化
+Step 4: Generalization
 ================================================================
-  自由型変数 γ, δ を全称量化:
-    apply :: ∀ γ δ. (γ → δ) → γ → δ
+  Universally quantify free type variables gamma, delta:
+    apply :: forall gamma delta. (gamma → delta) → gamma → delta
 
-  標準的な変数名に置換:
+  Rename to standard variable names:
     apply :: (a -> b) -> a -> b
 
-  これは Haskell の ($) 演算子と同じ型である。
+  This is the same type as Haskell's ($) operator.
 ================================================================
 ```
 
-**課題 3-2**: 以下の関数に対して同様に手動トレースせよ。
+**Task 3-2**: Similarly trace the following function manually.
 
 ```
-対象関数: let twice f x = f (f x)
+Target function: let twice f x = f (f x)
 ```
 
-**ヒント:**
+**Hint:**
 
 ```
-Step 1: f: α, x: β, 内側の (f x): γ, 外側の f γ: δ
+Step 1: f: alpha, x: beta, inner (f x): gamma, outer f gamma: delta
 
-Step 2: 制約
-  内側の適用: α = β → γ
-  外側の適用: α = γ → δ
+Step 2: Constraints
+  Inner application: alpha = beta → gamma
+  Outer application: alpha = gamma → delta
 
-Step 3: 単一化
-  β → γ = γ → δ
-  よって β = γ かつ γ = δ
-  つまり β = γ = δ
+Step 3: Unification
+  beta → gamma = gamma → delta
+  Therefore beta = gamma and gamma = delta
+  Meaning beta = gamma = delta
 
-Step 4: 結果
+Step 4: Result
   twice :: (a -> a) -> a -> a
-  f は同じ型を受け取って同じ型を返す関数でなければならない
+  f must be a function that takes and returns the same type
 ```
 
-**課題 3-3（挑戦）**: 以下の関数をトレースせよ。
+**Task 3-3 (Challenge)**: Trace the following function.
 
 ```
-対象関数: let fix f = f (fix f)
+Target function: let fix f = f (fix f)
 ```
 
 ```
-これは不動点コンビネータである。
+This is the fixed-point combinator.
 
-Step 1: fix: α, f: β
+Step 1: fix: alpha, f: beta
 
 Step 2:
-  fix f の型を τ とする
-  f は (fix f) に適用されるので: β = τ → τ'
-  fix f の結果は f (fix f) なので: τ = τ'
-  よって β = τ → τ
+  Let tau be the type of fix f
+  f is applied to (fix f), so: beta = tau → tau'
+  The result of fix f is f (fix f), so: tau = tau'
+  Therefore beta = tau → tau
 
 Step 3:
-  fix :: (τ → τ) → τ
-  標準変数名: fix :: (a -> a) -> a
+  fix :: (tau → tau) → tau
+  Standard variable names: fix :: (a -> a) -> a
 
-注意: 出現チェックの観点からは、fix の定義自体が
-      再帰的であり、通常の HM では型付けできない。
-      Haskell では再帰束縛の特別な規則で対処する。
+Note: From the occurs check perspective, the definition of fix itself
+      is recursive, and cannot be typed in standard HM.
+      Haskell handles this with special rules for recursive bindings.
 ```
 
 ---
 
-## 9. FAQ（よくある質問）
+## 9. FAQ (Frequently Asked Questions)
 
-### Q1: 型推論があるなら、なぜ全ての言語が Haskell のように型注釈を不要にしないのか？
+### Q1: If type inference exists, why don't all languages make type annotations unnecessary like Haskell?
 
-**A**: 3つの主要な理由がある。
+**A**: There are 3 main reasons.
 
-**理由1: サブタイピングとの非互換性**
+**Reason 1: Incompatibility with Subtyping**
 
-Hindley-Milner 型推論は、サブタイピング（継承やインターフェース実装による型の包含関係）がある型システムでは完全には動作しない。Java, TypeScript, Kotlin のようなオブジェクト指向言語では、`Dog extends Animal` のような関係があり、これが主型性を破壊する。
+Hindley-Milner type inference does not work fully in type systems with subtyping (type inclusion relationships through inheritance and interface implementation). In object-oriented languages like Java, TypeScript, and Kotlin, relationships like `Dog extends Animal` exist, and this destroys the principal type property.
 
 ```
-例: サブタイピングが主型性を壊す場面
+Example: Where subtyping breaks the principal type property
 ================================================================
 
 class Animal { move() { ... } }
@@ -1518,45 +1518,45 @@ class Dog extends Animal { bark() { ... } }
 class Cat extends Animal { meow() { ... } }
 
 function example(x) {
-    x.move();  // x の型は？
+    x.move();  // What is x's type?
 }
 
-候補:
-  - Animal（最も一般的）
-  - Dog（bark も使えるかもしれない）
-  - Cat（meow も使えるかもしれない）
-  - Animal & Serializable（他のインターフェースも？）
+Candidates:
+  - Animal (most general)
+  - Dog (might also use bark)
+  - Cat (might also use meow)
+  - Animal & Serializable (other interfaces too?)
 
-HM推論では「最も一般的な型」が一意に決まるが、
-サブタイピングがあると「最も一般的」の定義が曖昧になる。
+In HM inference, the "most general type" is uniquely determined, but
+with subtyping, the definition of "most general" becomes ambiguous.
 
 ================================================================
 ```
 
-**理由2: 可読性とドキュメンテーション**
+**Reason 2: Readability and Documentation**
 
-公開APIの型注釈はドキュメントとしての役割を果たす。型注釈がなければ、関数のシグネチャを理解するために実装を読む必要がある。大規模プロジェクトでは、型注釈による明示性が保守性を大きく向上させる。
+Type annotations on public APIs serve a documentation role. Without type annotations, you would need to read the implementation to understand a function's signature. In large-scale projects, the explicitness of type annotations greatly improves maintainability.
 
-**理由3: コンパイル時間**
+**Reason 3: Compilation Time**
 
-グローバルな型推論は、プログラム全体を解析する必要があるため、コンパイル時間が増大する。ローカル型推論（関数境界で型を明示）は、各関数を独立にコンパイルできるため、差分コンパイルが効率的になる。
+Global type inference requires analyzing the entire program, increasing compilation time. Local type inference (making types explicit at function boundaries) allows each function to be compiled independently, making incremental compilation more efficient.
 
-### Q2: TypeScript の `as const` と通常の型推論はどう違うのか？
+### Q2: How does TypeScript's `as const` differ from normal type inference?
 
-**A**: 通常の型推論は「型の拡大（widening）」を行うが、`as const` はリテラル型を保持する。
+**A**: Normal type inference performs "type widening," but `as const` preserves literal types.
 
 ```typescript
-// 通常の推論（型が拡大される）
+// Normal inference (types are widened)
 const config = {
-    method: "GET",        // method: string（リテラル型が string に拡大）
+    method: "GET",        // method: string (literal type widened to string)
     retries: 3,           // retries: number
     endpoints: ["/a", "/b"] // endpoints: string[]
 };
 // config: { method: string; retries: number; endpoints: string[] }
 
-// as const（型が拡大されない）
+// as const (types are NOT widened)
 const config = {
-    method: "GET",        // method: "GET"（リテラル型を保持）
+    method: "GET",        // method: "GET" (literal type preserved)
     retries: 3,           // retries: 3
     endpoints: ["/a", "/b"] // endpoints: readonly ["/a", "/b"]
 } as const;
@@ -1566,208 +1566,214 @@ const config = {
 //   readonly endpoints: readonly ["/a", "/b"];
 // }
 
-// as const が有用な場面: 判別共用体のタグ
+// Useful scenario for as const: Discriminated union tags
 const actions = {
     increment: { type: "INCREMENT" as const, payload: 1 },
     decrement: { type: "DECREMENT" as const, payload: 1 },
 };
-// type フィールドがリテラル型になり、判別共用体として使える
+// The type field becomes a literal type, usable as a discriminated union
 ```
 
 ```
-型の拡大（Widening）と型の絞り込み（Narrowing）
+Type Widening and Type Narrowing
 ================================================================
 
-拡大（Widening）: リテラル → 一般型
+Widening: Literal → General type
   42        --> number
   "hello"   --> string
   true      --> boolean
   [1,2,3]   --> number[]
 
-  ※ let で宣言した場合に発生
-  ※ const で宣言するとリテラル型が保持される
+  * Occurs when declared with let
+  * Literal types are preserved when declared with const
 
-絞り込み（Narrowing）: 一般型 → 具体型
-  string | number  --> string  （typeof ガードで）
-  Animal           --> Dog     （instanceof ガードで）
-  Shape            --> Circle  （判別共用体で）
+Narrowing: General type → Concrete type
+  string | number  --> string  (with typeof guard)
+  Animal           --> Dog     (with instanceof guard)
+  Shape            --> Circle  (with discriminated union)
 
-  ※ 制御フロー分析により自動的に発生
+  * Occurs automatically through control flow analysis
 
 ================================================================
 ```
 
-### Q3: Rust の「ターボフィッシュ」構文 `::<Type>` はなぜ必要なのか？
+### Q3: Why is Rust's "turbofish" syntax `::<Type>` necessary?
 
-**A**: Rust のローカル型推論では、型情報が不足する場面が存在する。特に、ジェネリック関数の戻り値型が呼び出し文脈だけでは決定できない場合に、ターボフィッシュが必要になる。
+**A**: In Rust's local type inference, there are situations where type information is insufficient. In particular, when the return type of a generic function cannot be determined from the call context alone, turbofish is necessary.
 
 ```rust
-// ターボフィッシュが必要なケース
+// Cases where turbofish is necessary
 
-// 1. parse(): 戻り値型が複数の型を取りうる
-let n = "42".parse::<i32>().unwrap();    // i32 として解析
-let n = "42".parse::<f64>().unwrap();    // f64 として解析
-let n = "42".parse::<u8>().unwrap();     // u8 として解析
+// 1. parse(): Return type can be multiple types
+let n = "42".parse::<i32>().unwrap();    // Parse as i32
+let n = "42".parse::<f64>().unwrap();    // Parse as f64
+let n = "42".parse::<u8>().unwrap();     // Parse as u8
 
-// 2. collect(): イテレータからの変換先が複数ある
-let v = (0..10).collect::<Vec<i32>>();       // Vec に変換
+// 2. collect(): Multiple conversion targets from iterator
+let v = (0..10).collect::<Vec<i32>>();       // Convert to Vec
 let s = (0..10).map(|i| format!("{}", i))
-               .collect::<String>();          // String に結合
+               .collect::<String>();          // Join into String
 let hs = vec![1,2,3].into_iter()
-                     .collect::<HashSet<_>>(); // HashSet に変換
+                     .collect::<HashSet<_>>(); // Convert to HashSet
 
-// 3. Default::default(): 型によって異なるデフォルト値
+// 3. Default::default(): Different default values by type
 let x = i32::default();    // 0
 let s = String::default(); // ""
 let v = Vec::<i32>::default(); // []
 
-// ターボフィッシュの名前の由来:
-// ::<> の形が魚（特にターボスネイル）に見えることから
-//   ::<>  ← これが魚に見える？
+// Origin of the turbofish name:
+// The shape ::<> resembles a fish (specifically a turbo snail)
+//   ::<>  ← Does this look like a fish?
 ```
 
-### Q4: 型推論とジェネリクスはどのような関係にあるのか？
+### Q4: What is the relationship between type inference and generics?
 
-**A**: 型推論はジェネリクスの型パラメータを自動的に決定する機構として密接に関係している。
+**A**: Type inference is closely related to generics as a mechanism that automatically determines generic type parameters.
 
 ```typescript
-// ジェネリクスの型パラメータ推論
+// Generic type parameter inference
 
-// 明示的に型パラメータを指定
+// Explicitly specifying type parameters
 const result1 = identity<number>(42);
 
-// 型パラメータを推論（引数から推論される）
-const result2 = identity(42);  // T = number と推論
+// Inferring type parameters (inferred from arguments)
+const result2 = identity(42);  // T = number inferred
 
-// 複数の型パラメータの推論
+// Inference of multiple type parameters
 function merge<A, B>(a: A, b: B): A & B {
     return { ...a, ...b };
 }
 const merged = merge({ name: "Alice" }, { age: 30 });
-// A = { name: string }, B = { age: number } と推論
-// 戻り値: { name: string } & { age: number }
+// A = { name: string }, B = { age: number } inferred
+// Return: { name: string } & { age: number }
 
-// 制約付きジェネリクスの推論
+// Inference with constrained generics
 function getLength<T extends { length: number }>(item: T): number {
     return item.length;
 }
-getLength("hello");     // T = string と推論（string は length を持つ）
-getLength([1, 2, 3]);   // T = number[] と推論
-// getLength(42);       // エラー: number は length を持たない
+getLength("hello");     // T = string inferred (string has length)
+getLength([1, 2, 3]);   // T = number[] inferred
+// getLength(42);       // Error: number does not have length
 ```
 
 ```
-ジェネリクス推論のフロー図
+Generics Inference Flow Diagram
 ================================================================
 
 function map<T, U>(arr: T[], fn: (item: T) => U): U[]
 
-呼び出し: map([1, 2, 3], x => x.toString())
+Call: map([1, 2, 3], x => x.toString())
 
-推論プロセス:
-  1. 第1引数 [1, 2, 3] から T = number を推論
+Inference process:
+  1. Infer T = number from first argument [1, 2, 3]
      arr: T[]  <-->  [1, 2, 3]: number[]
           │
           ▼
      T = number
 
-  2. T = number をコールバックに伝播
+  2. Propagate T = number to callback
      fn: (item: T) => U  -->  fn: (item: number) => U
                                     │
                                     ▼
-     x => x.toString() の x: number
+     x => x.toString() where x: number
 
-  3. コールバックの戻り値から U を推論
+  3. Infer U from callback return value
      x.toString(): string  -->  U = string
 
-  4. 最終結果
+  4. Final result
      map<number, string>([1, 2, 3], x => x.toString()): string[]
 
 ================================================================
 ```
 
-### Q5: なぜ TypeScript では関数の引数型が推論されないのか？
+### Q5: Why doesn't TypeScript infer function argument types?
 
-**A**: TypeScript が採用している双方向型チェックでは、関数宣言の引数型は「推論の起点」として使われるため、推論の対象にはならない。これは意図的な設計判断である。
+**A**: In the bidirectional type checking adopted by TypeScript, function declaration argument types are used as "starting points for inference," so they are not themselves inference targets. This is an intentional design decision.
 
 ```
-関数引数が推論されない理由
+Why function arguments are not inferred
 ================================================================
 
-1. 関数は「型情報の提供者」
-   引数型は、関数本体内の式の型推論の起点となる。
-   起点自体が推論対象になると、循環依存が生じる。
+1. Functions are "type information providers"
+   Argument types serve as starting points for type inference
+   within the function body.
+   Making the starting point itself an inference target would
+   create circular dependencies.
 
-2. 公開APIの明確性
-   関数の引数型はAPIの契約を定義する。
-   推論に頼ると、実装の変更でAPIが変わってしまう。
+2. Public API clarity
+   Function argument types define API contracts.
+   Relying on inference could cause API changes when
+   the implementation changes.
 
-3. エラーメッセージの品質
-   引数型が明示されていれば、型エラーの位置が明確になる。
-   推論に頼ると「どこが間違っているか」の特定が困難になる。
+3. Error message quality
+   When argument types are explicit, the location of type
+   errors is clear.
+   Relying on inference makes it difficult to pinpoint
+   "where the mistake is."
 
-例外: コールバックの引数は推論される
+Exception: Callback arguments ARE inferred
   names.map(name => name.toUpperCase())
-  //        ↑ name: string（配列の要素型から推論）
+  //        ↑ name: string (inferred from array element type)
 
-  これは「コールバックの型」が上位コンテキストから
-  確定しているため、チェックモードで推論可能。
+  This is because the "callback's type" is determined from
+  the higher context, making checking mode inference possible.
 
 ================================================================
 ```
 
-### Q6: 型推論のデバッグ方法は？
+### Q6: How do you debug type inference?
 
-**A**: 各言語とツールには、推論された型を確認するための方法が用意されている。
+**A**: Each language and tool provides methods to check inferred types.
 
 ```
-型推論のデバッグ手法一覧
+Type Inference Debugging Methods
 ================================================================
 
 TypeScript:
-  - IDE のホバー表示（VSCode, WebStorm）
-  - tsc --noEmit --declaration で .d.ts 生成
-  - // @ts-expect-error で意図的にエラーを出し型を確認
-  - type Inspect<T> = T; で中間型を可視化
+  - IDE hover display (VSCode, WebStorm)
+  - tsc --noEmit --declaration to generate .d.ts
+  - // @ts-expect-error to intentionally trigger errors and check types
+  - type Inspect<T> = T; to visualize intermediate types
 
 Rust:
-  - コンパイラのエラーメッセージに推論された型が表示される
-  - let _: () = expr; で expr の型をエラーメッセージで確認
-  - rust-analyzer の inlay hints（IDE 内型表示）
-  - #[derive(Debug)] + println!("{:?}", x) で型をランタイム確認
+  - Compiler error messages display inferred types
+  - let _: () = expr; to check expr's type via error messages
+  - rust-analyzer's inlay hints (inline type display in IDE)
+  - #[derive(Debug)] + println!("{:?}", x) to check types at runtime
 
 Haskell:
-  - :type 式  （GHCi で型を確認）
-  - :info 名前 （型情報を表示）
-  - -fwarn-missing-signatures でトップレベルの型警告
-  - _ を型注釈に使い、コンパイラに推論型を表示させる
+  - :type expression  (check type in GHCi)
+  - :info name (display type information)
+  - -fwarn-missing-signatures for top-level type warnings
+  - Use _ in type annotations to have compiler display the inferred type
 
 Go:
-  - IDE のホバー表示
-  - fmt.Printf("%T\n", x) で型を表示
-  - go vet による型チェック
+  - IDE hover display
+  - fmt.Printf("%T\n", x) to display the type
+  - go vet for type checking
 
 ================================================================
 ```
 
-### Q7: 依存型（Dependent Types）と型推論の関係は？
+### Q7: What is the relationship between dependent types and type inference?
 
-**A**: 依存型は、値に依存する型を表現する。例えば「長さ n のベクトル」を型レベルで表現できる。依存型を持つ言語（Idris, Agda, Coq）でも型推論は提供されるが、完全ではない。依存型の型推論は一般に決定不能（undecidable）であるため、ユーザーによる型注釈やヒントが必要になる場面が増える。
+**A**: Dependent types express types that depend on values. For example, they can express "a vector of length n" at the type level. Languages with dependent types (Idris, Agda, Coq) do provide type inference, but it is not complete. Type inference for dependent types is generally undecidable, so situations requiring user-provided type annotations or hints increase.
 
 ```
-型推論の決定可能性スペクトラム
+Decidability Spectrum of Type Inference
 ================================================================
 
-  完全に決定可能             部分的に決定可能        決定不能
+  Fully decidable            Partially decidable        Undecidable
   ◄────────────────────────────────────────────────────────►
   │                    │                    │
-  HM型推論             双方向型チェック        依存型
-  (Haskell, ML)        (TypeScript, Kotlin)   (Idris, Agda)
-  │                    │                    │
-  型注釈不要            一部型注釈が必要        多くの型注釈が必要
+  HM Inference         Bidirectional        Dependent Types
+  (Haskell, ML)        Type Checking        (Idris, Agda)
+  │                    (TypeScript, Kotlin)  │
+  No annotations       Some annotations     Many annotations
+  needed               needed               needed
 
-  ※ 表現力と推論能力のトレードオフ
-  型システムが表現力を増すほど、自動推論は困難になる
+  * Trade-off between expressiveness and inference capability
+  The more expressive the type system, the harder automatic inference becomes
 
 ================================================================
 ```
@@ -1777,179 +1783,179 @@ Go:
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point in learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What common mistakes do beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently applied in daily development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 10. まとめと次のステップ
+## 10. Summary and Next Steps
 
-### 10.1 型推論の全体像
+### 10.1 The Big Picture of Type Inference
 
 ```
-型推論の全体マップ
+Overall Map of Type Inference
 ================================================================
 
-                      型推論（Type Inference）
+                      Type Inference
                               │
               ┌───────────────┼───────────────┐
               │               │               │
-         アルゴリズム     推論の範囲       言語の採用
+         Algorithms      Inference Scope   Language Adoption
               │               │               │
       ┌───────┼───────┐   ┌───┼───┐     ┌─────┼─────┐
       │       │       │   │   │   │     │     │     │
-    HM型   双方向   制約   局所 関数 全域  TS   Rust  Haskell
-    推論   型チェック ベース        内          Go   Kotlin
-              │                              Scala  Swift
+    HM     Bidirec-  Con-  Local Func  Global  TS   Rust  Haskell
+    Infer  tional   straint      tion          Go   Kotlin
+           Check    Based                     Scala  Swift
               │
       ┌───────┼───────┐
       │               │
-   推論モード     チェックモード
-   (Synthesis)    (Checking)
-   ボトムアップ    トップダウン
+   Synthesis      Checking
+   Mode           Mode
+   (Bottom-up)    (Top-down)
 
 ================================================================
 ```
 
-### 10.2 言語別の型推論の総合比較
+### 10.2 Comprehensive Cross-Language Type Inference Comparison
 
-| 特性 | Haskell | Rust | TypeScript | Go | Kotlin | Scala 3 |
+| Characteristic | Haskell | Rust | TypeScript | Go | Kotlin | Scala 3 |
 |------|---------|------|------------|-----|--------|---------|
-| 推論アルゴリズム | HM + 型クラス | ローカル HM変種 | 双方向 | ローカル | 双方向 | 双方向 + HM |
-| 推論範囲 | グローバル | ローカル | ローカル + 文脈 | 変数のみ | ローカル + 文脈 | ローカル + 文脈 |
-| 主型性 | あり | なし | なし | N/A | なし | 部分的 |
-| 型注釈の必要度 | 低（推奨） | 中（関数境界） | 中（引数） | 中（引数・戻り値） | 中（引数） | 低〜中 |
-| サブタイピング | なし | トレイト | 構造的 | インターフェース | 名前的 | 名前的 + 構造的 |
-| フロー感応型 | なし | 借用チェッカー | あり | なし | スマートキャスト | パターンマッチ |
-| 学習曲線 | 高 | 高 | 中 | 低 | 中 | 高 |
+| Inference algorithm | HM + type classes | Local HM variant | Bidirectional | Local | Bidirectional | Bidirectional + HM |
+| Inference scope | Global | Local | Local + context | Variables only | Local + context | Local + context |
+| Principal type | Yes | No | No | N/A | No | Partial |
+| Annotation necessity | Low (recommended) | Medium (function boundaries) | Medium (arguments) | Medium (args/returns) | Medium (arguments) | Low-Medium |
+| Subtyping | None | Traits | Structural | Interfaces | Nominal | Nominal + structural |
+| Flow-sensitive typing | None | Borrow checker | Yes | None | Smart casts | Pattern matching |
+| Learning curve | High | High | Medium | Low | Medium | High |
 
-### 10.3 型推論の判断フローチャート
+### 10.3 Type Annotation Decision Flowchart
 
 ```
-型注釈を書くべきかの判断フローチャート
+Flowchart: Should you write a type annotation?
 ================================================================
 
-  型を書くべきか？
+  Should I write a type?
   │
-  ├─ 公開API（export / pub）か？
-  │   ├─ Yes → 書く（ドキュメント + 安定性）
+  ├─ Is it a public API (export / pub)?
+  │   ├─ Yes → Write (documentation + stability)
   │   └─ No ─┐
   │           │
-  │   ├─ 推論結果は正しいか？
-  │   │   ├─ No → 書く（推論を上書き）
+  │   ├─ Is the inference result correct?
+  │   │   ├─ No → Write (override inference)
   │   │   └─ Yes ─┐
   │   │            │
-  │   │   ├─ 推論結果は明白か？（読んで分かるか？）
-  │   │   │   ├─ Yes → 省略（推論に任せる）
-  │   │   │   └─ No → 書く（可読性のため）
+  │   │   ├─ Is the inference result obvious? (Understandable by reading?)
+  │   │   │   ├─ Yes → Omit (let inference handle it)
+  │   │   │   └─ No → Write (for readability)
   │   │   │
-  │   │   └─ 空のコレクションか？
-  │   │       ├─ Yes → 書く
-  │   │       └─ No → 省略
+  │   │   └─ Is it an empty collection?
+  │   │       ├─ Yes → Write
+  │   │       └─ No → Omit
 
 ================================================================
 ```
 
-### 10.4 学習ロードマップ
+### 10.4 Learning Roadmap
 
 ```
-型推論の学習ロードマップ
+Type Inference Learning Roadmap
 ================================================================
 
-Level 1（初級）: 型推論の基本を理解
-  □ let x = 42 が int と推論される理由を説明できる
-  □ IDE で推論された型を確認できる
-  □ 型推論が失敗するケースを3つ挙げられる
-  □ 型注釈を書くべき場所を判断できる
+Level 1 (Beginner): Understand the basics of type inference
+  □ Can explain why let x = 42 is inferred as int
+  □ Can check inferred types in IDE
+  □ Can name 3 cases where type inference fails
+  □ Can judge where to write type annotations
 
-Level 2（中級）: 言語固有の型推論を使いこなす
-  □ TypeScript の型の絞り込み（narrowing）を活用できる
-  □ Rust のターボフィッシュをいつ使うか判断できる
-  □ ジェネリクスの型パラメータ推論を理解している
-  □ コールバックの文脈的型付けを活用できる
+Level 2 (Intermediate): Master language-specific type inference
+  □ Can utilize TypeScript's type narrowing
+  □ Can judge when to use Rust's turbofish
+  □ Understands generic type parameter inference
+  □ Can utilize contextual typing of callbacks
 
-Level 3（上級）: 型推論の理論を理解
-  □ HM 型推論の手動トレースができる
-  □ 単一化アルゴリズムを説明できる
-  □ let多相と単相制限の違いを説明できる
-  □ 双方向型チェックの推論モード/チェックモードを説明できる
-  □ 型推論が決定不能になる条件を理解している
+Level 3 (Advanced): Understand type inference theory
+  □ Can manually trace HM type inference
+  □ Can explain the unification algorithm
+  □ Can explain the difference between let-polymorphism and monomorphism restriction
+  □ Can explain synthesis/checking modes of bidirectional type checking
+  □ Understands conditions under which type inference becomes undecidable
 
-Level 4（エキスパート）: 型システムを設計・拡張できる
-  □ 新しいプログラミング言語に型推論を実装できる
-  □ 型推論アルゴリズムの計算量を分析できる
-  □ 依存型と型推論のトレードオフを議論できる
-  □ ランク N 多相と型推論の関係を説明できる
+Level 4 (Expert): Can design and extend type systems
+  □ Can implement type inference for a new programming language
+  □ Can analyze computational complexity of type inference algorithms
+  □ Can discuss trade-offs between dependent types and type inference
+  □ Can explain the relationship between rank-N polymorphism and type inference
 
 ================================================================
 ```
 
 ---
 
-## 11. 参考文献
+## 11. References
 
-### 基礎理論
+### Foundational Theory
 
 1. **Pierce, Benjamin C.** *Types and Programming Languages.* MIT Press, 2002.
-   - 型システムの包括的な教科書。第22章が型推論（型再構築）を詳細に解説。Hindley-Milner アルゴリズムの形式的な定義と正当性の証明を含む。型推論を理論的に学ぶための第一の参考書。
+   - A comprehensive textbook on type systems. Chapter 22 provides detailed coverage of type inference (type reconstruction). Includes the formal definition and correctness proof of the Hindley-Milner algorithm. The primary reference for learning type inference theoretically.
 
 2. **Hindley, J. Roger.** "The Principal Type-Scheme of an Object in Combinatory Logic." *Transactions of the American Mathematical Society*, vol. 146, 1969, pp. 29-60.
-   - 主型スキームの存在と一意性を証明した歴史的論文。コンビナトリ論理学の文脈で、型推論の数学的基盤を確立した。
+   - A historical paper proving the existence and uniqueness of principal type schemes. Established the mathematical foundation of type inference in the context of combinatory logic.
 
 3. **Milner, Robin.** "A Theory of Type Polymorphism in Programming." *Journal of Computer and System Sciences*, vol. 17, no. 3, 1978, pp. 348-375.
-   - Algorithm W を提案した画期的な論文。ML 言語のための効率的な型推論アルゴリズムを定義し、その健全性と完全性を証明した。
+   - A groundbreaking paper proposing Algorithm W. Defined an efficient type inference algorithm for the ML language and proved its soundness and completeness.
 
 4. **Damas, Luis, and Robin Milner.** "Principal Type-Schemes for Functional Programs." *Proceedings of the 9th ACM SIGPLAN-SIGACT Symposium on Principles of Programming Languages (POPL)*, 1982, pp. 207-212.
-   - Damas-Milner 型システムの定義論文。let多相を含む型推論の完全な形式化を行った。
+   - The defining paper of the Damas-Milner type system. Provided the complete formalization of type inference including let-polymorphism.
 
-### 双方向型チェック
+### Bidirectional Type Checking
 
 5. **Pierce, Benjamin C., and David N. Turner.** "Local Type Inference." *ACM Transactions on Programming Languages and Systems (TOPLAS)*, vol. 22, no. 1, 2000, pp. 1-44.
-   - 双方向型チェック（ローカル型推論）の基礎を築いた論文。推論モードとチェックモードの概念を導入し、サブタイピングと型推論の統合を実現した。
+   - The paper that laid the foundation for bidirectional type checking (local type inference). Introduced the concepts of synthesis and checking modes, achieving the integration of subtyping and type inference.
 
 6. **Dunfield, Jana, and Neelakantan R. Krishnaswami.** "Complete and Easy Bidirectional Typechecking for Higher-Rank Polymorphism." *Proceedings of the 18th ACM SIGPLAN International Conference on Functional Programming (ICFP)*, 2013, pp. 429-442.
-   - 双方向型チェックを高階ランク多相に拡張した論文。実装が比較的容易でありながら完全な型チェックを実現する手法を示した。
+   - A paper extending bidirectional type checking to higher-rank polymorphism. Demonstrated a technique that achieves complete type checking while being relatively easy to implement.
 
-### 言語固有の型推論
+### Language-Specific Type Inference
 
 7. **TypeScript Handbook.** "Type Inference." Microsoft, https://www.typescriptlang.org/docs/handbook/type-inference.html
-   - TypeScript における型推論の公式ドキュメント。Best Common Type、Contextual Typing、Type Guards の動作を解説。
+   - Official documentation on type inference in TypeScript. Explains the operation of Best Common Type, Contextual Typing, and Type Guards.
 
 8. **The Rust Reference.** "Type Inference." Rust Team, https://doc.rust-lang.org/reference/type-system.html
-   - Rust における型推論とライフタイム省略規則の公式リファレンス。ターボフィッシュ構文やトレイト境界と型推論の関係を解説。
+   - Official reference on type inference and lifetime elision rules in Rust. Explains the turbofish syntax and the relationship between trait bounds and type inference.
 
 9. **Haskell 2010 Language Report.** "Declarations and Bindings, Type Inference." https://www.haskell.org/onlinereport/haskell2010/
-   - Haskell における型推論の仕様。型クラス制約の推論、デフォルト規則、単相制限について規定。
+   - Specification of type inference in Haskell. Defines type class constraint inference, defaulting rules, and the monomorphism restriction.
 
-### 発展的トピック
+### Advanced Topics
 
 10. **Odersky, Martin, Christoph Zenger, and Matthias Zenger.** "Colored Local Type Inference." *Proceedings of the 28th ACM SIGPLAN-SIGACT Symposium on Principles of Programming Languages (POPL)*, 2001, pp. 14-26.
-    - Scala の型推論の理論的基盤。ローカル型推論をオブジェクト指向言語に適用する手法を提案。
+    - The theoretical foundation of Scala's type inference. Proposes techniques for applying local type inference to object-oriented languages.
 
 11. **Vytiniotis, Dimitrios, Simon Peyton Jones, Tom Schrijvers, and Martin Sulzmann.** "OutsideIn(X): Modular Type Inference with Local Assumptions." *Journal of Functional Programming*, vol. 21, no. 4-5, 2011, pp. 333-412.
-    - GHC（Haskell コンパイラ）の現代的な型推論アルゴリズム。型クラス、GADT、型族との統合を扱う。
+    - The modern type inference algorithm of GHC (Haskell compiler). Addresses integration with type classes, GADTs, and type families.
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Reads
 
 
 ---
 
-*最終更新: 2026-03-06*
+*Last updated: 2026-03-06*
 
 ---
 
-## 参考文献
+## References
 
-- [MDN Web Docs](https://developer.mozilla.org/) - Web技術のリファレンス
-- [Wikipedia](https://ja.wikipedia.org/) - 技術概念の概要
+- [MDN Web Docs](https://developer.mozilla.org/) - Web technology reference
+- [Wikipedia](https://en.wikipedia.org/) - Overview of technical concepts
