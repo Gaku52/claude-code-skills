@@ -1,439 +1,440 @@
-# 量指定子・アンカー -- *+?{n,m}、^$\b、貪欲/怠惰
+# Quantifiers and Anchors -- *+?{n,m}, ^$\b, Greedy/Lazy
 
-> 量指定子(Quantifier)は繰り返し回数を制御し、アンカー(Anchor)は位置を制約する。貪欲(greedy)マッチと怠惰(lazy)マッチの違いを正確に理解することが、意図通りのパターンを書くための鍵である。
+> Quantifiers control repetition counts, and anchors constrain positions. Accurately understanding the difference between greedy matching and lazy matching is the key to writing patterns that behave as intended.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-1. **量指定子の種類と動作** -- `*` `+` `?` `{n,m}` の正確な意味と使い分け
-2. **貪欲マッチと怠惰マッチ** -- デフォルト動作が「最長一致」である理由とその制御方法
-3. **独占的量指定子とアトミックグループ** -- バックトラック禁止による高速化
-4. **アンカーの種類と応用** -- `^` `$` `\b` `\A` `\Z` `\G` による位置指定の全パターン
-5. **言語ごとの差異** -- Python / JavaScript / Java / Ruby / Perl / Go / Rust の動作比較
-6. **パフォーマンスへの影響** -- 量指定子の選択がバックトラック回数に与える影響
+1. **Types and behavior of quantifiers** -- Precise meanings and usage of `*` `+` `?` `{n,m}`
+2. **Greedy matching vs. lazy matching** -- Why the default behavior is "longest match" and how to control it
+3. **Possessive quantifiers and atomic groups** -- Speed optimization by preventing backtracking
+4. **Types and applications of anchors** -- All position-specification patterns using `^` `$` `\b` `\A` `\Z` `\G`
+5. **Cross-language differences** -- Behavioral comparison across Python / JavaScript / Java / Ruby / Perl / Go / Rust
+6. **Impact on performance** -- How quantifier choice affects backtracking count
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, the following knowledge will help deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [文字クラス -- [abc]、\d、\w、\s、POSIX](./02-character-classes.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding of the content in [Character Classes -- [abc], \d, \w, \s, POSIX](./02-character-classes.md)
 
 ---
 
-## 1. 量指定子(Quantifiers)
+## 1. Quantifiers
 
-### 1.1 基本量指定子
+### 1.1 Basic Quantifiers
 
 ```python
 import re
 
 text = "aaabbbccc"
 
-# * : 0回以上(0個でもマッチする)
+# * : 0 or more times (matches even with 0 occurrences)
 print(re.findall(r'a*', text))
 # => ['aaa', '', '', '', '', '', '', '']
-# 注: 空文字列にもマッチする(0回の繰り返し)
+# Note: Also matches the empty string (0 repetitions)
 
-# + : 1回以上(最低1個必要)
+# + : 1 or more times (requires at least 1)
 print(re.findall(r'a+', text))
 # => ['aaa']
 
-# ? : 0回または1回
+# ? : 0 or 1 time
 print(re.findall(r'a?', text))
 # => ['a', 'a', 'a', '', '', '', '', '', '', '']
 ```
 
-**なぜ `*` は空文字列にマッチするのか**:
+**Why does `*` match the empty string?**
 
-`*` は「0回以上」を意味するため、対象文字が存在しない位置でも「0回の繰り返し」として空文字列にマッチする。これは正規表現の数学的定義に由来する。形式言語理論では、空文字列(epsilon, ε)は任意の言語の Kleene 閉包に含まれる。
+`*` means "0 or more times," so it matches the empty string as "0 repetitions" even at positions where the target character does not exist. This originates from the mathematical definition of regular expressions. In formal language theory, the empty string (epsilon, ε) is included in the Kleene closure of any language.
 
 ```python
 import re
 
-# 空文字列マッチの詳細な動作
+# Detailed behavior of empty string matching
 text = "XY"
 matches = list(re.finditer(r'a*', text))
 for m in matches:
-    print(f"位置{m.start()}-{m.end()}: '{m.group()}'")
-# 位置0-0: ''    ← X の前(aがない = 0回マッチ)
-# 位置1-1: ''    ← Y の前(aがない = 0回マッチ)
-# 位置2-2: ''    ← 文字列末尾(aがない = 0回マッチ)
+    print(f"Position {m.start()}-{m.end()}: '{m.group()}'")
+# Position 0-0: ''    <- Before X (no 'a' = 0 matches)
+# Position 1-1: ''    <- Before Y (no 'a' = 0 matches)
+# Position 2-2: ''    <- End of string (no 'a' = 0 matches)
 
-# 実用上の問題: * の代わりに + を使うべき場面
+# Practical issue: situations where + should be used instead of *
 text = "abc 123 def"
-# NG: 空文字列にもマッチ
+# NG: Also matches the empty string
 print(re.findall(r'\d*', text))
 # => ['', '', '', '', '123', '', '', '', '', '']
 
-# OK: 最低1桁を要求
+# OK: Require at least 1 digit
 print(re.findall(r'\d+', text))
 # => ['123']
 ```
 
-### 1.2 範囲指定 `{n,m}`
+### 1.2 Range Specification `{n,m}`
 
 ```python
 import re
 
-# {n}   : ちょうど n 回
-# {n,}  : n 回以上
-# {n,m} : n 回以上 m 回以下
-# {,m}  : 0 回以上 m 回以下 (一部のエンジンのみ)
+# {n}   : exactly n times
+# {n,}  : n or more times
+# {n,m} : between n and m times (inclusive)
+# {,m}  : 0 to m times (some engines only)
 
 text = "1 12 123 1234 12345"
 
-print(re.findall(r'\d{3}', text))     # ちょうど3桁: ['123', '123', '123']
-print(re.findall(r'\b\d{3}\b', text)) # 単語境界付き: ['123']
-print(re.findall(r'\d{2,4}', text))   # 2-4桁: ['12', '123', '1234', '1234']
-print(re.findall(r'\d{3,}', text))    # 3桁以上: ['123', '1234', '12345']
+print(re.findall(r'\d{3}', text))     # Exactly 3 digits: ['123', '123', '123']
+print(re.findall(r'\b\d{3}\b', text)) # With word boundaries: ['123']
+print(re.findall(r'\d{2,4}', text))   # 2-4 digits: ['12', '123', '1234', '1234']
+print(re.findall(r'\d{3,}', text))    # 3+ digits: ['123', '1234', '12345']
 ```
 
-**`{n,m}` の構文上の注意点**:
+**Syntax notes for `{n,m}`**:
 
 ```python
 import re
 
-# {n,m} のスペースは許されない(エンジンによる)
+# Spaces are not allowed in {n,m} (engine-dependent)
 text = "aaa"
 
-# Python: スペースありはリテラルとして扱われる
-print(re.findall(r'a{2,3}', text))   # => ['aaa']  (量指定子)
-print(re.findall(r'a{2, 3}', text))  # => []  (リテラル文字列 "a{2, 3}")
+# Python: With a space, it is treated as a literal
+print(re.findall(r'a{2,3}', text))   # => ['aaa']  (quantifier)
+print(re.findall(r'a{2, 3}', text))  # => []  (literal string "a{2, 3}")
 
-# {n,m} で n > m はエラー
+# {n,m} where n > m is an error
 try:
     re.compile(r'a{3,2}')
 except re.error as e:
-    print(f"エラー: {e}")
+    print(f"Error: {e}")
     # => "min repeat greater than max repeat"
 
-# 大きな繰り返し回数の制限
+# Limits on large repetition counts
 try:
-    re.compile(r'a{1,65536}')  # Python は上限あり
+    re.compile(r'a{1,65536}')  # Python has an upper limit
 except re.error as e:
-    print(f"エラー: {e}")
+    print(f"Error: {e}")
 ```
 
-**各言語での `{,m}` サポート状況**:
+**Support for `{,m}` across languages**:
 
 ```
 ┌──────────────┬─────────────────────────────────────┐
-│ 言語/エンジン │ {,m} のサポート                       │
+│ Language/     │ Support for {,m}                     │
+│ Engine       │                                      │
 ├──────────────┼─────────────────────────────────────┤
-│ Python       │ ○ 対応({0,m} と同等)               │
-│ JavaScript   │ ✗ リテラルとして扱う                  │
-│ Java         │ ✗ リテラルとして扱う                  │
-│ PCRE         │ ○ 対応                              │
-│ Ruby         │ ○ 対応                              │
-│ Perl         │ ○ 対応                              │
-│ Go (RE2)     │ ○ 対応                              │
-│ Rust (regex) │ ○ 対応                              │
-│ .NET         │ ○ 対応                              │
+│ Python       │ ○ Supported (equivalent to {0,m})   │
+│ JavaScript   │ ✗ Treated as literal                 │
+│ Java         │ ✗ Treated as literal                 │
+│ PCRE         │ ○ Supported                          │
+│ Ruby         │ ○ Supported                          │
+│ Perl         │ ○ Supported                          │
+│ Go (RE2)     │ ○ Supported                          │
+│ Rust (regex) │ ○ Supported                          │
+│ .NET         │ ○ Supported                          │
 └──────────────┴─────────────────────────────────────┘
 ```
 
-### 1.3 量指定子の等価関係
+### 1.3 Equivalence Relationships of Quantifiers
 
 ```
-量指定子の糖衣構文:
+Quantifier syntactic sugar:
 
-  *     ≡  {0,}    0回以上
-  +     ≡  {1,}    1回以上
-  ?     ≡  {0,1}   0回または1回
+  *     ≡  {0,}    0 or more
+  +     ≡  {1,}    1 or more
+  ?     ≡  {0,1}   0 or 1
 
-  {3}   → ちょうど3回
-  {3,}  → 3回以上(上限なし)
-  {3,5} → 3回以上5回以下
-  {0,5} → 0回以上5回以下
+  {3}   -> exactly 3 times
+  {3,}  -> 3 or more (no upper limit)
+  {3,5} -> between 3 and 5 (inclusive)
+  {0,5} -> between 0 and 5 (inclusive)
 ```
 
-### 1.4 量指定子の適用対象
+### 1.4 What Quantifiers Apply To
 
-量指定子は「直前の要素」に対して適用される。この「直前の要素」が何であるかを正確に理解することが重要である。
+A quantifier applies to the "preceding element." It is important to accurately understand what this "preceding element" is.
 
 ```python
 import re
 
 text = "abcabcabc"
 
-# 1文字に適用: 'c' が0回以上
+# Applied to a single character: 'c' repeated 0 or more times
 print(re.findall(r'abc*', text))      # => ['abc', 'abc', 'abc']
-# c* は 'c' の繰り返し
+# c* is the repetition of 'c'
 
-# グループに適用: 'abc' が1回以上
+# Applied to a group: 'abc' repeated 1 or more times
 print(re.findall(r'(?:abc)+', text))  # => ['abcabcabc']
-# (?:abc)+ は 'abc' グループの繰り返し
+# (?:abc)+ is the repetition of the 'abc' group
 
-# 文字クラスに適用: [a-c] が2回以上
+# Applied to a character class: [a-c] repeated 2 or more times
 print(re.findall(r'[a-c]{2,}', text)) # => ['abcabcabc']
 
-# エスケープシーケンスに適用: \d が3回
+# Applied to an escape sequence: \d repeated 3 times
 text2 = "abc123def456"
 print(re.findall(r'\d{3}', text2))    # => ['123', '456']
 ```
 
-**量指定子の連続使用(ネスト)**:
+**Consecutive (nested) quantifiers**:
 
 ```python
 import re
 
-# 量指定子を直接連続させるとエラー
+# Directly chaining quantifiers causes an error
 try:
     re.compile(r'a**')
 except re.error as e:
-    print(f"エラー: {e}")  # multiple repeat
+    print(f"Error: {e}")  # multiple repeat
 
-# グループを使えばネストできる
+# You can nest them using groups
 text = "aaa bbb aaa bbb aaa"
 print(re.findall(r'(?:a{3}\s?){2,}', text))
 # => ['aaa bbb aaa bbb aaa']
 
-# 実用例: 繰り返しのIPアドレスパターン
+# Practical example: repeated IP address pattern
 ip_pattern = r'(?:\d{1,3}\.){3}\d{1,3}'
 print(re.findall(ip_pattern, "Server 192.168.1.100 and 10.0.0.1"))
 # => ['192.168.1.100', '10.0.0.1']
 ```
 
-### 1.5 量指定子と空マッチの関係
+### 1.5 Quantifiers and Empty Matches
 
 ```python
 import re
 
-# findall/finditer における空マッチの扱い
+# How findall/finditer handle empty matches
 text = "abc"
 
-# Python 3.7+ では連続する空マッチを防ぐ仕様変更あり
-# Python 3.6以前: 空マッチの直後に同じ位置で再試行
-# Python 3.7以降: 空マッチの直後は1文字進めてから再試行
+# Python 3.7+ includes a specification change to prevent consecutive empty matches
+# Python 3.6 and earlier: retries at the same position after an empty match
+# Python 3.7+: advances one character before retrying after an empty match
 
-# * による空マッチ
+# Empty matches with *
 for m in re.finditer(r'x*', text):
-    print(f"位置{m.start()}-{m.end()}: '{m.group()}'")
+    print(f"Position {m.start()}-{m.end()}: '{m.group()}'")
 # Python 3.7+:
-# 位置0-0: ''
-# 位置1-1: ''
-# 位置2-2: ''
-# 位置3-3: ''
+# Position 0-0: ''
+# Position 1-1: ''
+# Position 2-2: ''
+# Position 3-3: ''
 
-# sub における空マッチの扱い
+# How sub handles empty matches
 print(re.sub(r'x*', '-', 'abc'))
 # Python 3.7+: '-a-b-c-'
-# Python 3.6以前: '-a-b-c-'(実装により異なる）
+# Python 3.6 and earlier: '-a-b-c-' (varies by implementation)
 ```
 
 ```javascript
-// JavaScript における空マッチ
+// Empty matches in JavaScript
 const text = "abc";
 
-// ES2020+ の matchAll
+// ES2020+ matchAll
 const matches = [...text.matchAll(/x*/g)];
 console.log(matches.map(m => `${m.index}: '${m[0]}'`));
 // ["0: ''", "1: ''", "2: ''", "3: ''"]
 
-// replace における空マッチ
+// Empty matches in replace
 console.log("abc".replace(/x*/g, "-"));
 // "-a-b-c-"
 ```
 
 ---
 
-## 2. 貪欲マッチと怠惰マッチ
+## 2. Greedy Matching vs. Lazy Matching
 
-### 2.1 貪欲(Greedy) -- デフォルト
+### 2.1 Greedy -- Default Behavior
 
 ```python
 import re
 
 text = '<div>hello</div><div>world</div>'
 
-# 貪欲マッチ(デフォルト): できるだけ多くマッチしようとする
+# Greedy matching (default): tries to match as much as possible
 greedy = re.search(r'<div>.*</div>', text)
 print(greedy.group())
 # => '<div>hello</div><div>world</div>'
 #    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-#    最長一致: 最初の <div> から最後の </div> まで
+#    Longest match: from the first <div> to the last </div>
 ```
 
-**貪欲マッチの内部動作(バックトラッキングの詳細)**:
+**Internal workings of greedy matching (backtracking details)**:
 
 ```
-パターン: <div>.*</div>
-テキスト: <div>hello</div><div>world</div>
-          0123456789...
+Pattern: <div>.*</div>
+Text:    <div>hello</div><div>world</div>
+         0123456789...
 
-ステップ 1: '<div>' がテキスト位置0-4にマッチ
-ステップ 2: '.*' が貪欲に全残り文字を消費
-            → マッチ範囲: 位置5 から 位置37(末尾)まで
-ステップ 3: '</div>' のマッチを試行
-            → 残り文字がない → 失敗 → バックトラック
-ステップ 4: 1文字戻す(位置36): '>' ≠ '<' → 失敗 → バックトラック
-ステップ 5: 1文字戻す(位置35): '>' ≠ '<' → 失敗 → バックトラック
+Step 1: '<div>' matches text positions 0-4
+Step 2: '.*' greedily consumes all remaining characters
+        -> Match range: position 5 to position 37 (end)
+Step 3: Attempts to match '</div>'
+        -> No remaining characters -> Failure -> Backtrack
+Step 4: Back up 1 char (pos 36): '>' ≠ '<' -> Failure -> Backtrack
+Step 5: Back up 1 char (pos 35): '>' ≠ '<' -> Failure -> Backtrack
   ...
-ステップ N: 位置31まで戻す: '</div>' がマッチ!
-            → 結果: '<div>hello</div><div>world</div>'
+Step N: Back up to position 31: '</div>' matches!
+        -> Result: '<div>hello</div><div>world</div>'
 
-バックトラック回数: 約6回
+Backtrack count: approximately 6 times
 ```
 
-### 2.2 怠惰(Lazy) -- `?` を付加
+### 2.2 Lazy -- Appending `?`
 
 ```python
 import re
 
 text = '<div>hello</div><div>world</div>'
 
-# 怠惰マッチ: できるだけ少なくマッチしようとする
+# Lazy matching: tries to match as little as possible
 lazy = re.findall(r'<div>.*?</div>', text)
 print(lazy)
 # => ['<div>hello</div>', '<div>world</div>']
-#    最短一致: 最初の <div> から最も近い </div> まで
+#    Shortest match: from the first <div> to the nearest </div>
 ```
 
-**怠惰マッチの内部動作**:
+**Internal workings of lazy matching**:
 
 ```
-パターン: <div>.*?</div>
-テキスト: <div>hello</div><div>world</div>
+Pattern: <div>.*?</div>
+Text:    <div>hello</div><div>world</div>
 
-ステップ 1: '<div>' がテキスト位置0-4にマッチ
-ステップ 2: '.*?' が怠惰に0文字でまず試行
-ステップ 3: '</div>' のマッチを試行 → 位置5 'h' ≠ '<' → 失敗
-            → .*? を1文字拡張
-ステップ 4: .*? = 'h'、'</div>' を位置6から試行 → 'e' ≠ '<' → 失敗
-            → .*? を1文字拡張
-ステップ 5: .*? = 'he'、'</div>' を位置7から試行 → 'l' ≠ '<' → 失敗
+Step 1: '<div>' matches text positions 0-4
+Step 2: '.*?' lazily tries 0 characters first
+Step 3: Attempts '</div>' -> pos 5 'h' ≠ '<' -> Failure
+        -> Expand .*? by 1 character
+Step 4: .*? = 'h', attempt '</div>' from pos 6 -> 'e' ≠ '<' -> Failure
+        -> Expand .*? by 1 character
+Step 5: .*? = 'he', attempt '</div>' from pos 7 -> 'l' ≠ '<' -> Failure
   ...
-ステップ 8: .*? = 'hello'、'</div>' を位置10から試行 → マッチ!
-            → 結果: '<div>hello</div>'
+Step 8: .*? = 'hello', attempt '</div>' from pos 10 -> Match!
+        -> Result: '<div>hello</div>'
 
-ステップ拡張回数: 5回
+Expansion attempts: 5
 ```
 
-### 2.3 貪欲 vs 怠惰 -- 全量指定子
+### 2.3 Greedy vs. Lazy -- All Quantifiers
 
 ```python
 import re
 
 text = "aabab"
 
-# 貪欲(デフォルト)         怠惰(? 付加)
-print(re.search(r'a.*b', text).group())    # => 'aabab' (最長)
-print(re.search(r'a.*?b', text).group())   # => 'aab'   (最短)
+# Greedy (default)            Lazy (with ? appended)
+print(re.search(r'a.*b', text).group())    # => 'aabab' (longest)
+print(re.search(r'a.*?b', text).group())   # => 'aab'   (shortest)
 
-print(re.search(r'a.+b', text).group())    # => 'aabab' (最長)
-print(re.search(r'a.+?b', text).group())   # => 'aabab' (.+は最低1文字)
+print(re.search(r'a.+b', text).group())    # => 'aabab' (longest)
+print(re.search(r'a.+?b', text).group())   # => 'aabab' (.+ requires at least 1 char)
 
 print(re.search(r'a.?b', text).group())    # => 'aab'
-print(re.search(r'a.??b', text).group())   # => 'ab' (位置2-3)
+print(re.search(r'a.??b', text).group())   # => 'ab' (positions 2-3)
 ```
 
-**重要な注意: 怠惰マッチは「最短」であって「最左最短」ではない**:
+**Important note: Lazy matching is "shortest" but not "leftmost shortest"**:
 
 ```python
 import re
 
 text = "aXbYaZb"
 
-# 怠惰マッチは左端から始まる(最左一致の原則は変わらない)
-print(re.search(r'a.*?b', text).group())  # => 'aXb'(左端から最短)
-# 'aZb' のほうが短いが、'aXb' が先に見つかる
+# Lazy matching starts from the left (the leftmost match principle still applies)
+print(re.search(r'a.*?b', text).group())  # => 'aXb' (shortest from the left)
+# 'aZb' is shorter, but 'aXb' is found first
 
-# findall は全ての非重複マッチを返す
+# findall returns all non-overlapping matches
 print(re.findall(r'a.*?b', text))  # => ['aXb', 'aZb']
 ```
 
-### 2.4 動作の可視化
+### 2.4 Visualizing the Behavior
 
 ```
-貪欲マッチ: .*  (パターン: <.*>、テキスト: <b>bold</b>)
+Greedy match: .*  (Pattern: <.*>, Text: <b>bold</b>)
 
-ステップ1: < にマッチ                         <
-ステップ2: .* が全文字を飲み込む              <b>bold</b>
-ステップ3: > にマッチしない(文字列末尾)        → バックトラック
-ステップ4: 1文字戻して > を試行               <b>bold</b  → > ≠ b → 戻る
-ステップ5: さらに1文字戻す                    <b>bold</b> → > = > → マッチ!
-結果: <b>bold</b>  (最長一致)
+Step 1: < matches                              <
+Step 2: .* swallows all characters             <b>bold</b>
+Step 3: > doesn't match (end of string)        -> Backtrack
+Step 4: Back up 1 char, try >                  <b>bold</b  -> > ≠ b -> back up
+Step 5: Back up 1 more char                    <b>bold</b> -> > = > -> Match!
+Result: <b>bold</b>  (longest match)
 
 ─────────────────────────────────────────
 
-怠惰マッチ: .*?  (パターン: <.*?>、テキスト: <b>bold</b>)
+Lazy match: .*?  (Pattern: <.*?>, Text: <b>bold</b>)
 
-ステップ1: < にマッチ                         <
-ステップ2: .*? が0文字でまず試行              <  → > ≠ b → 拡張
-ステップ3: 1文字拡張                          <b → > ≠ o → 拡張
-ステップ4: もう1文字拡張... いや待て           <b> → > = > → マッチ!
-結果: <b>  (最短一致)
+Step 1: < matches                              <
+Step 2: .*? tries 0 chars first                <  -> > ≠ b -> expand
+Step 3: Expand by 1 char                       <b -> > ≠ o -> expand
+Step 4: Expand 1 more... wait                  <b> -> > = > -> Match!
+Result: <b>  (shortest match)
 ```
 
-### 2.5 独占的量指定子(Possessive) -- バックトラック禁止
+### 2.5 Possessive Quantifiers -- No Backtracking
 
 ```java
-// Java, PCRE でサポート (Python の re では非サポート)
-// Python では regex モジュール(サードパーティ)で利用可能
+// Supported in Java and PCRE (not supported by Python's re)
+// Available in Python via the regex module (third-party)
 
-// 貪欲:     .*   (バックトラックあり)
-// 怠惰:     .*?  (最短一致)
-// 独占的:   .*+  (バックトラックなし → 高速だがマッチ失敗しやすい)
+// Greedy:     .*   (with backtracking)
+// Lazy:       .*?  (shortest match)
+// Possessive: .*+  (no backtracking -> fast but more likely to fail)
 
-// Java の例:
+// Java example:
 String text = "aaaa";
-// 貪欲:  a*a  → "aaaa" (a* が3つ取り、最後のaが1つ)
-// 独占的: a*+a → マッチ失敗 (a*+ が全て取り、バックトラックしない)
+// Greedy:     a*a  -> "aaaa" (a* takes 3, last a takes 1)
+// Possessive: a*+a -> No match (a*+ takes all, no backtracking)
 ```
 
-**独占的量指定子の実践的な使い方**:
+**Practical use of possessive quantifiers**:
 
 ```java
 import java.util.regex.*;
 
 public class PossessiveExample {
     public static void main(String[] args) {
-        // 1. 高速な不一致検出
-        // 独占的量指定子は「マッチしない」ことを高速に判定する
+        // 1. Fast non-match detection
+        // Possessive quantifiers quickly determine "no match"
         String longText = "a".repeat(100000) + "X";
 
-        // 貪欲: a*a → バックトラックが大量に発生
+        // Greedy: a*a -> massive backtracking
         long start1 = System.nanoTime();
-        Pattern.matches("a*a$", longText);  // 遅い
+        Pattern.matches("a*a$", longText);  // Slow
         long time1 = System.nanoTime() - start1;
 
-        // 独占的: a*+X → バックトラックなしで即座に判定
+        // Possessive: a*+X -> immediate determination with no backtracking
         long start2 = System.nanoTime();
-        Pattern.matches("a*+X", longText);  // 高速
+        Pattern.matches("a*+X", longText);  // Fast
         long time2 = System.nanoTime() - start2;
 
-        System.out.println("貪欲: " + time1 + "ns");
-        System.out.println("独占的: " + time2 + "ns");
+        System.out.println("Greedy: " + time1 + "ns");
+        System.out.println("Possessive: " + time2 + "ns");
 
-        // 2. CSV解析での活用
+        // 2. Use in CSV parsing
         String csvLine = "field1,field2,\"field with, comma\",field4";
 
-        // 引用符で囲まれたフィールド: 引用符以外を独占的に消費
+        // Quoted field: possessively consume non-quote characters
         Pattern csvQuoted = Pattern.compile("\"[^\"]*+\"");
         Matcher m = csvQuoted.matcher(csvLine);
         while (m.find()) {
-            System.out.println("マッチ: " + m.group());
+            System.out.println("Match: " + m.group());
         }
-        // => マッチ: "field with, comma"
+        // => Match: "field with, comma"
 
-        // 3. 数値リテラルの解析
-        // 整数部分を独占的に消費し、小数点以下は別途処理
+        // 3. Parsing numeric literals
+        // Possessively consume the integer part, handle decimal part separately
         Pattern numPattern = Pattern.compile("\\d++\\.?\\d*+");
         String expr = "3.14 + 42 - 0.5";
         m = numPattern.matcher(expr);
         while (m.find()) {
-            System.out.println("数値: " + m.group());
+            System.out.println("Number: " + m.group());
         }
-        // => 数値: 3.14
-        // => 数値: 42
-        // => 数値: 0.5
+        // => Number: 3.14
+        // => Number: 42
+        // => Number: 0.5
     }
 }
 ```
 
-**Python regex モジュールでの独占的量指定子**:
+**Possessive quantifiers in Python's regex module**:
 
 ```python
 # pip install regex
@@ -441,15 +442,15 @@ import regex
 
 text = "aaaaab"
 
-# 独占的量指定子
+# Possessive quantifier
 m = regex.search(r'a++b', text)
 print(m.group())  # => 'aaaaab'
 
-# 独占的でマッチ失敗するケース
+# Case where possessive quantifier causes match failure
 m = regex.search(r'a++a', text)
-print(m)  # => None (a++ が全ての a を消費し、バックトラックしない)
+print(m)  # => None (a++ consumes all a's and does not backtrack)
 
-# アトミックグループ (?>...) も同等の機能
+# Atomic group (?>...) provides equivalent functionality
 m = regex.search(r'(?>a+)b', text)
 print(m.group())  # => 'aaaaab'
 
@@ -457,134 +458,134 @@ m = regex.search(r'(?>a+)a', text)
 print(m)  # => None
 ```
 
-### 2.6 アトミックグループ
+### 2.6 Atomic Groups
 
-アトミックグループ `(?>...)` は、グループ内のマッチが確定した後はバックトラックしないグループである。独占的量指定子と概念的に同等だが、より柔軟な範囲に適用できる。
+An atomic group `(?>...)` is a group that does not backtrack once its internal match is established. It is conceptually equivalent to a possessive quantifier but can be applied to a broader range of constructs.
 
 ```java
 import java.util.regex.*;
 
 public class AtomicGroupExample {
     public static void main(String[] args) {
-        // 独占的量指定子: 単一の量指定子に適用
+        // Possessive quantifier: applies to a single quantifier
         // a*+  ≡  (?>a*)
 
-        // アトミックグループ: 複数の要素に適用可能
-        // (?>abc|abcd)  -- abc がマッチしたらバックトラックしない
+        // Atomic group: can apply to multiple elements
+        // (?>abc|abcd)  -- once abc matches, no backtracking
 
         String text = "abcd";
 
-        // 通常の選択
+        // Normal alternation
         Pattern p1 = Pattern.compile("(?:abc|abcd)d");
         System.out.println(p1.matcher(text).find());  // false
-        // abc がマッチ → d を期待 → d がある → 全体マッチ... いや待て
-        // 実際は "abcd" 全体が対象で、abc + d = abcd → OK
+        // abc matches -> expects d -> d is there -> overall match... wait
+        // Actually "abcd" is the entire target, abc + d = abcd -> OK
 
-        // より明確な例
+        // A clearer example
         String text2 = "abcde";
         Pattern p2 = Pattern.compile("(?:abc|abcde)$");
         Pattern p3 = Pattern.compile("(?>abc|abcde)$");
 
-        System.out.println(p2.matcher(text2).find());  // true (abcde にマッチ)
-        System.out.println(p3.matcher(text2).find());  // false (abc で確定、$に失敗してもバックトラックしない)
+        System.out.println(p2.matcher(text2).find());  // true (matches abcde)
+        System.out.println(p3.matcher(text2).find());  // false (commits to abc, fails at $ without backtracking)
     }
 }
 ```
 
 ```ruby
-# Ruby はアトミックグループをネイティブサポート
+# Ruby natively supports atomic groups
 text = "aaaaab"
 
-# アトミックグループ
+# Atomic group
 puts text.match(/(?>a+)b/)    # => aaaaab
-puts text.match(/(?>a+)a/)    # => nil (バックトラックしない)
+puts text.match(/(?>a+)a/)    # => nil (no backtracking)
 
-# 実用例: メールアドレスの高速検証
+# Practical example: fast email validation
 email_pattern = /\A(?>[\w.+-]+)@(?>[\w-]+\.)+\w{2,}\z/
 puts "user@example.com".match?(email_pattern)  # => true
 puts "invalid@@email".match?(email_pattern)     # => false
 ```
 
-### 2.7 量指定子比較表
+### 2.7 Quantifier Comparison Table
 
-| 貪欲 | 怠惰 | 独占的 | 動作 |
-|------|------|--------|------|
-| `*` | `*?` | `*+` | 0回以上 |
-| `+` | `+?` | `++` | 1回以上 |
-| `?` | `??` | `?+` | 0回or1回 |
-| `{n,m}` | `{n,m}?` | `{n,m}+` | n回以上m回以下 |
+| Greedy | Lazy | Possessive | Behavior |
+|--------|------|-----------|----------|
+| `*` | `*?` | `*+` | 0 or more |
+| `+` | `+?` | `++` | 1 or more |
+| `?` | `??` | `?+` | 0 or 1 |
+| `{n,m}` | `{n,m}?` | `{n,m}+` | n to m times |
 
-| 特性 | 貪欲 | 怠惰 | 独占的 |
-|------|------|------|--------|
-| マッチ方針 | 最長一致 | 最短一致 | 最長(失敗時バックトラックなし) |
-| バックトラック | あり | あり | なし |
-| 速度 | 普通 | 普通 | 高速(マッチ時) |
-| 用途 | デフォルト | タグ抽出等 | パフォーマンス最適化 |
-| サポート | 全エンジン | 全エンジン | Java/PCRE/regex(Python) |
+| Property | Greedy | Lazy | Possessive |
+|----------|--------|------|-----------|
+| Match strategy | Longest match | Shortest match | Longest (no backtracking on failure) |
+| Backtracking | Yes | Yes | No |
+| Speed | Normal | Normal | Fast (on match) |
+| Use case | Default | Tag extraction, etc. | Performance optimization |
+| Support | All engines | All engines | Java/PCRE/regex (Python) |
 
-### 2.8 バックトラック回数の比較
+### 2.8 Comparing Backtrack Counts
 
-具体的な例でバックトラック回数を比較し、パフォーマンスへの影響を可視化する。
+Comparing backtrack counts with concrete examples to visualize their performance impact.
 
 ```python
 import re
 import time
 
-# テストケース: HTML タグの抽出
+# Test case: extracting HTML tags
 html = '<div class="container">' + 'x' * 10000 + '</div>'
 
-# パターン1: 貪欲 + 否定文字クラス(最速)
+# Pattern 1: Greedy + negated character class (fastest)
 pattern1 = r'<div[^>]*>[^<]*</div>'
 
-# パターン2: 怠惰(中速)
+# Pattern 2: Lazy (medium speed)
 pattern2 = r'<div.*?>.*?</div>'
 
-# パターン3: 貪欲(最遅 -- 大量バックトラック)
+# Pattern 3: Greedy (slowest -- massive backtracking)
 pattern3 = r'<div.*>.*</div>'
 
-for name, pattern in [("否定クラス", pattern1), ("怠惰", pattern2), ("貪欲", pattern3)]:
+for name, pattern in [("Negated class", pattern1), ("Lazy", pattern2), ("Greedy", pattern3)]:
     start = time.perf_counter()
     for _ in range(1000):
         re.search(pattern, html, re.DOTALL)
     elapsed = time.perf_counter() - start
-    print(f"{name}: {elapsed:.4f}秒")
+    print(f"{name}: {elapsed:.4f} sec")
 
-# 典型的な結果:
-# 否定クラス: 0.0150秒
-# 怠惰:      0.0450秒
-# 貪欲:      0.0800秒
+# Typical results:
+# Negated class: 0.0150 sec
+# Lazy:          0.0450 sec
+# Greedy:        0.0800 sec
 ```
 
 ```
-バックトラック回数の概算:
+Estimated backtrack counts:
 
-パターン: <div>.*</div>  (貪欲)
-テキスト: <div>XXXX...XXXX</div> (Xが10000個)
+Pattern: <div>.*</div>  (greedy)
+Text:    <div>XXXX...XXXX</div> (10000 X's)
 
-1. .* が10006文字を消費（'XXXX...XXXX</div>' 全体）
-2. '</div>' のマッチを試行 → 失敗
-3. 1文字ずつバックトラック × 約10000回
-4. '</div>' の位置に到達 → マッチ
-→ バックトラック回数: 約10000回
+1. .* consumes 10006 characters ('XXXX...XXXX</div>' entirely)
+2. Attempts to match '</div>' -> Failure
+3. Backtracks 1 character at a time x ~10000 times
+4. Reaches the '</div>' position -> Match
+-> Backtrack count: ~10000 times
 
-パターン: <div>.*?</div>  (怠惰)
-1. .*? が0文字で開始
-2. '</div>' のマッチを試行 → 失敗 → 1文字拡張
-3. 繰り返し × 約10000回
-4. 'X' を全て消費した位置で '</div>' がマッチ
-→ 拡張試行回数: 約10000回（貪欲と同程度だが方向が逆）
+Pattern: <div>.*?</div>  (lazy)
+1. .*? starts with 0 characters
+2. Attempts to match '</div>' -> Failure -> Expand by 1 character
+3. Repeats x ~10000 times
+4. After consuming all 'X' characters, '</div>' matches
+-> Expansion attempts: ~10000 times (comparable to greedy but in reverse direction)
 
-パターン: <div>[^<]*</div>  (否定クラス)
-1. [^<]* が < 以外の全文字を一度に消費
-2. </div> のマッチを試行 → 成功
-→ バックトラック回数: 0回（最速）
+Pattern: <div>[^<]*</div>  (negated class)
+1. [^<]* consumes all non-< characters at once
+2. Attempts to match </div> -> Success
+-> Backtrack count: 0 times (fastest)
 ```
 
 ---
 
-## 3. アンカー(Anchors)
+## 3. Anchors
 
-### 3.1 行頭・行末アンカー
+### 3.1 Line Start/End Anchors
 
 ```python
 import re
@@ -593,15 +594,15 @@ text = """first line
 second line
 third line"""
 
-# ^ : 行頭(デフォルトでは文字列先頭のみ)
+# ^ : Line start (by default, matches only the start of the string)
 print(re.findall(r'^.+', text))
 # => ['first line']
 
-# $ : 行末(デフォルトでは文字列末尾のみ)
+# $ : Line end (by default, matches only the end of the string)
 print(re.findall(r'.+$', text))
 # => ['third line']
 
-# re.MULTILINE: ^$ が各行の先頭・末尾にマッチ
+# re.MULTILINE: ^ and $ match the start/end of each line
 print(re.findall(r'^.+', text, re.MULTILINE))
 # => ['first line', 'second line', 'third line']
 
@@ -609,130 +610,132 @@ print(re.findall(r'^\w+', text, re.MULTILINE))
 # => ['first', 'second', 'third']
 ```
 
-**`$` と末尾改行の微妙な挙動**:
+**Subtle behavior of `$` with trailing newlines**:
 
 ```python
 import re
 
-# Python の $ は文字列末尾の改行の「前」にもマッチする
+# Python's $ also matches "before" a trailing newline at the end of the string
 text_with_newline = "hello\n"
 text_without_newline = "hello"
 
-print(re.search(r'hello$', text_with_newline))       # マッチする!
-print(re.search(r'hello$', text_without_newline))     # マッチする
+print(re.search(r'hello$', text_with_newline))       # Matches!
+print(re.search(r'hello$', text_without_newline))     # Matches
 
-# \Z は末尾改行の前にもマッチ(Python固有)
+# \Z matches at the very end (Python-specific)
 print(re.search(r'hello\Z', text_with_newline))       # None!
-print(re.search(r'hello\Z', text_without_newline))    # マッチする
+print(re.search(r'hello\Z', text_without_newline))    # Matches
 
-# 末尾改行を含めて完全にマッチさせるには
-print(re.search(r'hello\n?\Z', text_with_newline))    # マッチ
+# To match including the trailing newline exactly
+print(re.search(r'hello\n?\Z', text_with_newline))    # Matches
 ```
 
 ```javascript
-// JavaScript の $ の挙動
+// Behavior of $ in JavaScript
 const text = "hello\n";
 
-// $ はデフォルトで文字列末尾のみ
-console.log(/hello$/.test(text));        // false (改行があるため)
+// $ by default matches only the end of the string
+console.log(/hello$/.test(text));        // false (because of the newline)
 console.log(/hello$/.test("hello"));     // true
 
-// m フラグで各行末尾にマッチ
+// With m flag, matches each line end
 console.log(/hello$/m.test(text));       // true
 ```
 
 ```ruby
-# Ruby の $ は常に行末(\n の直前)にマッチする
+# In Ruby, $ always matches the end of a line (just before \n)
 text = "hello\nworld"
 puts text.scan(/\w+$/)   # => ["hello", "world"]
-# Ruby では $ はデフォルトで MULTILINE 的動作
-# 文字列末尾だけにマッチさせるには \z を使う
+# In Ruby, $ behaves like MULTILINE by default
+# To match only the end of the string, use \z
 puts text.match?(/world\z/)  # => true
 puts text.match?(/hello\z/)  # => false
 ```
 
-### 3.2 文字列境界アンカー
+### 3.2 String Boundary Anchors
 
 ```python
 import re
 
 text = "hello\nworld"
 
-# \A : 文字列の絶対先頭(MULTILINEの影響を受けない)
+# \A : Absolute start of the string (not affected by MULTILINE)
 print(re.search(r'\Ahello', text).group())  # => 'hello'
 print(re.search(r'\Aworld', text))          # => None
 
-# \Z : 文字列の絶対末尾(MULTILINEの影響を受けない)
+# \Z : Absolute end of the string (not affected by MULTILINE)
 print(re.search(r'world\Z', text).group())  # => 'world'
 
-# ^ vs \A (MULTILINEモード)
+# ^ vs \A (MULTILINE mode)
 print(re.findall(r'^\w+', text, re.M))   # => ['hello', 'world']
-print(re.findall(r'\A\w+', text, re.M))  # => ['hello'] (先頭のみ)
+print(re.findall(r'\A\w+', text, re.M))  # => ['hello'] (start only)
 ```
 
-**各言語での `\z` vs `\Z` の違い**:
+**Differences between `\z` and `\Z` across languages**:
 
 ```
 ┌──────────────┬──────────────────────────────────────────┐
-│ アンカー      │ 動作                                      │
+│ Anchor       │ Behavior                                  │
 ├──────────────┼──────────────────────────────────────────┤
-│ \Z (Python)  │ 文字列末尾。末尾の改行は含まない            │
-│ \z (Python)  │ 非サポート                                 │
-│ \Z (Ruby)    │ 文字列末尾(末尾改行の前にもマッチ)          │
-│ \z (Ruby)    │ 文字列の絶対末尾(末尾改行も超えない)        │
-│ \Z (Java)    │ 文字列末尾(末尾改行の前にもマッチ)          │
-│ \z (Java)    │ 文字列の絶対末尾                            │
-│ \Z (Perl)    │ 文字列末尾(末尾改行の前にもマッチ)          │
-│ \z (Perl)    │ 文字列の絶対末尾                            │
+│ \Z (Python)  │ End of string; does not include trailing  │
+│              │ newline                                    │
+│ \z (Python)  │ Not supported                             │
+│ \Z (Ruby)    │ End of string (also before trailing \n)   │
+│ \z (Ruby)    │ Absolute end of string (past trailing \n) │
+│ \Z (Java)    │ End of string (also before trailing \n)   │
+│ \z (Java)    │ Absolute end of string                    │
+│ \Z (Perl)    │ End of string (also before trailing \n)   │
+│ \z (Perl)    │ Absolute end of string                    │
 └──────────────┴──────────────────────────────────────────┘
 
-注意: Python の \Z は他の言語の \z に相当する。
-Python には他言語の \Z に相当するアンカーがない。
+Note: Python's \Z is equivalent to \z in other languages.
+Python has no anchor equivalent to \Z in other languages.
 ```
 
 ```ruby
-# Ruby での \z と \Z の明確な違い
+# Clear difference between \z and \Z in Ruby
 text = "hello\n"
 
-puts text.match?(/hello\Z/)  # => true  (\n の前にマッチ)
-puts text.match?(/hello\z/)  # => false (絶対末尾は \n)
-puts text.match?(/hello\n\z/) # => true (改行含めて末尾)
+puts text.match?(/hello\Z/)  # => true  (matches before the \n)
+puts text.match?(/hello\z/)  # => false (absolute end is \n)
+puts text.match?(/hello\n\z/) # => true (including the newline up to the end)
 ```
 
-### 3.3 単語境界 `\b`
+### 3.3 Word Boundary `\b`
 
 ```python
 import re
 
 text = "cat concatenate category caterpillar"
 
-# \b : 単語境界
-# 単語文字(\w)と非単語文字(\W)の間、または文字列の先頭/末尾
+# \b : Word boundary
+# The position between a word character (\w) and a non-word character (\W),
+# or the start/end of the string
 
-# "cat" を独立した単語として検索
+# Search for "cat" as a standalone word
 print(re.findall(r'\bcat\b', text))
-# => ['cat']  -- "concatenate" 等にはマッチしない
+# => ['cat']  -- Does not match "concatenate", etc.
 
-# "cat" で始まる単語
+# Words starting with "cat"
 print(re.findall(r'\bcat\w*', text))
 # => ['cat', 'concatenate', 'category', 'caterpillar']
 
-# \B : 非単語境界(単語の途中)
+# \B : Non-word boundary (inside a word)
 print(re.findall(r'\Bcat\B', text))
-# => ['cat']  -- "concatenate" の途中の cat のみ
+# => ['cat']  -- Only the "cat" in the middle of "concatenate"
 ```
 
-**単語境界の正確な定義**:
+**Precise definition of word boundaries**:
 
 ```python
 import re
 
-# \b は「位置」にマッチする(文字を消費しない)
-# 以下の4つの位置で \b がマッチする:
-# 1. 文字列先頭で、最初の文字が \w の場合
-# 2. 文字列末尾で、最後の文字が \w の場合
-# 3. \w の直後に \W が続く位置
-# 4. \W の直後に \w が続く位置
+# \b matches a "position" (does not consume characters)
+# \b matches at the following 4 positions:
+# 1. Start of string, if the first character is \w
+# 2. End of string, if the last character is \w
+# 3. Position immediately after \w followed by \W
+# 4. Position immediately after \W followed by \w
 
 text = "Hello, World! 123"
 #       ^     ^^ ^^  ^ ^  ^
@@ -741,101 +744,103 @@ text = "Hello, World! 123"
 boundaries = []
 for i in range(len(text) + 1):
     if re.search(r'\b', text[max(0,i-1):i+1] if i > 0 else text[0:1]):
-        pass  # 簡略化
+        pass  # Simplified
 
-# 具体的な境界位置の確認
+# Checking specific boundary positions
 for m in re.finditer(r'\b', text):
-    print(f"位置{m.start()}: ...{text[max(0,m.start()-1):m.start()+1]}...")
-# 位置0:  ...H...
-# 位置5:  ...o,...
-# 位置7:  ...W...
-# 位置12: ...d!...
-# 位置14: ...1...
-# 位置17: ...3 (末尾)
+    print(f"Position {m.start()}: ...{text[max(0,m.start()-1):m.start()+1]}...")
+# Position 0:  ...H...
+# Position 5:  ...o,...
+# Position 7:  ...W...
+# Position 12: ...d!...
+# Position 14: ...1...
+# Position 17: ...3 (end)
 ```
 
-**単語境界と日本語**:
+**Word boundaries and Japanese**:
 
 ```python
 import re
 
-# \b は ASCII 単語文字(\w = [a-zA-Z0-9_])に基づく
-# → 日本語文字は \W とみなされるため、各文字の前後が境界になる
+# \b is based on ASCII word characters (\w = [a-zA-Z0-9_])
+# -> Japanese characters are treated as \W, so each character boundary applies
 
 text = "Hello世界World"
 print(re.findall(r'\b\w+\b', text))
 # => ['Hello', 'World']
-# '世界' は \w に含まれないため単独の単語として認識されない
+# '世界' is not included in \w, so it is not recognized as a standalone word
 
-# Unicode 対応の単語境界には regex モジュールを使用
+# For Unicode-aware word boundaries, use the regex module
 import regex
-# regex モジュールの UNICODE フラグ
+# The regex module's UNICODE flag
 print(regex.findall(r'\b\w+\b', text, flags=regex.UNICODE))
-# => ['Hello世界World']  (日本語文字も \w に含まれる)
+# => ['Hello世界World']  (Japanese characters are included in \w)
 ```
 
 ```javascript
-// JavaScript の \b と Unicode
+// JavaScript \b and Unicode
 const text = "Hello世界World";
 
-// ES2015+ の u フラグでも \b は ASCII ベース
+// Even with the ES2015+ u flag, \b is ASCII-based
 console.log(text.match(/\b\w+\b/gu));
-// => ['Hello', 'World']（'世界' は含まれない）
+// => ['Hello', 'World'] ('世界' not included)
 
-// Unicode 単語境界を使うには
-// ECMAScript 2024 の /v フラグ + Unicode property
+// To use Unicode word boundaries:
+// ECMAScript 2024 /v flag + Unicode property
 console.log(text.match(/[\p{L}\p{N}]+/gu));
-// => ['Hello世界World'] (Unicode文字プロパティで代替)
+// => ['Hello世界World'] (Unicode character properties as an alternative)
 ```
 
-### 3.4 アンカーの概念図
+### 3.4 Conceptual Diagram of Anchors
 
 ```
-テキスト: "Hello World"
+Text: "Hello World"
 
-位置:  ^  H  e  l  l  o     W  o  r  l  d  $
-       ↑                                    ↑
-       文字列先頭(^, \A)                    文字列末尾($, \Z)
+Position:  ^  H  e  l  l  o     W  o  r  l  d  $
+           ↑                                    ↑
+           String start (^, \A)                 String end ($, \Z)
 
-単語境界(\b)の位置:
-       \b H  e  l  l  o \b  \b W  o  r  l  d \b
-       ↑                ↑   ↑                ↑
-       単語開始          単語終了/開始         単語終了
+Word boundary (\b) positions:
+           \b H  e  l  l  o \b  \b W  o  r  l  d \b
+           ↑                ↑   ↑                ↑
+           Word start        Word end/start       Word end
 
-非単語境界(\B)の位置:
-          \B \B \B \B      \B \B \B \B
-          H--e--l--l--o    W--o--r--l--d
-          文字と文字の間(両方が\w)
+Non-word boundary (\B) positions:
+              \B \B \B \B      \B \B \B \B
+              H--e--l--l--o    W--o--r--l--d
+              Between characters (both are \w)
 ```
 
-### 3.5 各種アンカー一覧
+### 3.5 Complete Anchor Reference
 
 ```
 ┌────────┬──────────────────────────────────────┐
-│ アンカー │ 意味                                  │
+│ Anchor │ Meaning                               │
 ├────────┼──────────────────────────────────────┤
-│ ^      │ 行頭 (MULTILINE) / 文字列先頭         │
-│ $      │ 行末 (MULTILINE) / 文字列末尾         │
-│ \A     │ 文字列の絶対先頭                       │
-│ \Z     │ 文字列の絶対末尾                       │
-│ \z     │ 文字列の絶対末尾(末尾改行も無視)       │
-│ \b     │ 単語境界                               │
-│ \B     │ 非単語境界                             │
-│ \G     │ 前回マッチの終了位置(Java/Perl/.NET)   │
+│ ^      │ Line start (MULTILINE) / String start│
+│ $      │ Line end (MULTILINE) / String end    │
+│ \A     │ Absolute start of string              │
+│ \Z     │ Absolute end of string                │
+│ \z     │ Absolute end of string (ignores       │
+│        │ trailing newline)                      │
+│ \b     │ Word boundary                         │
+│ \B     │ Non-word boundary                     │
+│ \G     │ End position of previous match        │
+│        │ (Java/Perl/.NET)                      │
 └────────┴──────────────────────────────────────┘
 ```
 
-### 3.6 `\G` アンカーの詳細
+### 3.6 The `\G` Anchor in Detail
 
-`\G` は「前回のマッチが終了した位置」にアンカーする特殊なアンカーである。連続する繰り返しマッチに有用。
+`\G` is a special anchor that anchors to "the position where the previous match ended." It is useful for consecutive repeated matches.
 
 ```java
 import java.util.regex.*;
 
 public class GAnchorExample {
     public static void main(String[] args) {
-        // \G は前回マッチの終了位置にアンカーする
-        // 最初のマッチでは文字列先頭(\A)と同じ位置
+        // \G anchors to the end position of the previous match
+        // On the first match, it is at the same position as the string start (\A)
 
         String text = "abc123def456ghi";
         Pattern p = Pattern.compile("\\G\\w");
@@ -846,9 +851,9 @@ public class GAnchorExample {
             result.append(m.group());
         }
         System.out.println(result);
-        // => "abc123def456ghi" (全文字が連続してマッチ)
+        // => "abc123def456ghi" (all characters match consecutively)
 
-        // 途中でマッチが途切れると \G は再開しない
+        // If the match breaks in the middle, \G does not resume
         text = "abc 123 def";
         p = Pattern.compile("\\G\\w");
         m = p.matcher(text);
@@ -858,17 +863,17 @@ public class GAnchorExample {
             result.append(m.group());
         }
         System.out.println(result);
-        // => "abc" (スペースで途切れ、以降はマッチしない)
+        // => "abc" (breaks at the space; nothing matches afterward)
     }
 }
 ```
 
 ```perl
-# Perl での \G の活用: トークナイザ
+# Using \G in Perl: a tokenizer
 my $text = "3.14 + 42 * 2.0";
 my @tokens;
 
-while ($text =~ /\G\s*/gc) {  # 空白をスキップ
+while ($text =~ /\G\s*/gc) {  # Skip whitespace
     if ($text =~ /\G(\d+\.?\d*)/gc) {
         push @tokens, {type => 'NUMBER', value => $1};
     } elsif ($text =~ /\G([+\-*\/])/gc) {
@@ -890,9 +895,9 @@ for my $token (@tokens) {
 
 ---
 
-## 4. 量指定子とアンカーの組み合わせパターン
+## 4. Combining Quantifiers and Anchors
 
-### 4.1 行全体のマッチ
+### 4.1 Matching Entire Lines
 
 ```python
 import re
@@ -902,46 +907,46 @@ log = """2026-02-11 10:00 INFO Server started
 2026-02-11 10:10 INFO Request received
 2026-02-11 10:15 WARN Memory usage high"""
 
-# ERROR を含む行を完全に取得
+# Extract entire lines containing ERROR
 error_lines = re.findall(r'^.*ERROR.*$', log, re.MULTILINE)
 print(error_lines)
 # => ['2026-02-11 10:05 ERROR Connection failed']
 
-# WARN または ERROR を含む行
+# Lines containing WARN or ERROR
 issues = re.findall(r'^.*(ERROR|WARN).*$', log, re.MULTILINE)
 print(issues)
 # => ['2026-02-11 10:05 ERROR Connection failed',
 #     '2026-02-11 10:15 WARN Memory usage high']
 ```
 
-### 4.2 完全一致バリデーション
+### 4.2 Full-Match Validation
 
 ```python
 import re
 
-# 文字列全体が完全にパターンに一致するか検証
-# ^...$ を使う(または re.fullmatch)
+# Verify that the entire string matches the pattern exactly
+# Use ^...$ (or re.fullmatch)
 
 def validate_date(s):
-    """YYYY-MM-DD 形式の日付を検証"""
+    """Validate date in YYYY-MM-DD format"""
     return bool(re.fullmatch(r'\d{4}-\d{2}-\d{2}', s))
 
 print(validate_date("2026-02-11"))      # => True
-print(validate_date("2026-02-11 "))     # => False (末尾空白)
-print(validate_date("date: 2026-02-11"))# => False (先頭にテキスト)
+print(validate_date("2026-02-11 "))     # => False (trailing space)
+print(validate_date("date: 2026-02-11"))# => False (text before the date)
 
 def validate_hex_color(s):
-    """#RRGGBB 形式のカラーコードを検証"""
+    """Validate #RRGGBB color code format"""
     return bool(re.fullmatch(r'#[0-9a-fA-F]{6}', s))
 
 print(validate_hex_color("#FF5733"))  # => True
 print(validate_hex_color("#GG5733"))  # => False
 ```
 
-**各言語での完全一致の方法**:
+**Full-match methods across languages**:
 
 ```javascript
-// JavaScript: ^...$ を使う(fullmatch がない)
+// JavaScript: Use ^...$ (no fullmatch method)
 function validateDate(s) {
     return /^\d{4}-\d{2}-\d{2}$/.test(s);
 }
@@ -950,31 +955,31 @@ console.log(validateDate("2026-02-11 ")); // false
 ```
 
 ```java
-// Java: matches() メソッドは暗黙的に ^...$ を追加
+// Java: matches() method implicitly adds ^...$
 String date = "2026-02-11";
 System.out.println(date.matches("\\d{4}-\\d{2}-\\d{2}"));  // true
 
-// find() は部分一致
+// find() does partial matching
 Pattern p = Pattern.compile("\\d{4}-\\d{2}-\\d{2}");
 Matcher m = p.matcher("date: 2026-02-11");
-System.out.println(m.find());     // true (部分一致)
-System.out.println(m.matches());  // false (完全一致)
+System.out.println(m.find());     // true (partial match)
+System.out.println(m.matches());  // false (full match)
 ```
 
 ```ruby
-# Ruby: \A...\z を推奨(^ $ は行単位のため)
+# Ruby: \A...\z is recommended (^ $ are line-based)
 def validate_date(s)
   s.match?(/\A\d{4}-\d{2}-\d{2}\z/)
 end
 
 puts validate_date("2026-02-11")       # => true
-puts validate_date("2026-02-11\nfoo")  # => false (\z は文字列末尾)
-# ^ $ を使うと:
-puts "2026-02-11\nfoo".match?(/^\d{4}-\d{2}-\d{2}$/)  # => true (行末にマッチ!)
+puts validate_date("2026-02-11\nfoo")  # => false (\z is end of string)
+# Using ^ $:
+puts "2026-02-11\nfoo".match?(/^\d{4}-\d{2}-\d{2}$/)  # => true (matches line end!)
 ```
 
 ```go
-// Go (RE2): 常に完全一致には \A...\z は不要(MatchString は部分一致)
+// Go (RE2): MatchString does partial matching; always use ^...$ for full match
 package main
 
 import (
@@ -983,11 +988,11 @@ import (
 )
 
 func main() {
-    // MatchString は部分一致
+    // MatchString does partial matching
     matched, _ := regexp.MatchString(`\d{4}-\d{2}-\d{2}`, "date: 2026-02-11")
     fmt.Println(matched)  // true
 
-    // 完全一致には ^...$ を明示
+    // Use ^...$ explicitly for full match
     matched, _ = regexp.MatchString(`^\d{4}-\d{2}-\d{2}$`, "2026-02-11")
     fmt.Println(matched)  // true
     matched, _ = regexp.MatchString(`^\d{4}-\d{2}-\d{2}$`, "date: 2026-02-11")
@@ -995,63 +1000,63 @@ func main() {
 }
 ```
 
-### 4.3 複合バリデーションパターン
+### 4.3 Composite Validation Patterns
 
 ```python
 import re
 
-# パスワード強度チェック: 複数条件を先読みで組み合わせ
+# Password strength check: combining multiple conditions with lookaheads
 def validate_password(pw):
     """
-    要件:
-    - 8文字以上20文字以下
-    - 大文字を1文字以上含む
-    - 小文字を1文字以上含む
-    - 数字を1文字以上含む
-    - 特殊文字を1文字以上含む
+    Requirements:
+    - 8 to 20 characters
+    - At least 1 uppercase letter
+    - At least 1 lowercase letter
+    - At least 1 digit
+    - At least 1 special character
     """
     pattern = r'^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*]).{8,20}$'
     return bool(re.match(pattern, pw))
 
 print(validate_password("Abc123!x"))    # True
-print(validate_password("abc123!x"))    # False (大文字なし)
-print(validate_password("Abc!x"))       # False (8文字未満)
-print(validate_password("Abcdefgh"))    # False (数字・特殊文字なし)
+print(validate_password("abc123!x"))    # False (no uppercase)
+print(validate_password("Abc!x"))       # False (fewer than 8 chars)
+print(validate_password("Abcdefgh"))    # False (no digits/special chars)
 
-# 日本語を含むユーザー名の検証
+# Validating usernames that may contain Japanese
 def validate_username(name):
     """
-    要件:
-    - 2文字以上20文字以下
-    - 日本語(ひらがな・カタカナ・漢字)、英数字、アンダースコアのみ
-    - 先頭は英字または日本語文字
+    Requirements:
+    - 2 to 20 characters
+    - Only Japanese (Hiragana, Katakana, Kanji), alphanumeric, and underscores
+    - Must start with a letter or Japanese character
     """
     pattern = r'^[a-zA-Z\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF][\w\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]{1,19}$'
     return bool(re.match(pattern, name))
 
 print(validate_username("田中太郎"))     # True
 print(validate_username("user_123"))     # True
-print(validate_username("1abc"))         # False (先頭が数字)
-print(validate_username("a"))            # False (2文字未満)
+print(validate_username("1abc"))         # False (starts with digit)
+print(validate_username("a"))            # False (fewer than 2 chars)
 ```
 
-### 4.4 境界を活用したテキスト置換
+### 4.4 Text Replacement Using Boundaries
 
 ```python
 import re
 
-# 単語単位の置換(部分一致を防ぐ)
+# Word-level replacement (preventing partial matches)
 text = "The cat concatenated the catalog"
 
-# NG: 部分一致で置換してしまう
+# NG: Replaces partial matches
 bad = re.sub(r'cat', 'dog', text)
 print(bad)  # => 'The dog dogdogenated the dogalog'
 
-# OK: 単語境界を使用
+# OK: Use word boundaries
 good = re.sub(r'\bcat\b', 'dog', text)
 print(good)  # => 'The dog concatenated the catalog'
 
-# 変数名のリネーム(プログラミングで有用)
+# Variable renaming (useful in programming)
 code = """
 count = 0
 count += 1
@@ -1059,14 +1064,14 @@ account = get_account()
 print(count)
 """
 
-# 変数 count を total にリネーム
+# Rename variable count to total
 renamed = re.sub(r'\bcount\b', 'total', code)
 print(renamed)
-# count → total に変更されるが、account は変更されない
+# count -> total is changed, but account is left unchanged
 ```
 
 ```javascript
-// JavaScript での単語境界を活用した置換
+// Text replacement using word boundaries in JavaScript
 const code = `
 function getData() {
     const data = fetchData();
@@ -1074,18 +1079,18 @@ function getData() {
     return processData(data);
 }`;
 
-// data を info にリネーム(getData, fetchData, processData は変更しない)
+// Rename data to info (leave getData, fetchData, processData unchanged)
 const renamed = code.replace(/\bdata\b/g, "info");
 console.log(renamed);
-// data → info に変更、getData/fetchData/processData/dataMap は変更されない
+// data -> info is changed; getData/fetchData/processData/dataMap are unchanged
 ```
 
-### 4.5 行頭・行末を活用したフォーマット処理
+### 4.5 Formatting Using Line Start/End
 
 ```python
 import re
 
-# コメント行の除去
+# Removing comment lines
 config = """# Database settings
 host = localhost
 # port = 5432
@@ -1094,14 +1099,14 @@ port = 3306
 user = admin
 """
 
-# # で始まる行を除去
+# Remove lines starting with #
 cleaned = re.sub(r'^#.*$\n?', '', config, flags=re.MULTILINE)
 print(cleaned)
 # host = localhost
 # port = 3306
 # user = admin
 
-# 各行にインデントを追加
+# Adding indentation to each line
 text = """line 1
 line 2
 line 3"""
@@ -1112,13 +1117,13 @@ print(indented)
 #     line 2
 #     line 3
 
-# 各行末の空白を除去
+# Removing trailing whitespace from each line
 text_with_trailing = "hello   \nworld  \nfoo \n"
 trimmed = re.sub(r' +$', '', text_with_trailing, flags=re.MULTILINE)
 print(repr(trimmed))
 # 'hello\nworld\nfoo\n'
 
-# 空行の除去
+# Removing blank lines
 text_with_blanks = """first
 
 second
@@ -1134,38 +1139,40 @@ print(no_blanks)
 
 ---
 
-## 5. 言語別の量指定子・アンカーの差異
+## 5. Cross-Language Differences in Quantifiers and Anchors
 
-### 5.1 量指定子のサポート状況
+### 5.1 Quantifier Support Status
 
 ```
 ┌──────────────┬───────┬───────┬──────────┬────────────┐
-│ 機能          │ Python│ JS    │ Java     │ Ruby/Perl  │
+│ Feature      │ Python│ JS    │ Java     │ Ruby/Perl  │
 ├──────────────┼───────┼───────┼──────────┼────────────┤
-│ 貪欲 *+?{n,m}│ ○     │ ○     │ ○        │ ○          │
-│ 怠惰 *? +?   │ ○     │ ○     │ ○        │ ○          │
-│ 独占的 *+ ++  │ ✗(re) │ ✗     │ ○        │ ✗(※1)     │
-│ アトミック(?>)│ ✗(re) │ ✗(※2)│ ○(※3)   │ ○          │
-│ {,m} 省略形  │ ○     │ ✗     │ ✗        │ ○          │
+│ Greedy       │ ○     │ ○     │ ○        │ ○          │
+│ *+?{n,m}     │       │       │          │            │
+│ Lazy *? +?   │ ○     │ ○     │ ○        │ ○          │
+│ Possessive   │ ✗(re) │ ✗     │ ○        │ ✗(*1)      │
+│ *+ ++        │       │       │          │            │
+│ Atomic (?>)  │ ✗(re) │ ✗(*2) │ ○(*3)    │ ○          │
+│ {,m} short   │ ○     │ ✗     │ ✗        │ ○          │
 └──────────────┴───────┴───────┴──────────┴────────────┘
 
-※1: Ruby 3.0+ で一部サポート(正規表現リテラルのみ)
-※2: ECMAScript 2025 提案段階
-※3: Java 独自構文 (?>...) をサポート
+*1: Partially supported in Ruby 3.0+ (regex literals only)
+*2: Under ECMAScript 2025 proposal
+*3: Java supports its own (?>...) syntax
 ```
 
-### 5.2 アンカーの言語差異
+### 5.2 Anchor Differences Across Languages
 
 ```python
 # Python
 import re
 text = "line1\nline2\n"
 
-# ^ $ はデフォルトで文字列先頭/末尾
-# re.MULTILINE で各行の先頭/末尾に変更
+# ^ $ default to string start/end
+# re.MULTILINE changes them to each line's start/end
 print(re.findall(r'^\w+', text, re.M))  # => ['line1', 'line2']
 
-# \A \Z は MULTILINE の影響を受けない
+# \A \Z are not affected by MULTILINE
 print(re.findall(r'\A\w+', text, re.M))  # => ['line1']
 ```
 
@@ -1173,33 +1180,33 @@ print(re.findall(r'\A\w+', text, re.M))  # => ['line1']
 // JavaScript
 const text = "line1\nline2\n";
 
-// ^ $ はデフォルトで文字列先頭/末尾
-// m フラグで各行の先頭/末尾に変更
+// ^ $ default to string start/end
+// m flag changes them to each line's start/end
 console.log(text.match(/^\w+/gm));  // => ['line1', 'line2']
 
-// JavaScript には \A \Z がない!
-// 代わりに m フラグなしの ^ $ を使うか、
-// 先読み・後読みで代替する
-console.log(text.match(/^\w+/g));  // => ['line1']  (m なし = 文字列先頭)
+// JavaScript does NOT have \A or \Z!
+// Use ^ $ without the m flag instead,
+// or use lookahead/lookbehind as alternatives
+console.log(text.match(/^\w+/g));  // => ['line1']  (no m = string start)
 ```
 
 ```ruby
 # Ruby
 text = "line1\nline2\n"
 
-# Ruby の ^ $ は常に行単位(MULTILINE相当)
+# Ruby's ^ $ always work line-by-line (equivalent to MULTILINE)
 puts text.scan(/^\w+/)   # => ["line1", "line2"]
 
-# 文字列先頭/末尾には \A \z を使う
+# Use \A and \z for string start/end
 puts text.scan(/\A\w+/)  # => ["line1"]
 
-# Ruby には \Z(末尾改行の前にもマッチ)と \z(絶対末尾)の両方がある
+# Ruby has both \Z (matches before trailing \n) and \z (absolute end)
 puts "hello\n".match?(/hello\Z/)  # => true
 puts "hello\n".match?(/hello\z/)  # => false
 ```
 
 ```go
-// Go (RE2エンジン)
+// Go (RE2 engine)
 package main
 
 import (
@@ -1210,68 +1217,68 @@ import (
 func main() {
     text := "line1\nline2\n"
 
-    // Go のデフォルト: ^ $ は文字列先頭/末尾
+    // Go default: ^ $ are string start/end
     re1 := regexp.MustCompile(`^\w+`)
     fmt.Println(re1.FindAllString(text, -1))  // => [line1]
 
-    // (?m) フラグで MULTILINE モード
+    // (?m) flag for MULTILINE mode
     re2 := regexp.MustCompile(`(?m)^\w+`)
     fmt.Println(re2.FindAllString(text, -1))  // => [line1 line2]
 
-    // Go には \A \Z \z がない
-    // ^ $ を適切にフラグ制御して使う
+    // Go does NOT have \A, \Z, or \z
+    // Use ^ $ with appropriate flag control
 }
 ```
 
-### 5.3 JavaScript 固有の注意点
+### 5.3 JavaScript-Specific Notes
 
 ```javascript
-// ES2018 で導入された dotAll フラグ (s)
+// The dotAll flag (s) introduced in ES2018
 const text = "line1\nline2\nline3";
 
-// s フラグなし: . は改行にマッチしない
+// Without s flag: . does not match newlines
 console.log(text.match(/^.+$/));       // => ['line1']
-console.log(text.match(/^.+$/m));      // => ['line1'] (最初の行)
+console.log(text.match(/^.+$/m));      // => ['line1'] (first line)
 console.log(text.match(/^.+$/gm));     // => ['line1', 'line2', 'line3']
 
-// s フラグあり: . が改行にもマッチ
+// With s flag: . also matches newlines
 console.log(text.match(/^.+$/s));      // => ['line1\nline2\nline3']
 console.log(text.match(/^.+$/ms));     // => ['line1\nline2\nline3']
-// sm の組み合わせ: ^ は行頭にマッチするが、.+ が改行も含むため全体がマッチ
+// sm combination: ^ matches line start, but .+ includes newlines so the whole string matches
 
-// ES2024 の v フラグ（Unicode Sets）
-// v フラグは u フラグの上位互換
+// The v flag in ES2024 (Unicode Sets)
+// The v flag is a superset of the u flag
 const emoji = "Hello 🌍 World 🎉";
 console.log(emoji.match(/\p{Emoji}/gv));  // => ['🌍', '🎉']
 ```
 
 ---
 
-## 6. アンチパターン
+## 6. Anti-Patterns
 
-### 6.1 アンチパターン: `.*` の無秩序な使用
+### 6.1 Anti-Pattern: Uncontrolled Use of `.*`
 
 ```python
 import re
 
-# NG: 貪欲な .* が予期しない範囲をマッチ
+# NG: Greedy .* matches an unexpectedly wide range
 html = '<span class="a">hello</span><span class="b">world</span>'
 bad = re.search(r'<span.*>.*</span>', html)
 print(bad.group())
 # => '<span class="a">hello</span><span class="b">world</span>'
-# 全体がマッチしてしまう!
+# The entire string matches!
 
-# OK: 否定文字クラスまたは怠惰量指定子を使う
-# 方法1: 怠惰量指定子
+# OK: Use negated character classes or lazy quantifiers
+# Method 1: Lazy quantifier
 good1 = re.findall(r'<span.*?>.*?</span>', html)
 print(good1)  # => ['<span class="a">hello</span>', ...]
 
-# 方法2: 否定文字クラス(より高速)
+# Method 2: Negated character class (faster)
 good2 = re.findall(r'<span[^>]*>[^<]*</span>', html)
 print(good2)  # => ['<span class="a">hello</span>', ...]
 ```
 
-### 6.2 アンチパターン: `^` `$` のMULTILINEフラグ忘れ
+### 6.2 Anti-Pattern: Forgetting the MULTILINE Flag with `^` and `$`
 
 ```python
 import re
@@ -1280,114 +1287,114 @@ text = """user: admin
 user: guest
 user: root"""
 
-# NG: MULTILINE なしで各行の先頭を期待
+# NG: Expecting to match each line start without MULTILINE
 bad = re.findall(r'^user: (\w+)', text)
-print(bad)  # => ['admin']  -- 最初の行のみ
+print(bad)  # => ['admin']  -- first line only
 
-# OK: MULTILINE フラグを付ける
+# OK: Add the MULTILINE flag
 good = re.findall(r'^user: (\w+)', text, re.MULTILINE)
 print(good)  # => ['admin', 'guest', 'root']
 ```
 
-### 6.3 アンチパターン: ネストした量指定子によるReDoS
+### 6.3 Anti-Pattern: ReDoS from Nested Quantifiers
 
 ```python
 import re
 import time
 
-# 危険: ネストした量指定子は指数的バックトラックを引き起こす
+# Dangerous: Nested quantifiers cause exponential backtracking
 dangerous_patterns = [
-    r'(a+)+b',          # ネストした +
-    r'(a*)*b',          # ネストした *
-    r'(a|a)*b',         # 重複する選択肢 + 量指定子
-    r'(.*a){10}',       # .* の大量繰り返し
-    r'(\w+\s*)+$',      # よくある入力検証パターン
+    r'(a+)+b',          # Nested +
+    r'(a*)*b',          # Nested *
+    r'(a|a)*b',         # Overlapping alternatives + quantifier
+    r'(.*a){10}',       # Mass repetition of .*
+    r'(\w+\s*)+$',      # Common input validation pattern
 ]
 
-safe_input = "a" * 20 + "b"      # マッチする → 高速
-evil_input = "a" * 25             # マッチしない → 指数的に遅い
+safe_input = "a" * 20 + "b"      # Matches -> fast
+evil_input = "a" * 25             # No match -> exponentially slow
 
 for pattern in dangerous_patterns:
-    # 安全な入力
+    # Safe input
     start = time.perf_counter()
     re.search(pattern, safe_input)
     safe_time = time.perf_counter() - start
 
-    # 悪意のある入力(タイムアウト付き)
-    # 注意: 実際の実行は非常に遅くなる可能性あり
-    print(f"パターン: {pattern}")
-    print(f"  安全な入力: {safe_time:.6f}秒")
-    # evil_input のテストは省略(ReDoSの危険性)
+    # Malicious input (with timeout)
+    # Warning: actual execution can be extremely slow
+    print(f"Pattern: {pattern}")
+    print(f"  Safe input: {safe_time:.6f} sec")
+    # evil_input test omitted (ReDoS risk)
 
-# 安全な代替パターン
+# Safe alternative patterns
 safe_alternatives = {
-    r'(a+)+b':     r'a+b',           # ネスト除去
-    r'(a*)*b':     r'a*b',           # ネスト除去
-    r'(a|a)*b':    r'a*b',           # 重複除去
-    r'(\w+\s*)+$': r'[\w\s]+$',      # 文字クラスに統合
+    r'(a+)+b':     r'a+b',           # Remove nesting
+    r'(a*)*b':     r'a*b',           # Remove nesting
+    r'(a|a)*b':    r'a*b',           # Remove duplication
+    r'(\w+\s*)+$': r'[\w\s]+$',      # Consolidate into character class
 }
 ```
 
-### 6.4 アンチパターン: 不要な量指定子
+### 6.4 Anti-Pattern: Unnecessary Quantifiers
 
 ```python
 import re
 
-# NG: 不要に複雑な量指定子
+# NG: Unnecessarily complex quantifiers
 bad_patterns = {
-    r'\d{1,}':    r'\d+',       # {1,} は + と同じ
-    r'\d{0,}':    r'\d*',       # {0,} は * と同じ
-    r'\d{0,1}':   r'\d?',       # {0,1} は ? と同じ
-    r'[a-z]{1}':  r'[a-z]',     # {1} は不要
-    r'(?:ab){1}': r'ab',        # {1} のグループも不要
+    r'\d{1,}':    r'\d+',       # {1,} is the same as +
+    r'\d{0,}':    r'\d*',       # {0,} is the same as *
+    r'\d{0,1}':   r'\d?',       # {0,1} is the same as ?
+    r'[a-z]{1}':  r'[a-z]',     # {1} is unnecessary
+    r'(?:ab){1}': r'ab',        # Group with {1} is also unnecessary
 }
 
 for bad, good in bad_patterns.items():
-    print(f"NG: {bad:20s} → OK: {good}")
+    print(f"NG: {bad:20s} -> OK: {good}")
 
-# NG: 不要なグループ内の量指定子
-# (?: )+  の中に量指定子がある場合、外側と内側の両方が必要か確認
+# NG: Unnecessary quantifiers inside groups
+# When (?:  )+ has a quantifier inside, check if both inner and outer are needed
 text = "hello   world   foo"
 
-# 冗長: グループ不要
+# Redundant: group is unnecessary
 print(re.split(r'(?:\s)+', text))    # => ['hello', 'world', 'foo']
-# 簡潔:
+# Concise:
 print(re.split(r'\s+', text))        # => ['hello', 'world', 'foo']
 ```
 
-### 6.5 アンチパターン: `\b` の誤用
+### 6.5 Anti-Pattern: Misusing `\b`
 
 ```python
 import re
 
-# NG: 数字のみの単語境界の想定が間違っている
+# NG: Incorrect assumptions about word boundaries with digit-only sequences
 text = "item123"
 print(re.findall(r'\b\d+\b', text))
-# => [] (空!) -- '123' の前の \b は m と 1 の間だが、
-#    123 の前に非単語文字がない(\b は \w→\W の遷移点)
+# => [] (empty!) -- The \b before '123' is between 'm' and '1', but
+#    there is no non-word character before 123 (\b is the \w->\W transition point)
 
-# 正確な理解:
-# 'item123' では:
-# - 'i' の前に \b (文字列先頭)
-# - '3' の後に \b (文字列末尾)
-# - 'm' と '1' の間は \w→\w なので \b ではない!
-# したがって \b\d+\b は '123' を独立した単語として見つけない
+# Correct understanding:
+# In 'item123':
+# - \b before 'i' (start of string)
+# - \b after '3' (end of string)
+# - Between 'm' and '1' is \w->\w so it is NOT \b!
+# Therefore \b\d+\b does not find '123' as a standalone word
 
-# OK: 目的に応じた正確なパターン
-# 1. 独立した数値を検索(前後が非数字)
+# OK: Use the correct pattern for the purpose
+# 1. Search for standalone numbers (preceded/followed by non-word chars)
 print(re.findall(r'(?<!\w)\d+(?!\w)', text))  # => []
-# 2. 文字列中の数字部分を抽出
+# 2. Extract digit portions from a string
 print(re.findall(r'\d+', text))  # => ['123']
-# 3. 独立した数値のみ(空白区切り)
+# 3. Standalone numbers only (whitespace-separated)
 text2 = "item123 456 foo"
 print(re.findall(r'\b\d+\b', text2))  # => ['456']
 ```
 
 ---
 
-## 7. 実践パターン集
+## 7. Practical Pattern Collection
 
-### 7.1 ログ解析パターン
+### 7.1 Log Analysis Patterns
 
 ```python
 import re
@@ -1401,29 +1408,29 @@ log_entries = """
 2026-02-11T10:30:50.678Z INFO  [main] Shutdown initiated
 """
 
-# 1. タイムスタンプ、レベル、コンポーネント、メッセージの分解
+# 1. Decompose timestamp, level, component, and message
 log_pattern = r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)\s+(INFO|DEBUG|WARN|ERROR)\s+\[(\w+)\]\s+(.+)$'
 
 for match in re.finditer(log_pattern, log_entries, re.MULTILINE):
     ts, level, component, message = match.groups()
     print(f"[{level:5s}] {component:6s} | {message}")
 
-# 2. ERROR レベルのみ抽出(行全体)
+# 2. Extract only ERROR level (entire lines)
 errors = re.findall(r'^.*ERROR.*$', log_entries, re.MULTILINE)
 for err in errors:
     print(f"ERROR: {err.strip()}")
 
-# 3. 数値の抽出(メトリクス解析)
+# 3. Extract numerical values (metrics analysis)
 metrics = re.findall(r'(\w+)[=:]\s*(\d+(?:\.\d+)?)', log_entries)
 for key, value in metrics:
     print(f"  {key} = {value}")
 # size = 10, threshold = 80, etc.
 
-# 4. 時間範囲フィルタ
+# 4. Time range filter
 def filter_time_range(logs, start_time, end_time):
-    """指定時間範囲のログをフィルタ"""
+    """Filter logs within a specified time range"""
     pattern = rf'^({re.escape(start_time)}.*?{re.escape(end_time)}.*?)$'
-    # より正確なアプローチ: 各行のタイムスタンプを比較
+    # More accurate approach: compare each line's timestamp
     result = []
     for line in logs.strip().split('\n'):
         m = re.match(r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})', line)
@@ -1438,45 +1445,45 @@ for line in filtered:
     print(line.strip())
 ```
 
-### 7.2 データクレンジングパターン
+### 7.2 Data Cleansing Patterns
 
 ```python
 import re
 
-# 1. 電話番号の正規化
+# 1. Phone number normalization
 def normalize_phone(phone):
-    """各種形式の電話番号を統一フォーマットに変換"""
-    # 数字以外を除去
+    """Convert various phone number formats to a unified format"""
+    # Remove non-digits
     digits = re.sub(r'\D', '', phone)
 
-    # 日本の電話番号パターン
-    # 携帯: 090-XXXX-XXXX / 080-XXXX-XXXX / 070-XXXX-XXXX
+    # Japanese phone number patterns
+    # Mobile: 090-XXXX-XXXX / 080-XXXX-XXXX / 070-XXXX-XXXX
     if re.match(r'^0[789]0\d{8}$', digits):
         return f"{digits[:3]}-{digits[3:7]}-{digits[7:]}"
-    # 固定電話(東京): 03-XXXX-XXXX
+    # Landline (Tokyo): 03-XXXX-XXXX
     elif re.match(r'^0[3-9]\d{8}$', digits):
         return f"{digits[:2]}-{digits[2:6]}-{digits[6:]}"
-    # 固定電話(その他): 0XXX-XX-XXXX
+    # Landline (other): 0XXX-XX-XXXX
     elif re.match(r'^0\d{9}$', digits):
         return f"{digits[:4]}-{digits[4:6]}-{digits[6:]}"
-    return phone  # 変換不能
+    return phone  # Unable to convert
 
 tests = [
     "090-1234-5678", "09012345678", "090 1234 5678",
     "03-1234-5678", "0312345678", "(03) 1234-5678"
 ]
 for t in tests:
-    print(f"{t:20s} → {normalize_phone(t)}")
+    print(f"{t:20s} -> {normalize_phone(t)}")
 
-# 2. 金額の正規化
+# 2. Currency normalization
 def normalize_currency(text):
-    """金額表記を統一フォーマットに変換"""
-    # カンマ区切り → 除去
+    """Convert currency notation to a unified format"""
+    # Remove comma separators
     text = re.sub(r'(\d),(\d)', r'\1\2', text)
-    # 全角数字 → 半角
+    # Full-width digits -> half-width
     zen_to_han = str.maketrans('０１２３４５６７８９', '0123456789')
     text = text.translate(zen_to_han)
-    # 「万」「億」の処理
+    # Handle "man" (10,000) and "oku" (100,000,000) units
     text = re.sub(r'(\d+)万(\d*)', lambda m: str(int(m.group(1)) * 10000 + int(m.group(2) or 0)), text)
     text = re.sub(r'(\d+)億', lambda m: str(int(m.group(1)) * 100000000), text)
     return text
@@ -1485,13 +1492,13 @@ print(normalize_currency("1,234,567円"))  # => 1234567円
 print(normalize_currency("１２３４円"))     # => 1234円
 print(normalize_currency("5万3000"))       # => 53000
 
-# 3. 住所の正規化
+# 3. Address normalization
 def normalize_address(addr):
-    """日本語住所の表記揺れを統一"""
-    # 全角数字 → 半角
+    """Standardize notation variations in Japanese addresses"""
+    # Full-width digits -> half-width
     zen_to_han = str.maketrans('０１２３４５６７８９', '0123456789')
     addr = addr.translate(zen_to_han)
-    # 「丁目」「番地」「号」の表記統一
+    # Standardize "chome" "banchi" "go" notation
     addr = re.sub(r'(\d+)丁目(\d+)番地?(\d+)号?', r'\1-\2-\3', addr)
     addr = re.sub(r'(\d+)丁目(\d+)番地?', r'\1-\2', addr)
     addr = re.sub(r'(\d+)丁目', r'\1', addr)
@@ -1503,22 +1510,22 @@ print(normalize_address("東京都港区赤坂１丁目２番地３号"))
 # => 東京都港区赤坂1-2-3
 ```
 
-### 7.3 プログラミング言語のトークン解析
+### 7.3 Programming Language Token Analysis
 
 ```python
 import re
 
 def tokenize(source_code):
-    """簡易トークナイザ: Python風の式を解析"""
+    """Simple tokenizer: parses Python-like expressions"""
     token_spec = [
-        ('NUMBER',    r'\d+\.?\d*(?:[eE][+-]?\d+)?'),  # 整数・小数・指数
-        ('STRING',    r'"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\''),  # 文字列
-        ('IDENT',     r'[a-zA-Z_]\w*'),                 # 識別子
-        ('OP',        r'[+\-*/=<>!]=?|[(){}[\],;.]'),   # 演算子
-        ('NEWLINE',   r'\n'),                            # 改行
-        ('SKIP',      r'[ \t]+'),                        # 空白(スキップ)
-        ('COMMENT',   r'#.*'),                           # コメント
-        ('MISMATCH',  r'.'),                             # 不明な文字
+        ('NUMBER',    r'\d+\.?\d*(?:[eE][+-]?\d+)?'),  # Integer, decimal, exponent
+        ('STRING',    r'"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\''),  # Strings
+        ('IDENT',     r'[a-zA-Z_]\w*'),                 # Identifiers
+        ('OP',        r'[+\-*/=<>!]=?|[(){}[\],;.]'),   # Operators
+        ('NEWLINE',   r'\n'),                            # Newlines
+        ('SKIP',      r'[ \t]+'),                        # Whitespace (skip)
+        ('COMMENT',   r'#.*'),                           # Comments
+        ('MISMATCH',  r'.'),                             # Unknown characters
     ]
 
     tok_regex = '|'.join(f'(?P<{name}>{pattern})' for name, pattern in token_spec)
@@ -1535,7 +1542,7 @@ def tokenize(source_code):
 
     return tokens
 
-# テスト
+# Test
 code = 'x = 3.14 + y * 2  # calculation'
 for tok in tokenize(code):
     print(f"  {tok[0]:10s}: {tok[1]}")
@@ -1547,24 +1554,24 @@ for tok in tokenize(code):
 # etc.
 ```
 
-### 7.4 URL / URI の解析
+### 7.4 URL / URI Parsing
 
 ```python
 import re
 
 def parse_url(url):
-    """RFC 3986 に基づく URI 解析"""
+    """URI parsing based on RFC 3986"""
     pattern = r'''
         ^
-        (?:(?P<scheme>[a-zA-Z][a-zA-Z0-9+.-]*):)?  # スキーム
+        (?:(?P<scheme>[a-zA-Z][a-zA-Z0-9+.-]*):)?  # Scheme
         (?://
-            (?:(?P<userinfo>[^@]*)@)?               # ユーザー情報
-            (?P<host>[^/:?#]*)                      # ホスト
-            (?::(?P<port>\d+))?                     # ポート
+            (?:(?P<userinfo>[^@]*)@)?               # User info
+            (?P<host>[^/:?#]*)                      # Host
+            (?::(?P<port>\d+))?                     # Port
         )?
-        (?P<path>[^?#]*)                            # パス
-        (?:\?(?P<query>[^#]*))?                     # クエリ
-        (?:\#(?P<fragment>.*))?                      # フラグメント
+        (?P<path>[^?#]*)                            # Path
+        (?:\?(?P<query>[^#]*))?                     # Query
+        (?:\#(?P<fragment>.*))?                      # Fragment
         $
     '''
 
@@ -1574,7 +1581,7 @@ def parse_url(url):
 
     return {k: v for k, v in m.groupdict().items() if v is not None}
 
-# テスト
+# Test
 urls = [
     "https://user:pass@example.com:8080/path/to/page?q=hello&lang=ja#section",
     "ftp://files.example.com/pub/docs/readme.txt",
@@ -1589,25 +1596,25 @@ for url in urls:
         print(f"  {k:12s}: {v}")
 ```
 
-### 7.5 マークダウンのインライン要素解析
+### 7.5 Parsing Markdown Inline Elements
 
 ```python
 import re
 
 def parse_markdown_inline(text):
-    """Markdown のインライン要素を解析"""
+    """Parse Markdown inline elements"""
     patterns = [
-        # 強調(**bold** / __bold__)
+        # Bold (**bold** / __bold__)
         (r'\*\*(.+?)\*\*|__(.+?)__', 'bold'),
-        # 斜体(*italic* / _italic_)
+        # Italic (*italic* / _italic_)
         (r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)|(?<!_)_(?!_)(.+?)(?<!_)_(?!_)', 'italic'),
-        # インラインコード(`code`)
+        # Inline code (`code`)
         (r'`([^`]+)`', 'code'),
-        # リンク(text)
+        # Link ([text](url))
         (r'\[([^\]]+)\]\(([^)]+)\)', 'link'),
-        # 画像(!alt)
+        # Image (![alt](url))
         (r'!\[([^\]]*)\]\(([^)]+)\)', 'image'),
-        # 取り消し線(~~text~~)
+        # Strikethrough (~~text~~)
         (r'~~(.+?)~~', 'strikethrough'),
     ]
 
@@ -1621,7 +1628,7 @@ def parse_markdown_inline(text):
                 'end': m.end(),
             })
 
-    # 位置順にソート
+    # Sort by position
     elements.sort(key=lambda x: x['start'])
     return elements
 
@@ -1634,112 +1641,112 @@ for elem in parse_markdown_inline(md_text):
 
 ## 8. FAQ
 
-### Q1: `.*` と `[^X]*` はどちらが高速か？
+### Q1: Which is faster, `.*` or `[^X]*`?
 
-**A**: 一般的に **`[^X]*` のほうが高速**。`.*` はバックトラックが発生しやすいが、`[^X]*` は明示的に停止文字を指定するため不要なバックトラックを回避できる:
+**A**: In general, **`[^X]*` is faster**. `.*` is prone to backtracking, while `[^X]*` explicitly specifies the stop character, avoiding unnecessary backtracking:
 
 ```python
 import re
 
-# 遅い: .* がバックトラックを多用
+# Slow: .* causes heavy backtracking
 slow = r'<tag>.*</tag>'
 
-# 速い: [^<]* で < 以外だけマッチ
+# Fast: [^<]* matches only non-< characters
 fast = r'<tag>[^<]*</tag>'
 
-# さらに速い: 独占的量指定子(Javaなど)
+# Even faster: possessive quantifier (Java, etc.)
 # fastest = '<tag>[^<]*+</tag>'
 ```
 
-### Q2: `{0,}` と `*` に違いはあるか？
+### Q2: Is there a difference between `{0,}` and `*`?
 
-**A**: 意味は完全に同じ。`*` は `{0,}` の糖衣構文(シンタックスシュガー)である。エンジン内部では同一の処理となる。可読性のために `*` `+` `?` を優先的に使い、`{n,m}` は具体的な回数指定が必要な場合に使う。
+**A**: The meaning is completely identical. `*` is syntactic sugar for `{0,}`. They are processed identically inside the engine. Prefer `*` `+` `?` for readability, and use `{n,m}` when specific repetition counts are needed.
 
-### Q3: 怠惰量指定子を使えば常に安全か？
+### Q3: Is it always safe to use lazy quantifiers?
 
-**A**: **いいえ**。怠惰量指定子はバックトラックの方向を変えるだけで、バックトラック自体はなくならない。特定のパターンでは怠惰でもReDoSが発生しうる:
+**A**: **No**. Lazy quantifiers only change the direction of backtracking; they do not eliminate backtracking itself. Certain patterns can still cause ReDoS even with lazy quantifiers:
 
 ```python
-# 怠惰でも遅いパターンの例:
-# パターン: (a+?)+b
-# テキスト: "aaaaaaaaaaaaaaaaac"
-# → 怠惰でも指数的バックトラックが発生
+# Example of a pattern that is slow even when lazy:
+# Pattern: (a+?)+b
+# Text:    "aaaaaaaaaaaaaaaaac"
+# -> Exponential backtracking occurs even with lazy matching
 
-# 安全なのは:
-# 1. 否定文字クラス [^X]* を使う
-# 2. DFA エンジン(RE2等)を使う
-# 3. 独占的量指定子/アトミックグループを使う
+# What IS safe:
+# 1. Use negated character classes [^X]*
+# 2. Use a DFA engine (RE2, etc.)
+# 3. Use possessive quantifiers/atomic groups
 ```
 
-### Q4: `\b` は日本語テキストで機能するか？
+### Q4: Does `\b` work with Japanese text?
 
-**A**: 標準の `\b` は **ASCII 単語文字境界** であり、日本語テキストでは期待通りに動作しないことが多い:
+**A**: The standard `\b` is an **ASCII word character boundary** and often does not work as expected with Japanese text:
 
 ```python
 import re
 
 text = "東京タワーは333mです"
 
-# \b は ASCII の \w([a-zA-Z0-9_])に基づく
-# 日本語文字は \W 扱い → 各文字の前後が全て境界
+# \b is based on ASCII's \w ([a-zA-Z0-9_])
+# Japanese characters are treated as \W -> every character boundary applies
 print(re.findall(r'\b.+?\b', text))
 # => ['東', '京', 'タ', 'ワ', 'ー', 'は', '333', 'm', 'で', 'す']
 
-# 日本語の「単語」を扱うには:
-# 1. MeCab 等の形態素解析を使う(推奨)
-# 2. Unicode 単語境界(ICU)を使う
-# 3. regex モジュールの \b{w} を使う
+# To handle Japanese "words":
+# 1. Use morphological analysis like MeCab (recommended)
+# 2. Use Unicode word boundaries (ICU)
+# 3. Use \b{w} from the regex module
 import regex
 print(regex.findall(r'\b{w}.+?\b{w}', text))
-# Unicode 単語境界による分割
+# Segmentation by Unicode word boundaries
 ```
 
-### Q5: `re.fullmatch` と `^...$` の違いは？
+### Q5: What is the difference between `re.fullmatch` and `^...$`?
 
-**A**: 多くの場合同等だが、MULTILINE フラグとの相互作用が異なる:
+**A**: They are equivalent in most cases, but differ in interaction with the MULTILINE flag:
 
 ```python
 import re
 
 text = "hello\nworld"
 
-# re.fullmatch は常に文字列全体をチェック
-print(re.fullmatch(r'\w+', text))  # => None (改行があるため)
+# re.fullmatch always checks the entire string
+print(re.fullmatch(r'\w+', text))  # => None (newline present)
 
-# ^...$ は MULTILINE で挙動が変わる
-print(re.match(r'^\w+$', text, re.M))  # => <Match: 'hello'> (1行目にマッチ)
+# ^...$ behavior changes with MULTILINE
+print(re.match(r'^\w+$', text, re.M))  # => <Match: 'hello'> (matches first line)
 print(re.fullmatch(r'\w+', "hello"))    # => <Match: 'hello'>
 
-# fullmatch は MULTILINE の影響を受けない(常に文字列全体)
+# fullmatch is not affected by MULTILINE (always checks the entire string)
 print(re.fullmatch(r'\w+', text, re.M))  # => None
 ```
 
-### Q6: 独占的量指定子が使えない言語での代替手段は？
+### Q6: What are alternatives when possessive quantifiers are unavailable?
 
-**A**: アトミックグループまたはコード内での対策を使う:
+**A**: Use atomic groups or in-code countermeasures:
 
 ```python
 import re
 
-# Python の re モジュールでは独占的量指定子が使えない
-# 代替手段:
+# Python's re module does not support possessive quantifiers
+# Alternatives:
 
-# 1. regex モジュールを使う(推奨)
+# 1. Use the regex module (recommended)
 # import regex
 # regex.search(r'a++b', text)
 
-# 2. 否定文字クラスでバックトラックを回避
-# NG: .*  (バックトラック大量)
-# OK: [^<]*  (停止文字を明示)
+# 2. Use negated character classes to avoid backtracking
+# NG: .*  (massive backtracking)
+# OK: [^<]*  (explicitly specify stop character)
 
-# 3. タイムアウトを設定
+# 3. Set a timeout
 import signal
 
 def timeout_handler(signum, frame):
     raise TimeoutError("Regex timeout")
 
 def safe_search(pattern, text, timeout_sec=1):
-    """タイムアウト付きの正規表現検索"""
+    """Regex search with timeout"""
     old_handler = signal.signal(signal.SIGALRM, timeout_handler)
     signal.alarm(timeout_sec)
     try:
@@ -1750,58 +1757,58 @@ def safe_search(pattern, text, timeout_sec=1):
         signal.alarm(0)
         signal.signal(signal.SIGALRM, old_handler)
 
-# 4. 入力長を制限する
+# 4. Limit input length
 def safe_match(pattern, text, max_len=10000):
-    """入力長制限付きの正規表現マッチ"""
+    """Regex match with input length restriction"""
     if len(text) > max_len:
         raise ValueError(f"Input too long: {len(text)} > {max_len}")
     return re.search(pattern, text)
 ```
 
-### Q7: 量指定子の上限値にハードリミットはあるか？
+### Q7: Is there a hard limit on quantifier upper bounds?
 
-**A**: エンジンによって異なる:
+**A**: It varies by engine:
 
 ```
 ┌──────────────┬──────────────────────────────┐
-│ エンジン      │ {n,m} の上限                  │
+│ Engine       │ Upper limit for {n,m}        │
 ├──────────────┼──────────────────────────────┤
 │ Python (re)  │ 2^31 - 1 (2147483647)        │
-│ JavaScript   │ 2^32 - 1 (ブラウザ依存)       │
+│ JavaScript   │ 2^32 - 1 (browser-dependent) │
 │ Java         │ 2^31 - 1                     │
 │ PCRE         │ 65535                         │
-│ Ruby         │ 制限なし(メモリ依存)          │
-│ Go (RE2)     │ 1000 (デフォルト)             │
-│ Rust (regex) │ 制限なし(メモリ依存)          │
+│ Ruby         │ No limit (memory-dependent)   │
+│ Go (RE2)     │ 1000 (default)               │
+│ Rust (regex) │ No limit (memory-dependent)   │
 └──────────────┴──────────────────────────────┘
 
-# 実用上は {n,m} の値が大きすぎると
-# コンパイル時間やメモリ使用量が増大するため
-# 100程度を上限の目安とする
+# In practice, overly large {n,m} values increase
+# compile time and memory usage, so ~100 is a
+# reasonable practical upper bound
 ```
 
-### Q8: `\G` アンカーを Python で使うには？
+### Q8: How can I use the `\G` anchor in Python?
 
-**A**: Python の `re` モジュールには `\G` がないが、`regex` モジュールまたは `re.scanner` で代替できる:
+**A**: Python's `re` module does not have `\G`, but you can use the `regex` module or `re.scanner` as alternatives:
 
 ```python
-# regex モジュール
+# regex module
 import regex
 
 text = "abc123def456"
 tokens = []
 pos = 0
 
-# \G を使った連続マッチ
+# Consecutive matching using \G
 for m in regex.finditer(r'\G(?:(\w+)|(\d+))', text):
     tokens.append(m.group())
 
-# re モジュールでの代替: Scanner
+# Alternative with the re module: Scanner
 import re
 scanner = re.Scanner([
     (r'[a-z]+', lambda s, t: ('WORD', t)),
     (r'\d+',    lambda s, t: ('NUM', t)),
-    (r'\s+',    None),  # スキップ
+    (r'\s+',    None),  # Skip
 ])
 
 tokens, remainder = scanner.scan("abc 123 def 456")
@@ -1818,52 +1825,52 @@ for tok in tokens:
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Building practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying how it works.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts covered in this guide before moving to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in real-world work?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently applied in everyday development work. It is especially important during code reviews and architecture design.
 
 ---
 
-## まとめ
+## Summary
 
-| 項目 | 内容 |
-|------|------|
-| `*` | 0回以上(貪欲) |
-| `+` | 1回以上(貪欲) |
-| `?` | 0回or1回(貪欲) |
-| `{n,m}` | n回以上m回以下 |
-| `*?` `+?` `??` | 怠惰(最短一致)版 |
-| `*+` `++` `?+` | 独占的(バックトラック禁止)版 |
-| `(?>...)` | アトミックグループ |
-| `^` | 行頭 / 文字列先頭 |
-| `$` | 行末 / 文字列末尾 |
-| `\b` | 単語境界 |
-| `\B` | 非単語境界 |
-| `\A` / `\Z` | 文字列の絶対先頭/末尾 |
-| `\z` | 文字列の絶対末尾(一部言語) |
-| `\G` | 前回マッチ終了位置 |
-| 貪欲 vs 怠惰 | 貪欲が最長、怠惰が最短 |
-| パフォーマンス | `[^X]*` > `.*?` > `.*`(一般的に) |
-| ReDoS対策 | ネスト量指定子を避け、否定クラスか独占的量指定子を使用 |
+| Item | Description |
+|------|-------------|
+| `*` | 0 or more (greedy) |
+| `+` | 1 or more (greedy) |
+| `?` | 0 or 1 (greedy) |
+| `{n,m}` | n to m times |
+| `*?` `+?` `??` | Lazy (shortest match) versions |
+| `*+` `++` `?+` | Possessive (no backtracking) versions |
+| `(?>...)` | Atomic group |
+| `^` | Line start / string start |
+| `$` | Line end / string end |
+| `\b` | Word boundary |
+| `\B` | Non-word boundary |
+| `\A` / `\Z` | Absolute string start/end |
+| `\z` | Absolute string end (some languages) |
+| `\G` | End position of previous match |
+| Greedy vs. Lazy | Greedy is longest, lazy is shortest |
+| Performance | `[^X]*` > `.*?` > `.*` (generally) |
+| ReDoS prevention | Avoid nested quantifiers; use negated classes or possessive quantifiers |
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
-- [../01-advanced/00-groups-backreferences.md](../01-advanced/00-groups-backreferences.md) -- グループと後方参照
-- [../01-advanced/01-lookaround.md](../01-advanced/01-lookaround.md) -- 先読み・後読み
-- [../01-advanced/03-performance.md](../01-advanced/03-performance.md) -- パフォーマンス最適化とReDoS対策
+- [../01-advanced/00-groups-backreferences.md](../01-advanced/00-groups-backreferences.md) -- Groups and Backreferences
+- [../01-advanced/01-lookaround.md](../01-advanced/01-lookaround.md) -- Lookahead and Lookbehind
+- [../01-advanced/03-performance.md](../01-advanced/03-performance.md) -- Performance Optimization and ReDoS Prevention
 
-## 参考文献
+## References
 
-1. **Jeffrey E.F. Friedl** "Mastering Regular Expressions" O'Reilly, 2006 -- 第4章「量指定子の力学」と第6章「バックトラック」が必読
-2. **Russ Cox** "Regular Expression Matching: the Virtual Machine Approach" https://swtch.com/~rsc/regexp/regexp2.html, 2009 -- バックトラックの理論的分析
-3. **Jan Goyvaerts** "Regular-Expressions.info" https://www.regular-expressions.info/repeat.html -- 量指定子の実用的な解説
-4. **OWASP** "Regular expression Denial of Service - ReDoS" https://owasp.org/www-community/attacks/Regular_expression_Denial_of_Service_-_ReDoS -- ReDoS攻撃とその防御
-5. **Python Documentation** "re --- Regular expression operations" https://docs.python.org/3/library/re.html -- Python公式リファレンス
+1. **Jeffrey E.F. Friedl** "Mastering Regular Expressions" O'Reilly, 2006 -- Chapter 4 "The Mechanics of Quantifiers" and Chapter 6 "Backtracking" are essential reading
+2. **Russ Cox** "Regular Expression Matching: the Virtual Machine Approach" https://swtch.com/~rsc/regexp/regexp2.html, 2009 -- Theoretical analysis of backtracking
+3. **Jan Goyvaerts** "Regular-Expressions.info" https://www.regular-expressions.info/repeat.html -- Practical explanation of quantifiers
+4. **OWASP** "Regular expression Denial of Service - ReDoS" https://owasp.org/www-community/attacks/Regular_expression_Denial_of_Service_-_ReDoS -- ReDoS attacks and defenses
+5. **Python Documentation** "re --- Regular expression operations" https://docs.python.org/3/library/re.html -- Official Python reference

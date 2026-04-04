@@ -1,269 +1,271 @@
-# 正規表現概要
+# Regular Expression Overview
 
-> 正規表現(Regular Expression)の歴史的背景、主要な用途、そしてNFA/DFAエンジンの内部動作原理を体系的に解説する。
+> A systematic guide to the historical background of Regular Expressions, their major use cases, and the internal workings of NFA/DFA engines.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-1. **正規表現の数学的起源と歴史的発展** -- Kleeneの正則集合からPCREまでの系譜
-2. **正規表現エンジンの二大方式(NFA/DFA)** -- それぞれの動作原理・性能特性・選択基準
-3. **正規表現の適用領域と限界** -- テキスト検索からコンパイラまで、使うべき場面と避けるべき場面
-4. **主要エンジンの実装比較** -- 各プログラミング言語のエンジン特性と選定指針
-5. **正規表現のデバッグとテスト戦略** -- 効率的なパターン開発手法
+1. **Mathematical Origins and Historical Evolution of Regular Expressions** -- From Kleene's regular sets to PCRE
+2. **The Two Major Regular Expression Engine Types (NFA/DFA)** -- Operating principles, performance characteristics, and selection criteria
+3. **Application Domains and Limitations of Regular Expressions** -- From text search to compilers: when to use and when to avoid
+4. **Implementation Comparison Across Major Engines** -- Engine characteristics and selection guidelines for each programming language
+5. **Debugging and Testing Strategies for Regular Expressions** -- Efficient pattern development methods
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
+- Basic programming knowledge
+- Understanding of related foundational concepts
 
 ---
 
-## 1. 正規表現とは何か
+## 1. What Are Regular Expressions?
 
-正規表現は **パターンマッチング** のための形式言語である。文字列の集合を有限の記法で表現し、検索・置換・抽出・検証に利用する。
-
-```
-パターン: \d{3}-\d{4}
-対象文字列: "郵便番号は 100-0001 です"
-マッチ結果: "100-0001"
-```
-
-### 1.1 基本的な動作モデル
+Regular expressions are a formal language for **pattern matching**. They express sets of strings using finite notation and are used for searching, replacing, extracting, and validating.
 
 ```
-入力文字列 ──→ [正規表現エンジン] ──→ マッチ結果
+Pattern: \d{3}-\d{4}
+Target string: "The postal code is 100-0001"
+Match result: "100-0001"
+```
+
+### 1.1 Basic Operating Model
+
+```
+Input string ──→ [Regex Engine] ──→ Match result
                     ↑
-               パターン(正規表現)
+               Pattern (Regular Expression)
 ```
 
-正規表現エンジンは、与えられたパターンを内部的にオートマトン(有限状態機械)に変換し、入力文字列を1文字ずつ処理してマッチングを行う。
+The regex engine internally converts the given pattern into an automaton (finite state machine) and processes the input string character by character to perform matching.
 
-### 1.2 正規表現の構成要素
+### 1.2 Components of Regular Expressions
 
-正規表現パターンは以下の基本要素から構成される:
-
-```
-正規表現の構成要素:
-
-1. リテラル文字    -- 'a', 'b', '1' 等、そのまま文字にマッチ
-2. メタ文字        -- '.', '*', '+', '?', '|' 等、特殊な意味を持つ
-3. 文字クラス      -- [abc], [a-z], \d, \w 等、文字集合を表す
-4. 量指定子        -- {n}, {n,m}, *, +, ? 等、繰り返しを指定
-5. アンカー        -- ^, $, \b 等、位置を指定
-6. グループ化      -- (), (?:), (?=) 等、部分パターンをまとめる
-7. エスケープ      -- \., \\, \n 等、メタ文字の無効化や特殊文字
-```
-
-### 1.3 正規表現処理の全体フロー
+Regular expression patterns are composed of the following basic elements:
 
 ```
-                 正規表現パターン
+Components of Regular Expressions:
+
+1. Literal characters    -- 'a', 'b', '1', etc., match the character directly
+2. Metacharacters        -- '.', '*', '+', '?', '|', etc., have special meaning
+3. Character classes     -- [abc], [a-z], \d, \w, etc., represent sets of characters
+4. Quantifiers           -- {n}, {n,m}, *, +, ?, etc., specify repetition
+5. Anchors               -- ^, $, \b, etc., specify positions
+6. Grouping              -- (), (?:), (?=), etc., group sub-patterns together
+7. Escaping              -- \., \\, \n, etc., disable metacharacters or represent special characters
+```
+
+### 1.3 Overall Flow of Regular Expression Processing
+
+```
+                 Regex Pattern
                        │
                        ▼
                ┌──────────────┐
-               │   字句解析    │  パターン文字列をトークン列に分解
+               │  Lexical      │  Decompose pattern string into a token sequence
+               │  Analysis     │
                └──────┬───────┘
                        │
                        ▼
                ┌──────────────┐
-               │   構文解析    │  トークン列を抽象構文木(AST)に変換
+               │  Syntax       │  Convert token sequence into an Abstract Syntax Tree (AST)
+               │  Analysis     │
                └──────┬───────┘
                        │
                        ▼
                ┌──────────────┐
-               │ オートマトン  │  AST から NFA/DFA を構築
-               │    構築      │
+               │  Automaton    │  Build NFA/DFA from AST
+               │  Construction │
                └──────┬───────┘
                        │
                        ▼
                ┌──────────────┐
-               │  マッチング   │  入力文字列に対してオートマトンを実行
-               │    実行      │
+               │  Matching     │  Execute automaton against the input string
+               │  Execution    │
                └──────┬───────┘
                        │
                        ▼
-                 マッチ結果
+                 Match Result
 ```
 
-### 1.4 正規表現の表記法の種類
+### 1.4 Types of Regular Expression Notation
 
 ```
-主要な表記体系:
+Major notation systems:
 
 1. POSIX BRE (Basic Regular Expression)
-   - メタ文字に \ が必要: \(, \), \{, \}, \+, \?
-   - 例: grep 'a\(b\|c\)d' file.txt
+   - Metacharacters require \: \(, \), \{, \}, \+, \?
+   - Example: grep 'a\(b\|c\)d' file.txt
 
 2. POSIX ERE (Extended Regular Expression)
-   - メタ文字をそのまま使用: (, ), {, }, +, ?
-   - 例: grep -E 'a(b|c)d' file.txt
+   - Metacharacters used directly: (, ), {, }, +, ?
+   - Example: grep -E 'a(b|c)d' file.txt
 
 3. PCRE (Perl Compatible Regular Expressions)
-   - ERE を拡張: 先読み/後読み, 非貪欲量指定子, 名前付きキャプチャ
-   - 例: grep -P '(?<=prefix)\w+' file.txt
+   - Extensions to ERE: lookahead/lookbehind, non-greedy quantifiers, named captures
+   - Example: grep -P '(?<=prefix)\w+' file.txt
 
 4. ECMAScript (JavaScript)
-   - PCRE のサブセット + 独自拡張(u フラグ, s フラグ等)
-   - 例: /pattern/gimsuvy
+   - Subset of PCRE + proprietary extensions (u flag, s flag, etc.)
+   - Example: /pattern/gimsuvy
 
-5. RE2 構文
-   - PCRE からバックトラック必須機能を除外
-   - 例: 後方参照なし, 先読み/後読みなし
+5. RE2 Syntax
+   - PCRE minus features requiring backtracking
+   - Example: no backreferences, no lookahead/lookbehind
 ```
 
-各表記体系は互換性がないことが多いため、使用するツールやプログラミング言語の正規表現方言を把握することが重要である。
+Since these notation systems are often incompatible, it is important to understand the regex dialect of the tool or programming language you are using.
 
-### 1.5 正規表現パターンの読み方
+### 1.5 How to Read Regular Expression Patterns
 
-複雑な正規表現を読む際の手順を示す:
+Here is the procedure for reading complex regular expressions:
 
 ```python
-# 例: メールアドレスの簡易パターン
+# Example: Simple email address pattern
 pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
 
-# 分解して読む:
-# ^                    -- 文字列の先頭
-# [a-zA-Z0-9._%+-]+   -- ローカルパート(1文字以上の英数字と記号)
-# @                    -- リテラル '@'
-# [a-zA-Z0-9.-]+      -- ドメイン名(1文字以上の英数字とハイフン、ドット)
-# \.                   -- リテラル '.'
-# [a-zA-Z]{2,}        -- TLD(2文字以上のアルファベット)
-# $                    -- 文字列の末尾
+# Breaking it down:
+# ^                    -- Start of string
+# [a-zA-Z0-9._%+-]+   -- Local part (one or more alphanumeric characters and symbols)
+# @                    -- Literal '@'
+# [a-zA-Z0-9.-]+      -- Domain name (one or more alphanumeric characters, hyphens, and dots)
+# \.                   -- Literal '.'
+# [a-zA-Z]{2,}        -- TLD (two or more alphabetic characters)
+# $                    -- End of string
 ```
 
 ```python
-# 例: 日本の電話番号パターン
+# Example: Japanese phone number pattern
 pattern = r'^0\d{1,4}-\d{1,4}-\d{4}$'
 
-# 分解:
-# ^           -- 先頭
-# 0           -- リテラル '0' (市外局番の先頭)
-# \d{1,4}     -- 1〜4桁の数字
-# -           -- リテラル '-'
-# \d{1,4}     -- 1〜4桁の数字(市内局番)
-# -           -- リテラル '-'
-# \d{4}       -- 4桁の数字(加入者番号)
-# $           -- 末尾
+# Breaking it down:
+# ^           -- Start of string
+# 0           -- Literal '0' (beginning of area code)
+# \d{1,4}     -- 1 to 4 digits
+# -           -- Literal '-'
+# \d{1,4}     -- 1 to 4 digits (local exchange number)
+# -           -- Literal '-'
+# \d{4}       -- 4 digits (subscriber number)
+# $           -- End of string
 ```
 
 ---
 
-## 2. 歴史的発展
+## 2. Historical Evolution
 
-### 2.1 年表
+### 2.1 Timeline
 
 ```
-1943  McCulloch & Pitts  ─ 神経回路網の数学モデル
+1943  McCulloch & Pitts  ─ Mathematical model of neural networks
   │
-1956  Stephen Kleene     ─ 正則集合(Regular Sets)の理論化
+1956  Stephen Kleene     ─ Formalization of Regular Sets theory
   │
-1959  Michael Rabin &    ─ 非決定性有限オートマトン(NFA)の形式化
-      Dana Scott           チューリング賞受賞(1976年)
+1959  Michael Rabin &    ─ Formalization of Nondeterministic Finite Automata (NFA)
+      Dana Scott           Turing Award recipients (1976)
   │
-1968  Ken Thompson       ─ QED/edエディタに正規表現を実装
-  │                        IBM 7094 上でNFAを直接シミュレート
+1968  Ken Thompson       ─ Implemented regex in QED/ed editors
+  │                        Directly simulated NFA on IBM 7094
   │
-1973  Thompson & Ritchie ─ grep の誕生(Unix V4)
+1973  Thompson & Ritchie ─ Birth of grep (Unix V4)
   │                        "Global Regular Expression Print"
   │
-1975  Alfred Aho         ─ egrep の開発(DFA方式)
-  │                        『コンパイラ—原理・技法・ツール』の著者
+1975  Alfred Aho         ─ Development of egrep (DFA-based)
+  │                        Author of "Compilers: Principles, Techniques, and Tools"
   │
-1979  AT&T Unix V7       ─ awk の登場(Aho, Weinberger, Kernighan)
-  │                        正規表現をプログラミング言語に統合
+1979  AT&T Unix V7       ─ Introduction of awk (Aho, Weinberger, Kernighan)
+  │                        Integrated regex into a programming language
   │
-1986  Henry Spencer      ─ 最初の自由な正規表現ライブラリ
-  │                        多くのUNIXツールの基盤に
+1986  Henry Spencer      ─ First free regex library
+  │                        Became the foundation for many UNIX tools
   │
-1986  POSIX 標準化       ─ BRE/ERE を IEEE Std 1003.2 として標準化
+1986  POSIX Standardization ─ Standardized BRE/ERE as IEEE Std 1003.2
   │
-1987  Larry Wall         ─ Perl 1.0 に高機能正規表現を搭載
-  │                        後方参照、先読み等を導入
+1987  Larry Wall         ─ Shipped advanced regex in Perl 1.0
+  │                        Introduced backreferences, lookahead, etc.
   │
-1994  Perl 5.0           ─ 正規表現の大幅拡張
-  │                        非貪欲量指定子、先読み/後読み
+1994  Perl 5.0           ─ Major regex extensions
+  │                        Non-greedy quantifiers, lookahead/lookbehind
   │
 1997  Philip Hazel       ─ PCRE (Perl Compatible Regular Expressions)
-  │                        Perlの正規表現を独立ライブラリ化
+  │                        Made Perl's regex available as an independent library
   │
-2002  .NET Framework     ─ バランシンググループを導入
-  │                        ネスト構造の限定的なマッチが可能に
+2002  .NET Framework     ─ Introduced balancing groups
+  │                        Enabled limited matching of nested structures
   │
-2006  Russ Cox           ─ RE2 (線形時間保証エンジン)
-  │                        Google で開発、ReDoS を原理的に排除
+2006  Russ Cox           ─ RE2 (linear-time guaranteed engine)
+  │                        Developed at Google, eliminates ReDoS by design
   │
-2012  Rust regex crate   ─ RE2 の思想を継承した Rust 実装
-  │                        安全性と性能を両立
+2012  Rust regex crate   ─ Rust implementation inheriting RE2's philosophy
+  │                        Combines safety and performance
   │
-2017  ECMAScript 2018    ─ 名前付きキャプチャ、後読みを標準化
-  │                        s フラグ(dotAll)の追加
+2017  ECMAScript 2018    ─ Standardized named captures and lookbehind
+  │                        Added s flag (dotAll)
   │
-2022  PCRE2 10.40+       ─ JIT コンパイルの改良
-  │                        パフォーマンスの大幅向上
+2022  PCRE2 10.40+       ─ Improved JIT compilation
+  │                        Significant performance improvements
   │
-2024  ECMAScript 2024    ─ v フラグ(Unicode Sets)の追加
-                           文字クラスの集合演算をサポート
+2024  ECMAScript 2024    ─ Added v flag (Unicode Sets)
+                           Supports set operations in character classes
 ```
 
-### 2.2 主要なマイルストーン
+### 2.2 Major Milestones
 
-| 年代 | 人物/プロジェクト | 貢献 |
-|------|-------------------|------|
-| 1956 | Stephen Kleene | 「正則表現(regular expression)」の概念を数学的に定式化 |
-| 1959 | Rabin & Scott | NFA/DFA の等価性を証明(チューリング賞) |
-| 1968 | Ken Thompson | エディタ QED に初の実用的正規表現エンジンを実装 |
+| Year | Person/Project | Contribution |
+|------|----------------|--------------|
+| 1956 | Stephen Kleene | Mathematically formalized the concept of "regular expression" |
+| 1959 | Rabin & Scott | Proved the equivalence of NFA/DFA (Turing Award) |
+| 1968 | Ken Thompson | Implemented the first practical regex engine in the QED editor |
 | 1973 | grep (Unix) | `g/re/p` -- Global Regular Expression Print |
-| 1975 | egrep (Unix) | DFA ベースの高速正規表現マッチング |
-| 1979 | awk | テキスト処理言語に正規表現を統合 |
-| 1986 | POSIX | BRE/ERE(基本/拡張正規表現)を標準化 |
-| 1987 | Perl | 後方参照・先読み等を追加、事実上の標準に |
-| 1994 | Perl 5 | 非貪欲量指定子、コードブロック内正規表現 |
-| 1997 | PCRE | Perl互換エンジンを独立ライブラリとして提供 |
-| 2002 | .NET | バランシンググループでネスト構造に対応 |
-| 2006 | RE2 (Google) | DFAベースで ReDoS を原理的に排除 |
-| 2017 | ES2018 | 後読み・名前付きキャプチャを JavaScript に追加 |
+| 1975 | egrep (Unix) | DFA-based high-speed regex matching |
+| 1979 | awk | Integrated regex into a text processing language |
+| 1986 | POSIX | Standardized BRE/ERE (Basic/Extended Regular Expressions) |
+| 1987 | Perl | Added backreferences, lookahead, etc.; became the de facto standard |
+| 1994 | Perl 5 | Non-greedy quantifiers, regex within code blocks |
+| 1997 | PCRE | Provided a Perl-compatible engine as an independent library |
+| 2002 | .NET | Addressed nested structures with balancing groups |
+| 2006 | RE2 (Google) | DFA-based, eliminates ReDoS by design |
+| 2017 | ES2018 | Added lookbehind and named captures to JavaScript |
 
-### 2.3 正規表現理論の数学的基盤
+### 2.3 Mathematical Foundations of Regular Expression Theory
 
-正規表現の理論は計算機科学の基礎であるオートマトン理論と密接に結びついている:
+Regular expression theory is closely tied to automaton theory, a fundamental area of computer science:
 
 ```
-Kleene の定理 (1956):
+Kleene's Theorem (1956):
 
-「正則言語」「正規表現で記述可能な言語」「有限オートマトンが受理する言語」
-の三者は等価である。
+"Regular languages," "languages describable by regular expressions," and
+"languages accepted by finite automata" are all equivalent.
 
-すなわち:
-  正規表現 ⟺ NFA ⟺ DFA
+That is:
+  Regular expressions ⟺ NFA ⟺ DFA
 
-変換の方向:
-  正規表現 → NFA  : Thompson構成法
-  NFA → DFA       : 部分集合構成法
-  DFA → 正規表現  : 状態除去法
-  DFA → 最小DFA   : Hopcroft のアルゴリズム
+Conversion directions:
+  Regular expression → NFA  : Thompson's construction
+  NFA → DFA                : Subset construction
+  DFA → Regular expression : State elimination
+  DFA → Minimal DFA        : Hopcroft's algorithm
 ```
 
 ```python
-# Thompson構成法の概念的な実装例
-# 正規表現の基本操作に対応するNFA構築
+# Conceptual implementation of Thompson's construction
+# NFA construction corresponding to basic regex operations
 
 class NFAState:
-    """NFA の状態"""
+    """State in an NFA"""
     def __init__(self):
-        self.transitions = {}  # 文字 -> [次の状態]
-        self.epsilon = []      # ε遷移先
+        self.transitions = {}  # character -> [next states]
+        self.epsilon = []      # epsilon transition targets
         self.is_accept = False
 
 class NFAFragment:
-    """NFA の断片（構築中の部分NFA）"""
+    """Fragment of an NFA (partial NFA under construction)"""
     def __init__(self, start, accept):
         self.start = start
         self.accept = accept
 
 def literal(char):
-    """リテラル文字 'a' に対する NFA"""
+    """NFA for a literal character 'a'"""
     start = NFAState()
     accept = NFAState()
     accept.is_accept = True
@@ -271,13 +273,13 @@ def literal(char):
     return NFAFragment(start, accept)
 
 def concatenation(frag1, frag2):
-    """連結 ab に対する NFA"""
+    """NFA for concatenation ab"""
     frag1.accept.is_accept = False
     frag1.accept.epsilon.append(frag2.start)
     return NFAFragment(frag1.start, frag2.accept)
 
 def alternation(frag1, frag2):
-    """選択 a|b に対する NFA"""
+    """NFA for alternation a|b"""
     start = NFAState()
     accept = NFAState()
     accept.is_accept = True
@@ -289,7 +291,7 @@ def alternation(frag1, frag2):
     return NFAFragment(start, accept)
 
 def kleene_star(frag):
-    """Kleene閉包 a* に対する NFA"""
+    """NFA for Kleene closure a*"""
     start = NFAState()
     accept = NFAState()
     accept.is_accept = True
@@ -299,288 +301,292 @@ def kleene_star(frag):
     return NFAFragment(start, accept)
 ```
 
-### 2.4 POSIX標準と方言の分岐
+### 2.4 POSIX Standards and Dialect Divergence
 
 ```
-POSIX 正規表現の二つの標準:
+The two POSIX regex standards:
 
 ┌─────────────────────────────────────────────────────────────┐
 │  BRE (Basic Regular Expression)                             │
 │                                                             │
-│  特徴:                                                      │
-│  - メタ文字としてのグループ化: \( と \)                       │
-│  - メタ文字としての選択: 非サポート(一部実装では \|)          │
-│  - メタ文字としての量指定: \{ と \}                           │
-│  - +, ? はリテラル文字(一部実装では \+, \?)                  │
+│  Characteristics:                                           │
+│  - Grouping as metacharacters: \( and \)                    │
+│  - Alternation as metacharacter: not supported              │
+│    (some implementations support \|)                        │
+│  - Quantifiers as metacharacters: \{ and \}                 │
+│  - +, ? are literal characters                              │
+│    (some implementations support \+, \?)                    │
 │                                                             │
-│  使用ツール: grep(デフォルト), sed(デフォルト)               │
+│  Used by: grep (default), sed (default)                     │
 │                                                             │
-│  例: grep 'a\{2,3\}' file.txt                              │
-│      → 'aa' または 'aaa' にマッチ                           │
+│  Example: grep 'a\{2,3\}' file.txt                         │
+│      → Matches 'aa' or 'aaa'                                │
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
 │  ERE (Extended Regular Expression)                          │
 │                                                             │
-│  特徴:                                                      │
-│  - グループ化: ( と )                                        │
-│  - 選択: |                                                   │
-│  - 量指定: { と }                                            │
-│  - +, ? がメタ文字                                           │
+│  Characteristics:                                           │
+│  - Grouping: ( and )                                        │
+│  - Alternation: |                                           │
+│  - Quantifiers: { and }                                     │
+│  - +, ? are metacharacters                                  │
 │                                                             │
-│  使用ツール: grep -E (egrep), sed -E, awk                   │
+│  Used by: grep -E (egrep), sed -E, awk                      │
 │                                                             │
-│  例: grep -E 'a{2,3}' file.txt                             │
-│      → 'aa' または 'aaa' にマッチ                           │
+│  Example: grep -E 'a{2,3}' file.txt                        │
+│      → Matches 'aa' or 'aaa'                                │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 3. 正規表現エンジンの種類
+## 3. Types of Regular Expression Engines
 
-### 3.1 NFA vs DFA -- 二大方式
+### 3.1 NFA vs DFA -- The Two Major Approaches
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│                正規表現エンジン                        │
+│            Regular Expression Engines                  │
 ├─────────────────────┬────────────────────────────────┤
-│   NFA (非決定性)     │    DFA (決定性)                │
+│   NFA (Nondeterministic) │    DFA (Deterministic)     │
 │                     │                                │
-│ ・バックトラック方式  │ ・状態遷移テーブル方式          │
-│ ・パターン駆動       │ ・テキスト駆動                  │
-│ ・後方参照をサポート  │ ・後方参照は非サポート           │
-│ ・最悪 O(2^n)        │ ・常に O(n)                    │
+│ - Backtracking-based │ - State transition table-based │
+│ - Pattern-driven     │ - Text-driven                  │
+│ - Supports backreferences │ - No backreference support│
+│ - Worst case O(2^n)  │ - Always O(n)                 │
 │                     │                                │
-│ 例: Perl, Python,   │ 例: awk, grep(一部),           │
+│ e.g.: Perl, Python, │ e.g.: awk, grep (some),       │
 │     Java, .NET,     │     RE2, Rust regex            │
 │     JavaScript      │                                │
 └─────────────────────┴────────────────────────────────┘
 ```
 
-### 3.2 NFA の動作例
+### 3.2 NFA Operation Example
 
-パターン `a(b|c)d` に対して文字列 `"acd"` をマッチングする場合:
+Matching the string `"acd"` against the pattern `a(b|c)d`:
 
 ```python
-# NFA (Nondeterministic Finite Automaton) の動作シミュレーション
+# NFA (Nondeterministic Finite Automaton) operation simulation
 import re
 
 pattern = r'a(b|c)d'
 text = "acd"
 
-# 内部的な動作:
-# 1. 状態 S0: 'a' を読む → マッチ → S1 へ遷移
-# 2. 状態 S1: 'c' を読む → 'b' を試行 → 失敗
-#                        → バックトラックして 'c' を試行 → マッチ → S2 へ
-# 3. 状態 S2: 'd' を読む → マッチ → 受理状態
+# Internal operation:
+# 1. State S0: read 'a' → match → transition to S1
+# 2. State S1: read 'c' → try 'b' → fail
+#                        → backtrack and try 'c' → match → transition to S2
+# 3. State S2: read 'd' → match → accept state
 
 result = re.match(pattern, text)
 print(result.group())   # => "acd"
 print(result.group(1))  # => "c"
 ```
 
-### 3.3 DFA の動作例
+### 3.3 DFA Operation Example
 
 ```python
-# DFA (Deterministic Finite Automaton) は事前に全状態を展開する
-# パターン: a(b|c)d
+# DFA (Deterministic Finite Automaton) expands all states in advance
+# Pattern: a(b|c)d
 
-# 状態遷移テーブル:
-# 現在状態 | 入力 'a' | 入力 'b' | 入力 'c' | 入力 'd'
-# ---------|----------|----------|----------|--------
-# S0       | S1       | -        | -        | -
-# S1       | -        | S2       | S2       | -
-# S2       | -        | -        | -        | S3(受理)
+# State transition table:
+# Current State | Input 'a' | Input 'b' | Input 'c' | Input 'd'
+# --------------|-----------|-----------|-----------|----------
+# S0            | S1        | -         | -         | -
+# S1            | -         | S2        | S2        | -
+# S2            | -         | -         | -         | S3 (accept)
 
-# DFA ではバックトラックが発生しない
-# 各文字につき状態遷移は1回のみ → O(n)
+# DFA does not produce backtracking
+# Only one state transition per character → O(n)
 
-# Rust の regex クレートは DFA ベース
-# RE2 も DFA ベース
+# Rust's regex crate is DFA-based
+# RE2 is also DFA-based
 ```
 
-### 3.4 比較表: NFA vs DFA
+### 3.4 Comparison Table: NFA vs DFA
 
-| 特性 | NFA | DFA |
-|------|-----|-----|
-| 時間計算量(最悪) | O(2^n) -- 指数的 | O(n) -- 線形 |
-| 時間計算量(平均) | O(n) -- 実用的には高速 | O(n) -- 常に線形 |
-| 空間計算量 | O(m) パターンサイズ | O(2^m) 最悪(状態爆発) |
-| 後方参照 | サポート | 非サポート |
-| 先読み/後読み | サポート | 限定的/非サポート |
-| 怠惰量指定子 | サポート | N/A (最左最長マッチ) |
-| ReDoS脆弱性 | あり | なし |
-| 実装の複雑さ | 比較的単純 | 状態テーブル構築が複雑 |
-| コンパイル時間 | 短い | 長い(状態展開) |
-| 最初のマッチ | 高速(左から右へ) | パターンにより変動 |
-| 代表的な実装 | Perl, Python, Java, JS | RE2, Rust regex, awk |
+| Property | NFA | DFA |
+|----------|-----|-----|
+| Time complexity (worst case) | O(2^n) -- exponential | O(n) -- linear |
+| Time complexity (average) | O(n) -- practically fast | O(n) -- always linear |
+| Space complexity | O(m) pattern size | O(2^m) worst case (state explosion) |
+| Backreferences | Supported | Not supported |
+| Lookahead/lookbehind | Supported | Limited/not supported |
+| Lazy quantifiers | Supported | N/A (leftmost longest match) |
+| ReDoS vulnerability | Yes | No |
+| Implementation complexity | Relatively simple | Complex state table construction |
+| Compile time | Short | Long (state expansion) |
+| First match | Fast (left to right) | Varies by pattern |
+| Representative implementations | Perl, Python, Java, JS | RE2, Rust regex, awk |
 
-### 3.5 NFA のバックトラック詳細
+### 3.5 NFA Backtracking in Detail
 
 ```
-パターン: a.*b
-テキスト: "axyzb123"
+Pattern: a.*b
+Text: "axyzb123"
 
-ステップ 1: 'a' → マッチ
-ステップ 2: '.*' → 貪欲に全文字を消費 "xyzb123"
-ステップ 3: 'b' → マッチ失敗(文字列末尾)
-ステップ 4: バックトラック → '.*' が "xyzb12" まで戻す
-ステップ 5: 'b' → '3' とマッチ失敗
-ステップ 6: バックトラック → '.*' が "xyzb1" まで戻す
-ステップ 7: 'b' → '2' とマッチ失敗
-ステップ 8: バックトラック → '.*' が "xyzb" まで戻す
-ステップ 9: 'b' → '1' とマッチ失敗
-ステップ 10: バックトラック → '.*' が "xyz" まで戻す
-ステップ 11: 'b' → 'b' とマッチ成功！
+Step 1: 'a' → match
+Step 2: '.*' → greedily consumes all characters "xyzb123"
+Step 3: 'b' → match failure (end of string)
+Step 4: backtrack → '.*' gives back to "xyzb12"
+Step 5: 'b' → no match with '3'
+Step 6: backtrack → '.*' gives back to "xyzb1"
+Step 7: 'b' → no match with '2'
+Step 8: backtrack → '.*' gives back to "xyzb"
+Step 9: 'b' → no match with '1'
+Step 10: backtrack → '.*' gives back to "xyz"
+Step 11: 'b' → matches 'b'!
 
-結果: "axyzb"
-バックトラック回数: 4回
+Result: "axyzb"
+Backtrack count: 4 times
 
-※ 非貪欲版 a.*?b なら:
-ステップ 1: 'a' → マッチ
-ステップ 2: '.*?' → 最小で0文字消費
-ステップ 3: 'b' → 'x' とマッチ失敗
-ステップ 4: '.*?' → 1文字消費 "x"
-ステップ 5: 'b' → 'y' とマッチ失敗
-ステップ 6: '.*?' → 2文字消費 "xy"
-ステップ 7: 'b' → 'z' とマッチ失敗
-ステップ 8: '.*?' → 3文字消費 "xyz"
-ステップ 9: 'b' → 'b' とマッチ成功！
+* Non-greedy version a.*?b:
+Step 1: 'a' → match
+Step 2: '.*?' → consumes minimum of 0 characters
+Step 3: 'b' → no match with 'x'
+Step 4: '.*?' → consumes 1 character "x"
+Step 5: 'b' → no match with 'y'
+Step 6: '.*?' → consumes 2 characters "xy"
+Step 7: 'b' → no match with 'z'
+Step 8: '.*?' → consumes 3 characters "xyz"
+Step 9: 'b' → matches 'b'!
 
-結果: "axyzb" (同じ結果だが到達経路が異なる)
+Result: "axyzb" (same result but different path taken)
 ```
 
-### 3.6 ハイブリッドアプローチ
+### 3.6 Hybrid Approach
 
 ```
 ┌─────────────────────────────────────────┐
-│         ハイブリッドエンジン              │
+│           Hybrid Engine                  │
 │                                         │
-│  パターン解析                             │
+│  Pattern Analysis                        │
 │      │                                   │
-│      ├── 後方参照なし → DFA で実行        │
+│      ├── No backreferences → Execute     │
+│      │   with DFA                        │
 │      │                                   │
-│      └── 後方参照あり → NFA にフォールバック│
+│      └── Has backreferences → Fall back  │
+│          to NFA                          │
 │                                         │
-│  例: .NET, Rust の fancy-regex           │
+│  Examples: .NET, Rust's fancy-regex      │
 └─────────────────────────────────────────┘
 ```
 
-### 3.7 各言語の正規表現エンジン一覧
+### 3.7 Regex Engine List by Language
 
-| 言語/ツール | エンジン種別 | ライブラリ | 特記事項 |
-|------------|-------------|-----------|---------|
-| Python | NFA | `re` (C実装) | `regex` モジュールで拡張可能 |
-| JavaScript | NFA | V8 Irregexp | JIT最適化あり |
-| Java | NFA | `java.util.regex` | 原子グループ非対応(Java 9+で一部対応) |
-| C# (.NET) | NFA | `System.Text.RegularExpressions` | バランシンググループ対応 |
-| Perl | NFA | 組み込み | 最も機能豊富なNFA実装 |
-| Ruby | NFA | Onigmo (鬼雲) | Unicode対応が充実 |
-| Go | DFA | `regexp` (RE2ベース) | 後方参照非対応 |
-| Rust | DFA | `regex` クレート | 線形時間保証 |
-| PHP | NFA | PCRE2 | `preg_*` 関数群 |
-| C/C++ | 両方 | PCRE2, RE2, std::regex | 選択可能 |
-| awk | DFA | 組み込み | ERE準拠 |
-| grep | 両方 | GNU grep | `-G` BRE, `-E` ERE, `-P` PCRE |
-| sed | NFA | 組み込み | BRE(デフォルト), ERE(`-E`) |
+| Language/Tool | Engine Type | Library | Notes |
+|--------------|-------------|---------|-------|
+| Python | NFA | `re` (C implementation) | Extensible via `regex` module |
+| JavaScript | NFA | V8 Irregexp | JIT-optimized |
+| Java | NFA | `java.util.regex` | No atomic groups (partial support in Java 9+) |
+| C# (.NET) | NFA | `System.Text.RegularExpressions` | Balancing groups supported |
+| Perl | NFA | Built-in | Most feature-rich NFA implementation |
+| Ruby | NFA | Onigmo | Comprehensive Unicode support |
+| Go | DFA | `regexp` (RE2-based) | No backreference support |
+| Rust | DFA | `regex` crate | Linear-time guarantee |
+| PHP | NFA | PCRE2 | `preg_*` function family |
+| C/C++ | Both | PCRE2, RE2, std::regex | Selectable |
+| awk | DFA | Built-in | ERE-compliant |
+| grep | Both | GNU grep | `-G` BRE, `-E` ERE, `-P` PCRE |
+| sed | NFA | Built-in | BRE (default), ERE (`-E`) |
 
-### 3.8 エンジンの選択フローチャート
+### 3.8 Engine Selection Flowchart
 
 ```
-パターンに後方参照が含まれるか？
+Does the pattern contain backreferences?
     │
-    ├── はい → NFA エンジンを使用
+    ├── Yes → Use an NFA engine
     │          │
-    │          ├── 信頼できない入力か？
+    │          ├── Is the input untrusted?
     │          │   │
-    │          │   ├── はい → タイムアウト設定必須
+    │          │   ├── Yes → Timeout setting is mandatory
     │          │   │          (.NET: MatchTimeout,
     │          │   │           Java: interrupt,
     │          │   │           Python: signal.alarm)
     │          │   │
-    │          │   └── いいえ → そのまま NFA を使用
+    │          │   └── No → Use NFA as-is
     │          │
-    │          └── パフォーマンスが問題か？
+    │          └── Is performance an issue?
     │              │
-    │              ├── はい → パターンの書き換えを検討
-    │              │          (原子グループ、独占的量指定子)
+    │              ├── Yes → Consider rewriting the pattern
+    │              │          (atomic groups, possessive quantifiers)
     │              │
-    │              └── いいえ → そのまま使用
+    │              └── No → Use as-is
     │
-    └── いいえ → DFA エンジンが利用可能か？
+    └── No → Is a DFA engine available?
                 │
-                ├── はい → DFA を使用 (RE2, Rust regex, Go regexp)
-                │          線形時間保証で安全
+                ├── Yes → Use DFA (RE2, Rust regex, Go regexp)
+                │          Linear-time guarantee for safety
                 │
-                └── いいえ → NFA で問題なし
-                             (ReDoS パターンを避ける)
+                └── No → NFA is fine
+                             (avoid ReDoS patterns)
 ```
 
 ---
 
-## 4. 正規表現の主要な用途
+## 4. Major Use Cases for Regular Expressions
 
-### 4.1 用途別コード例
+### 4.1 Code Examples by Use Case
 
 ```bash
-# 1. テキスト検索 (grep)
+# 1. Text search (grep)
 grep -E 'ERROR|WARN' /var/log/syslog
 
-# 2. テキスト置換 (sed)
+# 2. Text replacement (sed)
 sed 's/2025/2026/g' document.txt
 
-# 3. データ抽出 (Python)
+# 3. Data extraction (Python)
 python3 -c "
 import re
 log = '2026-02-11 10:30:45 [ERROR] Connection timeout (192.168.1.1)'
 m = re.search(r'(\d{4}-\d{2}-\d{2}) .* \[(\w+)\] (.+)', log)
-print(f'日付: {m.group(1)}, レベル: {m.group(2)}, メッセージ: {m.group(3)}')
+print(f'Date: {m.group(1)}, Level: {m.group(2)}, Message: {m.group(3)}')
 "
 
-# 4. 入力検証 (JavaScript)
+# 4. Input validation (JavaScript)
 node -e "
 const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 console.log(emailPattern.test('user@example.com'));  // true
 console.log(emailPattern.test('invalid@'));           // false
 "
 
-# 5. 構文ハイライト -- エディタがキーワードを着色する仕組み
-# パターン例: \b(if|else|for|while|return)\b → キーワードとして着色
+# 5. Syntax highlighting -- How editors colorize keywords
+# Pattern example: \b(if|else|for|while|return)\b → colored as keywords
 
-# 6. ファイル名マッチング (find + grep)
+# 6. Filename matching (find + grep)
 find /var/log -name "*.log" -exec grep -l 'CRITICAL' {} \;
 
-# 7. CSV データの変換 (awk)
+# 7. CSV data transformation (awk)
 awk -F',' '/^2026/ {print $1, $3}' data.csv
 
-# 8. コード内の TODO コメント抽出
+# 8. Extract TODO comments from code
 grep -rn 'TODO\|FIXME\|HACK\|XXX' --include='*.py' src/
 ```
 
-### 4.2 ログ解析の実践例
+### 4.2 Practical Log Analysis Example
 
 ```python
 import re
 from collections import Counter, defaultdict
 from datetime import datetime
 
-# Apache アクセスログの解析
+# Apache access log analysis
 log_pattern = re.compile(
-    r'(?P<ip>\d+\.\d+\.\d+\.\d+)'       # IPアドレス
+    r'(?P<ip>\d+\.\d+\.\d+\.\d+)'       # IP address
     r' - - '
-    r'\[(?P<timestamp>[^\]]+)\]'           # タイムスタンプ
-    r' "(?P<method>\w+)'                   # HTTPメソッド
-    r' (?P<path>[^\s]+)'                   # リクエストパス
-    r' HTTP/[\d.]+"'                       # HTTPバージョン
-    r' (?P<status>\d{3})'                  # ステータスコード
-    r' (?P<size>\d+|-)'                    # レスポンスサイズ
-    r'(?: "(?P<referer>[^"]*)")?'          # リファラー(オプション)
-    r'(?: "(?P<useragent>[^"]*)")?'        # ユーザーエージェント(オプション)
+    r'\[(?P<timestamp>[^\]]+)\]'           # Timestamp
+    r' "(?P<method>\w+)'                   # HTTP method
+    r' (?P<path>[^\s]+)'                   # Request path
+    r' HTTP/[\d.]+"'                       # HTTP version
+    r' (?P<status>\d{3})'                  # Status code
+    r' (?P<size>\d+|-)'                    # Response size
+    r'(?: "(?P<referer>[^"]*)")?'          # Referer (optional)
+    r'(?: "(?P<useragent>[^"]*)")?'        # User agent (optional)
 )
 
 def analyze_access_log(log_file: str):
-    """アクセスログを解析して統計情報を出力"""
+    """Analyze access log and output statistical information"""
     status_counter = Counter()
     path_counter = Counter()
     ip_counter = Counter()
@@ -602,7 +608,7 @@ def analyze_access_log(log_file: str):
             path_counter[path] += 1
             ip_counter[ip] += 1
 
-            # 時間帯別集計
+            # Hourly aggregation
             try:
                 dt = datetime.strptime(
                     data['timestamp'],
@@ -612,7 +618,7 @@ def analyze_access_log(log_file: str):
             except ValueError:
                 pass
 
-            # エラーログの収集
+            # Collect error logs
             if status >= 400:
                 error_logs.append({
                     'ip': ip,
@@ -632,91 +638,91 @@ def analyze_access_log(log_file: str):
     }
 ```
 
-### 4.3 データクレンジングの実践例
+### 4.3 Practical Data Cleansing Example
 
 ```python
 import re
 
 def clean_text(text: str) -> str:
-    """テキストデータのクレンジング"""
-    # 連続する空白を1つに統一
+    """Text data cleansing"""
+    # Normalize consecutive whitespace to a single space
     text = re.sub(r'\s+', ' ', text)
 
-    # 全角英数字を半角に変換
+    # Convert full-width alphanumeric characters to half-width
     text = re.sub(r'[Ａ-Ｚａ-ｚ０-９]',
                   lambda m: chr(ord(m.group()) - 0xFEE0), text)
 
-    # HTMLタグの除去
+    # Remove HTML tags
     text = re.sub(r'<[^>]+>', '', text)
 
-    # 制御文字の除去（改行・タブは保持）
+    # Remove control characters (preserve newlines and tabs)
     text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', text)
 
-    # 先頭・末尾の空白を除去
+    # Strip leading and trailing whitespace
     text = text.strip()
 
     return text
 
 def normalize_phone_number(phone: str) -> str:
-    """電話番号の正規化"""
-    # 数字以外を除去
+    """Phone number normalization"""
+    # Remove non-digit characters
     digits = re.sub(r'\D', '', phone)
 
-    # 国際電話番号の処理
+    # Handle international phone numbers
     if digits.startswith('81') and len(digits) >= 11:
         digits = '0' + digits[2:]
 
-    # フォーマット(固定電話)
+    # Format (landline)
     if len(digits) == 10:
         m = re.match(r'(\d{2,4})(\d{2,4})(\d{4})', digits)
         if m:
             return f'{m.group(1)}-{m.group(2)}-{m.group(3)}'
 
-    # フォーマット(携帯電話)
+    # Format (mobile)
     if len(digits) == 11:
         m = re.match(r'(\d{3})(\d{4})(\d{4})', digits)
         if m:
             return f'{m.group(1)}-{m.group(2)}-{m.group(3)}'
 
-    return phone  # 変換不能な場合はそのまま返す
+    return phone  # Return as-is if conversion is not possible
 
 def extract_urls(text: str) -> list:
-    """テキストからURLを抽出"""
+    """Extract URLs from text"""
     url_pattern = re.compile(
-        r'https?://'                    # スキーム
-        r'(?:[a-zA-Z0-9]'              # ドメインの先頭文字
-        r'(?:[a-zA-Z0-9-]{0,61}'       # ドメイン名本体
-        r'[a-zA-Z0-9])?\.)'            # ドメインの末尾
+        r'https?://'                    # Scheme
+        r'(?:[a-zA-Z0-9]'              # First character of domain
+        r'(?:[a-zA-Z0-9-]{0,61}'       # Domain name body
+        r'[a-zA-Z0-9])?\.)'            # End of domain
         r'+[a-zA-Z]{2,}'               # TLD
-        r'(?::\d{1,5})?'               # ポート(オプション)
-        r'(?:/[^\s]*)?'                # パス(オプション)
+        r'(?::\d{1,5})?'               # Port (optional)
+        r'(?:/[^\s]*)?'                # Path (optional)
     )
     return url_pattern.findall(text)
 
 def mask_personal_info(text: str) -> str:
-    """個人情報のマスキング"""
-    # メールアドレス
+    """Mask personal information"""
+    # Email addresses
     text = re.sub(
         r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}',
         '***@***.***',
         text
     )
 
-    # 電話番号(日本)
+    # Phone numbers (Japan)
     text = re.sub(
         r'0\d{1,4}[-\s]?\d{1,4}[-\s]?\d{4}',
         '***-****-****',
         text
     )
 
-    # クレジットカード番号
+    # Credit card numbers
     text = re.sub(
         r'\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b',
         '****-****-****-****',
         text
     )
 
-    # マイナンバー（12桁の数字）
+    # My Number (Japanese 12-digit identification number)
     text = re.sub(
         r'\b\d{4}[-\s]?\d{4}[-\s]?\d{4}\b',
         '****-****-****',
@@ -726,45 +732,45 @@ def mask_personal_info(text: str) -> str:
     return text
 ```
 
-### 4.4 適用領域マップ
+### 4.4 Application Domain Map
 
-| 領域 | 代表的な使い方 | 推奨度 | 備考 |
-|------|---------------|--------|------|
-| ログ解析 | エラーパターン抽出、集計 | 最適 | 構造化されたログには特に有効 |
-| 入力バリデーション | メール、電話番号、郵便番号 | 適切 | ただし過信は禁物、二段階検証を推奨 |
-| テキストエディタ | 検索・置換 | 最適 | IDE での一括置換に不可欠 |
-| Web スクレイピング | HTML からの情報抽出 | 注意 | HTMLパーサー推奨、正規表現は補助的に |
-| コンパイラ/字句解析 | トークン分割 | 適切 | lexer生成器と併用 |
-| 自然言語処理 | 形態素解析の前処理 | 限定的 | 専用ライブラリとの組み合わせ |
-| データ移行 | フォーマット変換 | 適切 | CSV, TSV の列操作等 |
-| セキュリティ | WAF のルール定義 | 注意 | ReDoS リスクの考慮が必要 |
-| バイナリ解析 | パターン検出 | 不適切 | バイナリ専用ツールを使用 |
-| 設定ファイル | テンプレート展開 | 限定的 | 専用テンプレートエンジンを推奨 |
+| Domain | Typical Usage | Recommendation | Notes |
+|--------|--------------|----------------|-------|
+| Log analysis | Error pattern extraction, aggregation | Optimal | Especially effective for structured logs |
+| Input validation | Email, phone numbers, postal codes | Suitable | Don't over-rely; two-stage verification recommended |
+| Text editors | Search and replace | Optimal | Essential for bulk replacement in IDEs |
+| Web scraping | Information extraction from HTML | Caution | HTML parser recommended; regex as supplementary |
+| Compilers/lexical analysis | Token splitting | Suitable | Used with lexer generators |
+| Natural language processing | Preprocessing for morphological analysis | Limited | Combine with dedicated libraries |
+| Data migration | Format conversion | Suitable | CSV, TSV column operations, etc. |
+| Security | WAF rule definitions | Caution | Must consider ReDoS risk |
+| Binary analysis | Pattern detection | Unsuitable | Use dedicated binary tools |
+| Configuration files | Template expansion | Limited | Dedicated template engines recommended |
 
-### 4.5 テキスト処理パイプラインにおける正規表現
+### 4.5 Regular Expressions in Text Processing Pipelines
 
 ```bash
-# Unix パイプラインでの正規表現活用例
+# Regex usage in Unix pipelines
 
-# 例1: アクセスログからエラーレスポンスのIPアドレスを集計
+# Example 1: Aggregate IP addresses from error responses in access logs
 cat access.log \
   | grep -E '" [45]\d{2} ' \
   | awk '{print $1}' \
   | sort | uniq -c | sort -rn \
   | head -20
 
-# 例2: ソースコードから関数定義を抽出
+# Example 2: Extract function definitions from source code
 grep -rn 'def \w\+(' --include='*.py' src/ \
   | sed 's/.*def \(\w\+\)(.*/\1/' \
   | sort | uniq -c | sort -rn
 
-# 例3: JSON ログからエラーメッセージを抽出
+# Example 3: Extract error messages from JSON logs
 cat app.log \
   | grep -oP '"error":\s*"[^"]*"' \
   | sed 's/"error":\s*"\(.*\)"/\1/' \
   | sort | uniq -c | sort -rn
 
-# 例4: Git ログからチケット番号を抽出
+# Example 4: Extract ticket numbers from Git log
 git log --oneline \
   | grep -oE '[A-Z]+-[0-9]+' \
   | sort | uniq -c | sort -rn
@@ -772,154 +778,154 @@ git log --oneline \
 
 ---
 
-## 5. 正規表現の限界
+## 5. Limitations of Regular Expressions
 
-### 5.1 正規表現で表現できないもの
+### 5.1 What Regular Expressions Cannot Express
 
 ```
-チョムスキー階層:
+Chomsky Hierarchy:
 ┌─────────────────────────────────────┐
-│ タイプ0: 帰納的可算言語              │
+│ Type 0: Recursively Enumerable     │
 │  ┌──────────────────────────────┐   │
-│  │ タイプ1: 文脈依存言語         │   │
+│  │ Type 1: Context-Sensitive    │   │
 │  │  ┌───────────────────────┐   │   │
-│  │  │ タイプ2: 文脈自由言語  │   │   │
+│  │  │ Type 2: Context-Free  │   │   │
 │  │  │  ┌────────────────┐   │   │   │
-│  │  │  │ タイプ3: 正則言語│   │   │   │
-│  │  │  │ (正規表現)      │   │   │   │
+│  │  │  │ Type 3: Regular │   │   │   │
+│  │  │  │ (Regex)         │   │   │   │
 │  │  │  └────────────────┘   │   │   │
-│  │  │  例: HTML, JSON,      │   │   │
-│  │  │      プログラミング言語│   │   │
+│  │  │  e.g.: HTML, JSON,    │   │   │
+│  │  │  programming languages│   │   │
 │  │  └───────────────────────┘   │   │
 │  └──────────────────────────────┘   │
 └─────────────────────────────────────┘
 
-正規表現（タイプ3）では、ネストした括弧の
-対応関係を数えることができない。
-例: ((())), {{{}}}, <div><div></div></div>
+Regular expressions (Type 3) cannot count
+matching pairs of nested parentheses.
+Examples: ((())), {{{}}}, <div><div></div></div>
 ```
 
-### 5.2 理論的限界の具体例
+### 5.2 Concrete Examples of Theoretical Limitations
 
 ```python
-# 正規表現では原理的に扱えないパターン
+# Patterns that regular expressions fundamentally cannot handle
 
-# 1. ネストした括弧の対応
-#    a^n b^n (n個のaの後にn個のb) は正則言語ではない
-#    例: ab, aabb, aaabbb は受理、aab, abbb は拒否
-#    → 正規表現では記述不可能
+# 1. Matching nested parentheses
+#    a^n b^n (n 'a's followed by n 'b's) is not a regular language
+#    Example: ab, aabb, aaabbb are accepted; aab, abbb are rejected
+#    → Cannot be expressed with regular expressions
 
-# 2. 回文の認識
-#    例: "abcba", "racecar"
-#    → 正規表現では記述不可能
+# 2. Palindrome recognition
+#    Example: "abcba", "racecar"
+#    → Cannot be expressed with regular expressions
 
-# 3. 素数長の文字列
-#    長さが素数の文字列だけにマッチ
-#    → 正規表現では記述不可能
+# 3. Strings of prime length
+#    Match only strings whose length is a prime number
+#    → Cannot be expressed with regular expressions
 
-# ただし、実用的な「正規表現」(PCRE等)は
-# 理論的な正則言語を超える機能を持つ:
+# However, practical "regular expressions" (PCRE, etc.)
+# have features that exceed theoretical regular languages:
 
 import re
 
-# .NET のバランシンググループを使えば
-# ネストした括弧のマッチが可能（理論的にはCFGの領域）
+# .NET's balancing groups can match nested parentheses
+# (theoretically in the domain of CFGs)
 # (?<open>\()  (?<close-open>\))
 
-# Perl/PCRE の再帰パターンでも可能
+# Perl/PCRE recursive patterns can also do this
 # \((?:[^()]*|(?R))*\)
 ```
 
-### 5.3 実用上の限界
+### 5.3 Practical Limitations
 
 ```python
-# 正規表現が適さないケース
+# Cases where regular expressions are not suitable
 
-# 1. 複雑な文法の解析
-# NG: JSON を正規表現でパース
+# 1. Parsing complex grammars
+# BAD: Parsing JSON with regex
 json_text = '{"name": "John", "address": {"city": "Tokyo"}}'
-# → JSON パーサーを使うべき
+# → Use a JSON parser instead
 
-# 2. マルチバイト文字の高度な処理
-# NG: 漢字の読み仮名を正規表現で推測
-# → 形態素解析器(MeCab, Janome等)を使うべき
+# 2. Advanced multibyte character processing
+# BAD: Guessing kanji readings with regex
+# → Use a morphological analyzer (MeCab, Janome, etc.) instead
 
-# 3. 文脈依存の解析
-# NG: Pythonのインデントベースのブロック構造
-# → パーサー(AST)を使うべき
+# 3. Context-dependent parsing
+# BAD: Python's indent-based block structure
+# → Use a parser (AST) instead
 
-# 4. 大規模テキストの構造解析
-# NG: 数百MBのXMLファイルを正規表現で処理
-# → SAXパーサー等のストリーミング処理を使うべき
+# 4. Structural analysis of large-scale text
+# BAD: Processing hundreds of MB of XML files with regex
+# → Use streaming processing with a SAX parser, etc.
 
-# 5. 自然言語の意味解析
-# NG: 文の主語と述語を正規表現で抽出
-# → NLP ライブラリ(spaCy, GiNZA等)を使うべき
+# 5. Semantic analysis of natural language
+# BAD: Extracting subject and predicate from sentences with regex
+# → Use NLP libraries (spaCy, GiNZA, etc.) instead
 ```
 
 ---
 
-## 6. アンチパターン
+## 6. Anti-patterns
 
-### 6.1 アンチパターン: HTML を正規表現でパースする
+### 6.1 Anti-pattern: Parsing HTML with Regular Expressions
 
 ```python
-# NG: HTML を正規表現で処理しようとする
+# BAD: Attempting to process HTML with regular expressions
 import re
 
 html = '<div class="outer"><div class="inner">text</div></div>'
 
-# このパターンはネストした div を正しく処理できない
+# This pattern cannot correctly handle nested divs
 pattern = r'<div[^>]*>(.*?)</div>'
 result = re.findall(pattern, html)
-print(result)  # => ['<div class="inner">text']  -- 不正確
+print(result)  # => ['<div class="inner">text']  -- inaccurate
 
-# OK: HTML パーサーを使う
+# GOOD: Use an HTML parser
 from html.parser import HTMLParser
-# または Beautiful Soup, lxml 等を使用する
+# Or use Beautiful Soup, lxml, etc.
 ```
 
-**理由**: HTML は文脈自由言語であり、正規表現(正則言語)の表現力を超える。ネストした要素の対応を正しく追跡できない。
+**Reason**: HTML is a context-free language, which exceeds the expressive power of regular expressions (regular languages). It cannot correctly track the correspondence of nested elements.
 
-### 6.2 アンチパターン: 万能バリデーションパターン
+### 6.2 Anti-pattern: All-encompassing Validation Patterns
 
 ```python
-# NG: RFC 5322 完全準拠のメールアドレスパターン（実際に存在する）
-# 数千文字に及ぶ正規表現 → 保守不能、デバッグ不能
+# BAD: RFC 5322 fully compliant email address pattern (this actually exists)
+# A regex spanning thousands of characters → unmaintainable, undebuggable
 
 email_pattern_bad = r"""(?:[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*|"(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21\x23-\x5b\x5d-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])*")@..."""
-# (省略 -- 実際は数百文字以上)
+# (truncated -- actually hundreds of characters or more)
 
-# OK: 実用的なバリデーション + 確認メール送信
+# GOOD: Practical validation + confirmation email
 import re
 
 def validate_email(email: str) -> bool:
-    """実用的なメール検証 -- 形式チェック + 確認メール"""
-    # 基本形式のみチェック
+    """Practical email validation -- format check + confirmation email"""
+    # Check basic format only
     if not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email):
         return False
-    # 本当の検証は確認メールを送信して行う
+    # The real validation is done by sending a confirmation email
     return True
 ```
 
-**理由**: 完璧な正規表現を書くより、シンプルなパターン + 別の検証手段を組み合わせるほうが保守性・信頼性ともに高い。
+**Reason**: Combining a simple pattern with a separate validation method is more maintainable and reliable than trying to write a perfect regex.
 
-### 6.3 アンチパターン: ReDoS 脆弱パターン
+### 6.3 Anti-pattern: ReDoS-Vulnerable Patterns
 
 ```python
-# NG: 壊滅的バックトラック(Catastrophic Backtracking)を引き起こすパターン
+# BAD: Patterns that cause Catastrophic Backtracking
 import re
 import time
 
-# 危険なパターンの例
+# Examples of dangerous patterns
 dangerous_patterns = [
-    r'(a+)+$',           # ネストした量指定子
-    r'(a|a)+$',          # 重複する選択肢
-    r'(a+b?)+$',         # 組み合わせ爆発
-    r'([a-zA-Z]+)*$',    # ネストした量指定子（文字クラス版）
+    r'(a+)+$',           # Nested quantifiers
+    r'(a|a)+$',          # Overlapping alternatives
+    r'(a+b?)+$',         # Combinatorial explosion
+    r'([a-zA-Z]+)*$',    # Nested quantifiers (character class version)
 ]
 
-# 攻撃文字列: 大量の 'a' の後に不一致文字
+# Attack string: many 'a's followed by a non-matching character
 evil_input = 'a' * 30 + '!'
 
 for pattern in dangerous_patterns:
@@ -930,27 +936,27 @@ for pattern in dangerous_patterns:
         pass
     elapsed = time.time() - start
     print(f'Pattern: {pattern:30s} Time: {elapsed:.3f}s')
-    # パターンによっては数秒〜数十秒かかる
+    # Some patterns may take seconds to tens of seconds
 
-# OK: ReDoS に強いパターンの書き方
+# GOOD: Writing ReDoS-resistant patterns
 safe_patterns = [
-    r'a+$',              # ネストを避ける
-    r'(?:a+)+$',         # 非キャプチャでも危険は同じ → a+$ に書き換え
-    r'[a-zA-Z]+$',       # ネストを避ける
+    r'a+$',              # Avoid nesting
+    r'(?:a+)+$',         # Non-capturing is equally dangerous → rewrite to a+$
+    r'[a-zA-Z]+$',       # Avoid nesting
 ]
 
-# OK: タイムアウト付きマッチング (Python 3.11+)
+# GOOD: Matching with timeout (Python 3.11+)
 # import signal
-# signal.alarm(1)  # 1秒タイムアウト
+# signal.alarm(1)  # 1-second timeout
 ```
 
-### 6.4 アンチパターン: 可読性の低いパターン
+### 6.4 Anti-pattern: Low-Readability Patterns
 
 ```python
-# NG: 一行に詰め込まれた長大なパターン
+# BAD: A long pattern crammed into a single line
 pattern_bad = r'^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$'
 
-# OK: verbose モードで可読性を確保
+# GOOD: Using verbose mode for readability
 import re
 
 pattern_good = re.compile(r'''
@@ -961,8 +967,8 @@ pattern_good = re.compile(r'''
             | 2[0-4][0-9]     # 200-249
             | [01]?[0-9][0-9]? # 0-199
         )
-        \.                     # ドット区切り
-    ){3}                       # 最初の3オクテット
+        \.                     # Dot separator
+    ){3}                       # First three octets
     (?:
         25[0-5]               # 250-255
         | 2[0-4][0-9]         # 200-249
@@ -971,76 +977,76 @@ pattern_good = re.compile(r'''
     $
 ''', re.VERBOSE)
 
-# テスト
+# Tests
 assert pattern_good.match('192.168.1.1')
 assert pattern_good.match('255.255.255.255')
 assert not pattern_good.match('256.1.1.1')
 assert not pattern_good.match('1.2.3.4.5')
 ```
 
-### 6.5 アンチパターン: パフォーマンスを考慮しないコンパイル
+### 6.5 Anti-pattern: Compilation Without Performance Consideration
 
 ```python
 import re
 
-# NG: ループ内で毎回コンパイル
+# BAD: Compiling on every iteration in a loop
 def search_bad(lines, pattern_str):
     results = []
     for line in lines:
-        if re.search(pattern_str, line):  # 毎回コンパイル
+        if re.search(pattern_str, line):  # Compiles every time
             results.append(line)
     return results
 
-# OK: 事前にコンパイル
+# GOOD: Pre-compile the pattern
 def search_good(lines, pattern_str):
-    pattern = re.compile(pattern_str)  # 1回だけコンパイル
+    pattern = re.compile(pattern_str)  # Compile only once
     results = []
     for line in lines:
-        if pattern.search(line):       # コンパイル済みオブジェクトを再利用
+        if pattern.search(line):       # Reuse compiled object
             results.append(line)
     return results
 
-# OK: さらに良い方法（リスト内包表記）
+# GOOD: An even better approach (list comprehension)
 def search_best(lines, pattern_str):
     pattern = re.compile(pattern_str)
     return [line for line in lines if pattern.search(line)]
 
-# ※ Python の re モジュールは内部的にパターンキャッシュ（最大512個）を
-#    持っているため、少数のパターンなら re.search() でも問題ないが、
-#    明示的なコンパイルが推奨される
+# Note: Python's re module has an internal pattern cache (up to 512 entries),
+#    so re.search() is fine for a small number of patterns,
+#    but explicit compilation is recommended
 ```
 
 ---
 
-## 7. 正規表現のデバッグとテスト
+## 7. Debugging and Testing Regular Expressions
 
-### 7.1 段階的なパターン構築
+### 7.1 Incremental Pattern Construction
 
 ```python
 import re
 
-# 複雑なパターンは段階的に構築する
+# Build complex patterns incrementally
 
-# 目標: Apache ログの解析パターン
-# サンプル: 192.168.1.1 - - [10/Feb/2026:13:55:36 +0900] "GET /index.html HTTP/1.1" 200 2326
+# Goal: Pattern for analyzing Apache logs
+# Sample: 192.168.1.1 - - [10/Feb/2026:13:55:36 +0900] "GET /index.html HTTP/1.1" 200 2326
 
-# ステップ 1: IPアドレス部分
+# Step 1: IP address portion
 step1 = r'\d+\.\d+\.\d+\.\d+'
 assert re.search(step1, '192.168.1.1')
 
-# ステップ 2: タイムスタンプ部分
+# Step 2: Timestamp portion
 step2 = r'\[([^\]]+)\]'
 assert re.search(step2, '[10/Feb/2026:13:55:36 +0900]')
 
-# ステップ 3: リクエスト行
+# Step 3: Request line
 step3 = r'"(\w+) ([^\s]+) HTTP/[\d.]+"'
 assert re.search(step3, '"GET /index.html HTTP/1.1"')
 
-# ステップ 4: ステータスコードとサイズ
+# Step 4: Status code and size
 step4 = r'(\d{3}) (\d+|-)'
 assert re.search(step4, '200 2326')
 
-# ステップ 5: 全体を結合
+# Step 5: Combine everything
 full_pattern = re.compile(
     rf'({step1})'     # IP
     r' - - '          # ident, auth
@@ -1062,43 +1068,43 @@ print(f'Status: {m.group(5)}')
 print(f'Size: {m.group(6)}')
 ```
 
-### 7.2 テスト駆動での正規表現開発
+### 7.2 Test-Driven Regex Development
 
 ```python
 import re
 import pytest
 
 class TestPhoneNumberPattern:
-    """電話番号パターンのテスト"""
+    """Tests for phone number pattern"""
 
     pattern = re.compile(r'^0\d{1,4}-\d{1,4}-\d{4}$')
 
-    # 正常系: マッチすべきもの
+    # Positive cases: should match
     @pytest.mark.parametrize("phone", [
-        "03-1234-5678",       # 東京
-        "06-1234-5678",       # 大阪
-        "090-1234-5678",      # 携帯
-        "080-1234-5678",      # 携帯
-        "0120-123-4567",      # フリーダイヤル
-        "0466-12-3456",       # 市外局番4桁
+        "03-1234-5678",       # Tokyo
+        "06-1234-5678",       # Osaka
+        "090-1234-5678",      # Mobile
+        "080-1234-5678",      # Mobile
+        "0120-123-4567",      # Toll-free
+        "0466-12-3456",       # 4-digit area code
     ])
     def test_valid_phones(self, phone):
         assert self.pattern.match(phone), f"{phone} should match"
 
-    # 異常系: マッチすべきでないもの
+    # Negative cases: should not match
     @pytest.mark.parametrize("phone", [
-        "1234-5678",          # 先頭が0でない
-        "03-1234-567",        # 加入者番号が3桁
-        "03-1234-56789",      # 加入者番号が5桁
-        "abc-defg-hijk",      # 数字でない
-        "",                   # 空文字列
-        "03 1234 5678",       # ハイフンでなくスペース
+        "1234-5678",          # Does not start with 0
+        "03-1234-567",        # Subscriber number is 3 digits
+        "03-1234-56789",      # Subscriber number is 5 digits
+        "abc-defg-hijk",      # Not digits
+        "",                   # Empty string
+        "03 1234 5678",       # Spaces instead of hyphens
     ])
     def test_invalid_phones(self, phone):
         assert not self.pattern.match(phone), f"{phone} should not match"
 
 class TestEmailPattern:
-    """メールアドレスパターンのテスト"""
+    """Tests for email address pattern"""
 
     pattern = re.compile(
         r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
@@ -1125,15 +1131,15 @@ class TestEmailPattern:
         assert not self.pattern.match(email)
 ```
 
-### 7.3 デバッグツールの活用
+### 7.3 Using Debugging Tools
 
 ```python
-# Python の re.DEBUG フラグでパターンの内部構造を確認
+# Use Python's re.DEBUG flag to inspect the internal structure of patterns
 import re
 
-# パターンの解析結果を表示
+# Display the parse result of a pattern
 re.compile(r'\d{3}-\d{4}', re.DEBUG)
-# 出力:
+# Output:
 # MAX_REPEAT 3 3
 #   IN
 #     CATEGORY CATEGORY_DIGIT
@@ -1142,13 +1148,13 @@ re.compile(r'\d{3}-\d{4}', re.DEBUG)
 #   IN
 #     CATEGORY CATEGORY_DIGIT
 
-# verbose モードでコメント付きパターン
+# Verbose mode with commented patterns
 pattern = re.compile(r"""
-    (?P<year>\d{4})     # 年: 4桁の数字
-    [-/]                # 区切り: ハイフンまたはスラッシュ
-    (?P<month>\d{2})    # 月: 2桁の数字
-    [-/]                # 区切り
-    (?P<day>\d{2})      # 日: 2桁の数字
+    (?P<year>\d{4})     # Year: 4-digit number
+    [-/]                # Separator: hyphen or slash
+    (?P<month>\d{2})    # Month: 2-digit number
+    [-/]                # Separator
+    (?P<day>\d{2})      # Day: 2-digit number
 """, re.VERBOSE)
 
 result = pattern.match('2026-02-15')
@@ -1159,51 +1165,51 @@ if result:
 
 ---
 
-## 8. 正規表現のベストプラクティス
+## 8. Regular Expression Best Practices
 
-### 8.1 設計原則
+### 8.1 Design Principles
 
 ```
-正規表現の設計原則:
+Design principles for regular expressions:
 
-1. KISS原則 (Keep It Simple, Stupid)
-   - 必要最小限のパターンを書く
-   - 完璧を目指さず、80%カバーでOKとする
-   - 残り20%は別のロジックで処理
+1. KISS Principle (Keep It Simple, Stupid)
+   - Write the minimum necessary pattern
+   - Aim for 80% coverage instead of perfection
+   - Handle the remaining 20% with other logic
 
-2. 段階的精緻化
-   - 簡単なパターンから始めて段階的に精度を上げる
-   - 各段階でテストを追加する
+2. Incremental Refinement
+   - Start with a simple pattern and gradually increase precision
+   - Add tests at each stage
 
-3. コメント必須
-   - 10文字を超えるパターンにはコメントを付ける
-   - verbose モードの活用を推奨
+3. Comments Are Mandatory
+   - Add comments to patterns longer than 10 characters
+   - Verbose mode is recommended
 
-4. パフォーマンス考慮
-   - 事前コンパイルを基本とする
-   - ReDoS パターンを避ける
-   - アンカーの活用で検索範囲を限定
+4. Performance Consideration
+   - Pre-compilation is the baseline
+   - Avoid ReDoS patterns
+   - Use anchors to limit search scope
 
-5. テスト駆動
-   - 正常系・異常系・境界値のテストを書く
-   - エッジケースを明示的にカバーする
+5. Test-Driven
+   - Write tests for positive cases, negative cases, and boundary values
+   - Explicitly cover edge cases
 ```
 
-### 8.2 命名規則
+### 8.2 Naming Conventions
 
 ```python
-# パターンの命名に一貫性を持たせる
+# Maintain consistency in pattern naming
 
-# 検証パターン: is_* または validate_*
+# Validation patterns: is_* or validate_*
 PATTERN_IS_EMAIL = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 PATTERN_IS_URL = re.compile(r'^https?://[^\s]+$')
 PATTERN_IS_IPV4 = re.compile(r'^\d{1,3}(\.\d{1,3}){3}$')
 
-# 抽出パターン: extract_* または parse_*
+# Extraction patterns: extract_* or parse_*
 PATTERN_EXTRACT_DATE = re.compile(r'(\d{4})-(\d{2})-(\d{2})')
 PATTERN_EXTRACT_IP = re.compile(r'\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b')
 
-# 置換パターン: replace_* または clean_*
+# Replacement patterns: replace_* or clean_*
 PATTERN_CLEAN_WHITESPACE = re.compile(r'\s+')
 PATTERN_CLEAN_HTML_TAGS = re.compile(r'<[^>]+>')
 ```
@@ -1211,45 +1217,45 @@ PATTERN_CLEAN_HTML_TAGS = re.compile(r'<[^>]+>')
 
 ---
 
-## 実践演習
+## Hands-on Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that satisfies the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate input data
+- Implement appropriate error handling
+- Create test code as well
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Basic implementation template
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Exercise for basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main processing logic"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Retrieve processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1258,26 +1264,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "An exception should have been raised"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation by adding the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Advanced patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Exercise for advanced patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1285,7 +1291,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1296,14 +1302,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Remove by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1311,7 +1317,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistical information"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1319,44 +1325,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # Size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1365,7 +1371,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1380,47 +1386,47 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient: {slow_time:.4f}s")
+    print(f"Efficient:   {fast_time:.6f}s")
+    print(f"Speedup:     {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key Points:**
+- Be mindful of algorithmic complexity
+- Choose appropriate data structures
+- Measure the effect with benchmarks
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
-|--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Error | Cause | Solution |
+|-------|-------|----------|
+| Initialization error | Configuration file issues | Verify configuration file path and format |
+| Timeout | Network latency / resource shortage | Adjust timeout values, add retry logic |
+| Out of memory | Data volume growth | Introduce batch processing, implement pagination |
+| Permission error | Insufficient access permissions | Verify executing user's permissions, review settings |
+| Data inconsistency | Concurrent processing conflicts | Introduce locking mechanisms, transaction management |
 
-### デバッグの手順
+### Debugging Procedure
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check error messages**: Read the stack trace and identify the location of occurrence
+2. **Establish reproduction steps**: Reproduce the error with minimal code
+3. **Formulate hypotheses**: List possible causes
+4. **Verify incrementally**: Use log output and debuggers to test hypotheses
+5. **Fix and regression test**: After fixing, also run tests on related areas
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utility
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -1428,102 +1434,103 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs function input/output"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Called: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return value: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception occurred: {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debug target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Issues
 
-パフォーマンス問題が発生した場合の診断手順:
+Diagnostic procedure when performance problems occur:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify bottlenecks**: Measure with profiling tools
+2. **Check memory usage**: Check for memory leaks
+3. **Check I/O waits**: Examine disk and network I/O conditions
+4. **Check concurrent connections**: Examine connection pool status
 
-| 問題の種類 | 診断ツール | 対策 |
-|-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| Problem Type | Diagnostic Tools | Countermeasures |
+|-------------|-----------------|-----------------|
+| CPU load | cProfile, py-spy | Algorithm improvement, parallelization |
+| Memory leak | tracemalloc, objgraph | Proper release of references |
+| I/O bottleneck | strace, iostat | Asynchronous I/O, caching |
+| DB latency | EXPLAIN, slow query log | Indexing, query optimization |
 
 ---
 
-## 設計判断ガイド
+## Design Decision Guide
 
-### 選択基準マトリクス
+### Selection Criteria Matrix
 
-技術選択を行う際の判断基準を以下にまとめます。
+The following summarizes the criteria for making technology choices.
 
-| 判断基準 | 重視する場合 | 妥協できる場合 |
-|---------|------------|-------------|
-| パフォーマンス | リアルタイム処理、大規模データ | 管理画面、バッチ処理 |
-| 保守性 | 長期運用、チーム開発 | プロトタイプ、短期プロジェクト |
-| スケーラビリティ | 成長が見込まれるサービス | 社内ツール、固定ユーザー |
-| セキュリティ | 個人情報、金融データ | 公開データ、社内利用 |
-| 開発速度 | MVP、市場投入スピード | 品質重視、ミッションクリティカル |
+| Criterion | Prioritize When | Acceptable to Compromise When |
+|-----------|----------------|------------------------------|
+| Performance | Real-time processing, large-scale data | Admin panels, batch processing |
+| Maintainability | Long-term operation, team development | Prototypes, short-term projects |
+| Scalability | Services expected to grow | Internal tools, fixed user base |
+| Security | Personal information, financial data | Public data, internal use |
+| Development speed | MVP, time-to-market | Quality-focused, mission-critical |
 
-### アーキテクチャパターンの選択
+### Architecture Pattern Selection
 
 ```
 ┌─────────────────────────────────────────────────┐
-│              アーキテクチャ選択フロー              │
+│          Architecture Selection Flow              │
 ├─────────────────────────────────────────────────┤
 │                                                 │
-│  ① チーム規模は？                                │
-│    ├─ 小規模（1-5人）→ モノリス                   │
-│    └─ 大規模（10人+）→ ②へ                       │
+│  (1) Team size?                                  │
+│    ├─ Small (1-5 people) → Monolith              │
+│    └─ Large (10+ people) → Go to (2)             │
 │                                                 │
-│  ② デプロイ頻度は？                               │
-│    ├─ 週1回以下 → モノリス + モジュール分割         │
-│    └─ 毎日/複数回 → ③へ                          │
+│  (2) Deployment frequency?                       │
+│    ├─ Once a week or less → Monolith +           │
+│    │  modular decomposition                      │
+│    └─ Daily/multiple times → Go to (3)           │
 │                                                 │
-│  ③ チーム間の独立性は？                            │
-│    ├─ 高い → マイクロサービス                      │
-│    └─ 中程度 → モジュラーモノリス                   │
+│  (3) Team independence?                          │
+│    ├─ High → Microservices                       │
+│    └─ Moderate → Modular monolith                │
 │                                                 │
 └─────────────────────────────────────────────────┘
 ```
 
-### トレードオフの分析
+### Trade-off Analysis
 
-技術的な判断には必ずトレードオフが伴います。以下の観点で分析を行いましょう:
+Technical decisions always involve trade-offs. Analyze from the following perspectives:
 
-**1. 短期 vs 長期のコスト**
-- 短期的に速い方法が長期的には技術的負債になることがある
-- 逆に、過剰な設計は短期的なコストが高く、プロジェクトの遅延を招く
+**1. Short-term vs Long-term Cost**
+- A quick short-term approach can become technical debt in the long run
+- Conversely, over-engineering has high short-term costs and can delay the project
 
-**2. 一貫性 vs 柔軟性**
-- 統一された技術スタックは学習コストが低い
-- 多様な技術の採用は適材適所が可能だが、運用コストが増加
+**2. Consistency vs Flexibility**
+- A unified technology stack has lower learning costs
+- Adopting diverse technologies enables best-fit solutions but increases operational costs
 
-**3. 抽象化のレベル**
-- 高い抽象化は再利用性が高いが、デバッグが困難になる場合がある
-- 低い抽象化は直感的だが、コードの重複が発生しやすい
+**3. Level of Abstraction**
+- High abstraction offers great reusability but can make debugging difficult
+- Low abstraction is intuitive but prone to code duplication
 
 ```python
-# 設計判断の記録テンプレート
+# Design decision recording template
 class ArchitectureDecisionRecord:
-    """ADR (Architecture Decision Record) の作成"""
+    """Create an ADR (Architecture Decision Record)"""
 
     def __init__(self, title: str):
         self.title = title
@@ -1533,17 +1540,17 @@ class ArchitectureDecisionRecord:
         self.alternatives = []
 
     def set_context(self, context: str):
-        """背景と課題の記述"""
+        """Describe the background and problem"""
         self.context = context
         return self
 
     def set_decision(self, decision: str):
-        """決定内容の記述"""
+        """Describe the decision"""
         self.decision = decision
         return self
 
     def add_consequence(self, consequence: str, positive: bool = True):
-        """結果の追加"""
+        """Add a consequence"""
         self.consequences.append({
             'description': consequence,
             'type': 'positive' if positive else 'negative'
@@ -1551,7 +1558,7 @@ class ArchitectureDecisionRecord:
         return self
 
     def add_alternative(self, name: str, reason_rejected: str):
-        """却下した代替案の追加"""
+        """Add a rejected alternative"""
         self.alternatives.append({
             'name': name,
             'reason_rejected': reason_rejected
@@ -1559,15 +1566,15 @@ class ArchitectureDecisionRecord:
         return self
 
     def to_markdown(self) -> str:
-        """Markdown形式で出力"""
+        """Output in Markdown format"""
         md = f"# ADR: {self.title}\n\n"
-        md += f"## 背景\n{self.context}\n\n"
-        md += f"## 決定\n{self.decision}\n\n"
-        md += "## 結果\n"
+        md += f"## Background\n{self.context}\n\n"
+        md += f"## Decision\n{self.decision}\n\n"
+        md += "## Consequences\n"
         for c in self.consequences:
-            icon = "✅" if c['type'] == 'positive' else "⚠️"
+            icon = "+" if c['type'] == 'positive' else "!"
             md += f"- {icon} {c['description']}\n"
-        md += "\n## 却下した代替案\n"
+        md += "\n## Rejected Alternatives\n"
         for a in self.alternatives:
             md += f"- **{a['name']}**: {a['reason_rejected']}\n"
         return md
@@ -1576,129 +1583,129 @@ class ArchitectureDecisionRecord:
 
 ## 9. FAQ
 
-### Q1: 正規表現を学ぶのに最適な順序は？
+### Q1: What is the best order for learning regular expressions?
 
-**A**: 以下の順序を推奨する:
+**A**: The following order is recommended:
 
-1. リテラルマッチ → メタ文字 → 文字クラス → 量指定子
-2. アンカー → グループ → 後方参照
-3. 先読み・後読み → Unicode → パフォーマンス
+1. Literal matching → Metacharacters → Character classes → Quantifiers
+2. Anchors → Groups → Backreferences
+3. Lookahead/lookbehind → Unicode → Performance
 
-基本構文を習得してから、実際のユースケース(ログ解析、入力検証など)で練習するのが効果的である。
+It is most effective to master the basic syntax first, then practice with real use cases (log analysis, input validation, etc.).
 
-### Q2: NFA と DFA のどちらを選ぶべきか？
+### Q2: Should I choose NFA or DFA?
 
-**A**: 以下の判断基準で選択する:
+**A**: Use the following criteria:
 
-- **後方参照や先読みが必要** → NFA(Perl, Python, JavaScript など)
-- **信頼されない入力に対するマッチング** → DFA(RE2, Rust regex)で ReDoS を防止
-- **パフォーマンスが最優先** → DFA ベースのエンジンを選択
-- **機能の豊富さが優先** → NFA ベースのエンジンを選択
+- **Backreferences or lookahead required** → NFA (Perl, Python, JavaScript, etc.)
+- **Matching against untrusted input** → DFA (RE2, Rust regex) to prevent ReDoS
+- **Performance is the top priority** → Choose a DFA-based engine
+- **Feature richness is the priority** → Choose an NFA-based engine
 
-多くの場合、言語のデフォルトエンジンを使えばよい。ReDoS が懸念される場合のみ DFA を検討する。
+In most cases, using the default engine of your language is fine. Only consider DFA when ReDoS is a concern.
 
-### Q3: 正規表現のデバッグにはどんなツールがあるか？
+### Q3: What tools are available for debugging regular expressions?
 
-**A**: 主要なツール:
+**A**: Major tools:
 
-- **regex101.com** -- パターンのリアルタイムテスト、解説付き(PCRE, Python, JS, Go, Java 対応)
-- **Debuggex** -- 正規表現の鉄道図(Railroad Diagram)を表示
-- **RegExr** -- インタラクティブな正規表現テスター
-- **各言語のverboseモード** -- Python の `re.VERBOSE`、Perl の `/x` 修飾子
-- **各言語のデバッグフラグ** -- Python の `re.DEBUG`
+- **regex101.com** -- Real-time pattern testing with explanations (supports PCRE, Python, JS, Go, Java)
+- **Debuggex** -- Displays Railroad Diagrams of regular expressions
+- **RegExr** -- Interactive regex tester
+- **Verbose mode in each language** -- Python's `re.VERBOSE`, Perl's `/x` modifier
+- **Debug flags in each language** -- Python's `re.DEBUG`
 
-### Q4: 正規表現のパフォーマンスが悪いときの対処法は？
+### Q4: What should I do when regex performance is poor?
 
-**A**: 以下の順序で検討する:
+**A**: Consider the following in order:
 
-1. **パターンの見直し**: アンカーの追加、不必要なバックトラックの排除
-2. **事前コンパイル**: `re.compile()` でパターンオブジェクトを再利用
-3. **文字列操作への置き換え**: `str.startswith()`, `str.endswith()`, `in` 演算子
-4. **エンジンの変更**: RE2 や Rust regex への移行
-5. **アルゴリズムの変更**: 正規表現を使わない解法の検討
+1. **Review the pattern**: Add anchors, eliminate unnecessary backtracking
+2. **Pre-compile**: Reuse pattern objects with `re.compile()`
+3. **Replace with string operations**: `str.startswith()`, `str.endswith()`, `in` operator
+4. **Change the engine**: Migrate to RE2 or Rust regex
+5. **Change the algorithm**: Consider solutions that don't use regular expressions
 
-### Q5: 正規表現はどの程度の複雑さまで許容すべきか？
+### Q5: How complex should a regular expression be allowed to get?
 
-**A**: 経験則として:
+**A**: As a rule of thumb:
 
-- **20文字以下**: インラインで使用可能
-- **20-50文字**: verbose モードでコメント推奨
-- **50-100文字**: 分割して段階的に構築、テスト必須
-- **100文字以上**: パーサーやライブラリの使用を検討
+- **20 characters or fewer**: Can be used inline
+- **20-50 characters**: Verbose mode with comments recommended
+- **50-100 characters**: Split and build incrementally; testing is mandatory
+- **100+ characters**: Consider using a parser or library
 
-可読性が低下したら、正規表現を分割するか、別のアプローチを検討するタイミングである。
+When readability degrades, it is time to split the regex or consider a different approach.
 
-### Q6: 正規表現のセキュリティリスクにはどう対処するか？
+### Q6: How should I address security risks of regular expressions?
 
-**A**: 主要なリスクと対策:
+**A**: Major risks and countermeasures:
 
 1. **ReDoS (Regular Expression Denial of Service)**
-   - ネストした量指定子を避ける: `(a+)+` → `a+`
-   - 信頼できない入力にはDFAエンジンを使用
-   - マッチングにタイムアウトを設定
+   - Avoid nested quantifiers: `(a+)+` → `a+`
+   - Use a DFA engine for untrusted input
+   - Set a timeout for matching
 
-2. **入力検証のバイパス**
-   - `^` と `$` だけでなく `\A` と `\z` を使用（改行文字の考慮）
-   - マルチラインモードの意図しない有効化を防ぐ
-   - Unicode 正規化を事前に行う
+2. **Bypassing input validation**
+   - Use `\A` and `\z` instead of just `^` and `$` (considering newline characters)
+   - Prevent unintended activation of multiline mode
+   - Perform Unicode normalization beforehand
 
-3. **インジェクション攻撃**
-   - ユーザー入力をパターンに埋め込まない
-   - 埋め込む場合は `re.escape()` で必ずエスケープ
+3. **Injection attacks**
+   - Do not embed user input directly into patterns
+   - When embedding, always escape with `re.escape()`
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point in learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important. Understanding deepens not only through theory, but by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What common mistakes do beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the basics and jumping to advanced topics. We recommend thoroughly understanding the fundamental concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in professional practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-| 項目 | 内容 |
-|------|------|
-| 正規表現の本質 | パターンマッチングのための形式言語 |
-| 理論的基盤 | Kleene の正則集合(1956年) |
-| 実用化の起点 | Thompson による QED/ed への実装(1968年) |
-| 現代の標準 | PCRE (Perl Compatible Regular Expressions) |
-| NFA | バックトラック方式、機能豊富、最悪 O(2^n) |
-| DFA | 状態遷移方式、高速安定、O(n) 保証 |
-| 主な用途 | テキスト検索・置換・抽出・検証 |
-| 主な限界 | ネスト構造(HTML等)は原理的に扱えない |
-| 主要方言 | POSIX BRE/ERE, PCRE, ECMAScript, RE2 |
-| セキュリティ | ReDoS 対策が必須(特にNFAエンジン) |
-| ベストプラクティス | 段階的構築、テスト駆動、verbose モード |
-| 学習の鍵 | 基本構文→応用構文→実践パターンの順で段階的に |
+Knowledge of this topic is frequently applied in daily development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## Summary
 
-- [01-basic-syntax.md](./01-basic-syntax.md) -- 基本構文: リテラル、メタ文字、エスケープ
-- [02-character-classes.md](./02-character-classes.md) -- 文字クラスの詳細
-- [03-quantifiers-anchors.md](./03-quantifiers-anchors.md) -- 量指定子とアンカー
+| Item | Description |
+|------|-------------|
+| Essence of regex | A formal language for pattern matching |
+| Theoretical foundation | Kleene's regular sets (1956) |
+| Origin of practical use | Thompson's implementation in QED/ed (1968) |
+| Modern standard | PCRE (Perl Compatible Regular Expressions) |
+| NFA | Backtracking-based, feature-rich, worst case O(2^n) |
+| DFA | State transition-based, fast and stable, O(n) guaranteed |
+| Primary uses | Text search, replacement, extraction, validation |
+| Primary limitations | Cannot handle nested structures (HTML, etc.) by design |
+| Major dialects | POSIX BRE/ERE, PCRE, ECMAScript, RE2 |
+| Security | ReDoS countermeasures are essential (especially for NFA engines) |
+| Best practices | Incremental construction, test-driven, verbose mode |
+| Key to learning | Progress sequentially: basic syntax → advanced syntax → practical patterns |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
 
-1. **Jeffrey E.F. Friedl** "Mastering Regular Expressions, 3rd Edition" O'Reilly Media, 2006 -- 正規表現の決定版バイブル
-2. **Russ Cox** "Regular Expression Matching Can Be Simple And Fast" https://swtch.com/~rsc/regexp/regexp1.html, 2007 -- NFA/DFA の理論と実装を明快に解説
-3. **Ken Thompson** "Regular Expression Search Algorithm" Communications of the ACM, 11(6):419-422, 1968 -- 正規表現エンジンの原論文
-4. **Michael Rabin, Dana Scott** "Finite Automata and Their Decision Problems" IBM Journal of Research and Development, 3(2):114-125, 1959 -- NFA/DFA の等価性を証明した論文
-5. **PCRE2 Documentation** https://www.pcre.org/current/doc/html/ -- 現行の PCRE2 リファレンス
-6. **RE2 Documentation** https://github.com/google/re2/wiki/Syntax -- RE2 の構文リファレンス
-7. **ECMAScript Language Specification** https://tc39.es/ecma262/#sec-regexp-regular-expression-objects -- JavaScript 正規表現の仕様
-8. **POSIX Standard** IEEE Std 1003.1-2017, Section 9 "Regular Expressions" -- POSIX 正規表現の公式仕様
+- [01-basic-syntax.md](./01-basic-syntax.md) -- Basic Syntax: Literals, Metacharacters, Escaping
+- [02-character-classes.md](./02-character-classes.md) -- Character Classes in Detail
+- [03-quantifiers-anchors.md](./03-quantifiers-anchors.md) -- Quantifiers and Anchors
+
+---
+
+## References
+
+1. **Jeffrey E.F. Friedl** "Mastering Regular Expressions, 3rd Edition" O'Reilly Media, 2006 -- The definitive bible of regular expressions
+2. **Russ Cox** "Regular Expression Matching Can Be Simple And Fast" https://swtch.com/~rsc/regexp/regexp1.html, 2007 -- Clear explanation of NFA/DFA theory and implementation
+3. **Ken Thompson** "Regular Expression Search Algorithm" Communications of the ACM, 11(6):419-422, 1968 -- The original paper on regex engines
+4. **Michael Rabin, Dana Scott** "Finite Automata and Their Decision Problems" IBM Journal of Research and Development, 3(2):114-125, 1959 -- The paper proving NFA/DFA equivalence
+5. **PCRE2 Documentation** https://www.pcre.org/current/doc/html/ -- Current PCRE2 reference
+6. **RE2 Documentation** https://github.com/google/re2/wiki/Syntax -- RE2 syntax reference
+7. **ECMAScript Language Specification** https://tc39.es/ecma262/#sec-regexp-regular-expression-objects -- JavaScript regex specification
+8. **POSIX Standard** IEEE Std 1003.1-2017, Section 9 "Regular Expressions" -- Official POSIX regex specification

@@ -1,34 +1,34 @@
-# 基本構文 -- リテラル、メタ文字、エスケープ
+# Basic Syntax -- Literals, Metacharacters, Escaping
 
-> 正規表現の最も基礎的な構成要素であるリテラル文字、メタ文字(特殊文字)、エスケープシーケンスの動作原理と正しい使い方を網羅的に解説する。
+> A comprehensive guide to the operating principles and correct usage of literal characters, metacharacters (special characters), and escape sequences -- the most fundamental building blocks of regular expressions.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-1. **リテラル文字とメタ文字の区別** -- どの文字がそのまま一致し、どの文字が特殊な意味を持つか
-2. **エスケープの仕組みと落とし穴** -- バックスラッシュによるメタ文字の無効化と二重エスケープ問題
-3. **フラグ(修飾子)による挙動変更** -- 大文字小文字無視、複数行モード、ドットオールモード
-4. **各言語でのリテラル表記** -- Python, JavaScript, Java, Perl, Ruby での書き方の違い
-5. **マッチングの内部動作** -- エンジンが文字列をどう走査するか
+1. **Distinguishing Literal Characters from Metacharacters** -- Which characters match directly and which have special meaning
+2. **How Escaping Works and Its Pitfalls** -- Disabling metacharacters with backslash and the double-escaping problem
+3. **Behavior Changes via Flags (Modifiers)** -- Case-insensitive, multiline mode, dotall mode
+4. **Literal Notation Across Languages** -- Differences in how Python, JavaScript, Java, Perl, and Ruby express patterns
+5. **Internal Workings of Matching** -- How the engine scans a string
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [正規表現概要](./00-regex-overview.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding of the content in [Regular Expression Overview](./00-regex-overview.md)
 
 ---
 
-## 1. リテラル文字
+## 1. Literal Characters
 
-リテラル文字はパターン中でそのまま対応する文字にマッチする。
+Literal characters match the corresponding character in the pattern directly.
 
 ```python
 import re
 
-# リテラル文字のみのパターン
+# Pattern consisting only of literal characters
 pattern = r'hello'
 text = "say hello to the world"
 
@@ -38,176 +38,174 @@ print(match.start())  # => 4
 print(match.end())    # => 9
 ```
 
-リテラル文字マッチの規則:
+Rules for literal character matching:
 
 ```
-パターン   対象文字列        結果
-────────   ──────────────   ──────
-cat        "the cat sat"    マッチ ("cat")
-123        "abc123def"      マッチ ("123")
-hello      "Hello World"    不一致 (大文字小文字区別)
-hello      "Hello World"    マッチ (i フラグ使用時)
+Pattern    Target String        Result
+────────   ──────────────────   ──────
+cat        "the cat sat"        Match ("cat")
+123        "abc123def"          Match ("123")
+hello      "Hello World"        No match (case-sensitive)
+hello      "Hello World"        Match (with i flag)
 ```
 
-### 1.1 リテラルマッチの詳細動作
+### 1.1 Detailed Behavior of Literal Matching
 
 ```python
 import re
 
-# リテラルマッチは左から右へ最初に見つかった位置で成功する
+# Literal matching succeeds at the first position found, scanning left to right
 text = "abcabcabc"
 pattern = r'abc'
 
-# search は最初のマッチを返す
+# search returns the first match
 m = re.search(pattern, text)
-print(f"最初のマッチ: 位置{m.start()}-{m.end()}")  # => 位置0-3
+print(f"First match: position {m.start()}-{m.end()}")  # => position 0-3
 
-# findall は全てのマッチを返す
+# findall returns all matches
 all_matches = re.findall(pattern, text)
-print(f"全マッチ: {all_matches}")  # => ['abc', 'abc', 'abc']
+print(f"All matches: {all_matches}")  # => ['abc', 'abc', 'abc']
 
-# finditer はイテレータで位置情報付き
+# finditer returns an iterator with position information
 for m in re.finditer(pattern, text):
-    print(f"  位置{m.start()}-{m.end()}: '{m.group()}'")
-# => 位置0-3: 'abc'
-# => 位置3-6: 'abc'
-# => 位置6-9: 'abc'
+    print(f"  position {m.start()}-{m.end()}: '{m.group()}'")
+# => position 0-3: 'abc'
+# => position 3-6: 'abc'
+# => position 6-9: 'abc'
 ```
 
-### 1.2 大文字・小文字の扱い
+### 1.2 Case Handling
 
 ```python
 import re
 
 text = "Python is Great. PYTHON IS GREAT. python is great."
 
-# デフォルト: 大文字小文字を区別
+# Default: case-sensitive
 print(re.findall(r'python', text))
 # => ['python']
 
-# IGNORECASE フラグ: 区別しない
+# IGNORECASE flag: case-insensitive
 print(re.findall(r'python', text, re.IGNORECASE))
 # => ['Python', 'PYTHON', 'python']
 
-# インラインフラグ: パターン内にフラグを埋め込む
+# Inline flag: embed the flag within the pattern
 print(re.findall(r'(?i)python', text))
 # => ['Python', 'PYTHON', 'python']
 
-# 部分的にフラグを適用（Python 3.6+）
-# (?i:pattern) でその部分だけ大文字小文字無視
+# Partial flag application (Python 3.6+)
+# (?i:pattern) applies case-insensitivity only to that portion
 print(re.findall(r'(?i:python) is (?i:great)', text))
 # => ['Python is Great', 'PYTHON IS GREAT', 'python is great']
 ```
 
-### 1.3 マルチバイト文字のリテラルマッチ
+### 1.3 Multibyte Character Literal Matching
 
 ```python
 import re
 
-# 日本語のリテラルマッチ
-text = "東京は日本の首都です。Tokyo is the capital of Japan."
+# Literal matching with Japanese characters
+text = "Tokyo is the capital of Japan. Tokyo is the capital of Japan."
 
-# 日本語文字列もそのままマッチ可能
-print(re.findall(r'東京', text))   # => ['東京']
-print(re.findall(r'Tokyo', text))  # => ['Tokyo']
-print(re.findall(r'首都', text))   # => ['首都']
+# Japanese strings can be matched directly
+print(re.findall(r'Tokyo', text))   # => ['Tokyo', 'Tokyo']
 
-# 混在テキストでのマッチ
-log = "2026-02-15 エラー: ファイルが見つかりません (error: file not found)"
-m = re.search(r'エラー', log)
-print(m.group())  # => 'エラー'
+# Matching in mixed text
+log = "2026-02-15 Error: File not found (error: file not found)"
+m = re.search(r'Error', log)
+print(m.group())  # => 'Error'
 
-# 絵文字もリテラルマッチ可能（Python 3）
+# Emoji can also be matched literally (Python 3)
 emoji_text = "Hello! Nice to meet you!"
 print(re.findall(r'Nice', emoji_text))  # => ['Nice']
 ```
 
-### 1.4 各言語でのリテラル表記の違い
+### 1.4 Differences in Literal Notation Across Languages
 
 ```python
-# Python: raw string を推奨
+# Python: raw strings recommended
 import re
 pattern = r'hello\.\*world'
 re.search(pattern, text)
 
-# Python: re.compile でプリコンパイル
+# Python: pre-compile with re.compile
 compiled = re.compile(r'hello\.\*world')
 compiled.search(text)
 ```
 
 ```javascript
-// JavaScript: リテラル記法
+// JavaScript: literal notation
 const pattern1 = /hello\.\*world/;
 pattern1.test(text);
 
-// JavaScript: コンストラクタ記法（動的パターン用）
+// JavaScript: constructor notation (for dynamic patterns)
 const pattern2 = new RegExp('hello\\.\\*world');
 pattern2.test(text);
-// ※ コンストラクタでは文字列のエスケープも必要なため二重エスケープ
+// Note: constructor requires string escaping too, resulting in double escaping
 ```
 
 ```java
-// Java: 常に文字列リテラル（raw string なし）
+// Java: always string literals (no raw strings)
 import java.util.regex.*;
 Pattern pattern = Pattern.compile("hello\\.\\*world");
 Matcher matcher = pattern.matcher(text);
 
-// Java 13+: テキストブロックで若干読みやすくなる
-// ただしバックスラッシュのエスケープは依然必要
+// Java 13+: text blocks make it slightly more readable
+// However, backslash escaping is still required
 ```
 
 ```ruby
-# Ruby: Regexp リテラル
+# Ruby: Regexp literal
 pattern = /hello\.\*world/
 text =~ pattern
 
-# Ruby: Regexp.new（動的パターン用）
+# Ruby: Regexp.new (for dynamic patterns)
 pattern = Regexp.new('hello\.\*world')
 
-# Ruby: %r{} 記法（スラッシュが多いパターンに便利）
+# Ruby: %r{} notation (convenient for patterns with many slashes)
 pattern = %r{http://example\.com/path}
 ```
 
 ```perl
-# Perl: パターンマッチ演算子
+# Perl: pattern match operator
 if ($text =~ /hello\.\*world/) {
-    print "マッチ\n";
+    print "Match\n";
 }
 
-# Perl: qr// でプリコンパイル
+# Perl: pre-compile with qr//
 my $pattern = qr/hello\.\*world/;
 if ($text =~ $pattern) { ... }
 ```
 
 ---
 
-## 2. メタ文字一覧
+## 2. Metacharacter Reference
 
-正規表現において特殊な意味を持つ文字群:
+Characters that have special meaning in regular expressions:
 
 ```
-メタ文字一覧 (12文字 + バックスラッシュ):
+Metacharacter Reference (12 characters + backslash):
 
-.   任意の1文字 (改行を除く)
-^   行頭 / 文字クラス内で否定
-$   行末
-*   直前の要素を0回以上繰り返し
-+   直前の要素を1回以上繰り返し
-?   直前の要素を0回または1回
-|   選択 (OR)
-()  グループ化・キャプチャ
-[]  文字クラス
-{}  量指定子 {n,m}
-\   エスケープ文字
+.   Any single character (except newline)
+^   Start of line / negation inside character class
+$   End of line
+*   Repeat the preceding element 0 or more times
++   Repeat the preceding element 1 or more times
+?   The preceding element 0 or 1 time
+|   Alternation (OR)
+()  Grouping and capture
+[]  Character class
+{}  Quantifier {n,m}
+\   Escape character
 
-文字クラス [] 内でのメタ文字:
-]   文字クラスの終了
-\   エスケープ
-^   否定 (先頭のみ)
--   範囲指定 (文字間のみ)
+Metacharacters inside character class []:
+]   End of character class
+\   Escape
+^   Negation (only at the beginning)
+-   Range (only between characters)
 ```
 
-### 2.1 ドット `.` -- 任意の1文字
+### 2.1 Dot `.` -- Any Single Character
 
 ```python
 import re
@@ -217,174 +215,174 @@ texts = ["cat", "cot", "cut", "ct", "coat", "c\nt"]
 
 for t in texts:
     m = re.search(pattern, t)
-    result = m.group() if m else "不一致"
+    result = m.group() if m else "no match"
     print(f"  '{t}' → {result}")
 
-# 出力:
+# Output:
 #   'cat' → cat
 #   'cot' → cot
 #   'cut' → cut
-#   'ct'  → 不一致     (ドットは1文字必須)
-#   'coat' → coa は不一致、c.t にはマッチしない
-#   'c\nt' → 不一致    (ドットは改行にマッチしない ※DOTALL除く)
+#   'ct'  → no match     (dot requires exactly 1 character)
+#   'coat' → coa is no match, does not match c.t
+#   'c\nt' → no match    (dot does not match newline *except with DOTALL)
 
-# DOTALL フラグで改行にもマッチ
+# DOTALL flag makes dot match newlines too
 m = re.search(r'c.t', "c\nt", re.DOTALL)
 print(m.group())  # => "c\nt"
 ```
 
 ```python
-# ドットの実用パターン
+# Practical dot patterns
 
 import re
 
-# 1. 任意の1文字を含むパターン
+# 1. Pattern including any single character
 print(re.findall(r'b.g', "bag big bog bug"))
 # => ['bag', 'big', 'bog', 'bug']
 
-# 2. 固定長パターンのマッチ
+# 2. Fixed-length pattern matching
 print(re.findall(r'...-....', "Tel: 03-1234-5678"))
-# => ['03-1234']  ※意図と異なる可能性
+# => ['03-1234']  *May not match intent
 
-# 3. ドットの正しい使い方: 特定の1文字が不明な場合
-# ファイル名パターン: 拡張子の前の任意の1文字
+# 3. Correct use of dot: when a specific single character is unknown
+# Filename pattern: any single character before the extension
 print(re.findall(r'file.\.txt', "file1.txt file2.txt fileA.txt"))
 # => ['file1.txt', 'file2.txt', 'fileA.txt']
 ```
 
-### 2.2 パイプ `|` -- 選択(OR)
+### 2.2 Pipe `|` -- Alternation (OR)
 
 ```python
 import re
 
-# パイプによる選択
+# Alternation with pipe
 pattern = r'cat|dog|bird'
 texts = ["I have a cat", "I have a dog", "I have a fish"]
 
 for t in texts:
     m = re.search(pattern, t)
-    print(f"  '{t}' → {m.group() if m else '不一致'}")
+    print(f"  '{t}' → {m.group() if m else 'no match'}")
 
-# 出力:
+# Output:
 #   'I have a cat' → cat
 #   'I have a dog' → dog
-#   'I have a fish' → 不一致
+#   'I have a fish' → no match
 
-# 注意: パイプの優先順位
-# gr(a|e)y  → "gray" or "grey"     (グループ内で選択)
-# gray|grey → "gray" or "grey"     (同等)
-# gra|ey    → "gra" or "ey"        (意図と異なる可能性)
+# Note: Pipe precedence
+# gr(a|e)y  → "gray" or "grey"     (alternation within group)
+# gray|grey → "gray" or "grey"     (equivalent)
+# gra|ey    → "gra" or "ey"        (may not match intent)
 ```
 
 ```python
-# パイプの優先順位を理解する
+# Understanding pipe precedence
 
 import re
 
-# パイプは正規表現で最も優先度が低い演算子
-# 連結(隣接文字)の方が優先される
+# Pipe is the lowest-precedence operator in regex
+# Concatenation (adjacent characters) has higher precedence
 
-# 例1: abc|def は (abc)|(def) と同じ
+# Example 1: abc|def is the same as (abc)|(def)
 print(re.findall(r'abc|def', "abc def abdef"))
 # => ['abc', 'def']
 
-# 例2: グループで範囲を制限
+# Example 2: Restrict scope with groups
 print(re.findall(r'gr(a|e)y', "gray grey graey"))
-# => ['a', 'e']  ※ キャプチャグループの内容が返る
+# => ['a', 'e']  *Returns the captured group content
 
-# 非キャプチャグループを使えばマッチ全体が返る
+# Non-capturing group returns the full match
 print(re.findall(r'gr(?:a|e)y', "gray grey graey"))
 # => ['gray', 'grey']
 
-# 例3: 複数の選択肢を持つパターン
+# Example 3: Pattern with multiple alternatives
 log_pattern = r'ERROR|WARN|INFO|DEBUG'
 log = "2026-02-15 [ERROR] Connection failed"
 m = re.search(log_pattern, log)
 print(m.group())  # => 'ERROR'
 
-# 例4: NFA エンジンでは左から順に試行される
-# 最初にマッチした選択肢で確定
+# Example 4: NFA engines try alternatives left to right
+# The first matching alternative is selected
 print(re.search(r'Java|JavaScript', "JavaScript").group())
-# => 'Java' (先に試行されてマッチ)
+# => 'Java' (tried first and matched)
 
-# 長い選択肢を先に書くことで対処
+# Place longer alternatives first to handle this
 print(re.search(r'JavaScript|Java', "JavaScript").group())
 # => 'JavaScript'
 ```
 
-### 2.3 アスタリスク `*`、プラス `+`、クエスチョン `?`
+### 2.3 Asterisk `*`, Plus `+`, Question Mark `?`
 
 ```python
 import re
 
-# * : 0回以上
+# * : 0 or more times
 print(re.findall(r'ab*c', "ac abc abbc"))     # => ['ac', 'abc', 'abbc']
 
-# + : 1回以上
+# + : 1 or more times
 print(re.findall(r'ab+c', "ac abc abbc"))     # => ['abc', 'abbc']
 
-# ? : 0回または1回
+# ? : 0 or 1 time
 print(re.findall(r'colou?r', "color colour"))  # => ['color', 'colour']
 ```
 
 ```python
-# 量指定子の詳細な動作
+# Detailed behavior of quantifiers
 
 import re
 
-# * (0回以上) -- 空マッチに注意
+# * (0 or more) -- beware of empty matches
 print(re.findall(r'a*', "aaa"))
-# => ['aaa', '']  ※ 末尾で空マッチが発生
+# => ['aaa', '']  *Empty match occurs at the end
 
 print(re.findall(r'a*', "bbb"))
-# => ['', '', '', '']  ※ 各位置で0回マッチ
+# => ['', '', '', '']  *0-length match at each position
 
-# + (1回以上) -- 空マッチは発生しない
+# + (1 or more) -- no empty matches
 print(re.findall(r'a+', "aaa"))
 # => ['aaa']
 
 print(re.findall(r'a+', "bbb"))
 # => []
 
-# ? (0回または1回) -- オプショナルな要素
+# ? (0 or 1) -- optional elements
 print(re.findall(r'https?', "http and https"))
 # => ['http', 'https']
 
-# 量指定子の貪欲(greedy)マッチ
-# デフォルトでは可能な限り多くの文字を消費する
+# Greedy matching of quantifiers
+# By default, they consume as many characters as possible
 print(re.search(r'a+', "aaaaaa").group())
-# => 'aaaaaa' (全ての 'a' を消費)
+# => 'aaaaaa' (consumes all 'a's)
 
-# 非貪欲(lazy)マッチ -- ? を付ける
+# Non-greedy (lazy) matching -- append ?
 print(re.search(r'a+?', "aaaaaa").group())
-# => 'a' (最小限の1文字のみ)
+# => 'a' (minimum of 1 character only)
 
-# 非貪欲の実用例: HTML タグ内のテキスト
+# Practical example of non-greedy: text inside HTML tags
 html = "<b>bold</b> and <i>italic</i>"
-print(re.findall(r'<.+>', html))    # 貪欲: ['<b>bold</b> and <i>italic</i>']
-print(re.findall(r'<.+?>', html))   # 非貪欲: ['<b>', '</b>', '<i>', '</i>']
+print(re.findall(r'<.+>', html))    # Greedy: ['<b>bold</b> and <i>italic</i>']
+print(re.findall(r'<.+?>', html))   # Non-greedy: ['<b>', '</b>', '<i>', '</i>']
 ```
 
-### 2.4 括弧 `()` -- グループ化とキャプチャ
+### 2.4 Parentheses `()` -- Grouping and Capture
 
 ```python
 import re
 
-# 基本的なグループ化
+# Basic grouping
 pattern = r'(hello) (world)'
 m = re.search(pattern, "say hello world")
-print(m.group(0))  # => 'hello world' (マッチ全体)
-print(m.group(1))  # => 'hello' (グループ1)
-print(m.group(2))  # => 'world' (グループ2)
+print(m.group(0))  # => 'hello world' (entire match)
+print(m.group(1))  # => 'hello' (group 1)
+print(m.group(2))  # => 'world' (group 2)
 print(m.groups())  # => ('hello', 'world')
 
-# 非キャプチャグループ (?:...)
-# グループ化するがキャプチャしない
+# Non-capturing group (?:...)
+# Groups without capturing
 pattern = r'(?:hello|hi) (world)'
 m = re.search(pattern, "say hello world")
-print(m.group(1))  # => 'world' (グループ番号がずれない)
+print(m.group(1))  # => 'world' (group numbers are not shifted)
 
-# 名前付きグループ (?P<name>...)
+# Named group (?P<name>...)
 pattern = r'(?P<year>\d{4})-(?P<month>\d{2})-(?P<day>\d{2})'
 m = re.search(pattern, "Date: 2026-02-15")
 print(m.group('year'))   # => '2026'
@@ -393,198 +391,198 @@ print(m.group('day'))    # => '15'
 print(m.groupdict())     # => {'year': '2026', 'month': '02', 'day': '15'}
 ```
 
-### 2.5 角括弧 `[]` -- 文字クラス
+### 2.5 Square Brackets `[]` -- Character Class
 
 ```python
 import re
 
-# 基本的な文字クラス
+# Basic character class
 print(re.findall(r'[aeiou]', "hello world"))
-# => ['e', 'o', 'o']  ※ 母音だけをマッチ
+# => ['e', 'o', 'o']  *Matches only vowels
 
-# 範囲指定
+# Range specification
 print(re.findall(r'[a-z]', "Hello 123"))
 # => ['e', 'l', 'l', 'o']
 
 print(re.findall(r'[A-Za-z0-9]', "Hello 123!"))
 # => ['H', 'e', 'l', 'l', 'o', '1', '2', '3']
 
-# 否定文字クラス
+# Negated character class
 print(re.findall(r'[^a-z]', "hello 123!"))
 # => [' ', '1', '2', '3', '!']
 
-# 文字クラス内でのメタ文字の扱い
-# ほとんどのメタ文字はリテラルとして扱われる
+# Handling of metacharacters inside character classes
+# Most metacharacters are treated as literals
 print(re.findall(r'[.+*?]', "a.b+c*d?e"))
 # => ['.', '+', '*', '?']
 
-# ただし以下は特殊:
-# ] → 文字クラスの終了（先頭に置くかエスケープ: [\]] or []abc]）
-# \ → エスケープ
-# ^ → 先頭にある場合のみ否定
-# - → 文字間にある場合のみ範囲指定（先頭/末尾ならリテラル）
+# However, the following are special:
+# ] → End of character class (place at beginning or escape: [\]] or []abc])
+# \ → Escape
+# ^ → Negation only at the beginning
+# - → Range only between characters (literal at beginning/end)
 ```
 
-### 2.6 波括弧 `{}` -- 量指定子
+### 2.6 Curly Braces `{}` -- Quantifiers
 
 ```python
 import re
 
-# {n} 正確にn回
+# {n} exactly n times
 print(re.findall(r'\d{3}', "12 123 1234 12345"))
-# => ['123', '123', '123']  ※ 1234 から 123 を抽出、12345 から 123 と 45は別
+# => ['123', '123', '123']  *Extracts 123 from 1234, 123 and 45 separate from 12345
 
-# {n,m} n回以上m回以下
+# {n,m} between n and m times
 print(re.findall(r'\d{2,4}', "1 12 123 1234 12345"))
 # => ['12', '123', '1234', '1234']
 
-# {n,} n回以上
+# {n,} n or more times
 print(re.findall(r'\d{3,}', "1 12 123 1234 12345"))
 # => ['123', '1234', '12345']
 
-# {,m} 0回以上m回以下 (= {0,m})
+# {,m} 0 to m times (= {0,m})
 print(re.findall(r'a{,3}', "aaaa"))
-# => ['aaa', 'a', '']  ※ 最大3つの 'a' にマッチ
+# => ['aaa', 'a', '']  *Matches up to 3 'a's
 
-# 実用例: 郵便番号
-print(re.findall(r'\d{3}-\d{4}', "〒100-0001 東京都千代田区"))
+# Practical example: postal code
+print(re.findall(r'\d{3}-\d{4}', "100-0001 Chiyoda-ku, Tokyo"))
 # => ['100-0001']
 
-# 実用例: IPv4 アドレス（簡易版）
+# Practical example: IPv4 address (simplified)
 print(re.findall(r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}',
                  "Server: 192.168.1.1, Gateway: 10.0.0.1"))
 # => ['192.168.1.1', '10.0.0.1']
 ```
 
-### 2.7 キャレット `^` とドル記号 `$` -- アンカー
+### 2.7 Caret `^` and Dollar Sign `$` -- Anchors
 
 ```python
 import re
 
-# ^ 行頭にマッチ
+# ^ matches the start of line
 print(re.search(r'^hello', "hello world").group())    # => 'hello'
 print(re.search(r'^hello', "say hello"))              # => None
 
-# $ 行末にマッチ
+# $ matches the end of line
 print(re.search(r'world$', "hello world").group())    # => 'world'
 print(re.search(r'world$', "world hello"))            # => None
 
-# ^ と $ を組み合わせて全体マッチ
+# Combine ^ and $ for full-string matching
 print(re.match(r'^\d{3}-\d{4}$', "100-0001"))
-# => <re.Match object; ...>  マッチ成功
+# => <re.Match object; ...>  Match succeeded
 
-print(re.match(r'^\d{3}-\d{4}$', "100-0001 東京"))
-# => None  (末尾に余分な文字があるため)
+print(re.match(r'^\d{3}-\d{4}$', "100-0001 Tokyo"))
+# => None  (extra characters at the end)
 
-# 複数行モードでの ^ と $
+# ^ and $ in multiline mode
 text = """line1
 line2
 line3"""
 
-# デフォルト: ^ は文字列全体の先頭のみ
+# Default: ^ matches only the start of the entire string
 print(re.findall(r'^line\d', text))
 # => ['line1']
 
-# MULTILINE: ^ が各行の先頭にマッチ
+# MULTILINE: ^ matches the start of each line
 print(re.findall(r'^line\d', text, re.MULTILINE))
 # => ['line1', 'line2', 'line3']
 ```
 
 ---
 
-## 3. エスケープ
+## 3. Escaping
 
-### 3.1 メタ文字のエスケープ
+### 3.1 Escaping Metacharacters
 
 ```python
 import re
 
-# メタ文字をリテラルとして扱うにはバックスラッシュでエスケープ
+# Use a backslash to treat metacharacters as literals
 price_pattern = r'\$\d+\.\d{2}'
 text = "Price: $19.99 and $5.00"
 
 matches = re.findall(price_pattern, text)
 print(matches)  # => ['$19.99', '$5.00']
 
-# エスケープが必要なメタ文字の例:
-#   \.  → リテラルのドット
-#   \*  → リテラルのアスタリスク
-#   \+  → リテラルのプラス
-#   \?  → リテラルのクエスチョンマーク
-#   \(  → リテラルの開き括弧
-#   \)  → リテラルの閉じ括弧
-#   \[  → リテラルの開き角括弧
-#   \{  → リテラルの開き波括弧
-#   \|  → リテラルのパイプ
-#   \\  → リテラルのバックスラッシュ
-#   \^  → リテラルのキャレット
-#   \$  → リテラルのドル記号
+# Examples of metacharacters that need escaping:
+#   \.  → Literal dot
+#   \*  → Literal asterisk
+#   \+  → Literal plus
+#   \?  → Literal question mark
+#   \(  → Literal opening parenthesis
+#   \)  → Literal closing parenthesis
+#   \[  → Literal opening square bracket
+#   \{  → Literal opening curly brace
+#   \|  → Literal pipe
+#   \\  → Literal backslash
+#   \^  → Literal caret
+#   \$  → Literal dollar sign
 ```
 
 ```python
-# エスケープが必要な実用パターン
+# Practical patterns requiring escaping
 
 import re
 
-# 1. ファイルパス（Windows）
+# 1. File path (Windows)
 path = r'C:\Users\gaku\Documents\file.txt'
 pattern = r'C:\\Users\\(\w+)\\Documents\\(\w+\.txt)'
 m = re.search(pattern, path)
 if m:
-    print(f"ユーザー: {m.group(1)}, ファイル: {m.group(2)}")
-    # => ユーザー: gaku, ファイル: file.txt
+    print(f"User: {m.group(1)}, File: {m.group(2)}")
+    # => User: gaku, File: file.txt
 
-# 2. URL パターン
+# 2. URL pattern
 url = "https://example.com/path?key=value&key2=value2"
 pattern = r'https?://([^/]+)(/[^?]*)?\?(.+)'
 m = re.search(pattern, url)
 if m:
-    print(f"ホスト: {m.group(1)}")  # => example.com
-    print(f"パス: {m.group(2)}")    # => /path
-    print(f"クエリ: {m.group(3)}")  # => key=value&key2=value2
+    print(f"Host: {m.group(1)}")   # => example.com
+    print(f"Path: {m.group(2)}")   # => /path
+    print(f"Query: {m.group(3)}")  # => key=value&key2=value2
 
-# 3. 数学的な式
+# 3. Mathematical expression
 expr = "f(x) = 3x^2 + 2x + 1"
 pattern = r'f\(x\) = (\d+)x\^(\d+)'
 m = re.search(pattern, expr)
 if m:
-    print(f"係数: {m.group(1)}, 指数: {m.group(2)}")
-    # => 係数: 3, 指数: 2
+    print(f"Coefficient: {m.group(1)}, Exponent: {m.group(2)}")
+    # => Coefficient: 3, Exponent: 2
 
-# 4. IPアドレス（ドットのエスケープ重要）
+# 4. IP address (escaping dots is important)
 ip_text = "Server 192.168.1.1 Port 8080"
 pattern = r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}'
 m = re.search(pattern, ip_text)
 print(m.group())  # => '192.168.1.1'
 ```
 
-### 3.2 二重エスケープ問題
+### 3.2 The Double-Escaping Problem
 
 ```
-エスケープの流れ:
+Escape flow:
 
-ソースコード          Python文字列        正規表現エンジン
+Source Code           Python String        Regex Engine
 ─────────────       ──────────────      ────────────────
-"\\d"          →    \d             →    数字1文字にマッチ
-"\\\\d"        →    \\d            →    リテラル \ + d
-r"\d"          →    \d             →    数字1文字にマッチ (raw string)
-r"\\d"         →    \\d            →    リテラル \ + d
+"\\d"          →    \d             →    Matches one digit
+"\\\\d"        →    \\d            →    Literal \ + d
+r"\d"          →    \d             →    Matches one digit (raw string)
+r"\\d"         →    \\d            →    Literal \ + d
 
-※ raw string (r"...") を使えば二重エスケープを回避できる
+* Using raw strings (r"...") avoids double escaping
 ```
 
 ```python
 import re
 
-# 二重エスケープの問題
-# Windowsパスをマッチする場合:
+# The double-escaping problem
+# When matching Windows paths:
 
-# NG: 通常文字列 -- バックスラッシュが二重に解釈される
+# BAD: Regular string -- backslashes are interpreted at two levels
 pattern_bad = "C:\\\\Users\\\\\\w+"
-# Python文字列としての解釈: C:\\Users\\\w+
-# 正規表現としての解釈: C:\Users\ + 単語文字列
+# Python string interpretation: C:\\Users\\\w+
+# Regex interpretation: C:\Users\ + word characters
 
-# OK: raw string を使う
+# GOOD: Use raw strings
 pattern_good = r"C:\\Users\\\w+"
 
 text = r"C:\Users\gaku"
@@ -592,139 +590,139 @@ print(re.search(pattern_good, text).group())  # => C:\Users\gaku
 ```
 
 ```python
-# 二重エスケープ問題が発生しやすいケース
+# Cases prone to double-escaping problems
 
 import re
 
-# ケース1: バックスラッシュ自体をマッチ
-# 目的: テキスト中の \ を見つける
+# Case 1: Matching a backslash itself
+# Goal: Find \ in text
 text = "path\\to\\file"
 
-# NG: 通常文字列
-# "\\" → Python文字列: \ → 正規表現: エスケープ不完全
-# OK: raw string
-pattern = r'\\'  # raw string: \\ → 正規表現: リテラル \
+# BAD: Regular string
+# "\\" → Python string: \ → Regex: incomplete escape
+# GOOD: Raw string
+pattern = r'\\'  # Raw string: \\ → Regex: literal \
 print(re.findall(pattern, text))  # => ['\\', '\\']
 
-# ケース2: \n をリテラル文字列としてマッチ
-# 目的: テキスト中の文字列 "\n" (バックスラッシュ+n) を見つける
-text = r"改行は\nで表します"
+# Case 2: Matching the literal string \n
+# Goal: Find the character sequence "\n" (backslash + n) in text
+text = r"Newline is represented by \n"
 
-# NG: "\n" → Python文字列: 改行文字 → 改行にマッチしてしまう
-# OK:
-pattern = r'\\n'  # raw string: \\n → 正規表現: リテラル \ + n
+# BAD: "\n" → Python string: newline character → matches newline
+# GOOD:
+pattern = r'\\n'  # Raw string: \\n → Regex: literal \ + n
 print(re.findall(pattern, text))  # => ['\\n']
 
-# ケース3: Java / JavaScript では更に注意
-# Java: Pattern.compile("\\\\n") → \\ → リテラル \ + n
-# JavaScript: /\\n/ → リテラル \ + n
-# JavaScript: new RegExp("\\\\n") → 文字列エスケープ + 正規表現エスケープ
+# Case 3: Extra caution needed in Java / JavaScript
+# Java: Pattern.compile("\\\\n") → \\ → literal \ + n
+# JavaScript: /\\n/ → literal \ + n
+# JavaScript: new RegExp("\\\\n") → string escape + regex escape
 ```
 
-### 3.3 特殊エスケープシーケンス
+### 3.3 Special Escape Sequences
 
 ```
-エスケープシーケンス一覧:
+Escape Sequence Reference:
 
-文字クラス系:
-  \d  → 数字 [0-9]
-  \D  → 非数字 [^0-9]
-  \w  → 単語文字 [a-zA-Z0-9_]
-  \W  → 非単語文字 [^a-zA-Z0-9_]
-  \s  → 空白文字 [ \t\n\r\f\v]
-  \S  → 非空白文字 [^ \t\n\r\f\v]
+Character class shorthands:
+  \d  → Digit [0-9]
+  \D  → Non-digit [^0-9]
+  \w  → Word character [a-zA-Z0-9_]
+  \W  → Non-word character [^a-zA-Z0-9_]
+  \s  → Whitespace [ \t\n\r\f\v]
+  \S  → Non-whitespace [^ \t\n\r\f\v]
 
-アンカー系:
-  \b  → 単語境界
-  \B  → 非単語境界
+Anchors:
+  \b  → Word boundary
+  \B  → Non-word boundary
 
-特殊文字:
-  \t  → タブ
-  \n  → 改行 (LF)
-  \r  → 復帰 (CR)
-  \f  → フォームフィード
-  \v  → 垂直タブ
-  \0  → NULL文字
-  \a  → ベル文字
-  \e  → エスケープ文字 (ESC, 0x1B) ※一部エンジンのみ
+Special characters:
+  \t  → Tab
+  \n  → Newline (LF)
+  \r  → Carriage return (CR)
+  \f  → Form feed
+  \v  → Vertical tab
+  \0  → NULL character
+  \a  → Bell character
+  \e  → Escape character (ESC, 0x1B) *Some engines only
 
-数値指定:
-  \xHH    → 16進数で指定 (例: \x41 = 'A')
-  \uHHHH  → Unicode BMP (例: \u3042 = 'あ')
-  \UHHHHHHHH → Unicode (例: \U0001F600 = 絵文字)
-  \N{name}   → Unicode名 (例: \N{SNOWMAN} = '☃') ※Python
-  \oOOO   → 8進数で指定 (例: \o101 = 'A')
+Numeric specification:
+  \xHH    → Hexadecimal (e.g., \x41 = 'A')
+  \uHHHH  → Unicode BMP (e.g., \u3042 = Japanese hiragana 'a')
+  \UHHHHHHHH → Unicode (e.g., \U0001F600 = emoji)
+  \N{name}   → Unicode name (e.g., \N{SNOWMAN} = snowman character) *Python
+  \oOOO   → Octal (e.g., \o101 = 'A')
 ```
 
 ```python
 import re
 
-# ショートハンドの動作確認
+# Verifying shorthand behavior
 
-# \d: 数字
+# \d: digits
 print(re.findall(r'\d+', "abc123def456"))
 # => ['123', '456']
 
-# \w: 単語文字
+# \w: word characters
 print(re.findall(r'\w+', "hello, world! 123"))
 # => ['hello', 'world', '123']
 
-# \s: 空白文字
+# \s: whitespace characters
 text = "hello\tworld\nnext line"
 print(re.findall(r'\s', text))
 # => ['\t', '\n', ' ']
 
-# \b: 単語境界
+# \b: word boundary
 text = "cat caterpillar concatenate"
 print(re.findall(r'\bcat\b', text))
-# => ['cat']  ※ 完全一致のみ
+# => ['cat']  *Exact match only
 
 print(re.findall(r'\bcat', text))
-# => ['cat', 'cat', 'cat']  ※ cat で始まる単語
+# => ['cat', 'cat', 'cat']  *Words starting with cat
 
-# 大文字版は否定
-print(re.findall(r'\D+', "abc123def"))  # 非数字
+# Uppercase versions are negations
+print(re.findall(r'\D+', "abc123def"))  # Non-digits
 # => ['abc', 'def']
 
-print(re.findall(r'\W+', "hello, world!"))  # 非単語文字
+print(re.findall(r'\W+', "hello, world!"))  # Non-word characters
 # => [', ', '!']
 
-print(re.findall(r'\S+', "hello world"))  # 非空白文字
+print(re.findall(r'\S+', "hello world"))  # Non-whitespace
 # => ['hello', 'world']
 ```
 
-### 3.4 re.escape() による自動エスケープ
+### 3.4 Automatic Escaping with re.escape()
 
 ```python
 import re
 
-# ユーザー入力をリテラルとしてパターンに組み込む場合
+# When incorporating user input as a literal into a pattern
 user_input = "file (1).txt"
 
-# NG: そのまま使うとメタ文字が解釈される
+# BAD: Using it directly causes metacharacters to be interpreted
 try:
-    re.search(user_input, "file (1).txt")  # () がグループとして解釈
+    re.search(user_input, "file (1).txt")  # () interpreted as a group
 except re.error as e:
-    print(f"エラー: {e}")
+    print(f"Error: {e}")
 
-# OK: re.escape() でメタ文字をエスケープ
+# GOOD: Escape metacharacters with re.escape()
 escaped = re.escape(user_input)
 print(escaped)  # => 'file\\ \\(1\\)\\.txt'
 m = re.search(escaped, "file (1).txt")
 print(m.group())  # => 'file (1).txt'
 
-# 実用例: ユーザー入力のリテラル検索
+# Practical example: literal search of user input
 def search_literal(text, query):
-    """ユーザー入力をリテラルとして検索"""
+    """Search for user input as a literal"""
     pattern = re.escape(query)
     return re.findall(pattern, text)
 
 print(search_literal("price is $10.00", "$10.00"))
 # => ['$10.00']
 
-# 実用例: リテラルで囲まれた部分を抽出
+# Practical example: extract text between literal delimiters
 def extract_between(text, start, end):
-    """start と end の間の文字列を抽出"""
+    """Extract strings between start and end"""
     pattern = re.escape(start) + r'(.+?)' + re.escape(end)
     return re.findall(pattern, text)
 
@@ -732,7 +730,7 @@ print(extract_between("value = [hello]", "[", "]"))
 # => ['hello']
 ```
 
-### 3.5 各言語でのエスケープ関数
+### 3.5 Escape Functions in Various Languages
 
 ```python
 # Python
@@ -741,7 +739,7 @@ re.escape("hello.world")  # => 'hello\\.world'
 ```
 
 ```javascript
-// JavaScript (標準にはないが、よく使われるユーティリティ)
+// JavaScript (not in the standard, but a commonly used utility)
 function escapeRegExp(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -751,7 +749,7 @@ escapeRegExp("hello.world");  // => "hello\\.world"
 ```java
 // Java
 java.util.regex.Pattern.quote("hello.world");
-// => "\\Qhello.world\\E" (リテラルブロックで囲む)
+// => "\\Qhello.world\\E" (wrapped in a literal block)
 ```
 
 ```ruby
@@ -761,9 +759,9 @@ Regexp.escape("hello.world")  # => "hello\\.world"
 
 ---
 
-## 4. フラグ(修飾子)
+## 4. Flags (Modifiers)
 
-### 4.1 主要フラグ一覧
+### 4.1 Major Flags Reference
 
 ```python
 import re
@@ -772,101 +770,101 @@ text = """Hello World
 hello python
 HELLO REGEX"""
 
-# i フラグ: 大文字小文字を無視
+# i flag: ignore case
 print(re.findall(r'hello', text, re.IGNORECASE))
 # => ['Hello', 'hello', 'HELLO']
 
-# m フラグ: 複数行モード (^$ が各行に作用)
+# m flag: multiline mode (^ and $ apply to each line)
 print(re.findall(r'^hello', text, re.MULTILINE | re.IGNORECASE))
 # => ['Hello', 'hello', 'HELLO']
 
-# s フラグ: ドットが改行にもマッチ
+# s flag: dot matches newlines too
 print(re.search(r'Hello.+REGEX', text, re.DOTALL).group())
 # => 'Hello World\nhello python\nHELLO REGEX'
 
-# x フラグ: 冗長モード (空白・コメントを無視)
+# x flag: verbose mode (ignores whitespace and comments)
 pattern = re.compile(r'''
-    \d{4}       # 年 (4桁)
-    -            # ハイフン区切り
-    \d{2}       # 月 (2桁)
-    -            # ハイフン区切り
-    \d{2}       # 日 (2桁)
+    \d{4}       # Year (4 digits)
+    -            # Hyphen separator
+    \d{2}       # Month (2 digits)
+    -            # Hyphen separator
+    \d{2}       # Day (2 digits)
 ''', re.VERBOSE)
 print(pattern.search("Date: 2026-02-11").group())
 # => '2026-02-11'
 ```
 
-### 4.2 フラグ比較表
+### 4.2 Flag Comparison Table
 
-| フラグ | Python | JavaScript | Perl | Java | 効果 |
-|--------|--------|------------|------|------|------|
-| 大文字小文字無視 | `re.IGNORECASE` / `re.I` | `/i` | `/i` | `CASE_INSENSITIVE` | 大文字小文字を区別しない |
-| 複数行 | `re.MULTILINE` / `re.M` | `/m` | `/m` | `MULTILINE` | `^` `$` が各行の先頭・末尾にマッチ |
-| ドットオール | `re.DOTALL` / `re.S` | `/s` | `/s` | `DOTALL` | `.` が改行にもマッチ |
-| 冗長モード | `re.VERBOSE` / `re.X` | 非対応 | `/x` | `COMMENTS` | 空白・コメントを無視 |
-| Unicode | `re.UNICODE` / `re.U` | `/u` | デフォルト | `UNICODE_CHARACTER_CLASS` | Unicode対応 |
-| グローバル | N/A (`findall`) | `/g` | `/g` | N/A (`Matcher.find()`) | 全マッチを返す |
-| スティッキー | N/A | `/y` | N/A | N/A | lastIndex位置からのみマッチ |
-| ASCII | `re.ASCII` / `re.A` | N/A | `/a` | N/A | \d \w \s を ASCII のみに限定 |
+| Flag | Python | JavaScript | Perl | Java | Effect |
+|------|--------|------------|------|------|--------|
+| Case-insensitive | `re.IGNORECASE` / `re.I` | `/i` | `/i` | `CASE_INSENSITIVE` | Ignore case differences |
+| Multiline | `re.MULTILINE` / `re.M` | `/m` | `/m` | `MULTILINE` | `^` `$` match start/end of each line |
+| Dotall | `re.DOTALL` / `re.S` | `/s` | `/s` | `DOTALL` | `.` matches newlines too |
+| Verbose | `re.VERBOSE` / `re.X` | Not supported | `/x` | `COMMENTS` | Ignores whitespace and comments |
+| Unicode | `re.UNICODE` / `re.U` | `/u` | Default | `UNICODE_CHARACTER_CLASS` | Unicode support |
+| Global | N/A (`findall`) | `/g` | `/g` | N/A (`Matcher.find()`) | Return all matches |
+| Sticky | N/A | `/y` | N/A | N/A | Match only from lastIndex position |
+| ASCII | `re.ASCII` / `re.A` | N/A | `/a` | N/A | Restrict \d \w \s to ASCII only |
 
-### 4.3 インラインフラグ
+### 4.3 Inline Flags
 
 ```python
 import re
 
-# パターン内にフラグを埋め込む
-# (?flags) の形式
+# Embed flags within the pattern
+# (?flags) format
 
-# (?i) 大文字小文字無視
+# (?i) ignore case
 print(re.findall(r'(?i)hello', "Hello HELLO hello"))
 # => ['Hello', 'HELLO', 'hello']
 
-# (?m) 複数行モード
+# (?m) multiline mode
 text = "line1\nline2\nline3"
 print(re.findall(r'(?m)^\w+', text))
 # => ['line1', 'line2', 'line3']
 
-# (?s) ドットオール
+# (?s) dotall
 print(re.search(r'(?s)line1.+line3', text).group())
 # => 'line1\nline2\nline3'
 
-# (?x) 冗長モード
+# (?x) verbose mode
 pattern = r'''(?x)
-    (\d{4})     # 年
-    -(\d{2})    # 月
-    -(\d{2})    # 日
+    (\d{4})     # Year
+    -(\d{2})    # Month
+    -(\d{2})    # Day
 '''
 m = re.search(pattern, "2026-02-15")
 print(m.groups())  # => ('2026', '02', '15')
 
-# 複数フラグの組み合わせ
+# Combining multiple flags
 print(re.findall(r'(?im)^hello', "Hello\nhello\nHELLO"))
 # => ['Hello', 'hello', 'HELLO']
 
-# スコープ付きフラグ (Python 3.6+)
-# (?i:pattern) でその部分だけフラグ適用
-pattern = r'(?i:hello) world'  # hello は大文字小文字無視、world は区別
+# Scoped flags (Python 3.6+)
+# (?i:pattern) applies the flag only to that portion
+pattern = r'(?i:hello) world'  # hello is case-insensitive, world is case-sensitive
 print(re.findall(pattern, "Hello world HELLO world hello World"))
-# => ['Hello world', 'hello world']  ※ 'HELLO world' はマッチ、'hello World' は不一致
-# 実際には:
-# 'Hello world' → マッチ
-# 'HELLO world' → マッチ
-# 'hello World' → 不一致（world が大文字のため）
+# => ['Hello world', 'hello world']  *'HELLO world' matches, 'hello World' does not
+# In practice:
+# 'Hello world' → match
+# 'HELLO world' → match
+# 'hello World' → no match (world is uppercase)
 ```
 
-### 4.4 フラグの実用パターン
+### 4.4 Practical Flag Patterns
 
 ```python
 import re
 
-# 1. ログファイルの解析（複数行 + 大文字小文字無視）
+# 1. Log file analysis (multiline + case-insensitive)
 log = """
 2026-02-15 10:30:00 [ERROR] Database connection failed
 2026-02-15 10:31:00 [Warning] High memory usage
 2026-02-15 10:32:00 [error] Disk space low
 """
 
-# ERROR も Warning も error もマッチ
+# Matches ERROR, Warning, and error
 errors = re.findall(
     r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \[(?:error|warning)\] (.+)$',
     log,
@@ -875,24 +873,24 @@ errors = re.findall(
 print(errors)
 # => ['Database connection failed', 'High memory usage', 'Disk space low']
 
-# 2. 複雑なパターンの可読性向上（冗長モード）
+# 2. Improving readability of complex patterns (verbose mode)
 email_pattern = re.compile(r'''
-    ^                       # 文字列の先頭
-    [a-zA-Z0-9._%+-]+      # ローカルパート
-    @                       # アットマーク
-    [a-zA-Z0-9.-]+          # ドメイン名
-    \.                      # ドット
+    ^                       # Start of string
+    [a-zA-Z0-9._%+-]+      # Local part
+    @                       # At sign
+    [a-zA-Z0-9.-]+          # Domain name
+    \.                      # Dot
     [a-zA-Z]{2,}            # TLD
-    $                       # 文字列の末尾
+    $                       # End of string
 ''', re.VERBOSE)
 
-# 3. 複数行テキストの解析（ドットオール + 複数行）
+# 3. Multiline text analysis (dotall + multiline)
 html = """<div class="content">
     <p>First paragraph</p>
     <p>Second paragraph</p>
 </div>"""
 
-# div の中身全体を抽出
+# Extract the entire contents of the div
 m = re.search(r'<div[^>]*>(.*?)</div>', html, re.DOTALL)
 if m:
     print(m.group(1).strip())
@@ -900,128 +898,129 @@ if m:
 
 ---
 
-## 5. ASCII 図解: パターンマッチングの流れ
+## 5. ASCII Diagrams: Pattern Matching Flow
 
-### 5.1 基本的なマッチング手順
+### 5.1 Basic Matching Procedure
 
 ```
-パターン: h.llo
-テキスト: "say hello world"
+Pattern: h.llo
+Text: "say hello world"
 
-位置: s a y   h e l l o   w o r l d
-      0 1 2 3 4 5 6 7 8 9 ...
+Position: s a y   h e l l o   w o r l d
+          0 1 2 3 4 5 6 7 8 9 ...
 
-試行1: 位置0 's' ≠ 'h' → 失敗、位置1へ
-試行2: 位置1 'a' ≠ 'h' → 失敗、位置2へ
-試行3: 位置2 'y' ≠ 'h' → 失敗、位置3へ
-試行4: 位置3 ' ' ≠ 'h' → 失敗、位置4へ
-試行5: 位置4 'h' = 'h' → 一致
-        位置5 'e' = '.' → 一致 (任意の1文字)
-        位置6 'l' = 'l' → 一致
-        位置7 'l' = 'l' → 一致
-        位置8 'o' = 'o' → 一致
-        → マッチ成功: "hello" (位置4-8)
+Attempt 1: position 0, 's' != 'h' → fail, move to position 1
+Attempt 2: position 1, 'a' != 'h' → fail, move to position 2
+Attempt 3: position 2, 'y' != 'h' → fail, move to position 3
+Attempt 4: position 3, ' ' != 'h' → fail, move to position 4
+Attempt 5: position 4, 'h' = 'h' → match
+           position 5, 'e' = '.' → match (any single character)
+           position 6, 'l' = 'l' → match
+           position 7, 'l' = 'l' → match
+           position 8, 'o' = 'o' → match
+           → Match succeeded: "hello" (position 4-8)
 ```
 
-### 5.2 メタ文字の意味マップ
+### 5.2 Metacharacter Meaning Map
 
 ```
 ┌─────────────────────────────────────────────────┐
-│              正規表現の構成要素                    │
+│         Components of Regular Expressions         │
 ├────────────┬────────────────────────────────────┤
-│ リテラル    │  a b c 1 2 3 あ い う              │
-│ (そのまま)  │  → その文字自身にマッチ              │
+│ Literals   │  a b c 1 2 3 etc.                   │
+│ (as-is)    │  → Matches the character itself       │
 ├────────────┼────────────────────────────────────┤
-│ メタ文字    │  . ^ $ * + ? | ( ) [ ] { } \      │
-│ (特殊意味)  │  → 特別な動作を指示                  │
+│ Metacharacters │  . ^ $ * + ? | ( ) [ ] { } \   │
+│ (special)  │  → Instructs special behavior         │
 ├────────────┼────────────────────────────────────┤
-│ エスケープ  │  \. \* \+ \? \( \) \[ \{ \\ 等     │
-│ (無効化)    │  → メタ文字をリテラルに戻す           │
+│ Escapes    │  \. \* \+ \? \( \) \[ \{ \\ etc.    │
+│ (disable)  │  → Reverts metacharacters to literals  │
 ├────────────┼────────────────────────────────────┤
-│ ショートハンド│  \d \w \s \b \t \n 等             │
-│ (略記法)    │  → 文字クラスの省略表記               │
+│ Shorthands │  \d \w \s \b \t \n etc.              │
+│ (abbreviations) │  → Abbreviated character class    │
+│            │    notation                            │
 └────────────┴────────────────────────────────────┘
 ```
 
-### 5.3 エスケープ層の構造
+### 5.3 Structure of Escape Layers
 
 ```
-  ソースコード層        言語処理系層       正規表現エンジン層
+  Source Code Layer      Language Layer        Regex Engine Layer
  ┌──────────┐      ┌──────────┐      ┌──────────────┐
- │ "\\d+"   │ ───→ │  \d+     │ ───→ │ 1桁以上の数字  │
- │ r"\d+"   │ ───→ │  \d+     │ ───→ │ 1桁以上の数字  │
- │ "\\\\n"  │ ───→ │  \\n     │ ───→ │ \ + n (2文字) │
- │ r"\\n"   │ ───→ │  \\n     │ ───→ │ \ + n (2文字) │
- │ "\n"     │ ───→ │  改行    │ ───→ │ 改行文字       │
- │ r"\n"    │ ───→ │  \n      │ ───→ │ 改行文字       │
+ │ "\\d+"   │ ───→ │  \d+     │ ───→ │ 1+ digits     │
+ │ r"\d+"   │ ───→ │  \d+     │ ───→ │ 1+ digits     │
+ │ "\\\\n"  │ ───→ │  \\n     │ ───→ │ \ + n (2 chars)│
+ │ r"\\n"   │ ───→ │  \\n     │ ───→ │ \ + n (2 chars)│
+ │ "\n"     │ ───→ │  newline │ ───→ │ newline char   │
+ │ r"\n"    │ ───→ │  \n      │ ───→ │ newline char   │
  └──────────┘      └──────────┘      └──────────────┘
 
- ポイント: raw string (r"...") は言語処理系層の
-           エスケープを無効化する。
-           正規表現エンジン層のエスケープは別物。
+ Key point: Raw strings (r"...") disable escaping
+            at the language layer.
+            Regex engine layer escaping is separate.
 ```
 
-### 5.4 量指定子の動作比較
+### 5.4 Quantifier Behavior Comparison
 
 ```
-パターン: a{2,4}
-テキスト: "aaaaaa"
+Pattern: a{2,4}
+Text: "aaaaaa"
 
-貪欲マッチ (デフォルト):
-  位置0: a{2,4} → "aaaa" (最大4文字を消費)
-  位置4: a{2,4} → "aa"   (残り2文字を消費)
-  結果: ["aaaa", "aa"]
+Greedy match (default):
+  Position 0: a{2,4} → "aaaa" (consumes maximum 4 characters)
+  Position 4: a{2,4} → "aa"   (consumes remaining 2 characters)
+  Result: ["aaaa", "aa"]
 
-非貪欲マッチ (a{2,4}?):
-  位置0: a{2,4}? → "aa" (最小2文字を消費)
-  位置2: a{2,4}? → "aa" (最小2文字を消費)
-  位置4: a{2,4}? → "aa" (最小2文字を消費)
-  結果: ["aa", "aa", "aa"]
+Non-greedy match (a{2,4}?):
+  Position 0: a{2,4}? → "aa" (consumes minimum 2 characters)
+  Position 2: a{2,4}? → "aa" (consumes minimum 2 characters)
+  Position 4: a{2,4}? → "aa" (consumes minimum 2 characters)
+  Result: ["aa", "aa", "aa"]
 ```
 
 ```
-パターン: <.+> vs <.+?>
-テキスト: "<b>bold</b>"
+Pattern: <.+> vs <.+?>
+Text: "<b>bold</b>"
 
-貪欲 <.+>:
-  < にマッチ → . が貪欲に "b>bold</b" を消費 → > にマッチ
-  結果: "<b>bold</b>" (1つの大きなマッチ)
+Greedy <.+>:
+  < matches → . greedily consumes "b>bold</b" → > matches
+  Result: "<b>bold</b>" (one large match)
 
-非貪欲 <.+?>:
-  < にマッチ → . が最小の "b" を消費 → > にマッチ
-  結果: "<b>" (最小のマッチ)
-  続行: "<" にマッチ → "..." → 結果: "</b>"
+Non-greedy <.+?>:
+  < matches → . consumes minimum "b" → > matches
+  Result: "<b>" (minimum match)
+  Continues: "<" matches → "..." → Result: "</b>"
 ```
 
 ---
 
-## 6. 実践的なパターン例
+## 6. Practical Pattern Examples
 
-### 6.1 基本的なバリデーションパターン
+### 6.1 Basic Validation Patterns
 
 ```python
 import re
 
-# 日本の郵便番号
+# Japanese postal code
 postal_code = re.compile(r'^\d{3}-\d{4}$')
 assert postal_code.match('100-0001')
 assert not postal_code.match('1000001')
 assert not postal_code.match('100-000')
 
-# 日本の携帯電話番号
+# Japanese mobile phone number
 mobile_phone = re.compile(r'^0[789]0-\d{4}-\d{4}$')
 assert mobile_phone.match('090-1234-5678')
 assert mobile_phone.match('080-1234-5678')
 assert not mobile_phone.match('03-1234-5678')
 
-# 西暦日付 (YYYY-MM-DD)
+# Date in ISO format (YYYY-MM-DD)
 date_pattern = re.compile(r'^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])$')
 assert date_pattern.match('2026-02-15')
 assert date_pattern.match('2026-12-31')
 assert not date_pattern.match('2026-13-01')
 assert not date_pattern.match('2026-00-15')
 
-# 時刻 (HH:MM:SS)
+# Time (HH:MM:SS)
 time_pattern = re.compile(r'^(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d$')
 assert time_pattern.match('00:00:00')
 assert time_pattern.match('23:59:59')
@@ -1029,68 +1028,68 @@ assert not time_pattern.match('24:00:00')
 assert not time_pattern.match('12:60:00')
 ```
 
-### 6.2 テキスト抽出パターン
+### 6.2 Text Extraction Patterns
 
 ```python
 import re
 
-# Markdown のリンクを抽出
-text = "詳細は[公式サイト](https://example.com)と[FAQ](https://example.com/faq)を参照"
+# Extract links from Markdown
+text = "See the [official site](https://example.com) and [FAQ](https://example.com/faq) for details"
 links = re.findall(r'\[([^\]]+)\]\(([^)]+)\)', text)
 for label, url in links:
     print(f"  {label} → {url}")
-# => 公式サイト → https://example.com
+# => official site → https://example.com
 # => FAQ → https://example.com/faq
 
-# ハッシュタグの抽出
-tweet = "今日は天気がいい #sunny #tokyo 最高！"
+# Extract hashtags
+tweet = "Beautiful weather today #sunny #tokyo Amazing!"
 tags = re.findall(r'#(\w+)', tweet)
 print(tags)  # => ['sunny', 'tokyo']
 
-# 引用符で囲まれた文字列
+# Quoted strings
 text = 'She said "hello" and "goodbye"'
 quoted = re.findall(r'"([^"]*)"', text)
 print(quoted)  # => ['hello', 'goodbye']
 
-# キーバリューペアの抽出
+# Key-value pair extraction
 config = "host=localhost port=3306 db=mydb user=admin"
 pairs = re.findall(r'(\w+)=(\S+)', config)
 print(dict(pairs))  # => {'host': 'localhost', 'port': '3306', 'db': 'mydb', 'user': 'admin'}
 ```
 
-### 6.3 テキスト置換パターン
+### 6.3 Text Replacement Patterns
 
 ```python
 import re
 
-# 1. スネークケース → キャメルケース
+# 1. Snake case → camel case
 def snake_to_camel(name):
     return re.sub(r'_([a-z])', lambda m: m.group(1).upper(), name)
 
 print(snake_to_camel('hello_world'))    # => 'helloWorld'
 print(snake_to_camel('my_var_name'))    # => 'myVarName'
 
-# 2. キャメルケース → スネークケース
+# 2. Camel case → snake case
 def camel_to_snake(name):
     return re.sub(r'(?<!^)(?=[A-Z])', '_', name).lower()
 
 print(camel_to_snake('helloWorld'))    # => 'hello_world'
 print(camel_to_snake('myVarName'))     # => 'my_var_name'
 
-# 3. 連続する空白の正規化
+# 3. Normalize consecutive whitespace
 text = "hello   world\t\t\tnext"
 print(re.sub(r'\s+', ' ', text))  # => 'hello world next'
 
-# 4. HTMLタグの除去
+# 4. Remove HTML tags
 html = "<p>Hello <b>World</b></p>"
 print(re.sub(r'<[^>]+>', '', html))  # => 'Hello World'
 
-# 5. 日付フォーマットの変換 (YYYY/MM/DD → YYYY-MM-DD)
+# 5. Date format conversion (YYYY/MM/DD → YYYY-MM-DD)
 date = "2026/02/15"
 print(re.sub(r'(\d{4})/(\d{2})/(\d{2})', r'\1-\2-\3', date))
 # => '2026-02-15'
 
-# 6. 後方参照を使った重複語の検出と修正
+# 6. Detect and fix duplicate words using backreferences
 text = "the the quick brown fox fox"
 print(re.sub(r'\b(\w+)\s+\1\b', r'\1', text))
 # => 'the quick brown fox'
@@ -1098,118 +1097,118 @@ print(re.sub(r'\b(\w+)\s+\1\b', r'\1', text))
 
 ---
 
-## 7. アンチパターン
+## 7. Anti-patterns
 
-### 7.1 アンチパターン: raw string を使わない
+### 7.1 Anti-pattern: Not Using Raw Strings
 
 ```python
 import re
 
-# NG: raw string を使わずに正規表現を書く
-pattern_bad = "\\b\\w+\\b"  # 読みにくい、エスケープミスしやすい
+# BAD: Writing regex without raw strings
+pattern_bad = "\\b\\w+\\b"  # Hard to read, prone to escape mistakes
 
-# OK: raw string を使う
-pattern_good = r"\b\w+\b"   # 明快で間違いにくい
+# GOOD: Using raw strings
+pattern_good = r"\b\w+\b"   # Clear and less error-prone
 
 text = "hello world"
 print(re.findall(pattern_good, text))  # => ['hello', 'world']
 
-# 特に危険な例:
-# "\b" は Python では バックスペース文字(0x08)
-# r"\b" は正規表現の単語境界
-print("\b" == "\x08")   # => True  -- バックスペース!
-print(r"\b" == "\\b")   # => True  -- 正規表現の \b
+# A particularly dangerous example:
+# "\b" in Python is the backspace character (0x08)
+# r"\b" is the regex word boundary
+print("\b" == "\x08")   # => True  -- backspace!
+print(r"\b" == "\\b")   # => True  -- regex \b
 ```
 
-### 7.2 アンチパターン: ドットの過度な使用
+### 7.2 Anti-pattern: Overuse of Dot
 
 ```python
 import re
 
-# NG: ドットで何でもマッチさせる
+# BAD: Matching anything with dot
 pattern_bad = r'\d+.\d+.\d+'
 
-# これは "192.168.1.1" だけでなく以下にもマッチしてしまう:
+# This matches not only "192.168.1.1" but also:
 texts = ["192.168.1.1", "192-168-1-1", "192x168x1x1", "192 168 1 1"]
 for t in texts:
     m = re.search(pattern_bad, t)
     if m:
-        print(f"  マッチ: {m.group()}")  # 全てマッチしてしまう
+        print(f"  Match: {m.group()}")  # All match
 
-# OK: ドットをエスケープして明示的にする
+# GOOD: Escape the dot to be explicit
 pattern_good = r'\d+\.\d+\.\d+\.\d+'
 for t in texts:
     m = re.search(pattern_good, t)
     if m:
-        print(f"  マッチ: {m.group()}")  # "192.168.1.1" のみマッチ
+        print(f"  Match: {m.group()}")  # Only "192.168.1.1" matches
 ```
 
-### 7.3 アンチパターン: 不必要に複雑なパターン
+### 7.3 Anti-pattern: Unnecessarily Complex Patterns
 
 ```python
 import re
 
-# NG: 正規表現で書く必要がないケース
+# BAD: Cases where regex is unnecessary
 
-# 単純な文字列検索は in 演算子で十分
+# Simple string search is sufficient with the in operator
 text = "hello world"
 
-# NG
+# BAD
 if re.search(r'hello', text):
     pass
 
-# OK (高速かつ明快)
+# GOOD (fast and clear)
 if 'hello' in text:
     pass
 
-# NG: 先頭/末尾のチェックに正規表現
+# BAD: Using regex to check start/end
 if re.match(r'^hello', text):
     pass
 
-# OK
+# GOOD
 if text.startswith('hello'):
     pass
 
-# NG: 固定文字列の置換
+# BAD: Using regex for fixed string replacement
 re.sub(r'hello', 'hi', text)
 
-# OK
+# GOOD
 text.replace('hello', 'hi')
 ```
 
-### 7.4 アンチパターン: match() と search() の混同
+### 7.4 Anti-pattern: Confusing match() and search()
 
 ```python
 import re
 
 text = "say hello world"
 
-# match() は文字列の先頭からのみマッチを試みる
+# match() only attempts matching from the start of the string
 m = re.match(r'hello', text)
-print(m)  # => None  ※ 先頭が 'say' なので不一致
+print(m)  # => None  *Start is 'say', so no match
 
-# search() は文字列全体を検索する
+# search() searches the entire string
 m = re.search(r'hello', text)
 print(m.group())  # => 'hello'
 
-# fullmatch() は文字列全体が一致するかを確認
+# fullmatch() checks if the entire string matches
 m = re.fullmatch(r'hello', "hello")
 print(m.group())  # => 'hello'
 
 m = re.fullmatch(r'hello', "hello world")
-print(m)  # => None  ※ 末尾に余分な文字があるため
+print(m)  # => None  *Extra characters at the end
 
-# 全体マッチのベストプラクティス:
-# 入力検証には fullmatch() を使用（Python 3.4+）
-# テキスト検索には search() を使用
-# 行頭マッチには match() を使用
+# Best practices for full matching:
+# Use fullmatch() for input validation (Python 3.4+)
+# Use search() for text searching
+# Use match() for line-start matching
 ```
 
 ---
 
-## 8. パフォーマンスのヒント
+## 8. Performance Tips
 
-### 8.1 パターンのプリコンパイル
+### 8.1 Pattern Pre-compilation
 
 ```python
 import re
@@ -1217,102 +1216,102 @@ import time
 
 text_lines = [f"line {i}: some text here" for i in range(100000)]
 
-# NG: ループ内で毎回文字列パターンを使用
+# BAD: Using string pattern in every iteration
 start = time.time()
 for line in text_lines:
     re.search(r'\d+', line)
-print(f"未コンパイル: {time.time() - start:.3f}s")
+print(f"Not compiled: {time.time() - start:.3f}s")
 
-# OK: プリコンパイル
+# GOOD: Pre-compile
 pattern = re.compile(r'\d+')
 start = time.time()
 for line in text_lines:
     pattern.search(line)
-print(f"コンパイル済み: {time.time() - start:.3f}s")
+print(f"Pre-compiled: {time.time() - start:.3f}s")
 
-# ※ Python の re モジュールは内部キャッシュ(最大512パターン)を持つため
-#    少数のパターンを繰り返し使う場合は差が小さいが、
-#    明示的なコンパイルは意図を明確にする
+# Note: Python's re module has an internal cache (up to 512 patterns),
+#    so the difference is small when reusing a few patterns repeatedly,
+#    but explicit compilation makes the intent clear
 ```
 
-### 8.2 効率的なパターンの書き方
+### 8.2 Writing Efficient Patterns
 
 ```python
 import re
 
-# 1. 文字クラスは選択肢より高速
-# NG
+# 1. Character classes are faster than alternatives
+# BAD
 pattern_slow = r'a|b|c|d|e'
-# OK
+# GOOD
 pattern_fast = r'[a-e]'
 
-# 2. 非キャプチャグループでメモリ節約
-# NG (キャプチャが不要な場合)
+# 2. Non-capturing groups save memory
+# BAD (when capture is not needed)
 pattern_slow = r'(foo|bar|baz)+'
-# OK
+# GOOD
 pattern_fast = r'(?:foo|bar|baz)+'
 
-# 3. アンカーで検索範囲を限定
-# NG
-pattern_slow = r'error'  # 文字列全体を走査
-# OK (エラーが行頭にある場合)
-pattern_fast = r'^error'  # 各行の先頭のみチェック
+# 3. Anchors limit the search scope
+# BAD
+pattern_slow = r'error'  # Scans the entire string
+# GOOD (when error is at the start of line)
+pattern_fast = r'^error'  # Only checks the start of each line
 
-# 4. 具体的なパターンが優先
-# NG
-pattern_slow = r'.+@.+\..+'  # 曖昧すぎる
-# OK
+# 4. Specific patterns are preferred
+# BAD
+pattern_slow = r'.+@.+\..+'  # Too vague
+# GOOD
 pattern_fast = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
 
-# 5. 選択肢は長いものから先に
-# NG (短い選択肢が先にマッチして問題になるケース)
+# 5. Place longer alternatives first
+# BAD (shorter alternative matches first, causing issues)
 pattern_slow = r'Java|JavaScript'
-# OK
+# GOOD
 pattern_fast = r'JavaScript|Java'
 ```
 
 
 ---
 
-## 実践演習
+## Hands-on Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that satisfies the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate input data
+- Implement appropriate error handling
+- Create test code as well
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Basic implementation template
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Exercise for basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main processing logic"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Retrieve processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1321,26 +1320,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "An exception should have been raised"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation by adding the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Advanced patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Exercise for advanced patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1348,7 +1347,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1359,14 +1358,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Remove by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1374,7 +1373,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistical information"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1382,44 +1381,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # Size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1428,7 +1427,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1443,47 +1442,47 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient: {slow_time:.4f}s")
+    print(f"Efficient:   {fast_time:.6f}s")
+    print(f"Speedup:     {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key Points:**
+- Be mindful of algorithmic complexity
+- Choose appropriate data structures
+- Measure the effect with benchmarks
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
-|--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Error | Cause | Solution |
+|-------|-------|----------|
+| Initialization error | Configuration file issues | Verify configuration file path and format |
+| Timeout | Network latency / resource shortage | Adjust timeout values, add retry logic |
+| Out of memory | Data volume growth | Introduce batch processing, implement pagination |
+| Permission error | Insufficient access permissions | Verify executing user's permissions, review settings |
+| Data inconsistency | Concurrent processing conflicts | Introduce locking mechanisms, transaction management |
 
-### デバッグの手順
+### Debugging Procedure
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check error messages**: Read the stack trace and identify the location of occurrence
+2. **Establish reproduction steps**: Reproduce the error with minimal code
+3. **Formulate hypotheses**: List possible causes
+4. **Verify incrementally**: Use log output and debuggers to test hypotheses
+5. **Fix and regression test**: After fixing, also run tests on related areas
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utility
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -1491,102 +1490,103 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs function input/output"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Called: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return value: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception occurred: {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debug target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Issues
 
-パフォーマンス問題が発生した場合の診断手順:
+Diagnostic procedure when performance problems occur:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify bottlenecks**: Measure with profiling tools
+2. **Check memory usage**: Check for memory leaks
+3. **Check I/O waits**: Examine disk and network I/O conditions
+4. **Check concurrent connections**: Examine connection pool status
 
-| 問題の種類 | 診断ツール | 対策 |
-|-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| Problem Type | Diagnostic Tools | Countermeasures |
+|-------------|-----------------|-----------------|
+| CPU load | cProfile, py-spy | Algorithm improvement, parallelization |
+| Memory leak | tracemalloc, objgraph | Proper release of references |
+| I/O bottleneck | strace, iostat | Asynchronous I/O, caching |
+| DB latency | EXPLAIN, slow query log | Indexing, query optimization |
 
 ---
 
-## 設計判断ガイド
+## Design Decision Guide
 
-### 選択基準マトリクス
+### Selection Criteria Matrix
 
-技術選択を行う際の判断基準を以下にまとめます。
+The following summarizes the criteria for making technology choices.
 
-| 判断基準 | 重視する場合 | 妥協できる場合 |
-|---------|------------|-------------|
-| パフォーマンス | リアルタイム処理、大規模データ | 管理画面、バッチ処理 |
-| 保守性 | 長期運用、チーム開発 | プロトタイプ、短期プロジェクト |
-| スケーラビリティ | 成長が見込まれるサービス | 社内ツール、固定ユーザー |
-| セキュリティ | 個人情報、金融データ | 公開データ、社内利用 |
-| 開発速度 | MVP、市場投入スピード | 品質重視、ミッションクリティカル |
+| Criterion | Prioritize When | Acceptable to Compromise When |
+|-----------|----------------|------------------------------|
+| Performance | Real-time processing, large-scale data | Admin panels, batch processing |
+| Maintainability | Long-term operation, team development | Prototypes, short-term projects |
+| Scalability | Services expected to grow | Internal tools, fixed user base |
+| Security | Personal information, financial data | Public data, internal use |
+| Development speed | MVP, time-to-market | Quality-focused, mission-critical |
 
-### アーキテクチャパターンの選択
+### Architecture Pattern Selection
 
 ```
 ┌─────────────────────────────────────────────────┐
-│              アーキテクチャ選択フロー              │
+│          Architecture Selection Flow              │
 ├─────────────────────────────────────────────────┤
 │                                                 │
-│  ① チーム規模は？                                │
-│    ├─ 小規模（1-5人）→ モノリス                   │
-│    └─ 大規模（10人+）→ ②へ                       │
+│  (1) Team size?                                  │
+│    ├─ Small (1-5 people) → Monolith              │
+│    └─ Large (10+ people) → Go to (2)             │
 │                                                 │
-│  ② デプロイ頻度は？                               │
-│    ├─ 週1回以下 → モノリス + モジュール分割         │
-│    └─ 毎日/複数回 → ③へ                          │
+│  (2) Deployment frequency?                       │
+│    ├─ Once a week or less → Monolith +           │
+│    │  modular decomposition                      │
+│    └─ Daily/multiple times → Go to (3)           │
 │                                                 │
-│  ③ チーム間の独立性は？                            │
-│    ├─ 高い → マイクロサービス                      │
-│    └─ 中程度 → モジュラーモノリス                   │
+│  (3) Team independence?                          │
+│    ├─ High → Microservices                       │
+│    └─ Moderate → Modular monolith                │
 │                                                 │
 └─────────────────────────────────────────────────┘
 ```
 
-### トレードオフの分析
+### Trade-off Analysis
 
-技術的な判断には必ずトレードオフが伴います。以下の観点で分析を行いましょう:
+Technical decisions always involve trade-offs. Analyze from the following perspectives:
 
-**1. 短期 vs 長期のコスト**
-- 短期的に速い方法が長期的には技術的負債になることがある
-- 逆に、過剰な設計は短期的なコストが高く、プロジェクトの遅延を招く
+**1. Short-term vs Long-term Cost**
+- A quick short-term approach can become technical debt in the long run
+- Conversely, over-engineering has high short-term costs and can delay the project
 
-**2. 一貫性 vs 柔軟性**
-- 統一された技術スタックは学習コストが低い
-- 多様な技術の採用は適材適所が可能だが、運用コストが増加
+**2. Consistency vs Flexibility**
+- A unified technology stack has lower learning costs
+- Adopting diverse technologies enables best-fit solutions but increases operational costs
 
-**3. 抽象化のレベル**
-- 高い抽象化は再利用性が高いが、デバッグが困難になる場合がある
-- 低い抽象化は直感的だが、コードの重複が発生しやすい
+**3. Level of Abstraction**
+- High abstraction offers great reusability but can make debugging difficult
+- Low abstraction is intuitive but prone to code duplication
 
 ```python
-# 設計判断の記録テンプレート
+# Design decision recording template
 class ArchitectureDecisionRecord:
-    """ADR (Architecture Decision Record) の作成"""
+    """Create an ADR (Architecture Decision Record)"""
 
     def __init__(self, title: str):
         self.title = title
@@ -1596,17 +1596,17 @@ class ArchitectureDecisionRecord:
         self.alternatives = []
 
     def set_context(self, context: str):
-        """背景と課題の記述"""
+        """Describe the background and problem"""
         self.context = context
         return self
 
     def set_decision(self, decision: str):
-        """決定内容の記述"""
+        """Describe the decision"""
         self.decision = decision
         return self
 
     def add_consequence(self, consequence: str, positive: bool = True):
-        """結果の追加"""
+        """Add a consequence"""
         self.consequences.append({
             'description': consequence,
             'type': 'positive' if positive else 'negative'
@@ -1614,7 +1614,7 @@ class ArchitectureDecisionRecord:
         return self
 
     def add_alternative(self, name: str, reason_rejected: str):
-        """却下した代替案の追加"""
+        """Add a rejected alternative"""
         self.alternatives.append({
             'name': name,
             'reason_rejected': reason_rejected
@@ -1622,15 +1622,15 @@ class ArchitectureDecisionRecord:
         return self
 
     def to_markdown(self) -> str:
-        """Markdown形式で出力"""
+        """Output in Markdown format"""
         md = f"# ADR: {self.title}\n\n"
-        md += f"## 背景\n{self.context}\n\n"
-        md += f"## 決定\n{self.decision}\n\n"
-        md += "## 結果\n"
+        md += f"## Background\n{self.context}\n\n"
+        md += f"## Decision\n{self.decision}\n\n"
+        md += "## Consequences\n"
         for c in self.consequences:
-            icon = "✅" if c['type'] == 'positive' else "⚠️"
+            icon = "+" if c['type'] == 'positive' else "!"
             md += f"- {icon} {c['description']}\n"
-        md += "\n## 却下した代替案\n"
+        md += "\n## Rejected Alternatives\n"
         for a in self.alternatives:
             md += f"- **{a['name']}**: {a['reason_rejected']}\n"
         return md
@@ -1639,9 +1639,9 @@ class ArchitectureDecisionRecord:
 
 ## 9. FAQ
 
-### Q1: メタ文字を全部エスケープするのが面倒な場合は？
+### Q1: What if it's tedious to escape every metacharacter?
 
-**A**: 多くの言語に「文字列全体をエスケープする」関数がある:
+**A**: Most languages have a function to "escape the entire string":
 
 ```python
 import re
@@ -1649,32 +1649,32 @@ user_input = "price is $10.00 (tax+)"
 escaped = re.escape(user_input)
 print(escaped)  # => 'price\\ is\\ \\$10\\.00\\ \\(tax\\+\\)'
 
-# そのまま正規表現として安全に使える
+# Can be safely used as a regex pattern
 pattern = re.compile(escaped)
 ```
 
-JavaScript なら `string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')` で同等の処理ができる。
+In JavaScript, you can achieve the same with `string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')`.
 
-### Q2: `.` を改行にもマッチさせたいときは？
+### Q2: How do I make `.` match newlines too?
 
-**A**: DOTALL(Python)/ `s` フラグ(JavaScript ES2018+)を使う:
+**A**: Use the DOTALL (Python) / `s` flag (JavaScript ES2018+):
 
 ```python
 import re
 text = "line1\nline2\nline3"
-# デフォルト: ドットは改行にマッチしない
+# Default: dot does not match newlines
 print(re.search(r'line1.+line3', text))  # => None
 
-# DOTALL: ドットが改行にもマッチ
+# DOTALL: dot matches newlines too
 m = re.search(r'line1.+line3', text, re.DOTALL)
 print(m.group())  # => 'line1\nline2\nline3'
 ```
 
-代替手段として `[\s\S]` を使う方法もある(どの言語でも動作する)。
+Alternatively, you can use `[\s\S]` which works in any language.
 
-### Q3: 正規表現のフラグは複数同時に使えるか？
+### Q3: Can multiple regex flags be used simultaneously?
 
-**A**: 使える。Python ではビット OR(`|`)で結合する:
+**A**: Yes. In Python, combine them with bitwise OR (`|`):
 
 ```python
 import re
@@ -1683,32 +1683,32 @@ pattern = re.compile(r'^hello.+world$', re.IGNORECASE | re.MULTILINE | re.DOTALL
 # Perl: /^hello.+world$/ims
 ```
 
-Python ではインラインフラグ `(?ims)` も使用可能:
+In Python, inline flags `(?ims)` can also be used:
 ```python
 pattern = re.compile(r'(?ims)^hello.+world$')
 ```
 
-### Q4: \d は全角数字にもマッチするか？
+### Q4: Does \d match full-width digits?
 
-**A**: エンジンとフラグによる:
+**A**: It depends on the engine and flags:
 
 ```python
 import re
 
-# Python のデフォルト(Unicode モード)
-print(re.findall(r'\d+', "半角123 全角１２３"))
-# => ['123', '１２３']  ※ 全角数字にもマッチする！
+# Python default (Unicode mode)
+print(re.findall(r'\d+', "half-width 123 full-width \uff11\uff12\uff13"))
+# => ['123', '\uff11\uff12\uff13']  *Also matches full-width digits!
 
-# ASCII モードに制限
-print(re.findall(r'\d+', "半角123 全角１２３", re.ASCII))
-# => ['123']  ※ 半角数字のみ
+# Restrict to ASCII mode
+print(re.findall(r'\d+', "half-width 123 full-width \uff11\uff12\uff13", re.ASCII))
+# => ['123']  *Half-width digits only
 
-# JavaScript の /u フラグ
-# /\d+/u は Unicode 数字にもマッチ
-# /\d+/ は ASCII 数字のみ（エンジンによる）
+# JavaScript /u flag
+# /\d+/u matches Unicode digits
+# /\d+/ matches ASCII digits only (varies by engine)
 ```
 
-### Q5: match() と search() と fullmatch() の違いは？
+### Q5: What is the difference between match(), search(), and fullmatch()?
 
 **A**:
 
@@ -1717,39 +1717,39 @@ import re
 
 text = "hello world"
 
-# match(): 文字列の先頭からマッチを試みる
-re.match(r'hello', text)       # => マッチ
+# match(): attempts matching from the start of the string only
+re.match(r'hello', text)       # => match
 re.match(r'world', text)       # => None
 
-# search(): 文字列全体を検索
-re.search(r'hello', text)      # => マッチ
-re.search(r'world', text)      # => マッチ
+# search(): searches the entire string
+re.search(r'hello', text)      # => match
+re.search(r'world', text)      # => match
 
-# fullmatch(): 文字列全体がパターンと一致するか
+# fullmatch(): checks if the entire string matches the pattern
 re.fullmatch(r'hello', text)   # => None
-re.fullmatch(r'hello world', text)  # => マッチ
+re.fullmatch(r'hello world', text)  # => match
 ```
 
-### Q6: 正規表現でコメントを書くには？
+### Q6: How do I write comments in regex?
 
-**A**: verbose モード (`re.VERBOSE` / `re.X`) を使用:
+**A**: Use verbose mode (`re.VERBOSE` / `re.X`):
 
 ```python
 import re
 
 pattern = re.compile(r'''
-    ^                   # 文字列の先頭
-    (?P<protocol>       # プロトコル部分
-        https?          #   http または https
+    ^                   # Start of string
+    (?P<protocol>       # Protocol portion
+        https?          #   http or https
     )
-    ://                 # スキーム区切り
-    (?P<host>           # ホスト部分
-        [^/]+           #   スラッシュ以外の1文字以上
+    ://                 # Scheme separator
+    (?P<host>           # Host portion
+        [^/]+           #   One or more non-slash characters
     )
-    (?P<path>           # パス部分 (オプション)
-        /[^\s]*         #   スラッシュから始まる
+    (?P<path>           # Path portion (optional)
+        /[^\s]*         #   Starts with a slash
     )?
-    $                   # 文字列の末尾
+    $                   # End of string
 ''', re.VERBOSE)
 
 m = pattern.match('https://example.com/path/to/page')
@@ -1758,56 +1758,56 @@ if m:
     # => {'protocol': 'https', 'host': 'example.com', 'path': '/path/to/page'}
 ```
 
-verbose モード内でリテラルの空白が必要な場合は `\ ` またはクラス `[ ]` を使用する。
+When a literal space is needed inside verbose mode, use `\ ` or the class `[ ]`.
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point in learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important. Understanding deepens not only through theory, but by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What common mistakes do beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the basics and jumping to advanced topics. We recommend thoroughly understanding the fundamental concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in professional practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-| 項目 | 内容 |
-|------|------|
-| リテラル文字 | そのまま対応する文字にマッチ |
-| メタ文字 | `. ^ $ * + ? \| ( ) [ ] { } \` の13種類 |
-| エスケープ | `\` でメタ文字をリテラルに戻す |
-| raw string | `r"..."` で言語レベルのエスケープを無効化(Python) |
-| ショートハンド | `\d` `\w` `\s` `\b` 等の省略記法 |
-| フラグ | `i`(大文字小文字無視)、`m`(複数行)、`s`(ドットオール)、`x`(冗長) |
-| 二重エスケープ | ソースコード層と正規表現層で2段階のエスケープが発生 |
-| インラインフラグ | `(?i)` `(?m)` `(?s)` `(?x)` でパターン内にフラグを埋め込む |
-| プリコンパイル | `re.compile()` でパターンオブジェクトを作成し再利用 |
-| re.escape() | ユーザー入力のメタ文字を自動エスケープ |
-| 鉄則 | 常に raw string を使い、ドットは必要なときだけ使う |
+Knowledge of this topic is frequently applied in daily development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## Summary
 
-- [02-character-classes.md](./02-character-classes.md) -- 文字クラス `[abc]`、`\d`、`\w`、`\s`、POSIX クラス
-- [03-quantifiers-anchors.md](./03-quantifiers-anchors.md) -- 量指定子・アンカーの詳細
+| Item | Description |
+|------|-------------|
+| Literal characters | Match the corresponding character directly |
+| Metacharacters | 13 types: `. ^ $ * + ? \| ( ) [ ] { } \` |
+| Escaping | `\` reverts metacharacters to literals |
+| Raw strings | `r"..."` disables language-level escaping (Python) |
+| Shorthands | Abbreviated notations such as `\d` `\w` `\s` `\b` |
+| Flags | `i` (case-insensitive), `m` (multiline), `s` (dotall), `x` (verbose) |
+| Double escaping | Two layers of escaping occur at the source code and regex engine levels |
+| Inline flags | Embed flags within patterns using `(?i)` `(?m)` `(?s)` `(?x)` |
+| Pre-compilation | Create pattern objects with `re.compile()` for reuse |
+| re.escape() | Automatically escapes metacharacters in user input |
+| Golden rule | Always use raw strings, and use dot only when necessary |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
 
-1. **Jeffrey E.F. Friedl** "Mastering Regular Expressions, 3rd Edition" O'Reilly Media, 2006 -- 第3章「基本構文」が特に参考になる
-2. **Python re module documentation** https://docs.python.org/3/library/re.html -- Python 正規表現の公式リファレンス
-3. **MDN Web Docs - Regular Expressions** https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_expressions -- JavaScript 正規表現の包括的ガイド
-4. **Java Pattern class documentation** https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/regex/Pattern.html -- Java 正規表現の公式リファレンス
-5. **Ruby Regexp documentation** https://docs.ruby-lang.org/en/3.2/Regexp.html -- Ruby 正規表現の公式リファレンス
+- [02-character-classes.md](./02-character-classes.md) -- Character Classes: `[abc]`, `\d`, `\w`, `\s`, POSIX classes
+- [03-quantifiers-anchors.md](./03-quantifiers-anchors.md) -- Quantifiers and Anchors in Detail
+
+---
+
+## References
+
+1. **Jeffrey E.F. Friedl** "Mastering Regular Expressions, 3rd Edition" O'Reilly Media, 2006 -- Chapter 3 "Basic Syntax" is especially helpful
+2. **Python re module documentation** https://docs.python.org/3/library/re.html -- Official reference for Python regular expressions
+3. **MDN Web Docs - Regular Expressions** https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_expressions -- Comprehensive guide to JavaScript regular expressions
+4. **Java Pattern class documentation** https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/regex/Pattern.html -- Official reference for Java regular expressions
+5. **Ruby Regexp documentation** https://docs.ruby-lang.org/en/3.2/Regexp.html -- Official reference for Ruby regular expressions

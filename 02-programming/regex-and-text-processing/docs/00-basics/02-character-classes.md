@@ -1,351 +1,351 @@
-# 文字クラス -- [abc]、\d、\w、\s、POSIX
+# Character Classes -- [abc], \d, \w, \s, POSIX
 
-> 文字クラス(Character Class)は正規表現の核心的機能であり、「この位置にマッチしてよい文字の集合」を定義する。角括弧記法、ショートハンドクラス、POSIX クラスの全体像を解説する。
+> Character classes are a core feature of regular expressions, defining "the set of characters that may match at a given position." This guide covers bracket notation, shorthand classes, and POSIX classes comprehensively.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-1. **角括弧文字クラス `[...]` の構文と動作** -- 肯定・否定・範囲指定の正確な規則
-2. **ショートハンドクラスの意味と言語差異** -- `\d` `\w` `\s` が言語ごとに異なるUnicode対応
-3. **POSIX文字クラスと実用的な選択基準** -- `[:alpha:]` `[:digit:]` 等の使いどころ
-4. **Unicode文字プロパティの活用** -- `\p{L}` `\p{N}` 等のUnicodeカテゴリ指定
-5. **文字クラスの集合演算** -- 交差・減算・和集合の実現方法
+1. **Bracket character class `[...]` syntax and behavior** -- Precise rules for positive, negative, and range specifications
+2. **Shorthand class meanings and cross-language differences** -- How `\d` `\w` `\s` differ in Unicode support across languages
+3. **POSIX character classes and practical selection criteria** -- When to use `[:alpha:]`, `[:digit:]`, etc.
+4. **Leveraging Unicode character properties** -- Specifying Unicode categories with `\p{L}`, `\p{N}`, etc.
+5. **Set operations on character classes** -- Implementing intersection, subtraction, and union
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, the following knowledge will help deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [基本構文 -- リテラル、メタ文字、エスケープ](./01-basic-syntax.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding of the content in [Basic Syntax -- Literals, Metacharacters, Escaping](./01-basic-syntax.md)
 
 ---
 
-## 1. 角括弧文字クラス `[...]`
+## 1. Bracket Character Class `[...]`
 
-### 1.1 基本形
+### 1.1 Basic Form
 
 ```python
 import re
 
-# [abc] -- a, b, c のいずれか1文字にマッチ
+# [abc] -- matches any single character: a, b, or c
 print(re.findall(r'[abc]', "abcdef"))
 # => ['a', 'b', 'c']
 
-# [aeiou] -- 母音1文字にマッチ
+# [aeiou] -- matches a single vowel
 text = "Hello World"
 print(re.findall(r'[aeiou]', text, re.IGNORECASE))
 # => ['e', 'o', 'o']
 
-# 文字クラス内の文字順序は意味を持たない
-# [abc] と [cba] と [bac] は全て同じ
+# Character order within a class has no significance
+# [abc], [cba], and [bac] are all equivalent
 ```
 
 ```python
-# 文字クラスの基本的な使い方
+# Basic usage of character classes
 
 import re
 
-# 1. 特定の文字集合からの選択
+# 1. Selecting from a specific character set
 vowels = re.compile(r'[aeiouAEIOU]')
 text = "Hello Beautiful World"
 print(vowels.findall(text))
 # => ['e', 'o', 'E', 'a', 'u', 'i', 'u', 'o']
 
-# 2. 文字クラスは「1文字」にマッチする点に注意
+# 2. Note that a character class matches "one character" at a time
 print(re.findall(r'[abc]', "aabbcc"))
-# => ['a', 'a', 'b', 'b', 'c', 'c']  ※ 各文字が個別にマッチ
+# => ['a', 'a', 'b', 'b', 'c', 'c']  # Each character matches individually
 
-# 3. 量指定子と組み合わせて複数文字にマッチ
+# 3. Combine with quantifiers to match multiple characters
 print(re.findall(r'[abc]+', "aabbcc def aab"))
 # => ['aabbcc', 'aab']
 
-# 4. 文字クラスの中で順序は無関係
+# 4. Order within a character class is irrelevant
 assert re.findall(r'[abc]', "abc") == re.findall(r'[cba]', "abc")
 assert re.findall(r'[abc]', "abc") == re.findall(r'[bca]', "abc")
 ```
 
-### 1.2 範囲指定 `-`
+### 1.2 Range Specification `-`
 
 ```python
 import re
 
-# [a-z]  小文字アルファベット
-# [A-Z]  大文字アルファベット
-# [0-9]  数字
-# [a-zA-Z0-9]  英数字
+# [a-z]  lowercase alphabetic characters
+# [A-Z]  uppercase alphabetic characters
+# [0-9]  digits
+# [a-zA-Z0-9]  alphanumeric characters
 
 text = "Item-42: Price $9.99"
 
-# 英字のみ
+# Alphabetic characters only
 print(re.findall(r'[a-zA-Z]+', text))
 # => ['Item', 'Price']
 
-# 数字のみ
+# Digits only
 print(re.findall(r'[0-9]+', text))
 # => ['42', '9', '99']
 
-# 複数範囲の組み合わせ
+# Combining multiple ranges
 print(re.findall(r'[a-zA-Z0-9]+', text))
 # => ['Item', '42', 'Price', '9', '99']
 
-# ハイフンをリテラルとして含める場合:
-# 先頭: [-abc]  末尾: [abc-]  エスケープ: [a\-c]
+# To include a literal hyphen:
+# At the start: [-abc]  At the end: [abc-]  Escaped: [a\-c]
 print(re.findall(r'[-+*/]', "3+4-2*1/5"))
 # => ['+', '-', '*', '/']
 ```
 
 ```python
-# 範囲指定の詳細
+# Range specification details
 
 import re
 
-# 連続した範囲を複数指定
-# 英数字とアンダースコア
+# Multiple contiguous ranges
+# Alphanumeric characters and underscore
 print(re.findall(r'[a-zA-Z0-9_]+', "hello_world 123"))
 # => ['hello_world', '123']
 
-# 16進数の文字
+# Hexadecimal characters
 print(re.findall(r'[0-9a-fA-F]+', "0xFF 0xAB 0xGG"))
-# => ['0', 'xFF', '0', 'xAB', '0', 'xGG'] ※ xGG は不正な16進数
+# => ['0', 'xFF', '0', 'xAB', '0', 'xGG']  # xGG is invalid hex
 
-# より正確な16進数パターン
+# A more precise hexadecimal pattern
 print(re.findall(r'0x[0-9a-fA-F]+', "0xFF 0xAB 0xGG"))
-# => ['0xFF', '0xAB']  ※ 0xGG は部分マッチしない
+# => ['0xFF', '0xAB']  # 0xGG does not partially match
 
-# 部分的な範囲
+# Partial ranges
 print(re.findall(r'[a-f]+', "abcdefghij"))
 # => ['abcdef']
 
 print(re.findall(r'[2-7]+', "0123456789"))
 # => ['234567']
 
-# 複数の独立した範囲
+# Multiple independent ranges
 print(re.findall(r'[a-cm-o1-3]+', "abcmnop123456"))
 # => ['abc', 'mno', '123']
 ```
 
-### 1.3 否定文字クラス `[^...]`
+### 1.3 Negated Character Class `[^...]`
 
 ```python
 import re
 
-# [^abc] -- a, b, c 以外の1文字にマッチ
+# [^abc] -- matches any single character except a, b, or c
 print(re.findall(r'[^abc]', "abcdef"))
 # => ['d', 'e', 'f']
 
-# [^0-9] -- 数字以外
+# [^0-9] -- anything except digits
 print(re.findall(r'[^0-9]+', "abc123def456"))
 # => ['abc', 'def']
 
-# ^ は先頭にあるときのみ否定の意味
-# [a^b] -- a, ^, b のいずれか(^はリテラル)
+# ^ means negation only when at the start
+# [a^b] -- matches a, ^, or b (^ is treated as a literal)
 print(re.findall(r'[a^b]', "a^b"))
 # => ['a', '^', 'b']
 ```
 
 ```python
-# 否定文字クラスの実践的な使い方
+# Practical uses of negated character classes
 
 import re
 
-# 1. 引用符の中身を抽出（引用符自体を除外）
+# 1. Extract content inside quotes (excluding the quotes themselves)
 text = '"hello" and "world"'
 print(re.findall(r'"([^"]*)"', text))
 # => ['hello', 'world']
 
-# 2. HTMLタグの属性値を抽出
+# 2. Extract HTML tag attribute values
 html = '<a href="https://example.com" class="link">'
 print(re.findall(r'(\w+)="([^"]*)"', html))
 # => [('href', 'https://example.com'), ('class', 'link')]
 
-# 3. カンマで区切られたフィールド（カンマ自体を除外）
+# 3. Fields separated by commas (excluding the commas)
 csv_line = "field1,field2,field3"
 print(re.findall(r'[^,]+', csv_line))
 # => ['field1', 'field2', 'field3']
 
-# 4. パスの最後のコンポーネント（スラッシュ以降）
+# 4. Last component of a path (after the final slash)
 path = "/usr/local/bin/python3"
 print(re.findall(r'[^/]+$', path))
 # => ['python3']
 
-# 5. ファイル拡張子の抽出（ドット以降）
+# 5. Extract file extension (after the dot)
 filename = "document.backup.tar.gz"
 print(re.findall(r'[^.]+', filename))
 # => ['document', 'backup', 'tar', 'gz']
 
-# 6. 空白以外の連続文字
+# 6. Consecutive non-whitespace characters
 text = "  hello   world  "
 print(re.findall(r'[^\s]+', text))
 # => ['hello', 'world']
 
-# 7. 特定の文字を除外したマッチ
-# 制御文字と特殊文字を除外
+# 7. Match excluding specific characters
+# Exclude control characters and special characters
 text = "hello\x00world\x1b[31mred"
 print(re.findall(r'[^\x00-\x1f\x7f]+', text))
 # => ['hello', 'world', '[31mred']
 ```
 
-### 1.4 文字クラス内のメタ文字規則
+### 1.4 Metacharacter Rules Inside Character Classes
 
 ```
-角括弧 [...] 内で特殊な意味を持つ文字:
+Characters with special meaning inside brackets [...]:
 
-文字   意味              リテラルにする方法
-────   ────              ──────────────────
-]      クラスの終了      先頭に置く: []abc] またはエスケープ: [\]]
-\      エスケープ        エスケープ: [\\]
-^      否定(先頭のみ)    先頭以外に置く: [a^b]
--      範囲(文字間のみ)  先頭/末尾に置く: [-abc] [abc-]
+Char   Meaning                    How to use as literal
+----   -------                    ---------------------
+]      End of class               Place at start: []abc] or escape: [\]]
+\      Escape                     Escape: [\\]
+^      Negation (start only)      Place anywhere but start: [a^b]
+-      Range (between chars only) Place at start/end: [-abc] [abc-]
 
-角括弧内では . * + ? | ( ) { } はリテラル扱い:
-  [.*+?]  → ドット、アスタリスク、プラス、クエスチョンマーク
+Inside brackets, . * + ? | ( ) { } are treated as literals:
+  [.*+?]  -> dot, asterisk, plus, question mark
 ```
 
 ```python
-# メタ文字の扱いを確認
+# Verifying metacharacter behavior
 
 import re
 
-# 文字クラス内ではほとんどのメタ文字はリテラル
+# Most metacharacters are literals inside a character class
 print(re.findall(r'[.+*?|(){}]', "a.b+c*d?e|f(g)h{i}"))
 # => ['.', '+', '*', '?', '|', '(', ')', '{', '}']
 
-# ] を文字クラスに含める方法
-# 方法1: 先頭に置く
+# How to include ] in a character class
+# Method 1: Place at the start
 print(re.findall(r'[]ab]', "a]b"))
 # => ['a', ']', 'b']
 
-# 方法2: エスケープ
+# Method 2: Escape
 print(re.findall(r'[a\]b]', "a]b"))
 # => ['a', ']', 'b']
 
-# \ を文字クラスに含める
+# Including \ in a character class
 print(re.findall(r'[a\\b]', r"a\b"))
 # => ['a', '\\', 'b']
 
-# - を文字クラスに含める方法
-# 方法1: 先頭
+# How to include - in a character class
+# Method 1: At the start
 print(re.findall(r'[-ab]', "a-b"))   # => ['a', '-', 'b']
-# 方法2: 末尾
+# Method 2: At the end
 print(re.findall(r'[ab-]', "a-b"))   # => ['a', '-', 'b']
-# 方法3: エスケープ
+# Method 3: Escape
 print(re.findall(r'[a\-b]', "a-b"))  # => ['a', '-', 'b']
 
-# ^ を否定以外の目的で含める
-# 先頭以外に置く
+# Including ^ for purposes other than negation
+# Place anywhere but the start
 print(re.findall(r'[a^b]', "a^b"))   # => ['a', '^', 'b']
-# エスケープ
+# Escape
 print(re.findall(r'[\^ab]', "a^b"))  # => ['a', '^', 'b']
 ```
 
-### 1.5 文字クラスの組み合わせテクニック
+### 1.5 Character Class Combination Techniques
 
 ```python
 import re
 
-# 1. ショートハンドと文字クラスの組み合わせ
-# 数字とハイフンとドット（電話番号やIPアドレス用）
+# 1. Combining shorthands with character classes
+# Digits, hyphens, and dots (for phone numbers or IP addresses)
 print(re.findall(r'[\d.-]+', "IP: 192.168.1.1 Tel: 03-1234-5678"))
 # => ['192.168.1.1', '03-1234-5678']
 
-# 2. 単語文字とハイフン（CSS クラス名やスラグ）
+# 2. Word characters and hyphens (CSS class names or slugs)
 print(re.findall(r'[\w-]+', "my-class another_class third-class-name"))
 # => ['my-class', 'another_class', 'third-class-name']
 
-# 3. 否定ショートハンドと文字クラスの組み合わせ
-# 空白以外かつカンマ以外
+# 3. Combining negated shorthands with character classes
+# Non-whitespace and non-comma
 print(re.findall(r'[^\s,]+', "apple, banana, cherry"))
 # => ['apple', 'banana', 'cherry']
 
-# 4. 日本語関連の文字クラス
-# ひらがな
+# 4. Japanese-related character classes
+# Hiragana
 print(re.findall(r'[\u3040-\u309F]+', "こんにちは Hello 世界"))
 # => ['こんにちは']
 
-# カタカナ
+# Katakana
 print(re.findall(r'[\u30A0-\u30FF]+', "カタカナ ひらがな ABC"))
 # => ['カタカナ']
 
-# 漢字（CJK統合漢字の基本ブロック）
+# Kanji (basic CJK Unified Ideographs block)
 print(re.findall(r'[\u4E00-\u9FFF]+', "漢字テスト hello 東京タワー"))
 # => ['漢字', '東京']
 
-# ひらがな + カタカナ + 漢字
+# Hiragana + Katakana + Kanji
 print(re.findall(r'[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]+',
                  "東京タワーへ行こう ABC 123"))
 # => ['東京タワーへ行こう']
 
-# 5. 全角文字の検出
-# 全角英数字
+# 5. Detecting full-width characters
+# Full-width alphanumeric
 print(re.findall(r'[Ａ-Ｚａ-ｚ０-９]+', "Ｈｅｌｌｏ 123 Ｗｏｒｌｄ"))
 # => ['Ｈｅｌｌｏ', 'Ｗｏｒｌｄ']
 ```
 
 ---
 
-## 2. ショートハンドクラス
+## 2. Shorthand Classes
 
-### 2.1 一覧と等価表現
+### 2.1 List and Equivalent Expressions
 
 ```
 ┌──────────┬───────────┬─────────────────────────────────┐
-│ショートハンド│  否定形   │  等価な文字クラス (ASCII)          │
+│ Shorthand│  Negation │  Equivalent class (ASCII)         │
 ├──────────┼───────────┼─────────────────────────────────┤
 │ \d       │ \D        │ [0-9]                           │
 │ \w       │ \W        │ [a-zA-Z0-9_]                    │
 │ \s       │ \S        │ [ \t\n\r\f\v]                   │
-│ \b       │ \B        │ (アンカー: 単語境界/非単語境界)    │
+│ \b       │ \B        │ (Anchor: word/non-word boundary) │
 └──────────┴───────────┴─────────────────────────────────┘
 
-※ Unicode モードでは範囲が大幅に拡大する(後述)
+* In Unicode mode, the range expands significantly (see below)
 ```
 
-### 2.2 コード例
+### 2.2 Code Examples
 
 ```python
 import re
 
 text = "User: 田中太郎, Age: 25, Email: tanaka@example.com"
 
-# \d -- 数字
+# \d -- digits
 print(re.findall(r'\d+', text))
 # => ['25']
 
-# \w -- 単語文字 (Python 3 では Unicode 対応)
+# \w -- word characters (Unicode-aware in Python 3)
 print(re.findall(r'\w+', text))
 # => ['User', '田中太郎', 'Age', '25', 'Email', 'tanaka', 'example', 'com']
 
-# \s -- 空白文字
+# \s -- whitespace characters
 print(re.split(r'\s+', "hello   world\tfoo\nbar"))
 # => ['hello', 'world', 'foo', 'bar']
 
-# \D, \W, \S -- 否定形
+# \D, \W, \S -- negated forms
 print(re.findall(r'\D+', "abc123def456"))
 # => ['abc', 'def']
 ```
 
-### 2.3 Unicode モードでの \w の違い
+### 2.3 Differences in \w Under Unicode Mode
 
 ```python
 import re
 
 text = "Hello 世界 café 123"
 
-# Python 3: \w はデフォルトで Unicode 対応
+# Python 3: \w is Unicode-aware by default
 print(re.findall(r'\w+', text))
 # => ['Hello', '世界', 'café', '123']
 
-# ASCII モードに限定する場合
+# To restrict to ASCII mode
 print(re.findall(r'\w+', text, re.ASCII))
-# => ['Hello', 'caf', '123']  -- 'é' と '世界' がマッチしない
+# => ['Hello', 'caf', '123']  -- 'é' and '世界' do not match
 ```
 
 ```javascript
-// JavaScript: u フラグでUnicode対応
+// JavaScript: Unicode support with the u flag
 const text = "Hello 世界 café 123";
 
-// u フラグなし: \w は ASCII のみ
+// Without u flag: \w is ASCII only
 console.log(text.match(/\w+/g));
 // => ['Hello', 'caf', '123']
 
@@ -354,20 +354,20 @@ console.log(text.match(/[\p{L}\p{N}]+/gu));
 // => ['Hello', '世界', 'café', '123']
 ```
 
-### 2.4 \d の Unicode 挙動の詳細
+### 2.4 Detailed Unicode Behavior of \d
 
 ```python
 import re
 
-# Python 3 の \d は Unicode 数字全般にマッチする
-# ASCII 数字以外の例:
+# Python 3's \d matches all Unicode digits
+# Examples beyond ASCII digits:
 
 test_strings = [
-    "半角: 0123456789",           # ASCII 数字
-    "全角: ０１２３４５６７８９",   # 全角数字
-    "アラビア: ٠١٢٣٤٥٦٧٨٩",     # アラビア・インド数字
-    "デーヴァナーガリー: ०१२३",    # デーヴァナーガリー数字
-    "タイ: ๐๑๒๓๔๕๖๗๘๙",        # タイ数字
+    "Half-width: 0123456789",             # ASCII digits
+    "Full-width: ０１２３４５６７８９",     # Full-width digits
+    "Arabic-Indic: ٠١٢٣٤٥٦٧٨٩",         # Arabic-Indic digits
+    "Devanagari: ०१२३",                   # Devanagari digits
+    "Thai: ๐๑๒๓๔๕๖๗๘๙",                # Thai digits
 ]
 
 for s in test_strings:
@@ -377,42 +377,42 @@ for s in test_strings:
     print(f"    Unicode \\d: {matches}")
     print(f"    ASCII \\d:   {ascii_matches}")
 
-# ASCII のみにしたい場合の3つの方法:
-# 1. re.ASCII フラグ
+# Three ways to restrict to ASCII digits only:
+# 1. re.ASCII flag
 print(re.findall(r'\d+', "123 ０１２", re.ASCII))
 # => ['123']
 
-# 2. 明示的な文字クラス [0-9]
+# 2. Explicit character class [0-9]
 print(re.findall(r'[0-9]+', "123 ０１２"))
 # => ['123']
 
-# 3. インラインフラグ (?a)
+# 3. Inline flag (?a)
 print(re.findall(r'(?a)\d+', "123 ０１２"))
 # => ['123']
 ```
 
-### 2.5 \s の詳細: 空白文字の種類
+### 2.5 Details of \s: Types of Whitespace Characters
 
 ```python
 import re
 
-# \s がマッチする文字の一覧 (ASCII モード)
+# Characters matched by \s (ASCII mode)
 whitespace_chars = {
-    ' ':  'スペース (0x20)',
-    '\t': 'タブ (0x09)',
-    '\n': '改行 LF (0x0A)',
-    '\r': '復帰 CR (0x0D)',
-    '\f': 'フォームフィード (0x0C)',
-    '\v': '垂直タブ (0x0B)',
+    ' ':  'Space (0x20)',
+    '\t': 'Tab (0x09)',
+    '\n': 'Line Feed LF (0x0A)',
+    '\r': 'Carriage Return CR (0x0D)',
+    '\f': 'Form Feed (0x0C)',
+    '\v': 'Vertical Tab (0x0B)',
 }
 
 for char, desc in whitespace_chars.items():
     matches = bool(re.match(r'\s', char))
-    print(f"  {desc}: {'マッチ' if matches else '不一致'}")
+    print(f"  {desc}: {'Match' if matches else 'No match'}")
 
-# Unicode モードの追加空白文字
+# Additional whitespace characters in Unicode mode
 unicode_spaces = {
-    '\u00A0': 'ノーブレークスペース (NBSP)',
+    '\u00A0': 'No-Break Space (NBSP)',
     '\u2000': 'En Quad',
     '\u2001': 'Em Quad',
     '\u2002': 'En Space',
@@ -428,375 +428,375 @@ unicode_spaces = {
     '\u2029': 'Paragraph Separator',
     '\u202F': 'Narrow No-Break Space',
     '\u205F': 'Medium Mathematical Space',
-    '\u3000': '全角スペース (Ideographic Space)',
+    '\u3000': 'Ideographic Space (Full-width Space)',
     '\uFEFF': 'BOM (Byte Order Mark)',
 }
 
 for char, desc in unicode_spaces.items():
-    # Python 3 ではデフォルトで Unicode モード
+    # Python 3 uses Unicode mode by default
     matches_unicode = bool(re.match(r'\s', char))
     matches_ascii = bool(re.match(r'\s', char, re.ASCII))
     print(f"  {desc}: Unicode={matches_unicode}, ASCII={matches_ascii}")
 
-# 実践例: 全角スペースの処理
-text = "Hello　World"  # 全角スペースが含まれる
+# Practical example: handling full-width spaces
+text = "Hello　World"  # Contains a full-width space
 print(re.split(r'\s+', text))
-# => ['Hello', 'World']  ※ 全角スペースも \s にマッチ
+# => ['Hello', 'World']  # Full-width space is also matched by \s
 
-# ASCII モードでは全角スペースを無視
+# In ASCII mode, full-width spaces are ignored
 print(re.split(r'\s+', text, flags=re.ASCII))
-# => ['Hello\u3000World']  ※ 全角スペースにマッチしない
+# => ['Hello\u3000World']  # Full-width space is not matched
 ```
 
-### 2.6 \b 単語境界の詳細
+### 2.6 Detailed Look at \b Word Boundary
 
 ```python
 import re
 
-# \b は「位置」にマッチする（ゼロ幅アサーション）
-# 文字を消費しない
+# \b matches a "position" (zero-width assertion)
+# It does not consume characters
 
-# 単語境界の定義:
-# \w と \W の間の位置
-# 文字列の先頭で直後が \w の位置
-# 文字列の末尾で直前が \w の位置
+# Word boundary definition:
+# The position between \w and \W
+# The position at the start of the string if followed by \w
+# The position at the end of the string if preceded by \w
 
 text = "cat caterpillar concatenate category the_cat"
 
-# \bcat\b: "cat" という完全な単語のみ
+# \bcat\b: only the complete word "cat"
 print(re.findall(r'\bcat\b', text))
 # => ['cat']
 
-# \bcat: "cat" で始まる単語の位置
+# \bcat: words starting with "cat"
 print(re.findall(r'\bcat\w*', text))
 # => ['cat', 'caterpillar', 'concatenate', 'category']
 
-# cat\b: "cat" で終わる単語の位置
+# cat\b: words ending with "cat"
 print(re.findall(r'\w*cat\b', text))
 # => ['cat', 'the_cat']
 
-# \B: 非単語境界（単語の途中）
+# \B: non-word boundary (inside a word)
 print(re.findall(r'\Bcat\B', text))
-# => ['cat']  ※ concatenate の中の cat
+# => ['cat']  # The "cat" inside "concatenate"
 
-# 実践例: 単語の完全一致検索
+# Practical example: exact word search
 def find_exact_word(text, word):
-    """単語の完全一致を検索"""
+    """Search for an exact word match"""
     pattern = r'\b' + re.escape(word) + r'\b'
     return re.findall(pattern, text)
 
 print(find_exact_word("Java JavaScript JavaEE", "Java"))
 # => ['Java']
 
-# Unicode での単語境界
+# Word boundaries with Unicode
 text = "東京は首都です。Tokyo is capital."
 print(re.findall(r'\b\w+\b', text))
 # => ['東京は首都です', 'Tokyo', 'is', 'capital']
-# ※ 日本語には単語間の空白がないため、連続した \w がまとめてマッチ
+# Since Japanese has no spaces between words, consecutive \w characters match together
 ```
 
-### 2.7 ショートハンドの言語間差異
+### 2.7 Cross-Language Differences in Shorthands
 
 ```
-各言語での \w の挙動:
+Behavior of \w across languages:
 
 ┌──────────────┬──────────────────────────────────────────┐
-│ 言語         │ \w の範囲                                 │
+│ Language     │ Range of \w                               │
 ├──────────────┼──────────────────────────────────────────┤
 │ Python 3     │ Unicode Letters + Digits + _             │
-│ (デフォルト)  │ → 日本語、中国語等もマッチ               │
+│ (default)    │ → Matches Japanese, Chinese, etc.        │
 ├──────────────┼──────────────────────────────────────────┤
 │ Python 3     │ [a-zA-Z0-9_]                             │
-│ (re.ASCII)   │ → ASCII のみ                             │
+│ (re.ASCII)   │ → ASCII only                             │
 ├──────────────┼──────────────────────────────────────────┤
 │ JavaScript   │ [a-zA-Z0-9_]                             │
-│ (デフォルト)  │ → ASCII のみ                             │
+│ (default)    │ → ASCII only                             │
 ├──────────────┼──────────────────────────────────────────┤
-│ JavaScript   │ Unicode対応は \p{L} を使用               │
-│ (/u フラグ)   │ → \w 自体は変わらない                    │
+│ JavaScript   │ Use \p{L} for Unicode support            │
+│ (/u flag)    │ → \w itself does not change              │
 ├──────────────┼──────────────────────────────────────────┤
 │ Java         │ [a-zA-Z0-9_]                             │
-│ (デフォルト)  │ → ASCII のみ                             │
+│ (default)    │ → ASCII only                             │
 ├──────────────┼──────────────────────────────────────────┤
 │ Java         │ Unicode Letters + Digits + _             │
-│ (UNICODE_    │ → 日本語等もマッチ                       │
+│ (UNICODE_    │ → Matches Japanese, etc.                 │
 │  CHARACTER_  │                                          │
 │  CLASS)      │                                          │
 ├──────────────┼──────────────────────────────────────────┤
 │ Perl         │ Unicode Letters + Digits + _             │
-│              │ → デフォルトで Unicode 対応               │
+│              │ → Unicode-aware by default               │
 ├──────────────┼──────────────────────────────────────────┤
 │ Ruby         │ Unicode Letters + Digits + _             │
-│              │ → デフォルトで Unicode 対応               │
+│              │ → Unicode-aware by default               │
 ├──────────────┼──────────────────────────────────────────┤
 │ Go           │ [0-9A-Za-z_]                             │
-│ (RE2)        │ → ASCII のみ                             │
+│ (RE2)        │ → ASCII only                             │
 ├──────────────┼──────────────────────────────────────────┤
-│ Rust         │ Unicode対応（regex クレート）              │
-│              │ → ASCII モードは別途指定                   │
+│ Rust         │ Unicode-aware (regex crate)              │
+│              │ → ASCII mode specified separately        │
 └──────────────┴──────────────────────────────────────────┘
 ```
 
 ---
 
-## 3. POSIX 文字クラス
+## 3. POSIX Character Classes
 
-### 3.1 一覧
+### 3.1 List
 
 ```
 ┌──────────────┬──────────────────────┬──────────────────┐
-│ POSIX クラス  │ 等価表現 (ASCII)      │ 意味              │
+│ POSIX Class  │ Equivalent (ASCII)    │ Meaning          │
 ├──────────────┼──────────────────────┼──────────────────┤
-│ [:alpha:]    │ [a-zA-Z]             │ 英字              │
-│ [:digit:]    │ [0-9]                │ 数字              │
-│ [:alnum:]    │ [a-zA-Z0-9]          │ 英数字            │
-│ [:upper:]    │ [A-Z]                │ 大文字            │
-│ [:lower:]    │ [a-z]                │ 小文字            │
-│ [:space:]    │ [ \t\n\r\f\v]        │ 空白文字          │
-│ [:blank:]    │ [ \t]                │ 空白・タブのみ     │
-│ [:punct:]    │ [!"#$%&'()*+,-./:;  │ 句読点            │
+│ [:alpha:]    │ [a-zA-Z]             │ Alphabetic chars │
+│ [:digit:]    │ [0-9]                │ Digits           │
+│ [:alnum:]    │ [a-zA-Z0-9]          │ Alphanumeric     │
+│ [:upper:]    │ [A-Z]                │ Uppercase        │
+│ [:lower:]    │ [a-z]                │ Lowercase        │
+│ [:space:]    │ [ \t\n\r\f\v]        │ Whitespace       │
+│ [:blank:]    │ [ \t]                │ Space & tab only │
+│ [:punct:]    │ [!"#$%&'()*+,-./:;  │ Punctuation      │
 │              │  <=>?@[\]^_`{|}~]    │                  │
-│ [:print:]    │ [ -~]                │ 印刷可能文字      │
-│ [:graph:]    │ [!-~]                │ 印刷可能(空白除く) │
-│ [:cntrl:]    │ [\x00-\x1f\x7f]     │ 制御文字          │
-│ [:xdigit:]   │ [0-9a-fA-F]          │ 16進数字          │
-│ [:ascii:]    │ [\x00-\x7f]          │ ASCII文字         │
+│ [:print:]    │ [ -~]                │ Printable chars  │
+│ [:graph:]    │ [!-~]                │ Printable (no sp)│
+│ [:cntrl:]    │ [\x00-\x1f\x7f]     │ Control chars    │
+│ [:xdigit:]   │ [0-9a-fA-F]          │ Hex digits       │
+│ [:ascii:]    │ [\x00-\x7f]          │ ASCII chars      │
 └──────────────┴──────────────────────┴──────────────────┘
 ```
 
-### 3.2 POSIX クラスの使い方
+### 3.2 Using POSIX Classes
 
 ```bash
-# POSIX クラスは主に grep, sed, awk で使用
+# POSIX classes are primarily used in grep, sed, and awk
 
-# 英字のみを抽出
+# Extract alphabetic characters only
 # => Hello
 # => World
 
-# 数字のみを抽出
+# Extract digits only
 # => 19
 # => 99
 
-# 16進数を抽出
+# Extract hexadecimal digits
 # => FF00AA
 
-# POSIX クラスの否定
+# Negating POSIX classes
 echo "abc123" | grep -oE '[^[:digit:]]+'
 # => abc
 ```
 
 ```bash
-# POSIX クラスの実践的な使用例
+# Practical examples of POSIX classes
 
-# 1. 英数字とアンダースコアのみを抽出（変数名パターン）
+# 1. Extract alphanumeric characters and underscores (variable name pattern)
 echo "hello-world my_var 123abc" | grep -oE '[[:alnum:]_]+'
 # => hello
 # => world
 # => my_var
 # => 123abc
 
-# 2. 句読点の抽出
+# 2. Extract punctuation
 # => ,
 # => !
 # => ?
 
-# 3. 印刷不可能文字（制御文字）の検出
-# => 2 (制御文字が2つ)
+# 3. Detect non-printable characters (control characters)
+# => 2 (two control characters)
 
-# 4. 空白でフィールドを分割（blank はスペースとタブのみ）
+# 4. Split fields by whitespace (blank matches space and tab only)
 # => 3
 
-# 5. sed でのPOSIXクラス使用
+# 5. Using POSIX classes in sed
 # => Hello  World
 
-# 6. 大文字を小文字に変換（POSIX クラスベース）
+# 6. Convert uppercase to lowercase (POSIX class based)
 # => hello world
 
-# 7. ファイル名の安全な文字のみを残す
+# 7. Keep only safe filename characters
 echo "my file (1).txt" | sed 's/[^[:alnum:]._-]/_/g'
 # => my_file__1_.txt
 
-# 8. 空行の除去
-# => 空でない行のみ表示
+# 8. Remove blank lines
+# => Only non-empty lines are displayed
 ```
 
-### 3.3 POSIX vs ショートハンド 比較表
+### 3.3 POSIX vs Shorthand Comparison
 
-| 用途 | POSIX | ショートハンド | 使える環境 |
-|------|-------|--------------|-----------|
-| 単語文字 | なし | `\w` | ショートハンドのみ |
+| Purpose | POSIX | Shorthand | Available Environments |
+|---------|-------|-----------|----------------------|
+| Word characters | None | `\w` | Shorthand only |
 
-### 3.4 POSIX クラスの注意事項
+### 3.4 Notes on POSIX Classes
 
 ```bash
-# 注意1: POSIX クラスは必ず角括弧内で使う
-# NG: [:digit:] -- 個別の文字 :, d, i, g, t としてマッチ
+# Note 1: POSIX classes must always be used inside brackets
+# NG: [:digit:] -- matches individual characters :, d, i, g, t
 
-# 注意2: POSIX クラスと他の文字を組み合わせ可能
+# Note 2: POSIX classes can be combined with other characters
 echo "abc-123_def" | grep -oE '[[:alnum:]_-]+'
 # => abc-123_def
 
-# 注意3: ロケールによって挙動が変わる
-# LC_ALL=C では ASCII のみ
-# LC_ALL=ja_JP.UTF-8 では日本語もマッチ
-# => a, b (é はマッチしない)
+# Note 3: Behavior changes depending on locale
+# LC_ALL=C matches ASCII only
+# LC_ALL=ja_JP.UTF-8 also matches Japanese
+# => a, b (é does not match)
 
-# => aéb (é もマッチ)
+# => aéb (é also matches)
 
-# 注意4: grep -P (PCRE) では POSIX クラスは使えない場合がある
-# grep -E (ERE) または grep (BRE) を推奨
+# Note 4: grep -P (PCRE) may not support POSIX classes
+# grep -E (ERE) or grep (BRE) is recommended
 ```
 
 ---
 
-## 4. Unicode 文字プロパティ
+## 4. Unicode Character Properties
 
 ### 4.1 Unicode General Category
 
 ```python
-# Python の regex モジュール（サードパーティ）で Unicode プロパティを使用
+# Using Unicode properties with Python's regex module (third-party)
 # pip install regex
 
-# regex モジュールの使用例
+# Usage examples with the regex module
 try:
     import regex
 
     text = "Hello 世界 café 123 !@#"
 
-    # \p{L} -- Unicode の「文字」(Letter)
+    # \p{L} -- Unicode "Letter"
     print(regex.findall(r'\p{L}+', text))
     # => ['Hello', '世界', 'café']
 
-    # \p{N} -- Unicode の「数字」(Number)
+    # \p{N} -- Unicode "Number"
     print(regex.findall(r'\p{N}+', text))
     # => ['123']
 
-    # \p{P} -- Unicode の「句読点」(Punctuation)
+    # \p{P} -- Unicode "Punctuation"
     print(regex.findall(r'\p{P}', text))
     # => ['!']
 
-    # \p{S} -- Unicode の「記号」(Symbol)
+    # \p{S} -- Unicode "Symbol"
     print(regex.findall(r'\p{S}', text))
     # => ['@', '#']
 
-    # \p{Z} -- Unicode の「区切り」(Separator)
-    # スペース等
+    # \p{Z} -- Unicode "Separator"
+    # Spaces, etc.
 
 except ImportError:
-    # regex モジュールがない場合の代替
+    # Fallback when the regex module is not available
     import re
 
-    # Python 標準 re では Unicode プロパティは直接使えない
-    # 代替: Unicode カテゴリをレンジで指定
+    # Python's standard re does not directly support Unicode properties
+    # Alternative: specify Unicode categories using ranges
 
-    # 日本語文字（ひらがな・カタカナ・漢字）
+    # Japanese characters (Hiragana, Katakana, Kanji)
     print(re.findall(r'[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]+', text))
 ```
 
-### 4.2 主要な Unicode カテゴリ
+### 4.2 Major Unicode Categories
 
 ```
 Unicode General Category:
 
-L  (Letter)       -- 文字
-├── Lu (Uppercase) -- 大文字 (A, B, C, ...)
-├── Ll (Lowercase) -- 小文字 (a, b, c, ...)
-├── Lt (Titlecase) -- タイトルケース (Dž, Lj, ...)
-├── Lm (Modifier)  -- 修飾文字
-└── Lo (Other)     -- その他の文字 (漢字, ひらがな, ...)
+L  (Letter)       -- Letters
+├── Lu (Uppercase) -- Uppercase letters (A, B, C, ...)
+├── Ll (Lowercase) -- Lowercase letters (a, b, c, ...)
+├── Lt (Titlecase) -- Titlecase letters (Dž, Lj, ...)
+├── Lm (Modifier)  -- Modifier letters
+└── Lo (Other)     -- Other letters (Kanji, Hiragana, ...)
 
-M  (Mark)          -- マーク(結合文字)
+M  (Mark)          -- Marks (combining characters)
 ├── Mn (Nonspacing)
 ├── Mc (Spacing Combining)
 └── Me (Enclosing)
 
-N  (Number)        -- 数字
-├── Nd (Decimal)   -- 10進数字 (0-9, ０-９, ...)
-├── Nl (Letter)    -- 文字としての数字 (Ⅰ, Ⅱ, ...)
-└── No (Other)     -- その他の数字 (½, ⅓, ...)
+N  (Number)        -- Numbers
+├── Nd (Decimal)   -- Decimal digits (0-9, ０-９, ...)
+├── Nl (Letter)    -- Letterlike numbers (Ⅰ, Ⅱ, ...)
+└── No (Other)     -- Other numbers (½, ⅓, ...)
 
-P  (Punctuation)   -- 句読点
-├── Pc (Connector) -- 接続句読点 (_)
-├── Pd (Dash)      -- ダッシュ (-, –, —)
-├── Ps (Open)      -- 開き括弧 ((, [, {)
-├── Pe (Close)     -- 閉じ括弧 (), ], })
-├── Pi (Initial)   -- 開始引用符 («, ', ")
-├── Pf (Final)     -- 終了引用符 (», ', ")
-└── Po (Other)     -- その他の句読点 (., ,, !, ?)
+P  (Punctuation)   -- Punctuation
+├── Pc (Connector) -- Connector punctuation (_)
+├── Pd (Dash)      -- Dashes (-, –, —)
+├── Ps (Open)      -- Opening brackets ((, [, {)
+├── Pe (Close)     -- Closing brackets (), ], })
+├── Pi (Initial)   -- Opening quotation marks («, ', ")
+├── Pf (Final)     -- Closing quotation marks (», ', ")
+└── Po (Other)     -- Other punctuation (., ,, !, ?)
 
-S  (Symbol)        -- 記号
-├── Sm (Math)      -- 数学記号 (+, =, <, >)
-├── Sc (Currency)  -- 通貨記号 ($, €, ¥, £)
-├── Sk (Modifier)  -- 修飾記号
-└── So (Other)     -- その他の記号 (©, ®, ™)
+S  (Symbol)        -- Symbols
+├── Sm (Math)      -- Mathematical symbols (+, =, <, >)
+├── Sc (Currency)  -- Currency symbols ($, €, ¥, £)
+├── Sk (Modifier)  -- Modifier symbols
+└── So (Other)     -- Other symbols (©, ®, ™)
 
-Z  (Separator)     -- 区切り
-├── Zs (Space)     -- 空白区切り
-├── Zl (Line)      -- 行区切り
-└── Zp (Paragraph) -- 段落区切り
+Z  (Separator)     -- Separators
+├── Zs (Space)     -- Space separators
+├── Zl (Line)      -- Line separators
+└── Zp (Paragraph) -- Paragraph separators
 
-C  (Other)         -- その他
-├── Cc (Control)   -- 制御文字
-├── Cf (Format)    -- 書式文字 (BOM等)
-├── Cs (Surrogate) -- サロゲート
-├── Co (Private)   -- 私用文字
-└── Cn (Unassigned)-- 未割り当て
+C  (Other)         -- Other
+├── Cc (Control)   -- Control characters
+├── Cf (Format)    -- Format characters (BOM, etc.)
+├── Cs (Surrogate) -- Surrogates
+├── Co (Private)   -- Private use characters
+└── Cn (Unassigned)-- Unassigned
 ```
 
-### 4.3 Unicode Script による文字クラス
+### 4.3 Character Classes by Unicode Script
 
 ```javascript
-// JavaScript ES2018+ の Unicode Property Escape
+// JavaScript ES2018+ Unicode Property Escape
 
 const text = "Hello こんにちは 世界 Привет مرحبا";
 
-// 日本語のひらがな
+// Japanese Hiragana
 console.log(text.match(/\p{Script=Hiragana}+/gu));
 // => ['こんにちは']
 
-// 漢字 (Han)
+// Kanji (Han)
 console.log(text.match(/\p{Script=Han}+/gu));
 // => ['世界']
 
-// キリル文字
+// Cyrillic
 console.log(text.match(/\p{Script=Cyrillic}+/gu));
 // => ['Привет']
 
-// アラビア文字
+// Arabic
 console.log(text.match(/\p{Script=Arabic}+/gu));
 // => ['مرحبا']
 
-// ラテン文字
+// Latin
 console.log(text.match(/\p{Script=Latin}+/gu));
 // => ['Hello']
 
-// 絵文字
+// Emoji
 const emoji_text = "Hello! Nice day!";
 console.log(emoji_text.match(/\p{Emoji}/gu));
 // => ['', '']
 ```
 
 ```python
-# Python の regex モジュールでの Unicode Script
+# Unicode Script with Python's regex module
 
 try:
     import regex
 
     text = "Hello こんにちは 世界 カタカナ"
 
-    # ひらがな
+    # Hiragana
     print(regex.findall(r'\p{Hiragana}+', text))
     # => ['こんにちは']
 
-    # カタカナ
+    # Katakana
     print(regex.findall(r'\p{Katakana}+', text))
     # => ['カタカナ']
 
-    # 漢字
+    # Kanji
     print(regex.findall(r'\p{Han}+', text))
     # => ['世界']
 
-    # 日本語全般 (ひらがな + カタカナ + 漢字)
+    # All Japanese (Hiragana + Katakana + Kanji)
     print(regex.findall(r'[\p{Hiragana}\p{Katakana}\p{Han}]+', text))
     # => ['こんにちは', '世界', 'カタカナ']
 
@@ -804,113 +804,113 @@ except ImportError:
     pass
 ```
 
-### 4.4 ECMAScript 2024 の v フラグ (Unicode Sets)
+### 4.4 ECMAScript 2024 v Flag (Unicode Sets)
 
 ```javascript
-// ECMAScript 2024 の v フラグでは文字クラスの集合演算が可能
+// The v flag in ECMAScript 2024 enables set operations on character classes
 
-// 交差 (&&) -- 両方に含まれる文字
+// Intersection (&&) -- characters in both sets
 // /[\p{Script=Latin}&&\p{Letter}]/v
 
-// 減算 (--) -- 左から右を除く
+// Subtraction (--) -- left set minus right set
 // /[\p{Letter}--\p{Script=Latin}]/v
 
-// 和集合 -- 従来の文字クラスと同じ
+// Union -- same as traditional character classes
 // /[\p{Script=Latin}\p{Script=Greek}]/v
 
-// 例: ASCII文字を除くラテン文字（アクセント付き文字のみ）
+// Example: Latin characters excluding ASCII (accented characters only)
 // /[\p{Script=Latin}--[a-zA-Z]]/v
 
-// 例: 数字を除く英数字 = 英字のみ
+// Example: Alphanumeric minus digits = letters only
 // /[\p{Alnum}--\p{Number}]/v
 ```
 
 ---
 
-## 5. 組み合わせパターン
+## 5. Combination Patterns
 
-### 5.1 文字クラスの組み合わせ
+### 5.1 Combining Character Classes
 
 ```python
 import re
 
-# 英数字とハイフン、アンダースコア
+# Alphanumeric, hyphens, and underscores
 slug_pattern = r'[a-zA-Z0-9_-]+'
 print(re.findall(slug_pattern, "my-page_title 2026"))
 # => ['my-page_title', '2026']
 
-# 日本語文字 (Unicodeレンジ)
+# Japanese characters (Unicode ranges)
 jp_pattern = r'[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]+'
 print(re.findall(jp_pattern, "Hello 東京タワーへ行こう"))
 # => ['東京タワーへ行こう']
 
-# 文字クラスの減算 (.NETのみ)
-# [a-z-[aeiou]] -- 小文字子音のみ
+# Character class subtraction (.NET only)
+# [a-z-[aeiou]] -- lowercase consonants only
 
-# 文字クラスの交差 (Java)
-# [a-z&&[^aeiou]] -- 小文字子音のみ
+# Character class intersection (Java)
+# [a-z&&[^aeiou]] -- lowercase consonants only
 ```
 
-### 5.2 よくある文字クラスパターン
+### 5.2 Common Character Class Patterns
 
 ```python
 import re
 
-# ファイル名に使える文字
+# Characters allowed in filenames
 filename_pattern = r'[a-zA-Z0-9._-]+'
 print(re.findall(filename_pattern, "report_2026-02.pdf"))
 # => ['report_2026-02.pdf']
 
-# 16進カラーコード
+# Hexadecimal color codes
 hex_color = r'#[0-9a-fA-F]{6}\b'
 print(re.findall(hex_color, "color: #FF5733; bg: #00aaff;"))
 # => ['#FF5733', '#00aaff']
 
-# 引用符で囲まれた文字列 (引用符自体を除外)
+# Quoted strings (excluding the quotes themselves)
 quoted = r'"[^"]*"'
 print(re.findall(quoted, 'name="John" age="25"'))
 # => ['"John"', '"25"']
 
-# 制御文字を除外した印刷可能文字
+# Printable characters excluding control characters
 printable = r'[^\x00-\x1f\x7f]+'
 print(re.findall(printable, "hello\x00world\x1b[31m"))
 # => ['hello', 'world', '[31m']
 ```
 
-### 5.3 高度な文字クラスパターン
+### 5.3 Advanced Character Class Patterns
 
 ```python
 import re
 
-# 1. メールアドレスのローカルパートに使える文字
+# 1. Characters allowed in email local parts
 local_part = r'[a-zA-Z0-9.!#$%&\'*+/=?^_`{|}~-]+'
 print(re.findall(local_part, "user.name+tag@example.com"))
 # => ["user.name+tag"]
 
-# 2. URL セーフな文字（RFC 3986）
+# 2. URL-safe characters (RFC 3986)
 url_safe = r'[a-zA-Z0-9._~:/?#\[\]@!$&\'()*+,;=-]+'
 print(re.findall(url_safe, "https://example.com/path?q=hello&lang=ja"))
 
-# 3. CSS セレクタに使える文字
+# 3. Characters allowed in CSS selectors
 css_selector = r'[a-zA-Z0-9_-]+'
 
-# 4. シェルで安全なファイル名文字
+# 4. Shell-safe filename characters
 safe_filename = r'[a-zA-Z0-9._-]+'
 
-# 5. SQLインジェクション防止: 英数字とスペースのみ許可
+# 5. SQL injection prevention: allow only alphanumeric and spaces
 safe_input = r'^[a-zA-Z0-9 ]+$'
 
-# 6. Base64 エンコードされた文字列
+# 6. Base64 encoded strings
 base64_pattern = r'[A-Za-z0-9+/]+=*'
 print(re.findall(base64_pattern, "SGVsbG8gV29ybGQ= next"))
 # => ['SGVsbG8gV29ybGQ=']
 
-# 7. UUID パターン
+# 7. UUID pattern
 uuid_pattern = r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
 print(re.findall(uuid_pattern, "id: 550e8400-e29b-41d4-a716-446655440000", re.IGNORECASE))
 # => ['550e8400-e29b-41d4-a716-446655440000']
 
-# 8. セマンティックバージョニング
+# 8. Semantic versioning
 semver_pattern = r'[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.]+)?(?:\+[a-zA-Z0-9.]+)?'
 print(re.findall(semver_pattern, "v1.2.3-beta.1+build.123"))
 # => ['1.2.3-beta.1+build.123']
@@ -918,59 +918,59 @@ print(re.findall(semver_pattern, "v1.2.3-beta.1+build.123"))
 
 ---
 
-## 6. ASCII 図解
+## 6. ASCII Diagrams
 
-### 6.1 文字クラスの概念図
+### 6.1 Conceptual Diagram of Character Classes
 
 ```
-文字空間全体 (Unicode: 約15万文字)
+Entire character space (Unicode: ~150,000 characters)
 ┌─────────────────────────────────────────┐
 │                                         │
 │   [a-z]  ┌─────────┐                   │
-│          │a b c ... z│  26文字          │
+│          │a b c ... z│  26 characters   │
 │          └─────────┘                    │
 │                                         │
 │   \d     ┌────────────┐                 │
-│          │0 1 2 ... 9  │  10文字        │
-│          │(Unicode:数百)│                │
+│          │0 1 2 ... 9  │  10 characters │
+│          │(Unicode: hundreds)│           │
 │          └────────────┘                 │
 │                                         │
 │   \w     ┌──────────────────────┐       │
 │          │a-z A-Z 0-9 _         │       │
-│          │(Unicode: 数万文字)    │       │
+│          │(Unicode: tens of thousands)│  │
 │          └──────────────────────┘       │
 │                                         │
 │   \s     ┌──────────────┐               │
-│          │空白 TAB LF CR│  6文字        │
-│          │FF VT         │               │
+│          │Space TAB LF CR│  6 characters│
+│          │FF VT          │              │
 │          └──────────────┘               │
 │                                         │
-│   [^a-z] = 上記 [a-z] の補集合          │
-│   \D     = \d の補集合                   │
-│   \W     = \w の補集合                   │
-│   \S     = \s の補集合                   │
+│   [^a-z] = complement of [a-z] above   │
+│   \D     = complement of \d             │
+│   \W     = complement of \w             │
+│   \S     = complement of \s             │
 └─────────────────────────────────────────┘
 ```
 
-### 6.2 否定文字クラスの動作
+### 6.2 How Negated Character Classes Work
 
 ```
-パターン: [^aeiou]  (母音以外)
-テキスト: "regex"
+Pattern: [^aeiou]  (non-vowels)
+Text:    "regex"
 
-  r → [^aeiou] にマッチ? → 'r'は母音ではない → マッチ
-  e → [^aeiou] にマッチ? → 'e'は母音 → 不一致
-  g → [^aeiou] にマッチ? → 'g'は母音ではない → マッチ
-  e → [^aeiou] にマッチ? → 'e'は母音 → 不一致
-  x → [^aeiou] にマッチ? → 'x'は母音ではない → マッチ
+  r -> match [^aeiou]? -> 'r' is not a vowel -> Match
+  e -> match [^aeiou]? -> 'e' is a vowel -> No match
+  g -> match [^aeiou]? -> 'g' is not a vowel -> Match
+  e -> match [^aeiou]? -> 'e' is a vowel -> No match
+  x -> match [^aeiou]? -> 'x' is not a vowel -> Match
 
-結果: r, g, x がマッチ
+Result: r, g, x match
 ```
 
-### 6.3 範囲指定のASCIIコード基盤
+### 6.3 Range Specification Based on ASCII Codes
 
 ```
-ASCII コードによる範囲:
+Ranges based on ASCII codes:
 
 [0-9]  = ASCII 48-57
   48: '0'  49: '1'  50: '2' ... 57: '9'
@@ -981,26 +981,26 @@ ASCII コードによる範囲:
 [a-z]  = ASCII 97-122
   97: 'a'  98: 'b'  99: 'c' ... 122: 'z'
 
-注意: [A-z] は意図しない文字を含む!
+Warning: [A-z] includes unintended characters!
   65: 'A' ... 90: 'Z'
   91: '['  92: '\'  93: ']'  94: '^'  95: '_'  96: '`'
   97: 'a' ... 122: 'z'
 
-  → [ \ ] ^ _ ` も含まれてしまう!
-  → 正しくは [A-Za-z] を使う
+  -> [ \ ] ^ _ ` are also included!
+  -> Use [A-Za-z] instead
 ```
 
-### 6.4 文字クラスの集合演算
+### 6.4 Set Operations on Character Classes
 
 ```
-集合演算の概念:
+Set operation concepts:
 
-和集合 (Union):       [a-z0-9]  = [a-z] ∪ [0-9]
-否定 (Complement):    [^a-z]    = U \ [a-z]
-交差 (Intersection):  Java: [a-z&&[aeiou]]  = [a-z] ∩ [aeiou] = [aeiou]
-減算 (Subtraction):   .NET: [a-z-[aeiou]]   = [a-z] \ [aeiou] = 子音
+Union:        [a-z0-9]  = [a-z] ∪ [0-9]
+Complement:   [^a-z]    = U \ [a-z]
+Intersection: Java: [a-z&&[aeiou]]  = [a-z] ∩ [aeiou] = [aeiou]
+Subtraction:  .NET: [a-z-[aeiou]]   = [a-z] \ [aeiou] = consonants
 
-視覚的な表現:
+Visual representation:
 
      [a-z]           [aeiou]
   ┌──────────┐    ┌─────────┐
@@ -1010,115 +1010,115 @@ ASCII コードによる範囲:
   │  o u     │    │         │
   └──────────┘    └─────────┘
 
-  交差 [a-z&&[aeiou]] = {a, e, i, o, u}
-  減算 [a-z-[aeiou]]  = {b, c, d, f, g, h, ...}
+  Intersection [a-z&&[aeiou]] = {a, e, i, o, u}
+  Subtraction  [a-z-[aeiou]]  = {b, c, d, f, g, h, ...}
 ```
 
 ---
 
-## 7. アンチパターン
+## 7. Anti-Patterns
 
-### 7.1 アンチパターン: [A-z] を使う
+### 7.1 Anti-Pattern: Using [A-z]
 
 ```python
 import re
 
-# NG: [A-z] は予期しない文字を含む
+# NG: [A-z] includes unexpected characters
 pattern_bad = r'[A-z]+'
 text = "Hello[World]_test"
 print(re.findall(pattern_bad, text))
-# => ['Hello[World]_test']  -- [ ] _ もマッチしてしまう!
+# => ['Hello[World]_test']  -- [ ] _ also match!
 
-# OK: [A-Za-z] を使う
+# OK: Use [A-Za-z]
 pattern_good = r'[A-Za-z]+'
 print(re.findall(pattern_good, text))
 # => ['Hello', 'World', 'test']
 ```
 
-### 7.2 アンチパターン: ショートハンドのUnicode挙動を無視する
+### 7.2 Anti-Pattern: Ignoring Unicode Behavior of Shorthands
 
 ```python
 import re
 
-# NG: \d が Unicode 数字にもマッチすることを忘れる
-text = "価格: ١٢٣ 円"  # アラビア数字 (U+0661, U+0662, U+0663)
+# NG: Forgetting that \d also matches Unicode digits
+text = "Price: ١٢٣ yen"  # Arabic digits (U+0661, U+0662, U+0663)
 print(re.findall(r'\d+', text))
-# => ['١٢٣']  -- Python 3 では Unicode 数字にもマッチ
+# => ['١٢٣']  -- Python 3 matches Unicode digits
 
-# セキュリティ上問題になる場合がある(数値パース時に予期しない値)
+# This can be a security issue (unexpected values during numeric parsing)
 
-# OK: ASCII 数字のみを対象にする場合は明示する
+# OK: Be explicit when targeting ASCII digits only
 print(re.findall(r'[0-9]+', text))
-# => []  -- ASCII 数字のみ
+# => []  -- ASCII digits only
 
-# または re.ASCII フラグを使う
+# Or use the re.ASCII flag
 print(re.findall(r'\d+', text, re.ASCII))
 # => []
 ```
 
-### 7.3 アンチパターン: 不要な文字クラス
+### 7.3 Anti-Pattern: Unnecessary Character Classes
 
 ```python
 import re
 
-# NG: 1文字しかない文字クラス
-pattern_bad = r'[a]'   # a と同じだが無駄に冗長
-# NG: ショートハンドを文字クラスに入れる意味なし
-pattern_bad2 = r'[\d]'  # \d と同じ
+# NG: Character class with only one character
+pattern_bad = r'[a]'   # Same as 'a' but needlessly verbose
+# NG: Wrapping a shorthand in a character class adds nothing
+pattern_bad2 = r'[\d]'  # Same as \d
 
-# OK: シンプルに書く
+# OK: Write simply
 pattern_good = r'a'
 pattern_good2 = r'\d'
 
-# ただし組み合わせる場合は文字クラスが必要:
-pattern_ok = r'[\d_-]'  # 数字、アンダースコア、ハイフン
+# However, character classes are needed when combining:
+pattern_ok = r'[\d_-]'  # Digits, underscores, and hyphens
 ```
 
-### 7.4 アンチパターン: 否定文字クラスとドットの混同
+### 7.4 Anti-Pattern: Confusing Negated Character Classes with Dot
 
 ```python
 import re
 
-# NG: [^...] は改行にもマッチするが . はマッチしない
+# NG: [^...] matches newlines but . does not
 text = "hello\nworld"
 
-# . はデフォルトで改行にマッチしない
+# . does not match newlines by default
 print(re.findall(r'.+', text))
-# => ['hello', 'world']  ※ 改行で分断される
+# => ['hello', 'world']  # Split at the newline
 
-# [^\n] は改行以外全て（. と同等だが明示的）
+# [^\n] is everything except newlines (equivalent to . but explicit)
 print(re.findall(r'[^\n]+', text))
 # => ['hello', 'world']
 
-# [^a] は改行にもマッチする！
+# [^a] also matches newlines!
 print(re.findall(r'[^a]+', text))
-# => ['hello\nworld']  ※ 改行を含む
+# => ['hello\nworld']  # Includes the newline
 
-# この違いを理解していないとバグの原因になる
+# Not understanding this difference can cause bugs
 ```
 
-### 7.5 アンチパターン: 過度に広い文字クラス
+### 7.5 Anti-Pattern: Overly Broad Character Classes
 
 ```python
 import re
 
-# NG: 数値バリデーションに \d を使う
-# ポート番号の検証
+# NG: Using \d for numeric validation
+# Port number validation
 port = "65536"
 if re.match(r'^\d+$', port):
-    print("Valid port?")  # NG: 65536 は不正なポート番号
+    print("Valid port?")  # NG: 65536 is not a valid port number
 
-# OK: 数値の範囲チェックは正規表現ではなくコードで行う
+# OK: Perform range checks in code, not with regex alone
 def is_valid_port(s):
     if not re.match(r'^[0-9]+$', s):
         return False
     return 0 <= int(s) <= 65535
 
-# NG: IPアドレスの検証に \d{1,3} だけを使う
+# NG: Using only \d{1,3} for IP address validation
 ip_bad = r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$'
-# 999.999.999.999 にもマッチしてしまう
+# Also matches 999.999.999.999
 
-# OK: 各オクテットの範囲を検証
+# OK: Validate each octet's range
 ip_good = re.compile(r'''
     ^
     (?:
@@ -1132,77 +1132,77 @@ ip_good = re.compile(r'''
 
 ---
 
-## 8. 実践パターン集
+## 8. Practical Pattern Collection
 
-### 8.1 日本語テキスト処理
+### 8.1 Japanese Text Processing
 
 ```python
 import re
 
-# ひらがなの検出
+# Detecting Hiragana
 hiragana = re.compile(r'[\u3040-\u309F]+')
 print(hiragana.findall("東京タワーへ行こう"))
-# => ['へ', 'こう']  ※ 助詞や動詞のひらがな部分
+# => ['へ', 'こう']  # Hiragana parts: particles and verb endings
 
-# カタカナの検出
+# Detecting Katakana
 katakana = re.compile(r'[\u30A0-\u30FF]+')
 print(katakana.findall("東京タワーへ行こう"))
 # => ['タワー']
 
-# 全角英数字の半角変換
+# Converting full-width alphanumeric to half-width
 def zen_to_han(text):
-    """全角英数字を半角に変換"""
+    """Convert full-width alphanumeric characters to half-width"""
     return re.sub(r'[Ａ-Ｚａ-ｚ０-９]',
                   lambda m: chr(ord(m.group()) - 0xFEE0), text)
 
 print(zen_to_han("Ｈｅｌｌｏ ０１２３"))
 # => "Hello 0123"
 
-# 半角カタカナの全角変換用マッピング
+# Mapping for half-width to full-width Katakana conversion
 han_to_zen_map = str.maketrans(
     'ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ',
     'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン'
 )
 
 def han_kata_to_zen(text):
-    """半角カタカナを全角に変換"""
+    """Convert half-width Katakana to full-width"""
     return text.translate(han_to_zen_map)
 
-# 日本語の文区切り
+# Japanese sentence splitting
 sentences = re.split(r'[。！？\n]+', "今日は天気がいい。明日も晴れるだろう！楽しみだ。")
 print([s for s in sentences if s])
 # => ['今日は天気がいい', '明日も晴れるだろう', '楽しみだ']
 ```
 
-### 8.2 数値の文字クラスパターン
+### 8.2 Numeric Character Class Patterns
 
 ```python
 import re
 
-# 整数（正負）
+# Integers (positive/negative)
 integer_pattern = r'[+-]?[0-9]+'
 print(re.findall(integer_pattern, "x=42, y=-17, z=+3"))
-# => ['+42', '-17', '+3']  ※ 先頭の+は演算子の場合もある
+# => ['+42', '-17', '+3']  # Leading + may also be an operator
 
-# より正確な整数パターン
+# More precise integer pattern
 integer_strict = r'(?<![0-9])[+-]?[0-9]+(?![0-9.])'
 
-# 小数（固定小数点）
+# Decimals (fixed-point)
 decimal_pattern = r'[+-]?[0-9]+\.[0-9]+'
 print(re.findall(decimal_pattern, "pi=3.14159, e=2.71828"))
 # => ['3.14159', '2.71828']
 
-# 科学表記
+# Scientific notation
 scientific = r'[+-]?[0-9]+\.?[0-9]*[eE][+-]?[0-9]+'
 print(re.findall(scientific, "speed=3.0e8 tiny=1.6e-19"))
 # => ['3.0e8', '1.6e-19']
 
-# カンマ区切りの数値
+# Comma-separated numbers
 comma_number = r'[0-9]{1,3}(?:,[0-9]{3})*'
 print(re.findall(comma_number, "Population: 1,234,567 Area: 377,975"))
 # => ['1,234,567', '377,975']
 
-# 通貨表記
+# Currency notation
 currency = r'[¥$€£][0-9,]+(?:\.[0-9]{2})?'
 print(re.findall(currency, "Price: $1,299.99 and ¥150,000"))
 # => ['$1,299.99', '¥150,000']
@@ -1211,45 +1211,45 @@ print(re.findall(currency, "Price: $1,299.99 and ¥150,000"))
 
 ---
 
-## 実践演習
+## Hands-On Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that satisfies the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate input data
+- Implement proper error handling
+- Create test code as well
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Basic implementation template
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Exercise for basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate the input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main processing logic"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Retrieve processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1258,26 +1258,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "An exception should have been raised"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation by adding the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Advanced patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Exercise for advanced patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1285,7 +1285,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1296,14 +1296,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Delete by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1311,7 +1311,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1319,44 +1319,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # Size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1365,7 +1365,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1380,47 +1380,47 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient version: {slow_time:.4f} sec")
+    print(f"Efficient version:   {fast_time:.6f} sec")
+    print(f"Speedup: {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key Points:**
+- Be mindful of algorithmic complexity
+- Choose appropriate data structures
+- Measure effectiveness with benchmarks
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
-|--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Error | Cause | Solution |
+|-------|-------|----------|
+| Initialization error | Configuration file issues | Check configuration file path and format |
+| Timeout | Network latency / insufficient resources | Adjust timeout values, add retry logic |
+| Out of memory | Increased data volume | Introduce batch processing, implement pagination |
+| Permission error | Insufficient access permissions | Check execution user permissions, review settings |
+| Data inconsistency | Concurrent processing conflicts | Introduce locking mechanisms, transaction management |
 
-### デバッグの手順
+### Debugging Procedure
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check the error message**: Read the stack trace to identify the location
+2. **Establish reproduction steps**: Reproduce the error with minimal code
+3. **Formulate hypotheses**: List possible causes
+4. **Verify incrementally**: Use logging or debuggers to test hypotheses
+5. **Fix and regression test**: After fixing, also run tests on related areas
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utility
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -1428,102 +1428,102 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs function inputs and outputs"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Called: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return value: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception in: {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debug target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Issues
 
-パフォーマンス問題が発生した場合の診断手順:
+Steps for diagnosing performance problems:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify the bottleneck**: Measure with profiling tools
+2. **Check memory usage**: Look for memory leaks
+3. **Check I/O waits**: Examine disk and network I/O status
+4. **Check concurrent connections**: Examine connection pool status
 
-| 問題の種類 | 診断ツール | 対策 |
-|-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| Problem Type | Diagnostic Tool | Solution |
+|-------------|----------------|----------|
+| CPU load | cProfile, py-spy | Algorithm improvement, parallelization |
+| Memory leak | tracemalloc, objgraph | Proper reference cleanup |
+| I/O bottleneck | strace, iostat | Asynchronous I/O, caching |
+| DB latency | EXPLAIN, slow query log | Indexing, query optimization |
 
 ---
 
-## 設計判断ガイド
+## Design Decision Guide
 
-### 選択基準マトリクス
+### Selection Criteria Matrix
 
-技術選択を行う際の判断基準を以下にまとめます。
+The following summarizes criteria for making technology choices.
 
-| 判断基準 | 重視する場合 | 妥協できる場合 |
-|---------|------------|-------------|
-| パフォーマンス | リアルタイム処理、大規模データ | 管理画面、バッチ処理 |
-| 保守性 | 長期運用、チーム開発 | プロトタイプ、短期プロジェクト |
-| スケーラビリティ | 成長が見込まれるサービス | 社内ツール、固定ユーザー |
-| セキュリティ | 個人情報、金融データ | 公開データ、社内利用 |
-| 開発速度 | MVP、市場投入スピード | 品質重視、ミッションクリティカル |
+| Criterion | When to prioritize | When to compromise |
+|-----------|-------------------|-------------------|
+| Performance | Real-time processing, large-scale data | Admin panels, batch processing |
+| Maintainability | Long-term operation, team development | Prototypes, short-term projects |
+| Scalability | Services with expected growth | Internal tools, fixed user base |
+| Security | Personal data, financial data | Public data, internal use |
+| Development speed | MVP, time to market | Quality-focused, mission-critical |
 
-### アーキテクチャパターンの選択
+### Choosing an Architecture Pattern
 
 ```
 ┌─────────────────────────────────────────────────┐
-│              アーキテクチャ選択フロー              │
+│          Architecture Selection Flow              │
 ├─────────────────────────────────────────────────┤
 │                                                 │
-│  ① チーム規模は？                                │
-│    ├─ 小規模（1-5人）→ モノリス                   │
-│    └─ 大規模（10人+）→ ②へ                       │
+│  1. Team size?                                  │
+│    ├─ Small (1-5) -> Monolith                   │
+│    └─ Large (10+) -> Go to 2                    │
 │                                                 │
-│  ② デプロイ頻度は？                               │
-│    ├─ 週1回以下 → モノリス + モジュール分割         │
-│    └─ 毎日/複数回 → ③へ                          │
+│  2. Deployment frequency?                       │
+│    ├─ Weekly or less -> Monolith + modules      │
+│    └─ Daily/multiple -> Go to 3                 │
 │                                                 │
-│  ③ チーム間の独立性は？                            │
-│    ├─ 高い → マイクロサービス                      │
-│    └─ 中程度 → モジュラーモノリス                   │
+│  3. Team independence?                          │
+│    ├─ High -> Microservices                     │
+│    └─ Moderate -> Modular monolith              │
 │                                                 │
 └─────────────────────────────────────────────────┘
 ```
 
-### トレードオフの分析
+### Trade-off Analysis
 
-技術的な判断には必ずトレードオフが伴います。以下の観点で分析を行いましょう:
+Technical decisions always involve trade-offs. Analyze from the following perspectives:
 
-**1. 短期 vs 長期のコスト**
-- 短期的に速い方法が長期的には技術的負債になることがある
-- 逆に、過剰な設計は短期的なコストが高く、プロジェクトの遅延を招く
+**1. Short-term vs. Long-term Cost**
+- A fast approach in the short term can become technical debt in the long term
+- Conversely, over-engineering incurs high short-term costs and delays the project
 
-**2. 一貫性 vs 柔軟性**
-- 統一された技術スタックは学習コストが低い
-- 多様な技術の採用は適材適所が可能だが、運用コストが増加
+**2. Consistency vs. Flexibility**
+- A unified technology stack reduces learning costs
+- Adopting diverse technologies enables best-fit choices but increases operational costs
 
-**3. 抽象化のレベル**
-- 高い抽象化は再利用性が高いが、デバッグが困難になる場合がある
-- 低い抽象化は直感的だが、コードの重複が発生しやすい
+**3. Level of Abstraction**
+- High abstraction increases reusability but can make debugging harder
+- Low abstraction is intuitive but prone to code duplication
 
 ```python
-# 設計判断の記録テンプレート
+# Design decision recording template
 class ArchitectureDecisionRecord:
-    """ADR (Architecture Decision Record) の作成"""
+    """Create an ADR (Architecture Decision Record)"""
 
     def __init__(self, title: str):
         self.title = title
@@ -1533,17 +1533,17 @@ class ArchitectureDecisionRecord:
         self.alternatives = []
 
     def set_context(self, context: str):
-        """背景と課題の記述"""
+        """Describe the background and problem"""
         self.context = context
         return self
 
     def set_decision(self, decision: str):
-        """決定内容の記述"""
+        """Describe the decision"""
         self.decision = decision
         return self
 
     def add_consequence(self, consequence: str, positive: bool = True):
-        """結果の追加"""
+        """Add a consequence"""
         self.consequences.append({
             'description': consequence,
             'type': 'positive' if positive else 'negative'
@@ -1551,7 +1551,7 @@ class ArchitectureDecisionRecord:
         return self
 
     def add_alternative(self, name: str, reason_rejected: str):
-        """却下した代替案の追加"""
+        """Add a rejected alternative"""
         self.alternatives.append({
             'name': name,
             'reason_rejected': reason_rejected
@@ -1559,15 +1559,15 @@ class ArchitectureDecisionRecord:
         return self
 
     def to_markdown(self) -> str:
-        """Markdown形式で出力"""
+        """Output in Markdown format"""
         md = f"# ADR: {self.title}\n\n"
-        md += f"## 背景\n{self.context}\n\n"
-        md += f"## 決定\n{self.decision}\n\n"
-        md += "## 結果\n"
+        md += f"## Background\n{self.context}\n\n"
+        md += f"## Decision\n{self.decision}\n\n"
+        md += "## Consequences\n"
         for c in self.consequences:
             icon = "✅" if c['type'] == 'positive' else "⚠️"
             md += f"- {icon} {c['description']}\n"
-        md += "\n## 却下した代替案\n"
+        md += "\n## Rejected Alternatives\n"
         for a in self.alternatives:
             md += f"- **{a['name']}**: {a['reason_rejected']}\n"
         return md
@@ -1576,130 +1576,130 @@ class ArchitectureDecisionRecord:
 
 ## 9. FAQ
 
-### Q1: 文字クラス内でハイフンをリテラルとして使うには？
+### Q1: How do I use a hyphen as a literal inside a character class?
 
-**A**: 3つの方法がある:
+**A**: There are three methods:
 
 ```python
 import re
 
-# 方法1: 先頭に置く
+# Method 1: Place at the start
 print(re.findall(r'[-abc]', "a-b"))  # => ['a', '-', 'b']
 
-# 方法2: 末尾に置く
+# Method 2: Place at the end
 print(re.findall(r'[abc-]', "a-b"))  # => ['a', '-', 'b']
 
-# 方法3: エスケープする
+# Method 3: Escape it
 print(re.findall(r'[a\-c]', "a-b"))  # => ['a', '-']
 ```
 
-先頭に置く方法が最も一般的で読みやすい。
+Placing it at the start is the most common and readable approach.
 
-### Q2: `\w` と `[a-zA-Z0-9_]` は常に同じか？
+### Q2: Are `\w` and `[a-zA-Z0-9_]` always the same?
 
-**A**: **同じではない**。Unicode モードが有効な場合、`\w` は各言語の文字(漢字、ひらがな等)にもマッチする:
+**A**: **No, they are not**. When Unicode mode is enabled, `\w` also matches characters from various scripts (Kanji, Hiragana, etc.):
 
 ```python
 import re
 
 text = "hello_世界"
 
-# Unicode モード (Python 3 デフォルト)
+# Unicode mode (Python 3 default)
 print(re.findall(r'\w+', text))            # => ['hello_世界']
 print(re.findall(r'[a-zA-Z0-9_]+', text))  # => ['hello_']
 
-# ASCII モード
+# ASCII mode
 print(re.findall(r'\w+', text, re.ASCII))  # => ['hello_']
 ```
 
-### Q3: POSIX クラスは Python で使えるか？
+### Q3: Can POSIX classes be used in Python?
 
-**A**: Python の `re` モジュールは POSIX 文字クラスを **直接サポートしない**。代替手段:
+**A**: Python's `re` module does **not directly support** POSIX character classes. Alternatives:
 
 ```python
 import re
 
-# [:alpha:] の代替
-# 方法1: Unicode カテゴリを使う (regex モジュール)
+# Alternative for [:alpha:]
+# Method 1: Use Unicode categories (regex module)
 # pip install regex
 # import regex
 # regex.findall(r'\p{Alpha}+', text)
 
-# 方法2: 明示的に範囲を指定
+# Method 2: Specify ranges explicitly
 alpha_ascii = r'[a-zA-Z]'
 
-# 方法3: str.isalpha() と組み合わせ
+# Method 3: Combine with str.isalpha()
 text = "Hello 123 World"
 words = re.findall(r'\S+', text)
 alpha_words = [w for w in words if w.isalpha()]
 print(alpha_words)  # => ['Hello', 'World']
 ```
 
-### Q4: Unicode Property Escape とは何か？
+### Q4: What are Unicode Property Escapes?
 
-**A**: `\p{...}` で Unicode のカテゴリやスクリプトを指定できる(サポートはエンジンによる):
+**A**: `\p{...}` allows specifying Unicode categories or scripts (support varies by engine):
 
 ```javascript
 // JavaScript (ES2018+ with /u flag)
 const text = "Hello 世界 café";
 
-// Unicodeの「文字」全般
+// All Unicode "letters"
 console.log(text.match(/\p{L}+/gu));
 // => ['Hello', '世界', 'café']
 
-// 日本語スクリプト
+// Japanese script
 console.log(text.match(/\p{Script=Hiragana}+/gu));
-// => (なし)
+// => (none)
 
-// 漢字
+// Kanji
 console.log(text.match(/\p{Script=Han}+/gu));
 // => ['世界']
 ```
 
-### Q5: 文字クラスのパフォーマンスは？
+### Q5: What about the performance of character classes?
 
-**A**: 文字クラスは一般的に高速だが、以下の点に注意:
+**A**: Character classes are generally fast, but note the following:
 
 ```python
 import re
 
-# 1. 文字クラスは選択(|)より高速
-# 遅い: a|b|c|d|e
-# 速い: [a-e]
+# 1. Character classes are faster than alternation (|)
+# Slow: a|b|c|d|e
+# Fast: [a-e]
 
-# 2. 否定文字クラスは肯定より若干遅い場合がある
-# [^abc] は内部的に「abc 以外の全文字」をチェック
+# 2. Negated character classes may be slightly slower than positive ones
+# [^abc] internally checks "all characters except abc"
 
-# 3. Unicode 文字クラスは ASCII のみより遅い
-# \d (Unicode) > [0-9] (ASCII のみ)
-# 速度が重要なら re.ASCII を検討
+# 3. Unicode character classes are slower than ASCII-only
+# \d (Unicode) > [0-9] (ASCII only)
+# If speed matters, consider re.ASCII
 
-# 4. 文字クラスの最適化はエンジン依存
-# 多くのエンジンは [a-z] をビットマップに最適化
-# 大きな Unicode 範囲はツリー検索になる場合がある
+# 4. Character class optimization is engine-dependent
+# Many engines optimize [a-z] into a bitmap
+# Large Unicode ranges may use tree-based lookups
 ```
 
-### Q6: 文字クラス内でショートハンドを使えるか？
+### Q6: Can shorthands be used inside character classes?
 
-**A**: はい、使える。文字クラス内でショートハンドは展開される:
+**A**: Yes, they can. Shorthands are expanded inside character classes:
 
 ```python
 import re
 
-# 数字とアンダースコアとハイフン
+# Digits, underscores, and hyphens
 print(re.findall(r'[\d_-]+', "hello_123-world"))
 # => ['_123-']
 
-# 空白と句読点
+# Whitespace and punctuation
 print(re.findall(r'[\s,.!?]+', "hello, world! foo"))
 # => [', ', '! ']
 
-# 単語文字とドット（ドメイン名用）
+# Word characters and dots (for domain names)
 print(re.findall(r'[\w.]+', "example.com hello"))
 # => ['example.com', 'hello']
 
-# 否定ショートハンドも使える
-print(re.findall(r'[\D]+', "abc123def"))  # 非数字
+# Negated shorthands work too
+print(re.findall(r'[\D]+', "abc123def"))  # Non-digits
 # => ['abc', 'def']
 ```
 
@@ -1708,51 +1708,51 @@ print(re.findall(r'[\D]+', "abc123def"))  # 非数字
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Building practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying how it works.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts covered in this guide before moving to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in real-world work?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-| 項目 | 内容 |
-|------|------|
-| `[abc]` | a, b, c のいずれか1文字 |
-| `[a-z]` | a から z の範囲 |
-| `[^abc]` | a, b, c 以外の1文字(否定) |
-| `\d` / `\D` | 数字 / 非数字 |
-| `\w` / `\W` | 単語文字 / 非単語文字 |
-| `\s` / `\S` | 空白 / 非空白 |
-| `\b` / `\B` | 単語境界 / 非単語境界 (ゼロ幅) |
-| `\p{L}` | Unicode文字プロパティ(対応エンジンのみ) |
-| `\p{Script=...}` | Unicodeスクリプト指定 |
-| Unicode注意 | `\d` `\w` は言語とモードで範囲が変わる |
-| 集合演算 | Java: `&&`(交差), .NET: `-`(減算), ES2024: `v`フラグ |
-| 鉄則 | `[A-z]` は使わない、Unicode挙動を把握する |
+Knowledge of this topic is frequently applied in everyday development work. It is especially important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## Summary
 
-- [03-quantifiers-anchors.md](./03-quantifiers-anchors.md) -- 量指定子とアンカー
-- [../01-advanced/00-groups-backreferences.md](../01-advanced/00-groups-backreferences.md) -- グループと後方参照
-- [../01-advanced/02-unicode-regex.md](../01-advanced/02-unicode-regex.md) -- Unicode正規表現の詳細
+| Item | Description |
+|------|-------------|
+| `[abc]` | Any single character: a, b, or c |
+| `[a-z]` | Range from a to z |
+| `[^abc]` | Any single character except a, b, c (negation) |
+| `\d` / `\D` | Digit / Non-digit |
+| `\w` / `\W` | Word character / Non-word character |
+| `\s` / `\S` | Whitespace / Non-whitespace |
+| `\b` / `\B` | Word boundary / Non-word boundary (zero-width) |
+| `\p{L}` | Unicode character property (supported engines only) |
+| `\p{Script=...}` | Unicode script specification |
+| Unicode note | `\d` `\w` ranges vary by language and mode |
+| Set operations | Java: `&&` (intersection), .NET: `-` (subtraction), ES2024: `v` flag |
+| Golden rule | Do not use `[A-z]`; understand Unicode behavior |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
 
-1. **Unicode Technical Standard #18** "Unicode Regular Expressions" https://unicode.org/reports/tr18/ -- Unicode正規表現の国際標準
-2. **Jeffrey E.F. Friedl** "Mastering Regular Expressions" O'Reilly, 2006 -- 第5章「文字クラス」の詳細解説
-3. **POSIX.1-2017** "Regular Expressions" https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap09.html -- POSIX正規表現の公式仕様
-4. **ECMAScript Language Specification** -- Unicode Property Escapes の仕様
-5. **Python regex module** https://pypi.org/project/regex/ -- Python 用高機能正規表現モジュール
+- [03-quantifiers-anchors.md](./03-quantifiers-anchors.md) -- Quantifiers and Anchors
+- [../01-advanced/00-groups-backreferences.md](../01-advanced/00-groups-backreferences.md) -- Groups and Backreferences
+- [../01-advanced/02-unicode-regex.md](../01-advanced/02-unicode-regex.md) -- Unicode Regular Expressions in Detail
+
+---
+
+## References
+
+1. **Unicode Technical Standard #18** "Unicode Regular Expressions" https://unicode.org/reports/tr18/ -- International standard for Unicode regular expressions
+2. **Jeffrey E.F. Friedl** "Mastering Regular Expressions" O'Reilly, 2006 -- Detailed coverage of character classes in Chapter 5
+3. **POSIX.1-2017** "Regular Expressions" https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap09.html -- Official POSIX regular expression specification
+4. **ECMAScript Language Specification** -- Unicode Property Escapes specification
+5. **Python regex module** https://pypi.org/project/regex/ -- Advanced regular expression module for Python
