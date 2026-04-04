@@ -1,550 +1,553 @@
-# パフォーマンス -- ReDoS、バックトラック爆発、最適化
+# Performance -- ReDoS, Backtracking Explosion, and Optimization
 
-> 正規表現のパフォーマンス問題は、セキュリティ脆弱性(ReDoS)からサービス停止まで深刻な影響を及ぼす。バックトラック爆発の原理を正確に理解し、安全で高速なパターンを設計する方法を解説する。
+> Performance issues in regular expressions can have serious consequences, ranging from security vulnerabilities (ReDoS) to complete service outages. This guide explains the principles of backtracking explosion, and how to design safe and fast patterns.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-1. **ReDoS(Regular Expression Denial of Service)の原理** -- なぜ特定のパターンが指数的に遅くなるのか
-2. **バックトラック爆発の検出と回避** -- 危険なパターンの識別方法と安全な代替
-3. **正規表現の最適化テクニック** -- コンパイル、アンカー、否定文字クラス、独占的量指定子
-4. **エンジン別の特性理解** -- NFA vs DFA の動作原理とトレードオフ
-5. **実務でのセキュリティ対策** -- 入力検証パイプラインの設計
-6. **ベンチマーク手法** -- 正規表現パフォーマンスの計測と比較
+1. **The Principles of ReDoS (Regular Expression Denial of Service)** -- Why certain patterns become exponentially slow
+2. **Detecting and Avoiding Backtracking Explosion** -- How to identify dangerous patterns and their safe alternatives
+3. **Regex Optimization Techniques** -- Compilation, anchors, negated character classes, possessive quantifiers
+4. **Understanding Engine-Specific Characteristics** -- How NFA vs DFA engines work and their tradeoffs
+5. **Security Measures in Practice** -- Designing input validation pipelines
+6. **Benchmarking Methods** -- Measuring and comparing regex performance
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [Unicode 正規表現 -- \p{Script}、フラグ、正規化](./02-unicode-regex.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Familiarity with the content of [Unicode Regular Expressions -- \p{Script}, Flags, and Normalization](./02-unicode-regex.md)
 
 ---
 
-## 1. 正規表現エンジンの基礎知識
+## 1. Fundamentals of Regex Engines
 
-### 1.1 NFA と DFA の違い
+### 1.1 Differences Between NFA and DFA
 
 ```
-正規表現エンジンの2大アーキテクチャ:
+The Two Major Regex Engine Architectures:
 
-NFA (Non-deterministic Finite Automaton) -- 非決定性有限オートマトン
-  動作: パターン主導。パターンの各要素を順に試し、
-       失敗したらバックトラックして別の可能性を探る。
-  特徴:
-  - 後方参照、ルックアラウンド、独占的量指定子をサポート
-  - 最悪ケースで指数的な計算量 O(2^n)
-  - 使用エンジン: Python re, JavaScript, Java, Perl, PCRE
+NFA (Non-deterministic Finite Automaton)
+  Behavior: Pattern-driven. Tries each element of the pattern in order,
+           and backtracks to explore other possibilities on failure.
+  Characteristics:
+  - Supports backreferences, lookaround, and possessive quantifiers
+  - Worst-case exponential time complexity O(2^n)
+  - Used by: Python re, JavaScript, Java, Perl, PCRE
 
-DFA (Deterministic Finite Automaton) -- 決定性有限オートマトン
-  動作: テキスト主導。入力の各文字を1回だけ処理し、
-       状態遷移テーブルで次の状態を決定する。
-  特徴:
-  - バックトラックなし → 常に O(n) の線形時間
-  - 後方参照、ルックアラウンドは原理的にサポート不可
-  - 使用エンジン: RE2, Rust regex, awk, grep (基本)
+DFA (Deterministic Finite Automaton)
+  Behavior: Text-driven. Processes each character of the input exactly once,
+           determining the next state via a state transition table.
+  Characteristics:
+  - No backtracking -> Always linear time O(n)
+  - Cannot support backreferences or lookaround in principle
+  - Used by: RE2, Rust regex, awk, grep (basic)
 
-ハイブリッド:
-  一部のエンジンは DFA と NFA を組み合わせる
-  - PCRE2 JIT: NFA ベースだが JIT コンパイルで高速化
-  - .NET: NFA ベースだがタイムアウト機構あり
-  - RE2: DFA メインだが、一部機能で NFA にフォールバック
+Hybrid:
+  Some engines combine DFA and NFA
+  - PCRE2 JIT: NFA-based but accelerated with JIT compilation
+  - .NET: NFA-based but includes a timeout mechanism
+  - RE2: Primarily DFA, but falls back to NFA for some features
 ```
 
-### 1.2 バックトラッキングの動作原理
+### 1.2 How Backtracking Works
 
 ```python
 import re
 
-# バックトラッキングの詳細な動作を追跡
+# Detailed tracking of how backtracking operates
 
-# パターン: a+b
-# 入力: "aaac"
+# Pattern: a+b
+# Input: "aaac"
 
-# エンジンの動作:
-# 位置0: a+ → "aaa" にマッチ(貪欲)
-#         b  → 'c' ≠ 'b' → 失敗
-#         バックトラック: a+ → "aa" にマッチ
-#         b  → 'a' ≠ 'b' → 失敗
-#         バックトラック: a+ → "a" にマッチ
-#         b  → 'a' ≠ 'b' → 失敗
-# 位置1: a+ → "aa" にマッチ
-#         b  → 'c' ≠ 'b' → 失敗
-#         バックトラック...
-# 位置2: a+ → "a" にマッチ
-#         b  → 'c' ≠ 'b' → 失敗
-# 位置3: a+ → マッチしない
-# 結果: マッチなし
+# Engine behavior:
+# Position 0: a+ -> matches "aaa" (greedy)
+#             b  -> 'c' != 'b' -> fail
+#             Backtrack: a+ -> matches "aa"
+#             b  -> 'a' != 'b' -> fail
+#             Backtrack: a+ -> matches "a"
+#             b  -> 'a' != 'b' -> fail
+# Position 1: a+ -> matches "aa"
+#             b  -> 'c' != 'b' -> fail
+#             Backtrack...
+# Position 2: a+ -> matches "a"
+#             b  -> 'c' != 'b' -> fail
+# Position 3: a+ -> no match
+# Result: No match
 
-# このパターンは安全 -- バックトラックは線形回数
+# This pattern is safe -- backtracking is linear
 
-# 危険なパターン: (a+)+b -- バックトラックが指数的になる
+# Dangerous pattern: (a+)+b -- backtracking becomes exponential
 ```
 
-### 1.3 NFA エンジンのバックトラック制限
+### 1.3 Backtracking Limits in NFA Engines
 
 ```python
-# 各言語のバックトラック制限
+# Backtracking limits by language
 #
-# Python re:      制限なし（デフォルト）
-# Python regex:   timeout パラメータで制限可能
-# JavaScript V8:  --regexp-backtracks-limit（デフォルト: 数百万）
-# Java:           制限なし（デフォルト）
-# .NET:           Regex.MatchTimeout で制限可能
-# PCRE2:          pcre2_set_match_limit で制限可能
-# Perl:           制限なし（デフォルト）
+# Python re:      No limit (default)
+# Python regex:   Can be limited via timeout parameter
+# JavaScript V8:  --regexp-backtracks-limit (default: several million)
+# Java:           No limit (default)
+# .NET:           Can be limited via Regex.MatchTimeout
+# PCRE2:          Can be limited via pcre2_set_match_limit
+# Perl:           No limit (default)
 
-# JavaScript V8 の例:
+# JavaScript V8 example:
 # node --regexp-backtracks-limit=10000 script.js
 
-# .NET の例:
+# .NET example:
 # var regex = new Regex(pattern, RegexOptions.None,
 #                       TimeSpan.FromSeconds(1));
 ```
 
 ---
 
-## 2. ReDoS とは
+## 2. What Is ReDoS?
 
-### 2.1 ReDoS の概要
+### 2.1 Overview of ReDoS
 
 ```
 ReDoS (Regular Expression Denial of Service):
-悪意のある入力により正規表現エンジンを
-指数的な時間計算量に陥らせるサービス拒否攻撃
+A denial-of-service attack that forces a regex engine into
+exponential time complexity through malicious input.
 
-攻撃の流れ:
-┌──────────┐    脆弱なパターン    ┌──────────────┐
-│ 攻撃者    │ ─────────────────→ │ Webサーバー   │
-│          │   悪意のある入力     │              │
-│          │                    │  正規表現      │
-│          │                    │  エンジンが    │
-│          │                    │  無限ループ状態│
-│          │                    │  → CPU 100%   │
-│          │                    │  → DoS        │
-└──────────┘                    └──────────────┘
+Attack flow:
++------------+    Vulnerable pattern    +----------------+
+| Attacker   | ----------------------> | Web Server     |
+|            |   Malicious input       |                |
+|            |                         |  Regex engine  |
+|            |                         |  enters        |
+|            |                         |  infinite loop |
+|            |                         |  -> CPU 100%   |
+|            |                         |  -> DoS        |
++------------+                         +----------------+
 
-ReDoS の影響度:
-┌─────────────────────────────────────────────┐
-│ 影響レベル    │ 状況                          │
-├──────────────┼──────────────────────────────┤
-│ 軽微         │ 1リクエストの応答遅延          │
-│ 中程度       │ ワーカースレッドの枯渇         │
-│ 重大         │ サーバー全体のCPU枯渇          │
-│ 致命的       │ カスケード障害、全サービス停止  │
-└──────────────┴──────────────────────────────┘
+ReDoS severity levels:
++----------------------------------------------+
+| Severity Level | Situation                    |
++----------------+------------------------------+
+| Minor          | Single request delay         |
+| Moderate       | Worker thread exhaustion     |
+| Major          | Server-wide CPU exhaustion   |
+| Critical       | Cascading failure, full      |
+|                | service outage               |
++----------------+------------------------------+
 ```
 
-### 2.2 実際の ReDoS インシデント事例
+### 2.2 Real-World ReDoS Incidents
 
 ```
-過去の重大な ReDoS インシデント:
+Notable past ReDoS incidents:
 
 1. Stack Overflow (2016)
-   原因: HTML サニタイザーの正規表現
-   影響: 34分間のダウンタイム
-   パターン: 空白の繰り返しパターンに起因
+   Cause: Regex in HTML sanitizer
+   Impact: 34 minutes of downtime
+   Pattern: Caused by a whitespace repetition pattern
 
 2. Cloudflare (2019)
-   原因: WAF ルールの正規表現
-   影響: 全世界のサービスに27分間の障害
-   パターン: (?:(?:\"|'|\]|\}|\\|\d|(?:nan|infinity|true|false|
+   Cause: Regex in WAF rules
+   Impact: 27-minute global service disruption
+   Pattern: (?:(?:\"|'|\]|\}|\\|\d|(?:nan|infinity|true|false|
              null|undefined|symbol|math)|\`|\-|\+)+[)]*;?((?:\s|
              -|~|!|{}|\|\||\+)*.*(?:.*=.*)))
 
 3. Node.js (2017) -- CVE-2017-15896
-   原因: HTTP ヘッダーパーサーの正規表現
-   影響: Node.js アプリケーション全般に影響
+   Cause: Regex in HTTP header parser
+   Impact: Affected all Node.js applications
 
 4. npm (2018) -- event-stream
-   原因: パッケージ内の正規表現処理
-   影響: npm エコシステム全体に波及
+   Cause: Regex processing within a package
+   Impact: Rippled across the entire npm ecosystem
 ```
 
-### 2.3 脆弱なパターンの例
+### 2.3 Examples of Vulnerable Patterns
 
 ```python
 import re
 import time
 
-# 脆弱なパターン: (a+)+b
+# Vulnerable pattern: (a+)+b
 pattern = re.compile(r'(a+)+b')
 
-# 安全な入力: 即座に完了
+# Safe input: completes instantly
 start = time.time()
 pattern.search("aaaaab")
-print(f"安全な入力: {time.time() - start:.4f}秒")
+print(f"Safe input: {time.time() - start:.4f}s")
 
-# 悪意のある入力: 指数的に遅くなる
-# 注意: 以下は実行すると非常に遅くなる
+# Malicious input: becomes exponentially slow
+# Warning: the following will be extremely slow to execute
 for length in [15, 20, 25]:
-    malicious = "a" * length + "c"  # マッチしない入力
+    malicious = "a" * length + "c"  # Non-matching input
     start = time.time()
     pattern.search(malicious)
     elapsed = time.time() - start
-    print(f"長さ {length}: {elapsed:.4f}秒")
+    print(f"Length {length}: {elapsed:.4f}s")
 
-# 出力例:
-# 長さ 15: 0.01秒
-# 長さ 20: 0.30秒
-# 長さ 25: 9.50秒    ← 指数的増加!
+# Example output:
+# Length 15: 0.01s
+# Length 20: 0.30s
+# Length 25: 9.50s    <- Exponential growth!
 ```
 
-### 2.4 バックトラック爆発のメカニズム
+### 2.4 The Mechanism of Backtracking Explosion
 
 ```
-パターン: (a+)+b
-入力:     "aaaaac" (6文字、マッチしない)
+Pattern: (a+)+b
+Input:   "aaaaac" (6 characters, no match)
 
-エンジンの動作 -- 全ての分割を試行:
+Engine behavior -- tries all possible partitions:
 
-試行1: (aaaaa)b     → b ≠ c → 失敗
-試行2: (aaaa)(a)b   → b ≠ c → 失敗
-試行3: (aaa)(aa)b   → b ≠ c → 失敗
-試行4: (aaa)(a)(a)b → b ≠ c → 失敗
-試行5: (aa)(aaa)b   → b ≠ c → 失敗
-試行6: (aa)(aa)(a)b → b ≠ c → 失敗
-試行7: (aa)(a)(aa)b → b ≠ c → 失敗
+Attempt 1: (aaaaa)b     -> b != c -> fail
+Attempt 2: (aaaa)(a)b   -> b != c -> fail
+Attempt 3: (aaa)(aa)b   -> b != c -> fail
+Attempt 4: (aaa)(a)(a)b -> b != c -> fail
+Attempt 5: (aa)(aaa)b   -> b != c -> fail
+Attempt 6: (aa)(aa)(a)b -> b != c -> fail
+Attempt 7: (aa)(a)(aa)b -> b != c -> fail
 ...
 
-n 文字の 'a' に対して、約 2^n 通りの分割を試行
-→ n=25 で約 3,300万通り
-→ n=30 で約 10億通り!
+For n characters of 'a', approximately 2^n partitions are attempted
+-> n=25: approximately 33 million
+-> n=30: approximately 1 billion!
 
-なぜ指数的になるのか？
-  (a+)+ は「1個以上のaを含むグループを1回以上繰り返す」
-  これは "aaa" を以下のように分割できる:
-    (aaa)         -- 1グループ
-    (aa)(a)       -- 2グループ
-    (a)(aa)       -- 2グループ
-    (a)(a)(a)     -- 3グループ
-  各分割パターンは整数の分割と同等 → 指数的
+Why does it become exponential?
+  (a+)+ means "repeat a group of one or more 'a' characters one or more times"
+  This means "aaa" can be partitioned as:
+    (aaa)         -- 1 group
+    (aa)(a)       -- 2 groups
+    (a)(aa)       -- 2 groups
+    (a)(a)(a)     -- 3 groups
+  Each partition pattern is equivalent to integer partitioning -> exponential
 ```
 
 ---
 
-## 3. 危険なパターンの分類
+## 3. Classification of Dangerous Patterns
 
-### 3.1 ReDoS脆弱パターンの3類型
+### 3.1 Three Types of ReDoS-Vulnerable Patterns
 
 ```
-┌──────────────────────────────────────────────────┐
-│              ReDoS 脆弱パターンの類型              │
-├──────────────────────────────────────────────────┤
-│                                                  │
-│ 1. 量指定子のネスト (Nested Quantifiers)          │
-│    (a+)+   (a*)*   (a+)*   (a*)+                │
-│    → 内側と外側の量指定子が同じ文字にマッチ         │
-│                                                  │
-│ 2. 選択の重複 (Overlapping Alternation)           │
-│    (a|a)+  (a|ab)+  (\w|\d)+                    │
-│    → 選択肢が同じ文字にマッチ可能                  │
-│                                                  │
-│ 3. 量指定子の重複 (Overlapping Quantifiers)       │
-│    \d+\d+  a+a+  .*.*                           │
-│    → 連続する量指定子が同じ文字を奪い合う           │
-│                                                  │
-└──────────────────────────────────────────────────┘
++----------------------------------------------------+
+|         Types of ReDoS-Vulnerable Patterns          |
++----------------------------------------------------+
+|                                                     |
+| 1. Nested Quantifiers                               |
+|    (a+)+   (a*)*   (a+)*   (a*)+                   |
+|    -> Inner and outer quantifiers match              |
+|       the same characters                            |
+|                                                     |
+| 2. Overlapping Alternation                          |
+|    (a|a)+  (a|ab)+  (\w|\d)+                        |
+|    -> Alternatives can match the same characters     |
+|                                                     |
+| 3. Overlapping Quantifiers                          |
+|    \d+\d+  a+a+  .*.*                               |
+|    -> Consecutive quantifiers compete for            |
+|       the same characters                            |
+|                                                     |
++----------------------------------------------------+
 ```
 
-### 3.2 類型別の詳細な分析
+### 3.2 Detailed Analysis by Type
 
 ```python
-# === 類型1: 量指定子のネスト ===
+# === Type 1: Nested Quantifiers ===
 
-# パターン: (a+)+
-# なぜ危険？
-# 内側の a+ は「1個以上のa」にマッチ
-# 外側の + は「そのグループを1回以上繰り返す」
-# → "aaaa" を (aa)(aa), (a)(aaa), (aaa)(a), (a)(a)(aa), ... と
-#   指数的に分割可能
+# Pattern: (a+)+
+# Why is it dangerous?
+# The inner a+ matches "one or more a's"
+# The outer + "repeats the group one or more times"
+# -> "aaaa" can be partitioned into (aa)(aa), (a)(aaa), (aaa)(a), (a)(a)(aa), ...
+#   exponentially many ways
 
-# パターン: (\d+)*
-# なぜ危険？
-# 内側の \d+ は「1個以上の数字」
-# 外側の * は「0回以上繰り返す」
-# → "12345" を (12)(345), (1)(2345), (123)(45), ... と分割
+# Pattern: (\d+)*
+# Why is it dangerous?
+# The inner \d+ matches "one or more digits"
+# The outer * "repeats zero or more times"
+# -> "12345" can be partitioned into (12)(345), (1)(2345), (123)(45), ...
 
-# === 類型2: 選択の重複 ===
+# === Type 2: Overlapping Alternation ===
 
-# パターン: (a|ab)+
-# なぜ危険？
-# "ab" を a + b としてマッチするか、ab としてマッチするか
-# の2通りの選択が毎回発生
-# → n個の "ab" の連続に対して 2^n 通り
+# Pattern: (a|ab)+
+# Why is it dangerous?
+# For "ab", there are two choices: match as a + b or as ab
+# This creates 2 choices at each step
+# -> For n repetitions of "ab", there are 2^n possibilities
 
-# パターン: (\w|\d)+
-# なぜ危険？
-# \d は \w に包含される
-# 数字に対して \w と \d の両方を試行
-# → 数字のみの入力で指数的バックトラック
+# Pattern: (\w|\d)+
+# Why is it dangerous?
+# \d is a subset of \w
+# For digits, both \w and \d are attempted
+# -> Exponential backtracking with digit-only input
 
-# === 類型3: 量指定子の重複 ===
+# === Type 3: Overlapping Quantifiers ===
 
-# パターン: \d+\d+\d+
-# なぜ危険？
-# "12345" を各 \d+ にどう分配するか
+# Pattern: \d+\d+\d+
+# Why is it dangerous?
+# How to distribute "12345" among each \d+
 # (1)(2)(345), (1)(23)(45), (12)(3)(45), ...
-# → 組み合わせが爆発
+# -> Combinatorial explosion
 ```
 
-### 3.3 実際の脆弱パターン例
+### 3.3 Examples of Real-World Vulnerable Patterns
 
 ```python
-# 脆弱パターンのカタログ (実行は避けること)
+# Catalog of vulnerable patterns (avoid executing these)
 
 vulnerable_patterns = {
-    # 量指定子のネスト
+    # Nested quantifiers
     "(a+)+":           "aaaaaaaaaaaaaaac",
     "(a+)+b":          "aaaaaaaaaaaaaaac",
     "(a*)*b":          "aaaaaaaaaaaaaaac",
     "([a-z]+)+$":      "aaaaaaaaaaaaaaa!",
 
-    # 選択の重複
+    # Overlapping alternation
     "(a|a)+b":         "aaaaaaaaaaaaaaac",
     "(\\w|\\d)+$":     "aaaaaaaaaaaaaaaa!",
     "(.*a){20}":       "aaaaaaaaaaaaaaaaaaaaX",
 
-    # 実世界の脆弱パターン
-    # メールアドレス検証
+    # Real-world vulnerable patterns
+    # Email validation
     r"^([a-zA-Z0-9])(([\-.]|[_]+)?([a-zA-Z0-9]+))*(@)":
         "aaaaaaaaaaaaaaaaaaaaa!",
 
-    # URL 検証
+    # URL validation
     r"^(https?://)([\w-]+(\.[\w-]+)+)(/[\w-./?%&=]*)*$":
         "http://a.b.c.d.e.f.g.h.i.j.k.l.m.n.o.p!",
 }
 ```
 
-### 3.4 脆弱パターンの数学的分析
+### 3.4 Mathematical Analysis of Vulnerable Patterns
 
 ```
-バックトラック回数の計算:
+Calculating backtracking count:
 
-パターン (a+)+b に対する入力 "a^n c" のバックトラック回数:
+For pattern (a+)+b with input "a^n c":
 
-  n文字の a を k個のグループに分割する方法の数は
-  C(n-1, k-1) (組み合わせ)
+  The number of ways to partition n characters of 'a'
+  into k groups is C(n-1, k-1) (combination)
 
-  全グループ数について合計すると:
-  Σ_{k=1}^{n} C(n-1, k-1) = 2^(n-1)
+  Summing over all possible group counts:
+  Sum_{k=1}^{n} C(n-1, k-1) = 2^(n-1)
 
-  → O(2^n) のバックトラック
+  -> O(2^n) backtracking
 
-具体例:
-  n=10:  2^9  =    512 回
-  n=20:  2^19 = 524,288 回
-  n=25:  2^24 = 16,777,216 回
-  n=30:  2^29 = 536,870,912 回 (5億回以上)
+Concrete examples:
+  n=10:  2^9  =    512 attempts
+  n=20:  2^19 = 524,288 attempts
+  n=25:  2^24 = 16,777,216 attempts
+  n=30:  2^29 = 536,870,912 attempts (over 500 million)
 
-  1回のバックトラックに 100ns かかるとすると:
-  n=25: 約 1.7秒
-  n=30: 約 54秒
-  n=35: 約 1,718秒 (約29分)
+  Assuming 100ns per backtracking step:
+  n=25: approximately 1.7 seconds
+  n=30: approximately 54 seconds
+  n=35: approximately 1,718 seconds (about 29 minutes)
 
-パターン (a|aa)+ に対する入力 "a^n c":
-  フィボナッチ数列的に増加 → O(φ^n) ≈ O(1.618^n)
-  指数的だが (a+)+ より遅い増加
+For pattern (a|aa)+ with input "a^n c":
+  Grows like the Fibonacci sequence -> O(phi^n) ~ O(1.618^n)
+  Exponential but slower growth than (a+)+
 
-パターン (\d+)+ に対する入力 "d^n c":
-  (a+)+ と同等 → O(2^n)
+For pattern (\d+)+ with input "d^n c":
+  Equivalent to (a+)+ -> O(2^n)
 ```
 
 ---
 
-## 4. 安全なパターン設計
+## 4. Designing Safe Patterns
 
-### 4.1 修正の基本原則
+### 4.1 Fundamental Principles of Fixing Patterns
 
 ```python
 import re
 
-# 原則1: 量指定子のネストを排除
+# Principle 1: Eliminate nested quantifiers
 
-# NG: (a+)+
-# OK: a+
+# BAD: (a+)+
+# GOOD: a+
 pattern_safe1 = r'a+b'
 
-# 原則2: 選択肢の重複を排除
+# Principle 2: Eliminate overlapping alternatives
 
-# NG: (\w|\d)+  (\w は \d を含む)
-# OK: \w+
+# BAD: (\w|\d)+  (\w includes \d)
+# GOOD: \w+
 pattern_safe2 = r'\w+$'
 
-# 原則3: 否定文字クラスで明確に制限
+# Principle 3: Use negated character classes for explicit constraints
 
-# NG: ".*"  (貪欲で " を超えてマッチ)
-# OK: "[^"]*"  (引用符内のみ)
+# BAD: ".*"  (greedy, matches past the closing quote)
+# GOOD: "[^"]*"  (matches only within quotes)
 pattern_safe3 = r'"[^"]*"'
 
-# 原則4: アトミックグループまたは独占的量指定子を使用
-# (Python regex モジュール、Java、PCRE)
+# Principle 4: Use atomic groups or possessive quantifiers
+# (Python regex module, Java, PCRE)
 
-# NG: (a+)+b       → バックトラック爆発
-# OK: (?>a+)+b     → アトミックグループ (バックトラック禁止)
+# BAD: (a+)+b       -> backtracking explosion
+# GOOD: (?>a+)+b    -> atomic group (backtracking prohibited)
 
-# 原則5: 入力長の制限
-# パターン修正だけでなく、入力自体を制限する
+# Principle 5: Limit input length
+# Not just pattern fixes -- limit the input itself
 
 def safe_match(pattern, text, max_length=10000):
-    """入力長を制限した安全なマッチ"""
+    """Safe match with input length limit"""
     if len(text) > max_length:
-        raise ValueError(f"入力が長すぎます: {len(text)} > {max_length}")
+        raise ValueError(f"Input too long: {len(text)} > {max_length}")
     return re.search(pattern, text)
 ```
 
-### 4.2 パターン修正例
+### 4.2 Pattern Fix Examples
 
 ```python
 import re
 
-# 例1: メールアドレス検証
-# NG: 脆弱
+# Example 1: Email validation
+# BAD: vulnerable
 email_bad = r'^([a-zA-Z0-9])(([\-.]|[_]+)?([a-zA-Z0-9]+))*(@)'
 
-# OK: 安全で実用的
+# GOOD: safe and practical
 email_good = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
 
-# 例2: HTML タグの内容抽出
-# NG: 脆弱 (ネストした量指定子)
+# Example 2: Extracting HTML tag content
+# BAD: vulnerable (nested quantifiers)
 tag_bad = r'<(\w+)(\s+\w+="[^"]*")*>'
 
-# OK: 安全
+# GOOD: safe
 tag_good = r'<\w+(?:\s+\w+="[^"]*")*>'
 
-# 例3: CSV フィールド
-# NG: 脆弱
+# Example 3: CSV fields
+# BAD: vulnerable
 csv_bad = r'^("(?:[^"]|"")*"|[^,]*)(,("(?:[^"]|"")*"|[^,]*))*$'
 
-# OK: フィールド単位で処理
+# GOOD: process field by field
 csv_good = r'"(?:[^"]|"")*"|[^,]+'
 
 text = '"hello, world","test""quote"",normal'
 print(re.findall(csv_good, text))
 
-# 例4: 空白の処理
-# NG: 脆弱 (\s+\s* のような重複)
+# Example 4: Whitespace handling
+# BAD: vulnerable (overlapping like \s+\s*)
 whitespace_bad = r'(\s+\w+)*\s*$'
 
-# OK: 安全 (明確な区切り)
+# GOOD: safe (clear delimiters)
 whitespace_good = r'(?:\s+\w+)*\s*$'
-# さらに安全: 否定文字クラスで制限
+# Even safer: constrain with negated character class
 whitespace_best = r'(?:\s\S+)*\s*$'
 
-# 例5: 複数行テキストの処理
-# NG: .* が行を超えてマッチ
+# Example 5: Multi-line text processing
+# BAD: .* matches across lines
 multiline_bad = r'START.*END'
 
-# OK: 行内のみマッチ
+# GOOD: match within a single line only
 multiline_good = r'START[^\n]*END'
-# または DOTALL フラグを明示的に制御
+# Or explicitly control the DOTALL flag
 ```
 
-### 4.3 独占的量指定子とアトミックグループ
+### 4.3 Possessive Quantifiers and Atomic Groups
 
 ```python
-# 独占的量指定子 (Possessive Quantifier): X++, X*+, X?+
-# アトミックグループ (Atomic Group): (?>X)
+# Possessive Quantifier: X++, X*+, X?+
+# Atomic Group: (?>X)
 #
-# どちらもバックトラックを禁止する
-# → 一度マッチした文字は手放さない
+# Both prohibit backtracking
+# -> Once matched, characters are never relinquished
 
-# Python regex モジュールでのアトミックグループ
+# Atomic groups with the Python regex module
 import regex
 
-# 通常の量指定子: バックトラックする
-# パターン: a+b に対して "aaac"
-# a+ → "aaa" → b期待だがcが来る → バックトラック
-# a+ → "aa" → b期待だがaが来る → バックトラック
+# Normal quantifier: backtracks
+# Pattern: a+b against "aaac"
+# a+ -> "aaa" -> expects b but gets c -> backtracks
+# a+ -> "aa" -> expects b but gets a -> backtracks
 # ...
 
-# アトミックグループ: バックトラックしない
-# パターン: (?>a+)b に対して "aaac"
-# (?>a+) → "aaa" (バックトラック禁止) → b期待だがcが来る → 即座に失敗
+# Atomic group: does not backtrack
+# Pattern: (?>a+)b against "aaac"
+# (?>a+) -> "aaa" (backtracking prohibited) -> expects b but gets c -> immediate failure
 
 pattern_atomic = regex.compile(r'(?>a+)b')
-print(pattern_atomic.search("aaab"))   # => マッチ
-print(pattern_atomic.search("aaac"))   # => None (即座に失敗)
+print(pattern_atomic.search("aaab"))   # => match
+print(pattern_atomic.search("aaac"))   # => None (immediate failure)
 
-# 独占的量指定子(Java, PCRE2, regex モジュール)
+# Possessive quantifier (Java, PCRE2, regex module)
 pattern_possessive = regex.compile(r'a++b')
-print(pattern_possessive.search("aaab"))   # => マッチ
+print(pattern_possessive.search("aaab"))   # => match
 print(pattern_possessive.search("aaac"))   # => None
 
-# ReDoS 対策としてのアトミックグループ
-# NG: (a+)+b → バックトラック爆発
-# OK: (?>(a+))+b → 内側の a+ がアトミック → 爆発しない
+# Atomic groups as ReDoS countermeasure
+# BAD: (a+)+b -> backtracking explosion
+# GOOD: (?>(a+))+b -> inner a+ is atomic -> no explosion
 safe_pattern = regex.compile(r'(?>(a+))+b')
 import time
 start = time.time()
 safe_pattern.search("a" * 30 + "c")
-print(f"アトミック版: {time.time() - start:.4f}秒")
-# => 即座に完了
+print(f"Atomic version: {time.time() - start:.4f}s")
+# => completes instantly
 ```
 
 ```java
-// Java での独占的量指定子
+// Possessive quantifiers in Java
 import java.util.regex.*;
 
 public class PossessiveExample {
     public static void main(String[] args) {
-        // 通常: バックトラックあり
+        // Normal: backtracking enabled
         Pattern greedy = Pattern.compile("(a+)+b");
 
-        // 独占的: バックトラックなし
+        // Possessive: backtracking disabled
         Pattern possessive = Pattern.compile("(a++)+b");
 
         String input = "a".repeat(30) + "c";
 
-        // 独占的量指定子は即座に失敗する
+        // Possessive quantifier fails immediately
         long start = System.nanoTime();
         possessive.matcher(input).find();
         long elapsed = System.nanoTime() - start;
-        System.out.println("独占的: " + (elapsed / 1_000_000) + "ms");
-        // => 独占的: 0ms
+        System.out.println("Possessive: " + (elapsed / 1_000_000) + "ms");
+        // => Possessive: 0ms
     }
 }
 ```
 
-### 4.4 タイムアウト機構
+### 4.4 Timeout Mechanisms
 
 ```python
 import re
 import signal
 
-# Python: signal を使ったタイムアウト(Unix系のみ)
+# Python: timeout using signal (Unix-like systems only)
 class RegexTimeout(Exception):
     pass
 
 def timeout_handler(signum, frame):
-    raise RegexTimeout("正規表現がタイムアウトしました")
+    raise RegexTimeout("Regex timed out")
 
 def safe_search(pattern, text, timeout_sec=1):
-    """タイムアウト付き正規表現検索"""
+    """Regex search with timeout"""
     signal.signal(signal.SIGALRM, timeout_handler)
     signal.alarm(timeout_sec)
     try:
         result = re.search(pattern, text)
-        signal.alarm(0)  # タイマー解除
+        signal.alarm(0)  # Cancel timer
         return result
     except RegexTimeout:
         return None
 
-# 使用例
+# Usage example
 result = safe_search(r'(a+)+b', "a" * 30 + "c", timeout_sec=2)
 if result is None:
-    print("タイムアウトまたはマッチなし")
+    print("Timeout or no match")
 ```
 
 ```python
-# multiprocessing を使ったクロスプラットフォームのタイムアウト
+# Cross-platform timeout using multiprocessing
 import re
 from multiprocessing import Process, Queue
 import time
 
 def regex_worker(pattern_str, text, result_queue):
-    """別プロセスで正規表現を実行"""
+    """Execute regex in a separate process"""
     try:
         pattern = re.compile(pattern_str)
         result = pattern.search(text)
@@ -553,7 +556,7 @@ def regex_worker(pattern_str, text, result_queue):
         result_queue.put(('error', str(e)))
 
 def safe_regex_search(pattern_str, text, timeout_sec=2):
-    """プロセスベースのタイムアウト付き正規表現検索"""
+    """Process-based regex search with timeout"""
     result_queue = Queue()
     p = Process(target=regex_worker, args=(pattern_str, text, result_queue))
     p.start()
@@ -562,29 +565,29 @@ def safe_regex_search(pattern_str, text, timeout_sec=2):
     if p.is_alive():
         p.terminate()
         p.join()
-        return None, "タイムアウト"
+        return None, "timeout"
 
     if not result_queue.empty():
         status, result = result_queue.get()
         return result, status
 
-    return None, "不明なエラー"
+    return None, "unknown error"
 
-# 使用例
+# Usage example
 result, status = safe_regex_search(r'(a+)+b', "a" * 30 + "c", timeout_sec=2)
-print(f"結果: {result}, ステータス: {status}")
+print(f"Result: {result}, Status: {status}")
 ```
 
 ```javascript
-// JavaScript: 安全な正規表現のサードパーティライブラリ
-// re2 パッケージ (RE2 エンジンのバインディング)
+// JavaScript: third-party libraries for safe regex
+// re2 package (RE2 engine bindings)
 // npm install re2
 
 // const RE2 = require('re2');
 // const pattern = new RE2('(a+)+b');
-// RE2 ではこれは自動的に最適化される
+// RE2 automatically optimizes this
 
-// Worker を使ったタイムアウト
+// Timeout using Worker
 function safeRegexTest(pattern, text, timeoutMs = 1000) {
     return new Promise((resolve, reject) => {
         const worker = new Worker(
@@ -615,9 +618,9 @@ function safeRegexTest(pattern, text, timeoutMs = 1000) {
 
 ---
 
-## 5. パフォーマンス最適化
+## 5. Performance Optimization
 
-### 5.1 コンパイル(プリコンパイル)
+### 5.1 Compilation (Pre-compilation)
 
 ```python
 import re
@@ -625,57 +628,57 @@ import time
 
 text = "The quick brown fox jumps over the lazy dog" * 1000
 
-# NG: ループ内で毎回コンパイル
+# BAD: Compile on every iteration
 start = time.time()
 for _ in range(10000):
     re.search(r'\b\w{5}\b', text)
 time_uncompiled = time.time() - start
 
-# OK: 事前コンパイル
+# GOOD: Pre-compile
 pattern = re.compile(r'\b\w{5}\b')
 start = time.time()
 for _ in range(10000):
     pattern.search(text)
 time_compiled = time.time() - start
 
-print(f"未コンパイル: {time_uncompiled:.3f}秒")
-print(f"コンパイル済: {time_compiled:.3f}秒")
-# コンパイル済みのほうが高速(特に繰り返し使用時)
+print(f"Uncompiled: {time_uncompiled:.3f}s")
+print(f"Compiled:   {time_compiled:.3f}s")
+# Pre-compiled is faster (especially with repeated use)
 
-# 注: Python は内部的にキャッシュ(最大512個)を持つが
-# 明示的なコンパイルが推奨される
+# Note: Python internally caches up to 512 patterns,
+# but explicit compilation is recommended
 ```
 
-### 5.2 アンカーによる高速化
+### 5.2 Speedup with Anchors
 
 ```python
 import re
 import time
 
-# アンカーがあるとエンジンが不要な位置をスキップできる
+# Anchors let the engine skip unnecessary positions
 
 text = "2024-01-15 Some log entry here" * 10000
 
-# 遅い: 全位置で試行
+# Slow: tries at every position
 slow = r'\d{4}-\d{2}-\d{2}'
 
-# 速い: 行頭のみで試行
+# Fast: only tries at line start
 fast = r'^\d{4}-\d{2}-\d{2}'
 
-# 速い: 単語境界で限定
+# Fast: constrained by word boundaries
 fast2 = r'\b\d{4}-\d{2}-\d{2}\b'
 
-# ベンチマーク
-for label, pattern in [("アンカーなし", slow), ("^付き", fast), ("\\b付き", fast2)]:
+# Benchmark
+for label, pattern in [("No anchor", slow), ("With ^", fast), ("With \\b", fast2)]:
     compiled = re.compile(pattern)
     start = time.time()
     for _ in range(1000):
         compiled.search(text)
     elapsed = time.time() - start
-    print(f"  {label}: {elapsed:.4f}秒")
+    print(f"  {label}: {elapsed:.4f}s")
 ```
 
-### 5.3 否定文字クラス vs 怠惰量指定子
+### 5.3 Negated Character Class vs Lazy Quantifier
 
 ```python
 import re
@@ -683,102 +686,102 @@ import time
 
 html = '<div class="test">' * 10000 + 'content</div>'
 
-# 遅い: 怠惰量指定子(バックトラックが発生)
+# Slow: lazy quantifier (backtracking occurs)
 start = time.time()
 re.search(r'<div.*?>', html)
 lazy_time = time.time() - start
 
-# 速い: 否定文字クラス(バックトラックなし)
+# Fast: negated character class (no backtracking)
 start = time.time()
 re.search(r'<div[^>]*>', html)
 negated_time = time.time() - start
 
-print(f"怠惰量指定子: {lazy_time:.6f}秒")
-print(f"否定文字クラス: {negated_time:.6f}秒")
+print(f"Lazy quantifier:        {lazy_time:.6f}s")
+print(f"Negated character class: {negated_time:.6f}s")
 
-# なぜ否定文字クラスが速いのか？
+# Why is the negated character class faster?
 #
-# 怠惰量指定子 .*?> の動作:
-#   1. .  にマッチ (0文字から開始)
-#   2. > を試行 → 失敗
-#   3. . にもう1文字マッチ
-#   4. > を試行 → 失敗
-#   5. 繰り返し... (毎回2ステップ)
+# Lazy quantifier .*?> behavior:
+#   1. .  matches (starting from 0 characters)
+#   2. Try > -> fail
+#   3. . matches one more character
+#   4. Try > -> fail
+#   5. Repeat... (2 steps each time)
 #
-# 否定文字クラス [^>]*> の動作:
-#   1. [^>]* で > 以外の文字を一気にマッチ
-#   2. > を試行 → 成功
-#   (バックトラックが発生しない)
+# Negated character class [^>]*> behavior:
+#   1. [^>]* matches all non-> characters at once
+#   2. Try > -> success
+#   (No backtracking occurs)
 ```
 
-### 5.4 最適化テクニック一覧
+### 5.4 Summary of Optimization Techniques
 
 ```python
 import re
 
-# 1. 固定文字列の先行チェック
+# 1. Pre-check with fixed strings
 text = "long text without the target pattern..."
 
-# 遅い: 毎回正規表現で検索
+# Slow: search with regex every time
 if re.search(r'target\s+\w+\s+pattern', text):
     pass
 
-# 速い: 文字列検索で先行チェック
+# Fast: pre-check with string search
 if 'target' in text and 'pattern' in text:
     if re.search(r'target\s+\w+\s+pattern', text):
         pass
 
-# 2. 固定プレフィックスの活用
-# エンジンは固定プレフィックスを最適化できる
+# 2. Leverage fixed prefixes
+# The engine can optimize patterns with fixed prefixes
 
-# 最適化しやすい: 固定文字列で始まる
+# Easy to optimize: starts with a fixed string
 good = r'ERROR: \w+'
 
-# 最適化しにくい: 可変パターンで始まる
+# Hard to optimize: starts with a variable pattern
 bad = r'.*ERROR: \w+'
 
-# 3. 不要なキャプチャを排除
-# キャプチャグループ → 非キャプチャグループ
+# 3. Eliminate unnecessary captures
+# Capture groups -> non-capture groups
 slow = r'(https?)://([\w.]+)/([\w/]+)'
 fast = r'(?:https?)://(?:[\w.]+)/(?:[\w/]+)'
 
-# 4. 選択の順序最適化
-# 頻度の高い選択肢を先に
+# 4. Optimize alternation order
+# Put more frequent alternatives first
 slow_alt = r'(?:rare_pattern|common_pattern)'
 fast_alt = r'(?:common_pattern|rare_pattern)'
 
-# 5. 具体的な文字クラスの使用
-# 遅い: .* (何でもマッチ → バックトラックの元)
+# 5. Use specific character classes
+# Slow: .* (matches anything -> source of backtracking)
 slow_dot = r'<.*>'
-# 速い: [^>]* (限定的 → バックトラック最小化)
+# Fast: [^>]* (constrained -> minimizes backtracking)
 fast_neg = r'<[^>]*>'
 
-# 6. 必要な部分だけマッチ
-# 遅い: 全体をマッチしてからグループを取得
+# 6. Match only the required portion
+# Slow: match the entire string then extract groups
 slow_full = r'^.*?(\d{4}-\d{2}-\d{2}).*$'
-# 速い: 必要な部分だけを探す
+# Fast: search only for the needed part
 fast_part = r'\d{4}-\d{2}-\d{2}'
 ```
 
-### 5.5 大量データの処理最適化
+### 5.5 Optimizing Large Data Processing
 
 ```python
 import re
 import time
 
-# 大量のログファイル処理の最適化
+# Optimization for processing large log files
 
 def benchmark(name, func, lines, iterations=3):
-    """ベンチマーク実行"""
+    """Run benchmark"""
     times = []
     for _ in range(iterations):
         start = time.perf_counter()
         func(lines)
         times.append(time.perf_counter() - start)
     avg = sum(times) / len(times)
-    print(f"  {name}: {avg:.4f}秒 (平均)")
+    print(f"  {name}: {avg:.4f}s (average)")
 
-# テストデータ生成
+# Generate test data
 log_lines = []
 for i in range(100000):
     if i % 3 == 0:
@@ -788,7 +791,7 @@ for i in range(100000):
     else:
         log_lines.append(f"some other line without timestamp {i}")
 
-# 方法1: ナイーブ（毎行で re.search）
+# Method 1: Naive (re.search on every line)
 def naive_search(lines):
     results = []
     for line in lines:
@@ -797,7 +800,7 @@ def naive_search(lines):
             results.append(line)
     return results
 
-# 方法2: プリコンパイル
+# Method 2: Pre-compiled
 error_pattern = re.compile(r'\[ERROR\]')
 def compiled_search(lines):
     results = []
@@ -806,7 +809,7 @@ def compiled_search(lines):
             results.append(line)
     return results
 
-# 方法3: 文字列検索で先行フィルタ
+# Method 3: Pre-filter with string search
 def prefiltered_search(lines):
     results = []
     for line in lines:
@@ -814,97 +817,97 @@ def prefiltered_search(lines):
             results.append(line)
     return results
 
-# 方法4: リスト内包表記（Python最適化）
+# Method 4: List comprehension (Python optimization)
 def list_comp_search(lines):
     return [line for line in lines if '[ERROR]' in line]
 
-# ベンチマーク実行
-print("ベンチマーク結果 (10万行):")
-benchmark("ナイーブ re.search", naive_search, log_lines)
-benchmark("プリコンパイル", compiled_search, log_lines)
-benchmark("文字列先行フィルタ", prefiltered_search, log_lines)
-benchmark("リスト内包表記", list_comp_search, log_lines)
+# Run benchmarks
+print("Benchmark results (100K lines):")
+benchmark("Naive re.search", naive_search, log_lines)
+benchmark("Pre-compiled", compiled_search, log_lines)
+benchmark("String pre-filter", prefiltered_search, log_lines)
+benchmark("List comprehension", list_comp_search, log_lines)
 ```
 
-### 5.6 正規表現 vs 文字列操作のベンチマーク
+### 5.6 Regex vs String Operations Benchmark
 
 ```python
 import re
 import time
 
-# いつ正規表現を使い、いつ文字列操作を使うべきか
+# When to use regex vs string operations
 
 text = "user@example.com" * 10000
 
-# タスク: "@" を含むかチェック
+# Task: Check if "@" is present
 
-# 方法1: re.search
+# Method 1: re.search
 pattern = re.compile(r'@')
 start = time.perf_counter()
 for _ in range(100000):
     pattern.search(text)
 regex_time = time.perf_counter() - start
 
-# 方法2: in 演算子
+# Method 2: in operator
 start = time.perf_counter()
 for _ in range(100000):
     '@' in text
 string_time = time.perf_counter() - start
 
-print(f"re.search: {regex_time:.4f}秒")
-print(f"in 演算子: {string_time:.4f}秒")
-print(f"速度比: {regex_time / string_time:.1f}x")
+print(f"re.search:   {regex_time:.4f}s")
+print(f"in operator: {string_time:.4f}s")
+print(f"Speed ratio: {regex_time / string_time:.1f}x")
 
-# 一般的なガイドライン:
-# - 単純な文字列検索 → in, find(), startswith(), endswith()
-# - パターンマッチ → 正規表現
-# - 文字列置換(固定) → str.replace()
-# - 文字列置換(パターン) → re.sub()
-# - 文字列分割(固定) → str.split()
-# - 文字列分割(パターン) → re.split()
+# General guidelines:
+# - Simple string search -> in, find(), startswith(), endswith()
+# - Pattern matching -> regex
+# - String replacement (fixed) -> str.replace()
+# - String replacement (pattern) -> re.sub()
+# - String splitting (fixed) -> str.split()
+# - String splitting (pattern) -> re.split()
 ```
 
 ---
 
-## 6. 入力検証のセキュリティ設計
+## 6. Security Design for Input Validation
 
-### 6.1 多層防御アーキテクチャ
+### 6.1 Defense-in-Depth Architecture
 
 ```
-入力検証パイプライン:
+Input Validation Pipeline:
 
-┌─────────────────────────────────────────────────┐
-│                入力検証パイプライン                 │
-├─────────────────────────────────────────────────┤
-│                                                  │
-│  Layer 1: 長さ制限                               │
-│  ├── 最大文字数を制限 (例: 1000文字)              │
-│  └── 空文字列チェック                             │
-│                                                  │
-│  Layer 2: 文字種制限                             │
-│  ├── 許可する文字クラスのみ通す                    │
-│  └── 制御文字、不可視文字を除去                    │
-│                                                  │
-│  Layer 3: 簡易パターンチェック                    │
-│  ├── 文字列操作で先行チェック                      │
-│  └── 明らかに無効な入力を早期排除                  │
-│                                                  │
-│  Layer 4: 正規表現による詳細検証                  │
-│  ├── 安全なパターンを使用                         │
-│  ├── タイムアウトを設定                           │
-│  └── DFA エンジンを優先                           │
-│                                                  │
-│  Layer 5: ビジネスロジック検証                    │
-│  └── アプリケーション固有のルール                  │
-│                                                  │
-└─────────────────────────────────────────────────┘
++---------------------------------------------------+
+|            Input Validation Pipeline               |
++---------------------------------------------------+
+|                                                    |
+|  Layer 1: Length Limits                            |
+|  +-- Limit maximum character count (e.g., 1000)   |
+|  +-- Empty string check                           |
+|                                                    |
+|  Layer 2: Character Type Restrictions              |
+|  +-- Allow only permitted character classes        |
+|  +-- Remove control and invisible characters       |
+|                                                    |
+|  Layer 3: Simple Pattern Pre-check                 |
+|  +-- Pre-check with string operations              |
+|  +-- Early rejection of obviously invalid input    |
+|                                                    |
+|  Layer 4: Detailed Regex Validation                |
+|  +-- Use safe patterns                             |
+|  +-- Set timeouts                                  |
+|  +-- Prefer DFA engines                            |
+|                                                    |
+|  Layer 5: Business Logic Validation                |
+|  +-- Application-specific rules                    |
+|                                                    |
++---------------------------------------------------+
 ```
 
 ```python
 import re
 
 class InputValidator:
-    """多層防御による入力検証"""
+    """Input validation with defense in depth"""
 
     def __init__(self, max_length=1000, allowed_chars=None,
                  pattern=None, timeout_sec=1):
@@ -914,27 +917,27 @@ class InputValidator:
         self.timeout_sec = timeout_sec
 
     def validate(self, value: str) -> tuple[bool, str]:
-        """入力値を検証"""
-        # Layer 1: 長さ制限
+        """Validate input value"""
+        # Layer 1: Length limit
         if not value:
-            return False, "空の入力"
+            return False, "Empty input"
         if len(value) > self.max_length:
-            return False, f"入力が長すぎます ({len(value)} > {self.max_length})"
+            return False, f"Input too long ({len(value)} > {self.max_length})"
 
-        # Layer 2: 文字種制限
+        # Layer 2: Character type restriction
         if self.allowed_chars:
             invalid = set(value) - set(self.allowed_chars)
             if invalid:
-                return False, f"許可されていない文字: {invalid}"
+                return False, f"Disallowed characters: {invalid}"
 
-        # Layer 3: 正規表現チェック
+        # Layer 3: Regex check
         if self.pattern:
             if not self.pattern.match(value):
-                return False, "パターンに一致しません"
+                return False, "Does not match the expected pattern"
 
         return True, "OK"
 
-# 使用例: メールアドレスバリデータ
+# Usage example: email address validator
 email_validator = InputValidator(
     max_length=254,
     pattern=r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
@@ -952,62 +955,62 @@ for email in test_emails:
     print(f"  {email[:40]:40s} => {msg}")
 ```
 
-### 6.2 ユーザー入力の正規表現としての安全な使用
+### 6.2 Safe Use of User Input as Regular Expressions
 
 ```python
 import re
 
-# NG: ユーザー入力をそのまま正規表現として使用
+# BAD: Using user input directly as a regex
 def search_bad(user_input: str, text: str):
-    return re.search(user_input, text)  # ReDoS攻撃が可能!
+    return re.search(user_input, text)  # ReDoS attack possible!
 
-# 攻撃例:
+# Attack example:
 # user_input = "(a+)+b"
 # text = "a" * 30 + "c"
-# → CPU が100%に
+# -> CPU goes to 100%
 
-# OK: ユーザー入力はエスケープする
+# GOOD: Escape user input
 def search_safe(user_input: str, text: str):
-    escaped = re.escape(user_input)  # メタ文字を全てエスケープ
+    escaped = re.escape(user_input)  # Escape all metacharacters
     return re.search(escaped, text)
 
-# OK: または DFA エンジンを使う
+# GOOD: Or use a DFA engine
 # import re2
 # def search_safe_re2(pattern: str, text: str):
-#     return re2.search(pattern, text)  # O(n) 保証
+#     return re2.search(pattern, text)  # O(n) guaranteed
 
-# OK: 制限付きの正規表現サブセットのみ許可
+# GOOD: Allow only a restricted regex subset
 def search_limited(user_pattern: str, text: str, max_length=100):
-    """安全な正規表現サブセットのみ許可"""
+    """Allow only a safe subset of regex"""
     if len(user_pattern) > max_length:
-        raise ValueError("パターンが長すぎます")
+        raise ValueError("Pattern too long")
 
-    # 危険な構文を検出
+    # Detect dangerous constructs
     dangerous = [
-        r'\(.+[+*]\).+[+*]',  # ネストした量指定子
-        r'\(\?\:.*\|.*\)[+*]', # 選択の繰り返し
+        r'\(.+[+*]\).+[+*]',  # Nested quantifiers
+        r'\(\?\:.*\|.*\)[+*]', # Repeated alternation
     ]
     for d in dangerous:
         if re.search(d, user_pattern):
-            raise ValueError("危険なパターンが検出されました")
+            raise ValueError("Dangerous pattern detected")
 
     return re.search(user_pattern, text)
 ```
 
-### 6.3 WAF(Web Application Firewall)でのパターン設計
+### 6.3 Pattern Design for WAF (Web Application Firewall)
 
 ```python
 import re
 
-# WAF ルールの安全な設計
+# Safe WAF rule design
 
-# NG: 危険な WAF ルール
+# BAD: Dangerous WAF rules
 waf_rules_bad = {
-    'sql_injection': r"('.+--)|(--.+')",  # ネストなし但し .+ は危険
-    'xss': r"(<script.*>.*</script.*>)",  # .* が危険
+    'sql_injection': r"('.+--)|(--.+')",  # No nesting but .+ is risky
+    'xss': r"(<script.*>.*</script.*>)",  # .* is dangerous
 }
 
-# OK: 安全な WAF ルール
+# GOOD: Safe WAF rules
 waf_rules_good = {
     'sql_injection': r"(?:'\s*(?:--|;|/\*)|(?:--|;|/\*)\s*')",
     'xss': r"<script[^>]*>[^<]*</script[^>]*>",
@@ -1015,7 +1018,7 @@ waf_rules_good = {
 }
 
 def check_waf_rules(input_text: str, rules: dict) -> list[str]:
-    """WAF ルールに基づく入力チェック"""
+    """Check input against WAF rules"""
     violations = []
     for rule_name, pattern in rules.items():
         compiled = re.compile(pattern, re.IGNORECASE)
@@ -1023,7 +1026,7 @@ def check_waf_rules(input_text: str, rules: dict) -> list[str]:
             violations.append(rule_name)
     return violations
 
-# テスト
+# Test
 test_inputs = [
     "normal input",
     "'; DROP TABLE users; --",
@@ -1041,9 +1044,9 @@ for inp in test_inputs:
 
 ---
 
-## 7. ベンチマーク手法
+## 7. Benchmarking Methods
 
-### 7.1 正規表現ベンチマークフレームワーク
+### 7.1 Regex Benchmark Framework
 
 ```python
 import re
@@ -1051,7 +1054,7 @@ import time
 import statistics
 
 class RegexBenchmark:
-    """正規表現のパフォーマンスベンチマーク"""
+    """Performance benchmark for regular expressions"""
 
     def __init__(self, pattern: str, description: str = ""):
         self.pattern = re.compile(pattern)
@@ -1060,12 +1063,12 @@ class RegexBenchmark:
 
     def run(self, text: str, iterations: int = 1000,
             warmup: int = 100) -> dict:
-        """ベンチマークを実行"""
-        # ウォームアップ
+        """Run benchmark"""
+        # Warmup
         for _ in range(warmup):
             self.pattern.search(text)
 
-        # 計測
+        # Measurement
         times = []
         for _ in range(iterations):
             start = time.perf_counter_ns()
@@ -1087,33 +1090,33 @@ class RegexBenchmark:
         }
 
     def print_result(self, result: dict):
-        """結果を表示"""
-        print(f"パターン: {result['pattern']}")
-        print(f"説明: {result['description']}")
-        print(f"  平均: {result['mean_ns']/1000:.2f}μs")
-        print(f"  中央値: {result['median_ns']/1000:.2f}μs")
-        print(f"  P95: {result['p95_ns']/1000:.2f}μs")
-        print(f"  P99: {result['p99_ns']/1000:.2f}μs")
+        """Print results"""
+        print(f"Pattern: {result['pattern']}")
+        print(f"Description: {result['description']}")
+        print(f"  Mean:   {result['mean_ns']/1000:.2f}us")
+        print(f"  Median: {result['median_ns']/1000:.2f}us")
+        print(f"  P95:    {result['p95_ns']/1000:.2f}us")
+        print(f"  P99:    {result['p99_ns']/1000:.2f}us")
         print()
 
-# 使用例
+# Usage example
 text = "The quick brown fox jumps over the lazy dog" * 100
 
 benchmarks = [
-    RegexBenchmark(r'\bfox\b', '単語境界マッチ'),
-    RegexBenchmark(r'fox', 'シンプルマッチ'),
-    RegexBenchmark(r'(?<=\s)fox(?=\s)', 'ルックアラウンドマッチ'),
-    RegexBenchmark(r'.*fox.*', '.* マッチ'),
-    RegexBenchmark(r'[^ ]*fox[^ ]*', '否定文字クラスマッチ'),
+    RegexBenchmark(r'\bfox\b', 'Word boundary match'),
+    RegexBenchmark(r'fox', 'Simple match'),
+    RegexBenchmark(r'(?<=\s)fox(?=\s)', 'Lookaround match'),
+    RegexBenchmark(r'.*fox.*', '.* match'),
+    RegexBenchmark(r'[^ ]*fox[^ ]*', 'Negated character class match'),
 ]
 
-print("=== ベンチマーク結果 ===\n")
+print("=== Benchmark Results ===\n")
 for bench in benchmarks:
     result = bench.run(text)
     bench.print_result(result)
 ```
 
-### 7.2 スケーラビリティテスト
+### 7.2 Scalability Testing
 
 ```python
 import re
@@ -1121,13 +1124,13 @@ import time
 
 def scalability_test(pattern_str: str, char: str = 'a',
                      lengths: list[int] = None):
-    """入力長に対するスケーラビリティをテスト"""
+    """Test scalability against input length"""
     if lengths is None:
         lengths = [10, 50, 100, 500, 1000, 5000, 10000]
 
     pattern = re.compile(pattern_str)
-    print(f"パターン: {pattern_str}")
-    print(f"{'長さ':>10s} {'時間(μs)':>12s} {'比率':>8s}")
+    print(f"Pattern: {pattern_str}")
+    print(f"{'Length':>10s} {'Time(us)':>12s} {'Ratio':>8s}")
     print("-" * 35)
 
     prev_time = None
@@ -1135,77 +1138,77 @@ def scalability_test(pattern_str: str, char: str = 'a',
         text = char * n
         start = time.perf_counter()
         pattern.search(text)
-        elapsed = (time.perf_counter() - start) * 1_000_000  # μs
+        elapsed = (time.perf_counter() - start) * 1_000_000  # us
 
         ratio = f"{elapsed / prev_time:.1f}x" if prev_time else "-"
         prev_time = elapsed
 
         print(f"{n:>10d} {elapsed:>12.2f} {ratio:>8s}")
 
-        # 安全のため1秒超えたら中断
+        # Safety: abort if over 1 second
         if elapsed > 1_000_000:
-            print("  [中断: 1秒超過]")
+            print("  [Aborted: exceeded 1 second]")
             break
 
-# テスト
-print("=== 安全なパターン ===")
+# Test
+print("=== Safe Pattern ===")
 scalability_test(r'[a-z]+$')
 print()
 
-print("=== 線形パターン(否定文字クラス) ===")
+print("=== Linear Pattern (negated character class) ===")
 scalability_test(r'[^b]*b')
 print()
 
-# 注意: 以下は長い入力で極めて遅くなる可能性がある
-# print("=== 危険なパターン ===")
+# Warning: the following can be extremely slow with long inputs
+# print("=== Dangerous Pattern ===")
 # scalability_test(r'(a+)+b', lengths=[10, 15, 20, 25])
 ```
 
 ---
 
-## 8. 言語別のセキュリティ対策
+## 8. Security Measures by Language
 
 ### 8.1 Python
 
 ```python
 import re
 
-# Python での ReDoS 対策
+# ReDoS countermeasures in Python
 
-# 対策1: regex モジュールの timeout パラメータ
+# Countermeasure 1: regex module's timeout parameter
 import regex
 try:
     result = regex.search(r'(a+)+b', 'a' * 30 + 'c', timeout=1)
 except TimeoutError:
-    print("タイムアウト")
+    print("Timeout")
 
-# 対策2: google-re2 パッケージ
+# Countermeasure 2: google-re2 package
 # pip install google-re2
 # import re2
 # result = re2.search(r'(a+)+b', 'a' * 30 + 'c')
-# RE2 は自動的に安全なパターンに変換
+# RE2 automatically converts to a safe pattern
 
-# 対策3: パターンの静的解析
+# Countermeasure 3: Static analysis of patterns
 def audit_pattern(pattern_str: str) -> list[str]:
-    """パターンの安全性を監査"""
+    """Audit pattern safety"""
     warnings = []
 
-    # 量指定子のネスト
+    # Nested quantifiers
     if re.search(r'\([^)]*[+*][^)]*\)[+*]', pattern_str):
-        warnings.append("量指定子のネスト")
+        warnings.append("Nested quantifiers")
 
-    # .* のアンカーなし使用
+    # Unanchored .*
     if '.*' in pattern_str and not pattern_str.startswith('^'):
-        warnings.append("アンカーなしの .*")
+        warnings.append("Unanchored .*")
 
-    # 巨大な繰り返し
+    # Huge repetition
     large_repeat = re.search(r'\{(\d+)\}', pattern_str)
     if large_repeat and int(large_repeat.group(1)) > 1000:
-        warnings.append(f"大きな繰り返し回数: {large_repeat.group(1)}")
+        warnings.append(f"Large repetition count: {large_repeat.group(1)}")
 
     return warnings
 
-# テスト
+# Test
 patterns = [
     r'(a+)+b',
     r'^[a-z]+$',
@@ -1222,19 +1225,19 @@ for p in patterns:
 ### 8.2 JavaScript / Node.js
 
 ```javascript
-// JavaScript / Node.js での ReDoS 対策
+// ReDoS countermeasures in JavaScript / Node.js
 
-// 対策1: re2 パッケージを使用
+// Countermeasure 1: Use the re2 package
 // const RE2 = require('re2');
 // const safe = new RE2('(a+)+b');
 
-// 対策2: safe-regex パッケージで静的解析
+// Countermeasure 2: Static analysis with safe-regex
 // const safe = require('safe-regex');
 // if (!safe(userPattern)) {
 //     throw new Error('Unsafe regex pattern');
 // }
 
-// 対策3: vm モジュールでサンドボックス実行
+// Countermeasure 3: Sandboxed execution using the vm module
 // const vm = require('vm');
 // const script = new vm.Script(`
 //     const result = /${pattern}/.test(input);
@@ -1242,26 +1245,26 @@ for p in patterns:
 // const context = vm.createContext({ input, pattern });
 // script.runInContext(context, { timeout: 1000 });
 
-// 対策4: Node.js v20+ の RegExp タイムアウト (experimental)
-// --experimental-regexp-engine を使用すると
-// RE2 風の安全なエンジンが利用可能になる場合がある
+// Countermeasure 4: Node.js v20+ RegExp timeout (experimental)
+// Using --experimental-regexp-engine may enable
+// an RE2-style safe engine
 
-// ベストプラクティス:
-// 1. ユーザー入力は必ずエスケープ
+// Best practices:
+// 1. Always escape user input
 function escapeRegex(str) {
     return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// 2. パターンの複雑さを制限
+// 2. Limit pattern complexity
 function isPatternSafe(pattern) {
-    // ネストした量指定子を検出
+    // Detect nested quantifiers
     if (/\(.+[+*]\).+[+*]/.test(pattern)) return false;
-    // パターン長を制限
+    // Limit pattern length
     if (pattern.length > 200) return false;
     return true;
 }
 
-// 3. 入力長を制限
+// 3. Limit input length
 function safeMatch(pattern, text, maxLength) {
     maxLength = maxLength || 10000;
     if (text.length > maxLength) {
@@ -1279,7 +1282,7 @@ import java.util.concurrent.*;
 
 public class SafeRegex {
 
-    // 対策1: タイムアウト付き正規表現マッチ
+    // Countermeasure 1: Regex match with timeout
     public static boolean safeMatch(String pattern, String text,
                                      long timeoutMs)
             throws TimeoutException {
@@ -1301,25 +1304,25 @@ public class SafeRegex {
         }
     }
 
-    // 対策2: 独占的量指定子の使用
+    // Countermeasure 2: Use possessive quantifiers
     public static void possessiveExample() {
-        // 通常: バックトラックあり
+        // Normal: backtracking enabled
         Pattern greedy = Pattern.compile("(a+)+b");
 
-        // 独占的: バックトラック禁止
+        // Possessive: backtracking disabled
         Pattern possessive = Pattern.compile("(a++)+b");
 
-        // アトミックグループ
+        // Atomic group
         Pattern atomic = Pattern.compile("(?>a+)+b");
     }
 
-    // 対策3: パターンの事前検証
+    // Countermeasure 3: Pre-validate patterns
     public static boolean isPatternSafe(String pattern) {
-        // ネストした量指定子を検出
+        // Detect nested quantifiers
         if (pattern.matches(".*\\(.+[+*]\\).+[+*].*")) {
             return false;
         }
-        // パターン長の制限
+        // Limit pattern length
         if (pattern.length() > 200) {
             return false;
         }
@@ -1340,8 +1343,8 @@ import (
 )
 
 func main() {
-    // Go の regexp パッケージは RE2 ベース
-    // → ReDoS に対して本質的に安全
+    // Go's regexp package is RE2-based
+    // -> Inherently safe against ReDoS
 
     pattern := regexp.MustCompile(`(a+)+b`)
     input := string(make([]byte, 30)) + "c"
@@ -1353,17 +1356,17 @@ func main() {
     pattern.MatchString("a]" + input)
     elapsed := time.Since(start)
     fmt.Printf("RE2: %v\n", elapsed)
-    // => 常に高速(O(n))
+    // => Always fast (O(n))
 
-    // ただし RE2 の制約:
-    // - 後方参照 (\1) 不可
-    // - ルックアラウンド (?=) (?<=) 不可
-    // - 独占的量指定子 (a++) 不可（不要）
-    // - アトミックグループ (?>...) 不可（不要）
+    // However, RE2 has limitations:
+    // - No backreferences (\1)
+    // - No lookaround (?=) (?<=)
+    // - No possessive quantifiers (a++) (unnecessary)
+    // - No atomic groups (?>...) (unnecessary)
 
-    // 制約がある機能が必要な場合:
-    // github.com/dlclark/regexp2 パッケージを使用
-    // ただし ReDoS リスクが発生する
+    // If you need features with these limitations:
+    // Use the github.com/dlclark/regexp2 package
+    // Note: this reintroduces ReDoS risk
 }
 ```
 
@@ -1374,216 +1377,216 @@ use regex::Regex;
 use std::time::Instant;
 
 fn main() {
-    // Rust の regex クレートは RE2 同様の DFA ベース
-    // → ReDoS に対して本質的に安全
+    // Rust's regex crate is DFA-based, similar to RE2
+    // -> Inherently safe against ReDoS
 
     let re = Regex::new(r"(a+)+b").unwrap();
-    // 注: Rust regex は自動的に安全なパターンに変換する
+    // Note: Rust regex automatically converts to a safe pattern
 
     let input = "a".repeat(100) + "c";
     let start = Instant::now();
     re.is_match(&input);
     let elapsed = start.elapsed();
     println!("Rust regex: {:?}", elapsed);
-    // => 常に高速(O(n))
+    // => Always fast (O(n))
 
-    // ルックアラウンドが必要な場合:
-    // fancy-regex クレートを使用
+    // If you need lookaround:
+    // Use the fancy-regex crate
     // use fancy_regex::Regex;
-    // ただし ReDoS リスクが発生する
+    // Note: this reintroduces ReDoS risk
 
-    // regex クレートの制約:
-    // - 後方参照不可
-    // - ルックアラウンド不可
-    // - コンパイル時間の制限あり
-    //   (複雑すぎるパターンはコンパイルエラー)
+    // Limitations of the regex crate:
+    // - No backreferences
+    // - No lookaround
+    // - Compile time limits
+    //   (overly complex patterns produce compilation errors)
 }
 ```
 
 ---
 
-## 9. ASCII 図解
+## 9. ASCII Diagrams
 
-### 9.1 バックトラック爆発の可視化
-
-```
-パターン: (a+)+b
-入力:     "aaac" (4文字)
-
-全試行の木構造:
-
-(aaaa) → b? → c ≠ b → 失敗
-│
-├── (aaa)(a) → b? → c ≠ b → 失敗
-│
-├── (aa)(aa) → b? → c ≠ b → 失敗
-│   └── (aa)(a)(a) → b? → c ≠ b → 失敗
-│
-├── (a)(aaa) → b? → c ≠ b → 失敗
-│   ├── (a)(aa)(a) → b? → c ≠ b → 失敗
-│   └── (a)(a)(aa) → b? → c ≠ b → 失敗
-│       └── (a)(a)(a)(a) → b? → c ≠ b → 失敗
-│
-計: 8通り (入力長 n=4)
-n=10 → 512通り
-n=20 → 524,288通り
-n=30 → 536,870,912通り (5億以上!)
-```
-
-### 9.2 NFA vs DFA の動作比較
+### 9.1 Visualizing Backtracking Explosion
 
 ```
-パターン: a+b
-入力: "aaac"
+Pattern: (a+)+b
+Input:   "aaac" (4 characters)
 
-=== NFA エンジン(Python re, JavaScript) ===
+Tree of all attempts:
 
-状態遷移 + バックトラック:
-
-  位置0:
-    a+ → 'a','a','a' (貪欲マッチ)
-    b → 'c' ≠ 'b' → バックトラック
-    a+ → 'a','a'
-    b → 'a' ≠ 'b' → バックトラック
-    a+ → 'a'
-    b → 'a' ≠ 'b' → 失敗
-
-  位置1: 同様の試行...
-  位置2: 同様の試行...
-  位置3: a+ マッチ不可 → 失敗
-
-  合計ステップ数: O(n^2) (この場合)
-
-=== DFA エンジン(RE2, Rust regex) ===
-
-状態遷移テーブル:
-
-  現在状態  入力  次の状態
-  ────────  ────  ────────
-  Start     'a'   State1 (a+)
-  State1    'a'   State1 (a+ 繰り返し)
-  State1    'b'   Accept (マッチ成功)
-  State1    other Fail
-
-  位置0: Start → 'a' → State1
-  位置1:         'a' → State1
-  位置2:         'a' → State1
-  位置3:         'c' → Fail
-
-  合計ステップ数: O(n) (常に線形)
+(aaaa) -> b? -> c != b -> fail
+|
++-- (aaa)(a) -> b? -> c != b -> fail
+|
++-- (aa)(aa) -> b? -> c != b -> fail
+|   +-- (aa)(a)(a) -> b? -> c != b -> fail
+|
++-- (a)(aaa) -> b? -> c != b -> fail
+|   +-- (a)(aa)(a) -> b? -> c != b -> fail
+|   +-- (a)(a)(aa) -> b? -> c != b -> fail
+|       +-- (a)(a)(a)(a) -> b? -> c != b -> fail
+|
+Total: 8 attempts (input length n=4)
+n=10 -> 512 attempts
+n=20 -> 524,288 attempts
+n=30 -> 536,870,912 attempts (over 500 million!)
 ```
 
-### 9.3 安全なパターンと脆弱なパターンの対比
+### 9.2 NFA vs DFA Behavior Comparison
 
 ```
-脆弱なパターン          安全な代替            理由
-──────────────        ──────────────       ──────
-(a+)+                 a+                   ネスト不要
-(a|a)+                a+                   重複排除
-(.*a){n}              最大長チェック         量指定子の入れ子を排除
-".*"                  "[^"]*"              範囲を明確に制限
-(\w+\s*)+             [\w\s]+              フラット化
-(.+)+                 .+                   ネスト不要
-(a+|b+)+              [ab]+                フラット化
-\d+\d+                \d{2,}               重複排除
-(\w+\.)+              [\w.]+               フラット化
-(.*\n)*               [^]*                 フラット化（言語依存）
+Pattern: a+b
+Input: "aaac"
+
+=== NFA Engine (Python re, JavaScript) ===
+
+State transitions + backtracking:
+
+  Position 0:
+    a+ -> 'a','a','a' (greedy match)
+    b -> 'c' != 'b' -> backtrack
+    a+ -> 'a','a'
+    b -> 'a' != 'b' -> backtrack
+    a+ -> 'a'
+    b -> 'a' != 'b' -> fail
+
+  Position 1: similar attempts...
+  Position 2: similar attempts...
+  Position 3: a+ cannot match -> fail
+
+  Total steps: O(n^2) (in this case)
+
+=== DFA Engine (RE2, Rust regex) ===
+
+State transition table:
+
+  Current State  Input  Next State
+  -------------  -----  ----------
+  Start          'a'    State1 (a+)
+  State1         'a'    State1 (a+ repeat)
+  State1         'b'    Accept (match success)
+  State1         other  Fail
+
+  Position 0: Start -> 'a' -> State1
+  Position 1:         'a' -> State1
+  Position 2:         'a' -> State1
+  Position 3:         'c' -> Fail
+
+  Total steps: O(n) (always linear)
 ```
 
-### 9.4 パフォーマンス改善のフローチャート
+### 9.3 Vulnerable Patterns vs Safe Alternatives
 
 ```
-正規表現が遅い?
-    │
-    ├── パターンを分析
-    │   │
-    │   ├── 量指定子のネストあり?
-    │   │   └── YES → フラット化 or アトミック化
-    │   │
-    │   ├── 選択肢に重複あり?
-    │   │   └── YES → 文字クラスに統合
-    │   │
-    │   ├── .* を使用?
-    │   │   └── YES → [^X]* に置換
-    │   │
-    │   ├── アンカーなし?
-    │   │   └── YES → ^, \b 等を追加
-    │   │
-    │   └── 不要なキャプチャあり?
-    │       └── YES → (?:...) に変更
-    │
-    ├── コンパイルしているか?
-    │   └── NO → re.compile() を使用
-    │
-    ├── 入力が信頼できないか?
-    │   ├── YES → RE2/DFA エンジンを検討
-    │   ├── YES → タイムアウトを設定
-    │   └── YES → 入力長を制限
-    │
-    ├── 大量データの処理?
-    │   ├── YES → 先行フィルタを追加
-    │   ├── YES → バッチ処理を検討
-    │   └── YES → 並列処理を検討
-    │
-    └── それでも遅い?
-        └── 正規表現以外の方法を検討
-            (文字列操作、パーサー、専用ライブラリ等)
+Vulnerable Pattern      Safe Alternative         Reason
+------------------      ----------------         ------
+(a+)+                   a+                       Nesting unnecessary
+(a|a)+                  a+                       Overlap removed
+(.*a){n}                Max length check         Eliminate nested quantifiers
+".*"                    "[^"]*"                  Explicitly constrain range
+(\w+\s*)+               [\w\s]+                  Flattened
+(.+)+                   .+                       Nesting unnecessary
+(a+|b+)+                [ab]+                    Flattened
+\d+\d+                  \d{2,}                   Overlap removed
+(\w+\.)+                [\w.]+                   Flattened
+(.*\n)*                 [^]*                     Flattened (language-dependent)
+```
+
+### 9.4 Performance Improvement Flowchart
+
+```
+Regex is slow?
+    |
+    +-- Analyze the pattern
+    |   |
+    |   +-- Nested quantifiers?
+    |   |   +-- YES -> Flatten or make atomic
+    |   |
+    |   +-- Overlapping alternatives?
+    |   |   +-- YES -> Merge into character class
+    |   |
+    |   +-- Uses .*?
+    |   |   +-- YES -> Replace with [^X]*
+    |   |
+    |   +-- No anchor?
+    |   |   +-- YES -> Add ^, \b, etc.
+    |   |
+    |   +-- Unnecessary captures?
+    |       +-- YES -> Change to (?:...)
+    |
+    +-- Is it compiled?
+    |   +-- NO -> Use re.compile()
+    |
+    +-- Is the input untrusted?
+    |   +-- YES -> Consider RE2/DFA engine
+    |   +-- YES -> Set a timeout
+    |   +-- YES -> Limit input length
+    |
+    +-- Processing large data?
+    |   +-- YES -> Add pre-filter
+    |   +-- YES -> Consider batch processing
+    |   +-- YES -> Consider parallel processing
+    |
+    +-- Still slow?
+        +-- Consider alternatives to regex
+            (string operations, parsers, dedicated libraries, etc.)
 ```
 
 ---
 
-## 10. 比較表
+## 10. Comparison Tables
 
-### 10.1 エンジン別パフォーマンス特性
+### 10.1 Performance Characteristics by Engine
 
-| エンジン | 最悪計算量 | ReDoS耐性 | 機能 | 言語 |
-|---------|-----------|----------|------|------|
-| Python re | O(2^n) | なし | 豊富 | Python |
-| Python regex | O(2^n) | timeout あり | 最も豊富 | Python |
-| JavaScript V8 | O(2^n) | backtracks-limit | 豊富 | JavaScript |
-| Java Pattern | O(2^n) | なし | 豊富(独占的量指定子) | Java |
-| RE2 | O(n) | あり | 限定的 | Go, C++ |
-| Rust regex | O(n) | あり | 限定的 | Rust |
-| PCRE2 JIT | O(2^n) | match_limit | 最も豊富 | C |
-| .NET | O(2^n) | MatchTimeout | 豊富 | C# |
-| Oniguruma | O(2^n) | なし | 豊富 | Ruby |
+| Engine | Worst-Case Complexity | ReDoS Resistance | Features | Language |
+|--------|----------------------|-----------------|----------|----------|
+| Python re | O(2^n) | None | Rich | Python |
+| Python regex | O(2^n) | timeout available | Richest | Python |
+| JavaScript V8 | O(2^n) | backtracks-limit | Rich | JavaScript |
+| Java Pattern | O(2^n) | None | Rich (possessive quantifiers) | Java |
+| RE2 | O(n) | Yes | Limited | Go, C++ |
+| Rust regex | O(n) | Yes | Limited | Rust |
+| PCRE2 JIT | O(2^n) | match_limit | Richest | C |
+| .NET | O(2^n) | MatchTimeout | Rich | C# |
+| Oniguruma | O(2^n) | None | Rich | Ruby |
 
-### 10.2 最適化テクニック効果比較
+### 10.2 Optimization Technique Effectiveness Comparison
 
-| テクニック | 効果 | 適用場面 | 実装コスト |
-|-----------|------|---------|-----------|
-| re.compile() | 小～中 | 繰り返し使用時 | 低 |
-| アンカー追加 | 中 | 位置が既知の場合 | 低 |
-| 否定文字クラス | 中～大 | タグ抽出等 | 低 |
-| 独占的量指定子 | 大 | バックトラック防止 | 中 |
-| アトミックグループ | 大 | バックトラック防止 | 中 |
-| DFAエンジン(RE2) | 最大 | 信頼できない入力 | 高(ライブラリ変更) |
-| 先行文字列チェック | 中 | 出現頻度が低い場合 | 低 |
-| パターン分割 | 中 | 複雑なパターン | 中 |
-| 入力長制限 | 大 | 全ての場面 | 低 |
-| タイムアウト設定 | 大 | 外部入力処理 | 中 |
+| Technique | Impact | Use Case | Implementation Cost |
+|-----------|--------|----------|-------------------|
+| re.compile() | Low-Medium | Repeated use | Low |
+| Adding anchors | Medium | When position is known | Low |
+| Negated character class | Medium-High | Tag extraction, etc. | Low |
+| Possessive quantifier | High | Preventing backtracking | Medium |
+| Atomic group | High | Preventing backtracking | Medium |
+| DFA engine (RE2) | Highest | Untrusted input | High (library change) |
+| String pre-check | Medium | Low occurrence frequency | Low |
+| Pattern splitting | Medium | Complex patterns | Medium |
+| Input length limit | High | All cases | Low |
+| Timeout setting | High | External input processing | Medium |
 
-### 10.3 セキュリティ対策の優先度
+### 10.3 Security Countermeasure Priority
 
-| 対策 | 優先度 | 効果 | コスト |
-|------|--------|------|--------|
-| 入力長の制限 | 最高 | 高 | 低 |
-| パターンの静的解析 | 高 | 中 | 低 |
-| タイムアウトの設定 | 高 | 高 | 中 |
-| DFA エンジンの使用 | 中～高 | 最高 | 高 |
-| ユーザー入力のエスケープ | 最高 | 高 | 低 |
-| パターンの簡素化 | 中 | 中 | 中 |
-| コードレビューでの監査 | 中 | 中 | 中 |
-| CI/CDでの自動チェック | 高 | 高 | 中 |
+| Countermeasure | Priority | Impact | Cost |
+|---------------|----------|--------|------|
+| Input length limit | Highest | High | Low |
+| Pattern static analysis | High | Medium | Low |
+| Timeout setting | High | High | Medium |
+| DFA engine usage | Medium-High | Highest | High |
+| User input escaping | Highest | High | Low |
+| Pattern simplification | Medium | Medium | Medium |
+| Code review auditing | Medium | Medium | Medium |
+| CI/CD automated checks | High | High | Medium |
 
 ---
 
-## 11. 脆弱性の検出ツール
+## 11. Vulnerability Detection Tools
 
-### 11.1 静的解析ツール
+### 11.1 Static Analysis Tools
 
 ```bash
-# recheck: 正規表現の脆弱性を検出
+# recheck: detect regex vulnerabilities
 # npm install -g recheck
 # recheck "(a+)+b"
 
@@ -1593,51 +1596,51 @@ n=30 → 536,870,912通り (5億以上!)
 # safe-regex (JavaScript)
 # npm install safe-regex
 
-# semgrep: コード全体の静的解析
+# semgrep: static analysis for entire codebase
 # semgrep --config "p/regex-dos" .
 ```
 
 ```javascript
-// safe-regex の使用例
+// safe-regex usage example
 // const safe = require('safe-regex');
-// console.log(safe('(a+)+b'));      // => false (脆弱)
-// console.log(safe('[a-z]+'));       // => true  (安全)
-// console.log(safe('(a|b|c)+'));     // => true  (安全)
+// console.log(safe('(a+)+b'));      // => false (vulnerable)
+// console.log(safe('[a-z]+'));       // => true  (safe)
+// console.log(safe('(a|b|c)+'));     // => true  (safe)
 ```
 
-### 11.2 Python での簡易チェッカー
+### 11.2 Simple Checker in Python
 
 ```python
 import re
 
 def is_potentially_vulnerable(pattern: str) -> tuple[bool, list[str]]:
-    """正規表現パターンの脆弱性を簡易チェック"""
+    """Simple vulnerability check for regex patterns"""
     warnings = []
 
-    # 量指定子のネスト検出
+    # Detect nested quantifiers
     if re.search(r'\([^)]*[+*][^)]*\)[+*]', pattern):
-        warnings.append("量指定子のネストが検出されました")
+        warnings.append("Nested quantifiers detected")
 
-    # .* の無制限使用検出
+    # Detect unrestricted .* usage
     if re.search(r'\.\*(?!\?)', pattern) and '^' not in pattern:
-        warnings.append("アンカーなしの .* が検出されました")
+        warnings.append("Unanchored .* detected")
 
-    # 選択肢の重複検出(簡易)
+    # Detect overlapping alternation (simple check)
     if re.search(r'\((?:[^)]*\|[^)]*)\)[+*]', pattern):
-        warnings.append("選択肢を含む繰り返しが検出されました")
+        warnings.append("Repeated alternation detected")
 
-    # 巨大な繰り返し回数
+    # Detect huge repetition count
     large_repeat = re.search(r'\{(\d+)', pattern)
     if large_repeat and int(large_repeat.group(1)) > 1000:
-        warnings.append(f"大きな繰り返し回数: {large_repeat.group(1)}")
+        warnings.append(f"Large repetition count: {large_repeat.group(1)}")
 
-    # バックリファレンスの使用
+    # Detect backreference usage
     if re.search(r'\\[1-9]', pattern):
-        warnings.append("後方参照が使用されています（パフォーマンスに注意）")
+        warnings.append("Backreference used (be aware of performance impact)")
 
     return (len(warnings) > 0, warnings)
 
-# テスト
+# Test
 patterns = [
     r'(a+)+b',
     r'(\w|\d)+',
@@ -1651,26 +1654,26 @@ patterns = [
 
 for p in patterns:
     vulnerable, msgs = is_potentially_vulnerable(p)
-    status = "脆弱" if vulnerable else "安全"
+    status = "VULNERABLE" if vulnerable else "SAFE"
     print(f"  {status}: {p}")
     for msg in msgs:
         print(f"    - {msg}")
 ```
 
-### 11.3 CI/CD パイプラインへの組み込み
+### 11.3 Integration into CI/CD Pipelines
 
 ```python
 #!/usr/bin/env python3
 """
-regex_audit.py -- CI/CDパイプラインで正規表現を監査するスクリプト
+regex_audit.py -- Script for auditing regular expressions in CI/CD pipelines
 
-使用方法:
+Usage:
     python regex_audit.py path/to/source/
 
-戻り値:
-    0: 問題なし
-    1: 警告あり
-    2: 危険なパターンあり
+Return codes:
+    0: No issues
+    1: Warnings found
+    2: Dangerous patterns found
 """
 
 import re
@@ -1678,10 +1681,10 @@ import sys
 import os
 
 def find_regex_patterns(filepath: str) -> list[tuple[int, str]]:
-    """ソースコードから正規表現パターンを抽出"""
+    """Extract regex patterns from source code"""
     patterns = []
 
-    # Python: re.compile(), re.search(), re.match() 等
+    # Python: re.compile(), re.search(), re.match(), etc.
     regex_call = re.compile(
         r're\.(?:compile|search|match|findall|sub|split)\s*\(\s*'
         r'(?:r)?"\'["\']'
@@ -1698,21 +1701,21 @@ def find_regex_patterns(filepath: str) -> list[tuple[int, str]]:
     return patterns
 
 def audit_pattern(pattern: str) -> list[str]:
-    """パターンの安全性を監査"""
+    """Audit pattern safety"""
     warnings = []
 
-    # 量指定子のネスト
+    # Nested quantifiers
     if re.search(r'\([^)]*[+*][^)]*\)[+*]', pattern):
-        warnings.append("CRITICAL: 量指定子のネスト")
+        warnings.append("CRITICAL: Nested quantifiers")
 
-    # .* のアンカーなし使用
+    # Unanchored .*
     if '.*' in pattern and not pattern.startswith('^'):
-        warnings.append("WARNING: アンカーなしの .*")
+        warnings.append("WARNING: Unanchored .*")
 
-    # 巨大な繰り返し
+    # Huge repetition
     repeat = re.search(r'\{(\d+)', pattern)
     if repeat and int(repeat.group(1)) > 100:
-        warnings.append(f"WARNING: 大きな繰り返し回数: {repeat.group(1)}")
+        warnings.append(f"WARNING: Large repetition count: {repeat.group(1)}")
 
     return warnings
 
@@ -1748,125 +1751,125 @@ if __name__ == '__main__':
 
 ---
 
-## 12. 実務でのベストプラクティス
+## 12. Best Practices in Practice
 
-### 12.1 正規表現レビューチェックリスト
+### 12.1 Regex Review Checklist
 
 ```
-正規表現コードレビュー チェックリスト:
+Regex Code Review Checklist:
 
-□ パターンの目的と意図がコメントに記載されているか
-□ テストケースが十分にあるか（正常系、異常系、境界値）
-□ 量指定子のネストがないか
-□ 選択肢の重複がないか
-□ .* の使用が適切か（アンカーまたは否定文字クラスの使用を検討）
-□ ユーザー入力がパターンに含まれていないか
-□ 入力長の制限があるか
-□ タイムアウトが設定されているか（外部入力の場合）
-□ re.compile() でプリコンパイルされているか
-□ 不要なキャプチャグループがないか
-□ パターンが過度に複雑でないか（分割を検討）
-□ 正規表現以外の手段で代替できないか
+[ ] Is the purpose and intent of the pattern documented in comments?
+[ ] Are test cases sufficient? (normal cases, edge cases, boundary values)
+[ ] Are there no nested quantifiers?
+[ ] Are there no overlapping alternatives?
+[ ] Is .* usage appropriate? (consider anchors or negated character classes)
+[ ] Is user input not included in the pattern?
+[ ] Is input length limited?
+[ ] Is a timeout set? (for external input)
+[ ] Is the pattern pre-compiled with re.compile()?
+[ ] Are there no unnecessary capture groups?
+[ ] Is the pattern not overly complex? (consider splitting)
+[ ] Can the regex be replaced with non-regex alternatives?
 ```
 
-### 12.2 正規表現のドキュメント化
+### 12.2 Documenting Regular Expressions
 
 ```python
 import re
 
-# 良いドキュメント化の例
+# Example of good documentation
 EMAIL_PATTERN = re.compile(
     r'''
-    ^                       # 文字列の先頭
-    [a-zA-Z0-9._%+-]+      # ローカルパート: 英数字と特殊文字
-    @                       # @ 記号
-    [a-zA-Z0-9.-]+          # ドメイン: 英数字、ドット、ハイフン
-    \.                      # ドットセパレータ
-    [a-zA-Z]{2,}            # TLD: 2文字以上のアルファベット
-    $                       # 文字列の末尾
+    ^                       # Start of string
+    [a-zA-Z0-9._%+-]+      # Local part: alphanumeric and special chars
+    @                       # @ symbol
+    [a-zA-Z0-9.-]+          # Domain: alphanumeric, dots, hyphens
+    \.                      # Dot separator
+    [a-zA-Z]{2,}            # TLD: 2+ alphabetic characters
+    $                       # End of string
     ''',
-    re.VERBOSE              # 空白とコメントを許可
+    re.VERBOSE              # Allow whitespace and comments
 )
 
-# VERBOSE フラグなしの場合はコメントで補足
-# RFC 5322 簡易版。国際化ドメインは未対応。
-# ReDoS 安全性: OK（量指定子のネストなし、否定文字クラス使用）
-# 最大入力長: 254文字に制限すること
+# When not using the VERBOSE flag, supplement with comments
+# Simplified version of RFC 5322. Does not support internationalized domains.
+# ReDoS safety: OK (no nested quantifiers, uses negated character classes)
+# Maximum input length: should be limited to 254 characters
 ```
 
 ---
 
-## 13. アンチパターン
+## 13. Anti-patterns
 
-### 13.1 アンチパターン: ユーザー入力を正規表現に直接使う
+### 13.1 Anti-pattern: Using User Input Directly as Regex
 
 ```python
 import re
 
-# NG: ユーザー入力をそのまま正規表現として使用
+# BAD: Using user input directly as a regex
 def search_bad(user_input: str, text: str):
-    return re.search(user_input, text)  # ReDoS攻撃が可能!
+    return re.search(user_input, text)  # ReDoS attack possible!
 
-# OK: ユーザー入力はエスケープする
+# GOOD: Escape user input
 def search_safe(user_input: str, text: str):
-    escaped = re.escape(user_input)  # メタ文字を全てエスケープ
+    escaped = re.escape(user_input)  # Escape all metacharacters
     return re.search(escaped, text)
 ```
 
-### 13.2 アンチパターン: 最適化なしの大量データ処理
+### 13.2 Anti-pattern: Processing Large Data Without Optimization
 
 ```python
 import re
 
-# NG: 大量のログを非効率に処理
+# BAD: Processing large logs inefficiently
 def process_logs_bad(log_lines: list[str]):
     results = []
     for line in log_lines:
-        # 毎行で複雑な正規表現を実行
+        # Running a complex regex on every line
         m = re.search(r'(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})\s+\[(\w+)\]\s+(.*)', line)
         if m:
             results.append(m.groups())
     return results
 
-# OK: プリコンパイル + 先行フィルタ
+# GOOD: Pre-compile + pre-filter
 def process_logs_good(log_lines: list[str]):
     pattern = re.compile(
         r'(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})\s+\[(\w+)\]\s+(.*)'
     )
     results = []
     for line in log_lines:
-        if '[' in line:  # 先行フィルタ: [ を含む行のみ処理
+        if '[' in line:  # Pre-filter: only process lines containing [
             m = pattern.search(line)
             if m:
                 results.append(m.groups())
     return results
 ```
 
-### 13.3 アンチパターン: 正規表現の過剰使用
+### 13.3 Anti-pattern: Overusing Regular Expressions
 
 ```python
 import re
 
-# NG: 単純な操作に正規表現を使う
+# BAD: Using regex for simple operations
 def check_email_bad(email):
     return bool(re.match(r'.+@.+', email))
 
-# OK: 文字列操作で十分
+# GOOD: String operations are sufficient
 def check_email_good(email):
     return '@' in email and '.' in email.split('@')[1]
 
-# NG: 固定文字列の置換に正規表現
+# BAD: Using regex for fixed-string replacement
 text = "Hello World"
 result_bad = re.sub(r'World', 'Python', text)
 
-# OK: str.replace() を使う
+# GOOD: Use str.replace()
 result_good = text.replace('World', 'Python')
 
-# NG: 固定文字列での分割に正規表現
+# BAD: Using regex for fixed-string splitting
 data = "a,b,c,d"
 parts_bad = re.split(r',', data)
 
-# OK: str.split() を使う
+# GOOD: Use str.split()
 parts_good = data.split(',')
 ```
 
@@ -1874,13 +1877,13 @@ parts_good = data.split(',')
 
 ## 14. FAQ
 
-### Q1: 自分のパターンが ReDoS に脆弱かどうかを判断するには？
+### Q1: How can I determine if my pattern is vulnerable to ReDoS?
 
-**A**: 以下の3ステップでチェックする:
+**A**: Follow these 3 steps:
 
-1. **パターンを目視確認**: 量指定子のネスト `(X+)+`、選択の重複 `(a|a)+` がないか
-2. **静的解析ツールを使用**: `safe-regex`、`recheck` 等
-3. **ストレステスト**: マッチしない長い入力で速度を計測
+1. **Visual inspection**: Check for nested quantifiers `(X+)+` or overlapping alternation `(a|a)+`
+2. **Use static analysis tools**: `safe-regex`, `recheck`, etc.
+3. **Stress test**: Measure speed with long non-matching inputs
 
 ```python
 import re, time
@@ -1892,105 +1895,105 @@ def stress_test(pattern_str, char='a', max_len=30):
         start = time.time()
         pattern.search(text)
         elapsed = time.time() - start
-        print(f"  n={n}: {elapsed:.4f}秒")
+        print(f"  n={n}: {elapsed:.4f}s")
         if elapsed > 1.0:
-            print("  → 脆弱性あり!")
+            print("  -> Vulnerability detected!")
             break
 ```
 
-### Q2: RE2 を使えば全ての問題が解決するか？
+### Q2: Does using RE2 solve all problems?
 
-**A**: **いいえ**。RE2 は O(n) を保証するが、後方参照やルックアラウンドが使えない。トレードオフを理解した上で選択する:
+**A**: **No**. RE2 guarantees O(n) but cannot use backreferences or lookaround. Choose with an understanding of the tradeoffs:
 
-- 信頼できない入力 → RE2 を強く推奨
-- 後方参照が必要 → NFA + タイムアウト + パターン監査
-- 内部処理のみ → NFA で通常は問題なし
+- Untrusted input -> Strongly recommend RE2
+- Backreferences needed -> NFA + timeout + pattern auditing
+- Internal processing only -> NFA is usually fine
 
-### Q3: Python の `re` モジュールにタイムアウト機能はあるか？
+### Q3: Does Python's `re` module have a timeout feature?
 
-**A**: 標準の `re` モジュールには **ない**。対策:
+**A**: The standard `re` module does **not** have one. Countermeasures:
 
-1. `signal.alarm()` で外部タイムアウト(Unix系のみ)
-2. `regex` モジュールの `timeout` パラメータ(v2021.4.4+)
-3. 別プロセスで実行して `multiprocessing` でタイムアウト
-4. RE2 バインディング (`google-re2` パッケージ)を使用
+1. External timeout with `signal.alarm()` (Unix-like systems only)
+2. `timeout` parameter in the `regex` module (v2021.4.4+)
+3. Run in a separate process and timeout with `multiprocessing`
+4. Use RE2 bindings (`google-re2` package)
 
 ```python
-# regex モジュールのタイムアウト
+# regex module timeout
 import regex
 try:
     result = regex.search(r'(a+)+b', 'a' * 30 + 'c', timeout=1)
 except TimeoutError:
-    print("タイムアウト")
+    print("Timeout")
 ```
 
-### Q4: 正規表現を使わずに済む場面はどんなときか？
+### Q4: When can you avoid using regex altogether?
 
-**A**: 以下の場合は正規表現より効率的な代替手段がある:
+**A**: The following cases have more efficient alternatives:
 
 ```python
-# 固定文字列の検索 → in 演算子
-if 'error' in log_line:  # re.search(r'error', log_line) より速い
+# Fixed-string search -> in operator
+if 'error' in log_line:  # Faster than re.search(r'error', log_line)
 
-# 先頭/末尾の一致 → startswith() / endswith()
-if filename.endswith('.py'):  # re.match(r'.*\.py$', filename) より速い
+# Prefix/suffix matching -> startswith() / endswith()
+if filename.endswith('.py'):  # Faster than re.match(r'.*\.py$', filename)
 
-# 単純な分割 → str.split()
-fields = line.split(',')  # re.split(r',', line) より速い
+# Simple splitting -> str.split()
+fields = line.split(',')  # Faster than re.split(r',', line)
 
-# 単純な置換 → str.replace()
-result = text.replace('old', 'new')  # re.sub(r'old', 'new', text) より速い
+# Simple replacement -> str.replace()
+result = text.replace('old', 'new')  # Faster than re.sub(r'old', 'new', text)
 
-# 構造化データのパース → 専用パーサー
-import json  # JSON には json モジュール
-import csv   # CSV には csv モジュール
-# HTML → Beautiful Soup / lxml
-# XML → ElementTree
-# URL → urllib.parse
+# Parsing structured data -> dedicated parsers
+import json  # Use json module for JSON
+import csv   # Use csv module for CSV
+# HTML -> Beautiful Soup / lxml
+# XML -> ElementTree
+# URL -> urllib.parse
 ```
 
-### Q5: 怠惰量指定子と否定文字クラスのどちらを使うべきか？
+### Q5: Should I use a lazy quantifier or a negated character class?
 
-**A**: 否定文字クラスが使える場合は常にそちらを推奨:
+**A**: Always prefer the negated character class when applicable:
 
 ```python
-# 怠惰量指定子: .*? (バックトラックが発生する)
-# 否定文字クラス: [^X]* (バックトラックが発生しない)
+# Lazy quantifier: .*? (backtracking occurs)
+# Negated character class: [^X]* (no backtracking)
 
-# 例: HTML タグの属性値を抽出
-# 遅い: <div class=".*?">
-# 速い: <div class="[^"]*">
+# Example: Extracting HTML tag attribute values
+# Slow: <div class=".*?">
+# Fast: <div class="[^"]*">
 
-# 例: 引用符内の文字列を抽出
-# 遅い: ".*?"
-# 速い: "[^"]*"
+# Example: Extracting quoted strings
+# Slow: ".*?"
+# Fast: "[^"]*"
 
-# 例: コメントの抽出
-# 遅い: /\*.*?\*/  (DOTALL 必要)
-# 速い: /\*[^*]*\*+(?:[^/*][^*]*\*+)*/
-# ↑ 複雑になる場合は可読性とのトレードオフ
+# Example: Extracting comments
+# Slow: /\*.*?\*/  (requires DOTALL)
+# Fast: /\*[^*]*\*+(?:[^/*][^*]*\*+)*/
+# ^ When it becomes complex, consider the readability tradeoff
 ```
 
-### Q6: アトミックグループと独占的量指定子の違いは？
+### Q6: What is the difference between atomic groups and possessive quantifiers?
 
-**A**: 同じ機能を異なる構文で提供する。どちらもバックトラックを禁止:
+**A**: They provide the same functionality with different syntax. Both prohibit backtracking:
 
 ```
-アトミックグループ: (?>pattern)
-独占的量指定子:    pattern++, pattern*+, pattern?+
+Atomic group:          (?>pattern)
+Possessive quantifier: pattern++, pattern*+, pattern?+
 
-(?>a+)  は  a++ と同等
-(?>a*)  は  a*+ と同等
-(?>a?)  は  a?+ と同等
+(?>a+)  is equivalent to  a++
+(?>a*)  is equivalent to  a*+
+(?>a?)  is equivalent to  a?+
 
-ただし、アトミックグループはより汎用的:
-(?>abc|ab) -- 選択肢全体にアトミックを適用
-↑ 独占的量指定子では表現不可
+However, atomic groups are more versatile:
+(?>abc|ab) -- applies atomic behavior to the entire alternation
+^ This cannot be expressed with possessive quantifiers
 
-サポート状況:
-  独占的量指定子: Java, PCRE, Python regex
-  アトミックグループ: Java, PCRE, Python regex, Perl, .NET
-  どちらも非対応: Python re, JavaScript, Go, Rust
+Support status:
+  Possessive quantifier: Java, PCRE, Python regex
+  Atomic group: Java, PCRE, Python regex, Perl, .NET
+  Neither supported: Python re, JavaScript, Go, Rust
 ```
 
 ---
@@ -1998,51 +2001,51 @@ import csv   # CSV には csv モジュール
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point to keep in mind when studying this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes that beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving on to the next steps.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this knowledge applied in real-world work?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+The knowledge from this topic is frequently used in day-to-day development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## まとめ
+## Summary
 
-| 項目 | 内容 |
-|------|------|
-| ReDoS | 正規表現によるサービス拒否攻撃 |
-| 原因 | バックトラック爆発(指数的計算量) |
-| 脆弱パターン | `(a+)+`, `(a\|a)+`, `.*` の無制限使用 |
-| NFA | バックトラック型、O(2^n)の可能性 |
-| DFA | 線形時間保証 O(n)、機能制限あり |
-| 防御策1 | 否定文字クラス `[^X]*` で範囲を限定 |
-| 防御策2 | 量指定子のネストを排除 |
-| 防御策3 | DFA エンジン(RE2等)を使用 |
-| 防御策4 | タイムアウト機構を設定 |
-| 防御策5 | 入力長を制限 |
-| 最適化 | `re.compile()`、アンカー、先行フィルタ |
-| 独占的量指定子 | `a++` -- バックトラック禁止 |
-| アトミックグループ | `(?>...)` -- バックトラック禁止 |
-| 鉄則 | 信頼できない入力には DFA、パターンは静的解析で監査 |
+| Item | Description |
+|------|-------------|
+| ReDoS | Denial-of-service attack via regular expressions |
+| Cause | Backtracking explosion (exponential time complexity) |
+| Vulnerable patterns | `(a+)+`, `(a\|a)+`, unrestricted `.*` |
+| NFA | Backtracking-based, potentially O(2^n) |
+| DFA | Linear time guarantee O(n), limited features |
+| Defense 1 | Constrain range with negated character class `[^X]*` |
+| Defense 2 | Eliminate nested quantifiers |
+| Defense 3 | Use a DFA engine (RE2, etc.) |
+| Defense 4 | Set timeout mechanisms |
+| Defense 5 | Limit input length |
+| Optimization | `re.compile()`, anchors, pre-filters |
+| Possessive quantifier | `a++` -- prohibits backtracking |
+| Atomic group | `(?>...)` -- prohibits backtracking |
+| Golden rule | Use DFA for untrusted input; audit patterns with static analysis |
 
-## 次に読むべきガイド
+## Recommended Next Reads
 
-- [../02-practical/00-language-specific.md](../02-practical/00-language-specific.md) -- 言語別正規表現(エンジンの違い)
-- [../02-practical/03-regex-alternatives.md](../02-practical/03-regex-alternatives.md) -- 正規表現の代替技術
+- [../02-practical/00-language-specific.md](../02-practical/00-language-specific.md) -- Language-specific regex (engine differences)
+- [../02-practical/03-regex-alternatives.md](../02-practical/03-regex-alternatives.md) -- Alternatives to regular expressions
 
-## 参考文献
+## References
 
-1. **Russ Cox** "Regular Expression Matching Can Be Simple And Fast" https://swtch.com/~rsc/regexp/regexp1.html, 2007 -- ReDoS の理論的背景と RE2 の設計思想
-2. **OWASP** "Regular expression Denial of Service - ReDoS" https://owasp.org/www-community/attacks/Regular_expression_Denial_of_Service_-_ReDoS -- セキュリティ観点からの ReDoS 解説
-3. **James Davis et al.** "The Impact of Regular Expression Denial of Service (ReDoS) in Practice" FSE 2018 -- ReDoS の実世界における影響の学術的調査
-4. **Google RE2** https://github.com/google/re2 -- 線形時間保証の正規表現エンジン
-5. **recheck** https://makenowjust-labs.github.io/recheck/ -- 正規表現の ReDoS 脆弱性検出ツール
-6. **Cloudflare Outage Post-mortem** https://blog.cloudflare.com/details-of-the-cloudflare-outage-on-july-2-2019/ -- 実際の ReDoS インシデント事例
-7. **PCRE2 Documentation** https://www.pcre.org/current/doc/html/ -- PCRE2 のバックトラック制限と最適化
-8. **Rust regex crate** https://docs.rs/regex/ -- Rust の O(n) 保証正規表現エンジン
+1. **Russ Cox** "Regular Expression Matching Can Be Simple And Fast" https://swtch.com/~rsc/regexp/regexp1.html, 2007 -- Theoretical background of ReDoS and the design philosophy of RE2
+2. **OWASP** "Regular expression Denial of Service - ReDoS" https://owasp.org/www-community/attacks/Regular_expression_Denial_of_Service_-_ReDoS -- ReDoS explained from a security perspective
+3. **James Davis et al.** "The Impact of Regular Expression Denial of Service (ReDoS) in Practice" FSE 2018 -- Academic study of ReDoS impact in the real world
+4. **Google RE2** https://github.com/google/re2 -- Linear-time-guaranteed regex engine
+5. **recheck** https://makenowjust-labs.github.io/recheck/ -- ReDoS vulnerability detection tool for regular expressions
+6. **Cloudflare Outage Post-mortem** https://blog.cloudflare.com/details-of-the-cloudflare-outage-on-july-2-2019/ -- Real-world ReDoS incident case study
+7. **PCRE2 Documentation** https://www.pcre.org/current/doc/html/ -- PCRE2 backtracking limits and optimizations
+8. **Rust regex crate** https://docs.rs/regex/ -- Rust's O(n)-guaranteed regex engine

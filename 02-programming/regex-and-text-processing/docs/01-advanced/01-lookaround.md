@@ -1,341 +1,341 @@
-# 先読み・後読み -- (?=)(?!)(?<=)(?<!)
+# Lookaround -- (?=)(?!)(?<=)(?<!)
 
-> 先読み(Lookahead)と後読み(Lookbehind)はゼロ幅アサーションであり、文字を消費せずに位置条件を指定する。パスワード強度検証、複雑な抽出条件、置換対象の限定など、通常のパターンでは表現しにくい制約を可能にする強力な機能である。
+> Lookahead and lookbehind are zero-width assertions that specify positional conditions without consuming characters. They are powerful features that enable constraints difficult to express with ordinary patterns, such as password strength validation, complex extraction conditions, and limiting replacement targets.
 
-## この章で学ぶこと
+## What You Will Learn
 
-1. **4種類のルックアラウンドの構文と動作** -- 肯定/否定の先読み/後読みの正確な意味
-2. **ゼロ幅アサーションの概念** -- 文字を消費しないマッチの仕組みと応用
-3. **実践的なユースケース** -- パスワード検証、数値フォーマット、複合条件抽出
-4. **各言語での動作差異と制約** -- Python, JavaScript, Java, Go, Rust における実装の違い
-5. **パフォーマンスへの影響と最適化** -- ルックアラウンドがもたらすコストと回避策
-6. **ネストされたルックアラウンド** -- 複雑な条件を実現する高度なテクニック
-7. **テスト駆動でのパターン構築** -- ルックアラウンドパターンを安全に開発する手法
+1. **Syntax and behavior of all 4 lookaround types** -- The precise meaning of positive/negative lookahead/lookbehind
+2. **The concept of zero-width assertions** -- How matching without consuming characters works and its applications
+3. **Practical use cases** -- Password validation, number formatting, compound condition extraction
+4. **Behavioral differences and constraints across languages** -- Implementation differences in Python, JavaScript, Java, Go, and Rust
+5. **Performance impact and optimization** -- The cost of lookaround and how to mitigate it
+6. **Nested lookaround** -- Advanced techniques for complex conditions
+7. **Test-driven pattern development** -- Methods for safely developing lookaround patterns
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+The following knowledge will help you get the most out of this guide:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [グループ・後方参照 -- キャプチャ、名前付きグループ、先読み・後読み](./00-groups-backreferences.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding of the content in [Groups and Backreferences -- Capturing, Named Groups, Lookahead/Lookbehind](./00-groups-backreferences.md)
 
 ---
 
-## 1. ルックアラウンドの4種類
+## 1. The 4 Types of Lookaround
 
-### 1.1 一覧
-
-```
-┌──────────────────────────────────────────────────┐
-│              ルックアラウンド一覧                   │
-├────────────┬──────────────┬───────────────────────┤
-│            │  肯定 (=)    │  否定 (!)              │
-├────────────┼──────────────┼───────────────────────┤
-│ 先読み(→)  │ (?=pattern)  │ (?!pattern)           │
-│ Lookahead  │ 後ろにある   │ 後ろにない             │
-├────────────┼──────────────┼───────────────────────┤
-│ 後読み(←)  │ (?<=pattern) │ (?<!pattern)          │
-│ Lookbehind │ 前にある     │ 前にない               │
-└────────────┴──────────────┴───────────────────────┘
-```
-
-### 1.2 概念図
+### 1.1 Overview
 
 ```
-テキスト: "price: $100"
++------------------------------------------------------+
+|              Lookaround Overview                      |
++------------+--------------+--------------------------+
+|            | Positive (=) | Negative (!)              |
++------------+--------------+--------------------------+
+| Lookahead  | (?=pattern)  | (?!pattern)              |
+| (forward)  | Followed by  | NOT followed by          |
++------------+--------------+--------------------------+
+| Lookbehind | (?<=pattern) | (?<!pattern)             |
+| (backward) | Preceded by  | NOT preceded by          |
++------------+--------------+--------------------------+
+```
+
+### 1.2 Conceptual Diagram
+
+```
+Text: "price: $100"
 
          p r i c e :   $ 1 0 0
-                        ↑
-                      現在位置
+                        ^
+                    Current position
 
-先読み (?=...):  「この位置の右側(後ろ)に...がある」
-後読み (?<=...): 「この位置の左側(前)に...がある」
+Lookahead (?=...):  "To the right of this position, ... exists"
+Lookbehind (?<=...): "To the left of this position, ... exists"
 
-例: (?<=\$)\d+
-  → 「左側に $ がある位置から始まる数字列」
-  → "100" にマッチ ($は含まない)
+Example: (?<=\$)\d+
+  -> "A digit sequence starting from a position with $ to its left"
+  -> Matches "100" ($ is not included)
 ```
 
-### 1.3 ルックアラウンドの内部動作メカニズム
+### 1.3 Internal Mechanism of Lookaround
 
-ルックアラウンドの動作を正確に理解するために、正規表現エンジンが内部でどのように処理しているかを詳しく見てみる。
+To accurately understand how lookaround works, let's look at how the regex engine processes it internally.
 
 ```
-NFAエンジンのルックアラウンド処理フロー:
+NFA engine lookaround processing flow:
 
-1. エンジンが現在位置を記録 (position = P)
-2. ルックアラウンド内のパターンをマッチ試行
-   - 肯定: マッチ成功 → アサーション成功
-   - 否定: マッチ失敗 → アサーション成功
-3. 現在位置を P に復元 (ゼロ幅: 位置が進まない)
-4. メインパターンの次の要素に進む
+1. Engine records current position (position = P)
+2. Attempts to match the pattern inside the lookaround
+   - Positive: match success -> assertion success
+   - Negative: match failure -> assertion success
+3. Restores current position to P (zero-width: position doesn't advance)
+4. Proceeds to the next element of the main pattern
 
-具体例: パターン (?<=\$)\d+ を "price: $100" に適用
+Concrete example: Pattern (?<=\$)\d+ applied to "price: $100"
 
-Step 1: 位置0 'p' -- (?<=\$) チェック
-  左側に何もない → 失敗 → 位置を1つ進める
+Step 1: Position 0 'p' -- (?<=\$) check
+  Nothing to the left -> failure -> advance position by 1
 
-Step 2: 位置1 'r' -- (?<=\$) チェック
-  左側 'p' は '$' ではない → 失敗 → 位置を1つ進める
+Step 2: Position 1 'r' -- (?<=\$) check
+  Left side 'p' is not '$' -> failure -> advance position by 1
 
 ...
 
-Step 8: 位置8 '1' -- (?<=\$) チェック
-  左側 '$' は '$' である → 成功!
-  → \d+ を位置8から試行
-  → '1','0','0' がマッチ
-  → 結果: "100" (位置8-11)
+Step 8: Position 8 '1' -- (?<=\$) check
+  Left side '$' is '$' -> success!
+  -> Try \d+ from position 8
+  -> '1','0','0' match
+  -> Result: "100" (position 8-11)
 ```
 
-### 1.4 ルックアラウンドと他のゼロ幅アサーションの比較
+### 1.4 Comparison of Lookaround with Other Zero-Width Assertions
 
 ```
-ゼロ幅アサーション一覧:
+Zero-width assertion list:
 
-アサーション        構文        意味
-──────────────     ──────     ──────────────────────────
-行頭              ^           行の先頭位置
-行末              $           行の末尾位置
-単語境界          \b          単語文字と非単語文字の境界
-非単語境界        \B          \b でない位置
-文字列先頭        \A          文字列全体の先頭(複数行でも)
-文字列末尾        \Z, \z     文字列全体の末尾
-肯定先読み        (?=...)     右側にパターンがある位置
-否定先読み        (?!...)     右側にパターンがない位置
-肯定後読み        (?<=...)    左側にパターンがある位置
-否定後読み        (?<!...)    左側にパターンがない位置
+Assertion           Syntax     Meaning
+--------------     ------     --------------------------
+Line start         ^          Beginning of line
+Line end           $          End of line
+Word boundary      \b         Boundary between word and non-word chars
+Non-word boundary  \B         Position that is NOT \b
+String start       \A         Beginning of entire string (even in multiline)
+String end         \Z, \z     End of entire string
+Positive lookahead (?=...)    Position where pattern exists to the right
+Negative lookahead (?!...)    Position where pattern does NOT exist to the right
+Positive lookbehind(?<=...)   Position where pattern exists to the left
+Negative lookbehind(?<!...)   Position where pattern does NOT exist to the left
 
-共通の特徴: すべて「位置」をチェックし、文字を消費しない
+Common trait: all check a "position" and do not consume characters
 ```
 
 ```python
 import re
 
-# 各種ゼロ幅アサーションの比較
+# Comparison of various zero-width assertions
 text = "Hello World 123"
 
-# ^ -- 行の先頭
+# ^ -- beginning of line
 print(re.findall(r'^.', text))          # => ['H']
 
-# \b -- 単語境界
+# \b -- word boundary
 print(re.findall(r'\b\w', text))        # => ['H', 'W', '1']
 
-# (?=...) -- 肯定先読み
+# (?=...) -- positive lookahead
 print(re.findall(r'\w(?=\s)', text))    # => ['o', 'd']
 
-# (?<=...) -- 肯定後読み
+# (?<=...) -- positive lookbehind
 print(re.findall(r'(?<=\s)\w', text))   # => ['W', '1']
 
-# すべてゼロ幅: 文字を消費しない
+# All are zero-width: they do not consume characters
 ```
 
 ---
 
-## 2. 肯定先読み `(?=pattern)`
+## 2. Positive Lookahead `(?=pattern)`
 
-### 2.1 基本動作
+### 2.1 Basic Behavior
 
 ```python
 import re
 
-# 「後ろに "円" が続く数字」を抽出
+# Extract "numbers followed by 円"
 pattern = r'\d+(?=円)'
-text = "商品A: 1000円、商品B: 2500円、商品C: 30ドル"
+text = "Product A: 1000円, Product B: 2500円, Product C: 30 dollars"
 
 print(re.findall(pattern, text))
 # => ['1000', '2500']
-# 注: "30" はマッチしない(後ろが「ドル」)
-# 注: "円" 自体はマッチに含まれない(ゼロ幅)
+# Note: "30" does not match (followed by "dollars", not "円")
+# Note: "円" itself is not included in the match (zero-width)
 ```
 
-### 2.2 ゼロ幅の証明
+### 2.2 Proof of Zero-Width
 
 ```python
 import re
 
 text = "100円"
 
-# 先読みなし: 数字 + 円 を含む
+# Without lookahead: includes digits + 円
 m1 = re.search(r'\d+円', text)
-print(m1.group())   # => '100円' (円を含む)
+print(m1.group())   # => '100円' (includes 円)
 print(m1.end())     # => 4
 
-# 先読みあり: 数字のみ(円は消費しない)
+# With lookahead: digits only (円 is not consumed)
 m2 = re.search(r'\d+(?=円)', text)
-print(m2.group())   # => '100' (円を含まない)
-print(m2.end())     # => 3 (ゼロ幅: 位置は円の直前)
+print(m2.group())   # => '100' (doesn't include 円)
+print(m2.end())     # => 3 (zero-width: position is right before 円)
 ```
 
-### 2.3 先読みの複合条件
+### 2.3 Compound Conditions with Lookahead
 
-複数の先読みを連鎖させることで、AND 条件を実現できる。
+Multiple lookaheads can be chained to create AND conditions.
 
 ```python
 import re
 
-# 複数の肯定先読みで AND 条件を構築
-# 「大文字を含み、かつ数字を含み、かつ6文字以上の単語」
+# Build AND conditions with multiple positive lookaheads
+# "Words that contain uppercase AND a digit AND are 6+ characters"
 pattern = r'\b(?=\w*[A-Z])(?=\w*\d)\w{6,}\b'
 text = "Hello World Pass1word abc123 Test99 MyPW short A1"
 
 print(re.findall(pattern, text))
 # => ['Pass1word', 'Test99']
-# "Hello" -- 数字を含まない → NG
-# "abc123" -- 大文字を含まない → NG
-# "MyPW" -- 4文字 < 6 → NG
-# "A1" -- 2文字 < 6 → NG
+# "Hello" -- no digit -> NG
+# "abc123" -- no uppercase -> NG
+# "MyPW" -- 4 chars < 6 -> NG
+# "A1" -- 2 chars < 6 -> NG
 ```
 
-### 2.4 先読みを使った重複マッチ
+### 2.4 Overlapping Matches with Lookahead
 
-通常の `findall` では重複しないマッチしか返さないが、先読みを使えば重複するパターンも検出できる。
+Normal `findall` returns only non-overlapping matches, but lookahead can detect overlapping patterns.
 
 ```python
 import re
 
-# 通常のパターン: 重複なし
+# Normal pattern: no overlap
 text = "abcabc"
 print(re.findall(r'ab', text))
 # => ['ab', 'ab']
 
-# 先読みで重複マッチを検出
+# Detect overlapping matches with lookahead
 text = "aaaa"
-# 通常: 連続する "aa" を検出（重複なし）
+# Normal: detect consecutive "aa" (no overlap)
 print(re.findall(r'aa', text))
-# => ['aa', 'aa']  -- 位置0と位置2
+# => ['aa', 'aa']  -- positions 0 and 2
 
-# 先読みで全ての "aa" の開始位置を検出（重複あり）
+# Lookahead to detect all "aa" start positions (with overlap)
 print(re.findall(r'(?=aa)', text))
-# => ['', '', '']  -- 位置0, 1, 2 の3箇所
+# => ['', '', '']  -- positions 0, 1, 2 (3 locations)
 
-# 実用例: テキスト内の重複部分文字列を検出
+# Practical example: detect overlapping substrings in text
 text = "abcabcabc"
 positions = [(m.start(), m.end()) for m in re.finditer(r'(?=(abc))', text)]
 print(positions)
 # => [(0, 0), (3, 3), (6, 6)]
-# 先読みの中のキャプチャグループで内容を取得
+# Get content via capture group inside the lookahead
 print(re.findall(r'(?=(abc))', text))
 # => ['abc', 'abc', 'abc']
 
-# 実用例: DNA配列の重複モチーフ検出
+# Practical example: overlapping motif detection in DNA sequences
 dna = "ATGATGATG"
-# 通常: "ATG" は重複なしで3つ
+# Normal: "ATG" appears 3 times without overlap
 print(re.findall(r'ATG', dna))  # => ['ATG', 'ATG', 'ATG']
-# 重複パターンの検出: "ATGATG" の出現位置
+# Overlapping pattern detection: positions where "ATGATG" appears
 overlapping = [m.start() for m in re.finditer(r'(?=ATGATG)', dna)]
 print(overlapping)  # => [0, 3]
 ```
 
-### 2.5 先読みと量指定子の相互作用
+### 2.5 Interaction Between Lookahead and Quantifiers
 
 ```python
 import re
 
-# 先読みと貪欲/非貪欲の動作
+# Lookahead and greedy/non-greedy behavior
 text = "abc123def456"
 
-# 貪欲: できるだけ長くマッチ
+# Greedy: matches as long as possible
 print(re.findall(r'\w+(?=\d)', text))
 # => ['abc12', 'def45']
-# 注: \w+ が貪欲なので、最後の数字の直前まで食べる
+# Note: greedy \w+ consumes up to just before the last digit
 
-# 非貪欲: できるだけ短くマッチ
+# Non-greedy: matches as short as possible
 print(re.findall(r'\w+?(?=\d)', text))
 # => ['abc', '1', '2', 'def', '4', '5']
-# 注: 1文字ずつマッチしようとする
+# Note: tries to match one character at a time
 
-# 意図通りの結果を得るには適切なパターン設計が必要
-# 「英字の後に数字が続く」場合
+# Proper pattern design is needed for intended results
+# "alphabetic characters followed by digits"
 print(re.findall(r'[a-z]+(?=\d)', text))
 # => ['abc', 'def']
 ```
 
 ---
 
-## 3. 否定先読み `(?!pattern)`
+## 3. Negative Lookahead `(?!pattern)`
 
-### 3.1 基本動作
+### 3.1 Basic Behavior
 
 ```python
 import re
 
-# 「後ろに "ドル" が続かない数字」
+# "Numbers NOT followed by ドル"
 pattern = r'\d+(?!ドル|\d)'
 text = "100円 200ドル 300ユーロ"
 
 print(re.findall(pattern, text))
 # => ['100', '300']
-# "200" はマッチしない(後ろが「ドル」)
+# "200" doesn't match (followed by "ドル")
 ```
 
-### 3.2 除外パターン
+### 3.2 Exclusion Patterns
 
 ```python
 import re
 
-# 特定の単語を除外してマッチ
-# "test" で始まらない単語を抽出
+# Exclude specific words from matches
+# Extract words that don't start with "test"
 pattern = r'\b(?!test)\w+'
 text = "testing hello testcase world testify"
 
 print(re.findall(pattern, text))
 # => ['hello', 'world']
 
-# JavaScript 予約語以外の識別子
+# JavaScript identifiers excluding reserved words
 reserved = r'\b(?!if|else|for|while|return|function\b)\w+'
 code = "function hello if world return value"
 print(re.findall(reserved, code))
 # => ['hello', 'world', 'value']
 ```
 
-### 3.3 否定先読みの実践的活用パターン
+### 3.3 Practical Negative Lookahead Patterns
 
 ```python
 import re
 
-# パターン1: 特定の拡張子を除外したファイル名のマッチ
+# Pattern 1: Match filenames excluding specific extensions
 files = "main.py config.yaml app.js test.pyc utils.py data.json"
-# .pyc 以外の .py ファイルを抽出
+# Extract .py files excluding .pyc
 pattern = r'\b\w+\.py(?!c)\b'
 print(re.findall(pattern, files))
 # => ['main.py', 'utils.py']
 
-# パターン2: 特定のドメインを除外したURL抽出
+# Pattern 2: URL extraction excluding specific domains
 urls = "http://example.com http://spam.evil.com http://good-site.org"
-# spam を含まない URL を抽出
+# Extract URLs that don't contain "spam"
 pattern = r'https?://(?!spam)\S+'
 print(re.findall(pattern, urls))
 # => ['http://example.com', 'http://good-site.org']
 
-# パターン3: コメント行でない行を抽出
+# Pattern 3: Extract non-comment lines
 lines = """
-# これはコメント
+# This is a comment
 data = 123
-// これもコメント
+// This is also a comment
 result = data + 1
 """
-# # や // で始まらない非空行
+# Non-empty lines not starting with # or //
 pattern = r'^(?!#|//)(?!\s*$).+'
 print(re.findall(pattern, lines.strip(), re.MULTILINE))
 # => ['data = 123', 'result = data + 1']
 ```
 
-### 3.4 否定先読みによるパスワードの禁止パターン
+### 3.4 Prohibited Patterns in Passwords via Negative Lookahead
 
 ```python
 import re
 
 def validate_no_common_patterns(password: str) -> tuple[bool, list[str]]:
-    """パスワードに一般的な弱いパターンが含まれていないか検証"""
+    """Validate that the password doesn't contain common weak patterns"""
     errors = []
 
-    # 連続する同一文字を禁止 (aaa, 111 など)
+    # Prohibit consecutive identical characters (aaa, 111, etc.)
     if re.search(r'(.)\1{2,}', password):
-        errors.append("同じ文字が3回以上連続しています")
+        errors.append("Contains 3 or more consecutive identical characters")
 
-    # 連続する順序文字を禁止 (abc, 123 など)
+    # Prohibit sequential character patterns (abc, 123, etc.)
     sequential_patterns = [
         'abc', 'bcd', 'cde', 'def', 'efg', 'fgh',
         '123', '234', '345', '456', '567', '678', '789',
@@ -343,33 +343,33 @@ def validate_no_common_patterns(password: str) -> tuple[bool, list[str]]:
     ]
     for seq in sequential_patterns:
         if seq in password.lower():
-            errors.append(f"連続パターン '{seq}' が含まれています")
+            errors.append(f"Contains sequential pattern '{seq}'")
 
-    # 強力なパスワード: 全条件を1パターンで表現
-    # - 8文字以上
-    # - 連続3文字の同一文字を含まない
-    # - "password" を含まない
-    # - "12345" を含まない
+    # Strong password: all conditions in one pattern
+    # - 8+ characters
+    # - No 3 consecutive identical characters
+    # - Does not contain "password"
+    # - Does not contain "12345"
     strong_pattern = re.compile(
-        r'^(?!.*(.)\1{2})'     # 同一文字3連続なし
-        r'(?!.*password)'       # "password" を含まない
-        r'(?!.*12345)'          # "12345" を含まない
-        r'.{8,}$',              # 8文字以上
+        r'^(?!.*(.)\1{2})'     # No 3 consecutive identical chars
+        r'(?!.*password)'       # Does not contain "password"
+        r'(?!.*12345)'          # Does not contain "12345"
+        r'.{8,}$',              # 8+ characters
         re.IGNORECASE
     )
 
     if not strong_pattern.match(password):
-        errors.append("パスワードが弱すぎます")
+        errors.append("Password is too weak")
 
     return (len(errors) == 0, errors)
 
-# テスト
+# Test
 test_passwords = [
     "Str0ng!Pass",    # OK
-    "password123!",   # "password" を含む
-    "aaabbb1234!",   # 連続文字
-    "P@ss12345word",  # "12345" を含む
-    "Sh0rt!",         # 短すぎる
+    "password123!",   # Contains "password"
+    "aaabbb1234!",   # Consecutive characters
+    "P@ss12345word",  # Contains "12345"
+    "Sh0rt!",         # Too short
 ]
 
 for pw in test_passwords:
@@ -378,227 +378,227 @@ for pw in test_passwords:
     print(f"  {pw}: {status} {errs if errs else ''}")
 ```
 
-### 3.5 否定先読みのよくある落とし穴
+### 3.5 Common Pitfalls with Negative Lookahead
 
 ```python
 import re
 
-# 落とし穴1: 否定先読みの位置に注意
-# 意図: "test" という単語だけを除外
+# Pitfall 1: Watch the position of negative lookahead
+# Intent: exclude only the word "test"
 text = "testing test tested"
 
-# 間違い: \b(?!test)\w+ は "test" の一部もマッチする
+# Wrong: \b(?!test)\w+ also matches parts of "test"
 print(re.findall(r'\b(?!test)\w+', text))
-# => ['esting', 'ed']  -- "testing" の "esting" がマッチ!
+# => ['esting', 'ed']  -- "esting" from "testing" matches!
 
-# 正解: 単語全体を除外するには \b も使う
+# Correct: use \b to exclude the whole word
 print(re.findall(r'\b(?!test\b)\w+', text))
 # => ['testing', 'tested']
-# "test" 完全一致のみ除外、"testing" と "tested" はOK
+# Only exact "test" is excluded; "testing" and "tested" are OK
 
-# 落とし穴2: 否定先読みと量指定子の組み合わせ
+# Pitfall 2: Combining negative lookahead with quantifiers
 text = "foobar foobaz foo"
 
-# 意図: "foo" の後に "bar" が続かないものを抽出
-# 間違い: マッチの範囲がおかしくなる
+# Intent: extract "foo" not followed by "bar"
+# Wrong: match range becomes unexpected
 print(re.findall(r'foo(?!bar)', text))
-# => ['foo', 'foo']  -- "foobaz" の "foo" と "foo"
+# => ['foo', 'foo']  -- "foo" from "foobaz" and standalone "foo"
 
-# 続く部分も含めたい場合
+# If you also want the following part
 print(re.findall(r'foo(?!bar)\w*', text))
 # => ['foobaz', 'foo']
 
-# 落とし穴3: 空文字列マッチに注意
+# Pitfall 3: Watch for empty string matches
 text = "abc"
 print(re.findall(r'(?!abc)', text))
-# => ['', '', '']  -- 位置1,2,3でマッチ(位置0は 'abc' と一致するので除外)
-# ゼロ幅なので空文字列がマッチする
+# => ['', '', '']  -- matches at positions 1, 2, 3 (position 0 matches 'abc' so excluded)
+# Zero-width, so empty strings match
 ```
 
 ---
 
-## 4. 肯定後読み `(?<=pattern)`
+## 4. Positive Lookbehind `(?<=pattern)`
 
-### 4.1 基本動作
+### 4.1 Basic Behavior
 
 ```python
 import re
 
-# 「前に "$" がある数字」を抽出
+# Extract "numbers preceded by $"
 pattern = r'(?<=\$)\d+'
 text = "Price: $100, Tax: $15, Total: 115"
 
 print(re.findall(pattern, text))
 # => ['100', '15']
-# "115" はマッチしない(前に $ がない)
+# "115" doesn't match (no $ before it)
 ```
 
-### 4.2 後読みの制約
+### 4.2 Lookbehind Constraints
 
 ```
-後読みの幅制約(エンジンによる):
+Lookbehind width constraints (by engine):
 
-エンジン        可変長後読み    制約
-──────────      ────────────   ──────
-Python re       不可           固定長のみ
-JavaScript      可能(ES2018+)  制限なし
-Java            不可           固定長のみ
-.NET            可能           制限なし
-Perl            不可           固定長のみ
-PCRE2           可能           制限なし
-Ruby            不可           固定長のみ (Onigmo)
-PHP (PCRE)      不可           固定長のみ (PCRE1時代)
+Engine          Variable-length   Constraint
+----------      ---------------  ----------
+Python re       Not allowed      Fixed-length only
+JavaScript      Allowed (ES2018+) No restriction
+Java            Not allowed      Fixed-length only
+.NET            Allowed          No restriction
+Perl            Not allowed      Fixed-length only
+PCRE2           Allowed          No restriction
+Ruby            Not allowed      Fixed-length only (Onigmo)
+PHP (PCRE)      Not allowed      Fixed-length only (PCRE1 era)
 
-固定長の制約:
-  (?<=abc)    OK  -- 3文字固定
-  (?<=ab|cd)  OK  -- 各選択肢が同じ長さ
-  (?<=a{3})   OK  -- 固定回数
-  (?<=a+)     NG  -- 可変長 (Python, Java, Perl で不可)
-  (?<=a*)     NG  -- 可変長
+Fixed-length constraints:
+  (?<=abc)    OK  -- 3 characters fixed
+  (?<=ab|cd)  OK  -- each alternative is the same length
+  (?<=a{3})   OK  -- fixed repetition count
+  (?<=a+)     NG  -- variable-length (not allowed in Python, Java, Perl)
+  (?<=a*)     NG  -- variable-length
 
-  注意: (?<=ab|cde) は Python で使えるが、選択肢の長さが
-        異なっていても各選択肢が固定長ならOK(Python 3.6+)
+  Note: (?<=ab|cde) can be used in Python even with different-length
+        alternatives, as long as each alternative is fixed-length (Python 3.6+)
 ```
 
 ```python
 import re
 
-# 固定長: OK
+# Fixed-length: OK
 print(re.findall(r'(?<=\$)\d+', "$100 $200"))
 # => ['100', '200']
 
-# 可変長: エラー(Python)
+# Variable-length: error (Python)
 try:
     re.findall(r'(?<=\$+)\d+', "$100 $$200")
 except re.error as e:
-    print(f"エラー: {e}")
-# => エラー: look-behind requires fixed-width pattern
+    print(f"Error: {e}")
+# => Error: look-behind requires fixed-width pattern
 
-# 回避策: regex モジュール(サードパーティ)を使う
+# Workaround: use the regex module (third-party)
 # import regex
 # regex.findall(r'(?<=\$+)\d+', "$100 $$200")
 # => ['100', '200']
 ```
 
-### 4.3 Python 3.6+ の後読み選択肢の挙動
+### 4.3 Lookbehind Alternative Behavior in Python 3.6+
 
 ```python
 import re
 
-# Python 3.6+ では、選択肢の各ブランチが固定長であれば
-# 異なる長さの選択肢も使える
+# In Python 3.6+, alternatives with different fixed lengths
+# in each branch are allowed
 text = "USD100 JPY200 EUR300"
 
-# 各選択肢が固定長（3文字）-- OK
+# Each alternative is fixed-length (3 characters) -- OK
 pattern = r'(?<=USD|JPY|EUR)\d+'
 print(re.findall(pattern, text))
 # => ['100', '200', '300']
 
-# 選択肢の長さが異なるが、各選択肢は固定長 -- Python 3.6+ でOK
+# Alternatives with different lengths, but each is fixed -- OK in Python 3.6+
 text = "$100 USD200 EURO300"
 pattern = r'(?<=\$|USD|EURO)\d+'
 print(re.findall(pattern, text))
 # => ['100', '200', '300']
 
-# ただし選択肢内に量指定子は不可
+# However, quantifiers within alternatives are not allowed
 try:
     re.findall(r'(?<=\$+|USD)\d+', text)
 except re.error as e:
-    print(f"エラー: {e}")
-# => エラー: look-behind requires fixed-width pattern
+    print(f"Error: {e}")
+# => Error: look-behind requires fixed-width pattern
 ```
 
-### 4.4 後読みを使ったデータ抽出
+### 4.4 Data Extraction with Lookbehind
 
 ```python
 import re
 
-# HTMLタグの属性値を抽出
+# Extract HTML tag attribute values
 html = '<div class="main" id="content" data-value="42">'
 
-# class 属性の値を抽出
+# Extract class attribute value
 pattern = r'(?<=class=")\w+'
 print(re.findall(pattern, html))
 # => ['main']
 
-# id 属性の値を抽出
+# Extract id attribute value
 pattern = r'(?<=id=")\w+'
 print(re.findall(pattern, html))
 # => ['content']
 
-# data-value の値を抽出
+# Extract data-value
 pattern = r'(?<=data-value=")\d+'
 print(re.findall(pattern, html))
 # => ['42']
 
-# ログファイルからIPアドレスの後のリクエストパスを抽出
+# Extract request paths after IP addresses from log files
 log_lines = [
     '192.168.1.1 - - [01/Jan/2024] "GET /api/users HTTP/1.1" 200',
     '10.0.0.5 - - [01/Jan/2024] "POST /api/login HTTP/1.1" 401',
     '172.16.0.1 - - [01/Jan/2024] "GET /index.html HTTP/1.1" 200',
 ]
 for line in log_lines:
-    # "GET " or "POST " の後のパスを抽出
+    # Extract path after "GET " or "POST "
     m = re.search(r'(?<=(?:GET|POST) )/\S+', line)
     if m:
-        print(f"  パス: {m.group()}")
-# => パス: /api/users
-# => パス: /api/login
-# => パス: /index.html
+        print(f"  Path: {m.group()}")
+# => Path: /api/users
+# => Path: /api/login
+# => Path: /index.html
 ```
 
-### 4.5 後読みと先読みの組み合わせ
+### 4.5 Combining Lookbehind and Lookahead
 
 ```python
 import re
 
-# 特定の区切り文字に囲まれた内容を抽出
-text = "[重要] これは重要なメッセージです [情報] これは情報です"
+# Extract content enclosed by specific delimiters
+text = "[Important] This is an important message [Info] This is information"
 
-# [] 内の文字列を抽出（後読み + 先読み）
+# Extract strings inside [] (lookbehind + lookahead)
 pattern = r'(?<=\[)[^\]]+(?=\])'
 print(re.findall(pattern, text))
-# => ['重要', '情報']
+# => ['Important', 'Info']
 
-# 引用符で囲まれた内容を抽出
+# Extract content enclosed in quotes
 text = 'name="Alice" age="30" city="Tokyo"'
 pattern = r'(?<=")[^"]+(?=")'
 print(re.findall(pattern, text))
 # => ['Alice', '30', 'Tokyo']
 
-# CSV の特定カラムの値を抽出
+# Extract specific column values from CSV
 csv_line = "Alice,30,Tokyo,Engineer"
-# 2番目のカンマの後、3番目のカンマの前
+# After the 2nd comma, before the 3rd comma
 pattern = r'(?<=,)[^,]+(?=,)'
 print(re.findall(pattern, csv_line))
-# => ['30', 'Tokyo']  -- 最初と最後のフィールド以外
+# => ['30', 'Tokyo']  -- all fields except first and last
 ```
 
 ---
 
-## 5. 否定後読み `(?<!pattern)`
+## 5. Negative Lookbehind `(?<!pattern)`
 
-### 5.1 基本動作
+### 5.1 Basic Behavior
 
 ```python
 import re
 
-# 「前に "$" がない数字」を抽出
+# Extract "numbers NOT preceded by $"
 pattern = r'(?<!\$)\b\d+'
 text = "Price: $100, Qty: 5, Tax: $15, Count: 42"
 
 print(re.findall(pattern, text))
 # => ['5', '42']
-# "$100" と "$15" はマッチしない(前に $ がある)
+# "$100" and "$15" don't match (preceded by $)
 ```
 
-### 5.2 複合条件
+### 5.2 Compound Conditions
 
 ```python
 import re
 
-# 否定後読み + 否定先読みの組み合わせ
-# 「引用符で囲まれていない数字」
+# Negative lookbehind + negative lookahead combined
+# "Numbers not enclosed in quotes"
 pattern = r'(?<!["\'`])\b\d+\b(?!["\'`])'
 text = 'value is 42 and "100" and \'200\''
 
@@ -606,69 +606,68 @@ print(re.findall(pattern, text))
 # => ['42']
 ```
 
-### 5.3 否定後読みの実践例
+### 5.3 Practical Negative Lookbehind Examples
 
 ```python
 import re
 
-# エスケープされていない特殊文字を検出
+# Detect unescaped special characters
 text = r'Hello\nWorld\tTab\\Backslash\xHex'
 
-# バックスラッシュの後でない 'n' を検出
-# (エスケープシーケンスでない位置の 'n')
-# ※ raw string に注意
+# Detect 'n' not preceded by backslash
+# (position where it's not an escape sequence)
+# * Note: raw string required
 pattern = r'(?<!\\)n'
-# 注: この例では raw string を使う必要がある
+# Note: raw string must be used in this example
 
-# コメント以外のコード部分を抽出
+# Extract code parts excluding comments
 code_lines = [
-    "x = 10  # 変数の初期化",
-    "# これは完全なコメント行",
-    "y = x + 1  # 加算",
+    "x = 10  # Variable initialization",
+    "# This is a complete comment line",
+    "y = x + 1  # Addition",
     "print(y)",
 ]
 
 for line in code_lines:
-    # # 以降をコメントとして除去（ただし文字列内の # は除く）
-    # 簡易版: 行頭から # の前までを取得
+    # Remove everything after # as a comment (simplified version)
     code_part = re.sub(r'\s*#.*$', '', line)
     if code_part.strip():
-        print(f"  コード: {code_part.strip()}")
-# => コード: x = 10
-# => コード: y = x + 1
-# => コード: print(y)
+        print(f"  Code: {code_part.strip()}")
+# => Code: x = 10
+# => Code: y = x + 1
+# => Code: print(y)
 
-# 否定後読みを使ったエスケープ文字の処理
-# エスケープされていない引用符を検出
+# Escape character handling with negative lookbehind
+# Detect unescaped quotes
 text = r'He said "hello" and "it\'s \"fine\""'
-# \" でない " を検出
+# Detect " that is not \"
 unescaped_quotes = re.findall(r'(?<!\\)"', text)
-print(f"エスケープされていない引用符: {len(unescaped_quotes)}個")
+print(f"Unescaped quotes: {len(unescaped_quotes)}")
 ```
 
-### 5.4 否定後読みによる条件付き置換
+### 5.4 Conditional Replacement with Negative Lookbehind
 
 ```python
 import re
 
-# 特定の文脈でのみ置換を行う
+# Perform replacement only in specific contexts
 
-# 例1: HTML エンティティ化されていない & を変換
+# Example 1: Convert & that is not already HTML-entity-encoded
 text = "Tom & Jerry &amp; Friends &lt;tag&gt;"
-# "&amp;" や "&lt;" などは既にエスケープ済みなので変換しない
+# Don't convert "&amp;", "&lt;", etc. as they're already escaped
 result = re.sub(r'&(?!amp;|lt;|gt;|quot;|#\d+;)', '&amp;', text)
 print(result)
 # => "Tom &amp; Jerry &amp; Friends &lt;tag&gt;"
 
-# 例2: Markdown のリンク内でない URL を自動リンク化
+# Example 2: Auto-link URLs that are not already inside Markdown links
 text = "Visit http://example.com or [click here](http://other.com)"
-# 既にリンク内にある URL は変換しない
+# Don't convert URLs already inside links
 pattern = r'(?<!\()(https?://\S+)(?!\))'
 result = re.sub(pattern, r'<a href="\1">\1</a>', text)
 print(result)
 
-# 例3: 既にタグ付けされていないメールアドレスをリンク化
-text = "連絡: user@example.com <a>admin@example.com</a>"
+# Example 3: Link-ify email addresses not already inside tags
+text = "Contact: user@example.com <a>admin@example.com</a>"
 pattern = r'(?<!>)\b[\w.+-]+@[\w-]+\.[\w.]+\b(?!<)'
 result = re.sub(pattern, r'<a href="mailto:\g<0>">\g<0></a>', text)
 print(result)
@@ -676,40 +675,40 @@ print(result)
 
 ---
 
-## 6. ルックアラウンドの組み合わせパターン
+## 6. Lookaround Combination Patterns
 
-### 6.1 AND条件: 複数の先読みを連鎖
+### 6.1 AND Condition: Chaining Multiple Lookaheads
 
-複数の先読みを同じ位置に配置することで、全ての条件を同時に満たすことを要求できる。
+Placing multiple lookaheads at the same position requires all conditions to be satisfied simultaneously.
 
 ```python
 import re
 
-# 例: 以下の全条件を満たす文字列
-# - 8文字以上20文字以下
-# - 大文字を含む
-# - 小文字を含む
-# - 数字を含む
-# - 記号を含む
-# - 同じ文字が3回以上連続しない
+# Example: a string satisfying all of the following conditions
+# - 8-20 characters
+# - Contains uppercase
+# - Contains lowercase
+# - Contains a digit
+# - Contains a symbol
+# - No same character repeated 3+ times consecutively
 pattern = re.compile(
     r'^'
-    r'(?=.{8,20}$)'            # 8-20文字
-    r'(?=.*[A-Z])'              # 大文字を含む
-    r'(?=.*[a-z])'              # 小文字を含む
-    r'(?=.*\d)'                 # 数字を含む
-    r'(?=.*[!@#$%^&*()_+=-])'  # 記号を含む
-    r'(?!.*(.)\1{2})'          # 同一文字3連続なし
-    r'.*$'                      # 全体にマッチ
+    r'(?=.{8,20}$)'            # 8-20 characters
+    r'(?=.*[A-Z])'              # Contains uppercase
+    r'(?=.*[a-z])'              # Contains lowercase
+    r'(?=.*\d)'                 # Contains a digit
+    r'(?=.*[!@#$%^&*()_+=-])'  # Contains a symbol
+    r'(?!.*(.)\1{2})'          # No 3 consecutive identical chars
+    r'.*$'                      # Match entire string
 )
 
 test_cases = [
     ("Passw0rd!", True),
-    ("weakpass", False),        # 数字・記号・大文字なし
-    ("ALLCAPS1!", False),       # 小文字なし
-    ("Short1!", False),         # 8文字未満
-    ("Tooooo0long!password!!", False),  # 20文字超
-    ("Paaass0rd!", False),      # 'a' が3連続
+    ("weakpass", False),        # No digit/symbol/uppercase
+    ("ALLCAPS1!", False),       # No lowercase
+    ("Short1!", False),         # Less than 8 chars
+    ("Tooooo0long!password!!", False),  # Over 20 chars
+    ("Paaass0rd!", False),      # 'a' repeated 3 times
     ("C0mpl3x!Pwd", True),
 ]
 
@@ -719,12 +718,12 @@ for pw, expected in test_cases:
     print(f"  [{status}] '{pw}' => {result} (expected: {expected})")
 ```
 
-### 6.2 NOT条件: 否定先読みで除外
+### 6.2 NOT Condition: Exclusion with Negative Lookahead
 
 ```python
 import re
 
-# 特定のパターンを含まない行を抽出
+# Extract lines not containing specific patterns
 text = """
 DEBUG: Starting process
 INFO: User logged in
@@ -735,10 +734,10 @@ INFO: Task completed
 ERROR: Timeout exceeded
 """
 
-# ERROR と DEBUG を含まない行
+# Lines not containing ERROR or DEBUG
 pattern = r'^(?!.*(ERROR|DEBUG)).*$'
 lines = re.findall(pattern, text.strip(), re.MULTILINE)
-print("フィルタ結果:")
+print("Filtered results:")
 for line in lines:
     if line.strip():
         print(f"  {line.strip()}")
@@ -747,23 +746,23 @@ for line in lines:
 # => INFO: Task completed
 ```
 
-### 6.3 位置の挟み込み: 後読み + 先読み
+### 6.3 Position Sandwiching: Lookbehind + Lookahead
 
 ```python
 import re
 
-# パターン: 特定の文脈にある単語のみを置換
+# Pattern: replace only words in a specific context
 text = "The quick brown fox jumps over the lazy dog"
 
-# "the" を大文字の "THE" に置換するが、文頭の "The" はそのまま
-# 後読み: 前にスペースがある、先読み: 後にスペースがある
+# Replace "the" with "THE", but leave "The" at the beginning as-is
+# Lookbehind: preceded by a space, Lookahead: followed by a space
 result = re.sub(r'(?<=\s)the(?=\s)', 'THE', text)
 print(result)
 # => "The quick brown fox jumps over THE lazy dog"
 
-# JSON のキー名を変換（snake_case → camelCase）
+# Convert JSON key names (snake_case -> camelCase)
 json_text = '{"user_name": "Alice", "first_name": "Alice", "last_name": "Smith"}'
-# 後読みでキー内のアンダースコアを検出し、次の文字を大文字に
+# Detect underscores within keys using lookbehind, capitalize next character
 def snake_to_camel(match):
     return match.group(1).upper()
 
@@ -771,12 +770,12 @@ result = re.sub(r'(?<="[a-z_]*)_([a-z])', snake_to_camel, json_text)
 print(result)
 ```
 
-### 6.4 複数条件の実用パターン集
+### 6.4 Practical Multi-Condition Pattern Collection
 
 ```python
 import re
 
-# パターン1: 通貨記号の後の数値を通貨ごとに抽出
+# Pattern 1: Extract amounts by currency symbol
 text = "Items: $100, EUR200, JPY15000, GBP50"
 currencies = {
     'USD': re.findall(r'(?<=\$)\d+', text),
@@ -788,13 +787,13 @@ for currency, values in currencies.items():
     if values:
         print(f"  {currency}: {values}")
 
-# パターン2: XML/HTMLタグの中身を抽出（開始タグと終了タグの間）
+# Pattern 2: Extract content between XML/HTML tags
 html = "<title>My Page</title><p>Hello World</p><span>Test</span>"
 
-# 汎用パターン: タグ名をキャプチャし、対応する終了タグまでを取得
+# Generic pattern: capture tag name, get content until matching closing tag
 pattern = r'(?<=<(\w+)>).*?(?=</\1>)'
-# ※ Python re では後読み内にキャプチャグループを使うと問題がある場合がある
-# 代替アプローチ:
+# Note: using capture groups inside lookbehind can cause issues in Python re
+# Alternative approach:
 tags = re.findall(r'<(\w+)>(.*?)</\1>', html)
 for tag, content in tags:
     print(f"  <{tag}>: {content}")
@@ -802,66 +801,66 @@ for tag, content in tags:
 # => <p>: Hello World
 # => <span>: Test
 
-# パターン3: 条件付きメールアドレス抽出
-# 社内ドメイン（@company.com）以外のメールアドレスを検出
+# Pattern 3: Conditional email address extraction
+# Detect email addresses outside the internal domain (@company.com)
 emails = "alice@company.com bob@gmail.com carol@company.com dave@yahoo.co.jp"
 external = re.findall(r'\b[\w.+-]+@(?!company\.com\b)[\w.-]+\.\w+', emails)
-print(f"  外部メール: {external}")
+print(f"  External emails: {external}")
 # => ['bob@gmail.com', 'dave@yahoo.co.jp']
 ```
 
 ---
 
-## 7. 実践的なユースケース
+## 7. Practical Use Cases
 
-### 7.1 パスワード強度検証
+### 7.1 Password Strength Validation
 
 ```python
 import re
 
 def validate_password(password: str) -> tuple[bool, list[str]]:
-    """パスワード強度を検証する(ルックアラウンド活用)"""
+    """Validate password strength (using lookaround)"""
     errors = []
 
-    # 8文字以上
+    # 8 or more characters
     if len(password) < 8:
-        errors.append("8文字以上必要")
+        errors.append("Must be at least 8 characters")
 
-    # 大文字を含む(肯定先読み)
+    # Contains uppercase (positive lookahead)
     if not re.search(r'(?=.*[A-Z])', password):
-        errors.append("大文字を1文字以上含む必要あり")
+        errors.append("Must contain at least 1 uppercase letter")
 
-    # 小文字を含む
+    # Contains lowercase
     if not re.search(r'(?=.*[a-z])', password):
-        errors.append("小文字を1文字以上含む必要あり")
+        errors.append("Must contain at least 1 lowercase letter")
 
-    # 数字を含む
+    # Contains a digit
     if not re.search(r'(?=.*\d)', password):
-        errors.append("数字を1文字以上含む必要あり")
+        errors.append("Must contain at least 1 digit")
 
-    # 記号を含む
+    # Contains a symbol
     if not re.search(r'(?=.*[!@#$%^&*])', password):
-        errors.append("記号(!@#$%^&*)を1文字以上含む必要あり")
+        errors.append("Must contain at least 1 symbol (!@#$%^&*)")
 
     return (len(errors) == 0, errors)
 
-# 一つのパターンにまとめる場合:
+# As a single pattern:
 strong_password = re.compile(
     r'^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*]).{8,}$'
 )
 
-print(strong_password.match("Passw0rd!"))  # => マッチ
+print(strong_password.match("Passw0rd!"))  # => match
 print(strong_password.match("password"))   # => None
 ```
 
-### 7.2 数値の桁区切り
+### 7.2 Digit Grouping
 
 ```python
 import re
 
-# 3桁ごとにカンマを挿入
+# Insert commas every 3 digits
 def add_commas(n: str) -> str:
-    """先読み・後読みで桁区切りを挿入"""
+    """Insert digit separators using lookahead/lookbehind"""
     return re.sub(
         r'(?<=\d)(?=(?:\d{3})+(?!\d))',
         ',',
@@ -870,39 +869,39 @@ def add_commas(n: str) -> str:
 
 print(add_commas("1234567"))     # => '1,234,567'
 print(add_commas("1234567890"))  # => '1,234,567,890'
-print(add_commas("42"))          # => '42' (変化なし)
+print(add_commas("42"))          # => '42' (no change)
 
-# パターン解説:
-# (?<=\d)           -- 前に数字がある位置
-# (?=(?:\d{3})+     -- 後ろに3桁の数字が1回以上続き
-#   (?!\d))         -- その後に数字が続かない位置
-# → その位置にカンマを挿入
+# Pattern explanation:
+# (?<=\d)           -- position preceded by a digit
+# (?=(?:\d{3})+     -- followed by one or more groups of 3 digits
+#   (?!\d))         -- NOT followed by another digit
+# -> Insert a comma at that position
 ```
 
-### 7.3 特定コンテキストの置換
+### 7.3 Context-Specific Replacement
 
 ```python
 import re
 
-# "foo" を "bar" に置換するが、引用符内は除外
+# Replace "foo" with "bar", but exclude occurrences inside quotes
 text = 'Use foo here, but "foo" stays unchanged'
 
-# 方法: 否定後読み + 否定先読み
-# (注: 完全な引用符内判定には限界がある)
+# Method: negative lookbehind + negative lookahead
+# (Note: this has limitations for complete in-quote detection)
 result = re.sub(r'(?<!")foo(?!")', 'bar', text)
 print(result)
 # => 'Use bar here, but "foo" stays unchanged'
 ```
 
-### 7.4 ログ解析における高度な抽出
+### 7.4 Advanced Extraction in Log Analysis
 
 ```python
 import re
 
-# Apache/Nginx アクセスログの解析
+# Apache/Nginx access log analysis
 log_line = '192.168.1.100 - admin [10/Oct/2024:13:55:36 -0700] "GET /api/v2/users?page=1 HTTP/1.1" 200 2326'
 
-# 各フィールドをルックアラウンドで抽出
+# Extract each field using lookaround
 ip = re.search(r'^\S+', log_line).group()
 user = re.search(r'(?<=- )\w+', log_line).group()
 timestamp = re.search(r'(?<=\[)[^\]]+(?=\])', log_line).group()
@@ -912,25 +911,25 @@ status = re.search(r'(?<=" )\d{3}(?= )', log_line).group()
 size = re.search(r'\d+$', log_line).group()
 
 print(f"IP: {ip}")
-print(f"ユーザー: {user}")
-print(f"日時: {timestamp}")
-print(f"メソッド: {method}")
-print(f"パス: {path}")
-print(f"ステータス: {status}")
-print(f"サイズ: {size}")
+print(f"User: {user}")
+print(f"Timestamp: {timestamp}")
+print(f"Method: {method}")
+print(f"Path: {path}")
+print(f"Status: {status}")
+print(f"Size: {size}")
 ```
 
-### 7.5 テキスト変換ユーティリティ
+### 7.5 Text Conversion Utilities
 
 ```python
 import re
 
-# CamelCase → snake_case 変換
+# CamelCase -> snake_case conversion
 def camel_to_snake(name: str) -> str:
-    """ルックアラウンドでCamelCaseをsnake_caseに変換"""
-    # Step 1: 大文字と小文字の境界にアンダースコアを挿入
+    """Convert CamelCase to snake_case using lookaround"""
+    # Step 1: Insert underscore at boundaries between lowercase and uppercase
     s1 = re.sub(r'(?<=[a-z0-9])(?=[A-Z])', '_', name)
-    # Step 2: 連続する大文字の後に小文字が来る境界
+    # Step 2: Boundary where consecutive uppercase is followed by lowercase
     s2 = re.sub(r'(?<=[A-Z])(?=[A-Z][a-z])', '_', s1)
     return s2.lower()
 
@@ -947,9 +946,9 @@ test_cases = [
 for tc in test_cases:
     print(f"  {tc:25s} => {camel_to_snake(tc)}")
 
-# snake_case → CamelCase 変換
+# snake_case -> CamelCase conversion
 def snake_to_camel(name: str, upper_first: bool = True) -> str:
-    """snake_caseをCamelCaseに変換"""
+    """Convert snake_case to CamelCase"""
     components = name.split('_')
     if upper_first:
         return ''.join(x.title() for x in components)
@@ -967,16 +966,16 @@ for tc in test_cases_snake:
     print(f"  {tc:25s} => {snake_to_camel(tc)}")
 ```
 
-### 7.6 Markdown テキストの処理
+### 7.6 Markdown Text Processing
 
 ```python
 import re
 
-# Markdown のインラインコード内を保護しつつテキストを変換
+# Transform text while protecting content inside Markdown inline code
 markdown = "Use `foo` to call `bar()`, but foo outside code should change"
 
-# 方法: インラインコード外の "foo" のみを置換
-# Step 1: インラインコード部分を一時的にプレースホルダーに置換
+# Method: replace "foo" only outside inline code
+# Step 1: Temporarily replace inline code with placeholders
 placeholders = {}
 counter = [0]
 
@@ -988,10 +987,10 @@ def save_code(match):
 
 protected = re.sub(r'`[^`]+`', save_code, markdown)
 
-# Step 2: プレースホルダー以外の "foo" を置換
+# Step 2: Replace "foo" outside placeholders
 result = re.sub(r'foo', 'baz', protected)
 
-# Step 3: プレースホルダーを元に戻す
+# Step 3: Restore placeholders
 for key, value in placeholders.items():
     result = result.replace(key, value)
 
@@ -999,25 +998,25 @@ print(result)
 # => "Use `foo` to call `bar()`, but baz outside code should change"
 ```
 
-### 7.7 条件付きコメント除去
+### 7.7 Conditional Comment Removal
 
 ```python
 import re
 
-# ソースコードからコメントを除去（文字列内のコメント記号は保持）
+# Remove comments from source code (preserve comment symbols inside strings)
 code = '''
-x = "hello # world"  # この部分はコメント
-y = 'test // data'  // これもコメント
-z = 42  # 数値
-url = "http://example.com"  # URL内の // は保持
+x = "hello # world"  # This part is a comment
+y = 'test // data'  // This is also a comment
+z = 42  # A number
+url = "http://example.com"  # // inside URL is preserved
 '''
 
-# 簡易版: 文字列リテラルを考慮したコメント除去
+# Simplified version: comment removal considering string literals
 def remove_comments(text: str) -> str:
-    """文字列リテラル内の # や // を保持しつつコメントを除去"""
+    """Remove comments while preserving # and // inside string literals"""
     result = []
     for line in text.split('\n'):
-        # 文字列リテラル内かどうかを追跡
+        # Track whether we're inside a string literal
         in_string = False
         string_char = None
         comment_start = -1
@@ -1049,34 +1048,34 @@ print(remove_comments(code))
 
 ---
 
-## 8. JavaScript での先読み・後読み
+## 8. Lookaround in JavaScript
 
-### 8.1 ES2018 以降の後読みサポート
+### 8.1 Lookbehind Support Since ES2018
 
 ```javascript
-// ES2018+ で後読みが利用可能
+// Lookbehind available since ES2018+
 
-// 肯定後読み
+// Positive lookbehind
 const text1 = "Price: $100, EUR200";
 console.log(text1.match(/(?<=\$)\d+/g));
 // => ['100']
 
-// 否定後読み
+// Negative lookbehind
 const text2 = "$100 200 $300 400";
 console.log(text2.match(/(?<!\$)\b\d+/g));
 // => ['200', '400']
 
-// JavaScript では可変長後読みが可能
+// JavaScript supports variable-length lookbehind
 const text3 = "http://example.com https://secure.example.com";
 console.log(text3.match(/(?<=https?:\/\/)\w+/g));
 // => ['example', 'secure']
-// Python re ではこのパターンはエラーになる
+// This pattern would cause an error in Python re
 ```
 
-### 8.2 JavaScript での実践例
+### 8.2 Practical Examples in JavaScript
 
 ```javascript
-// 数値のフォーマット
+// Number formatting
 function formatNumber(num) {
     return num.toString().replace(/(?<=\d)(?=(\d{3})+(?!\d))/g, ',');
 }
@@ -1084,13 +1083,13 @@ function formatNumber(num) {
 console.log(formatNumber(1234567));     // => "1,234,567"
 console.log(formatNumber(1234567890));  // => "1,234,567,890"
 
-// テンプレートリテラル内の変数を検出
+// Detect variables inside template literals
 const template = "Hello ${name}, your balance is ${balance}";
 const variables = template.match(/(?<=\$\{)\w+(?=\})/g);
 console.log(variables);
 // => ['name', 'balance']
 
-// パスワード強度チェック
+// Password strength check
 function checkPasswordStrength(password) {
     const checks = {
         length: /.{8,}/.test(password),
@@ -1108,10 +1107,10 @@ console.log(checkPasswordStrength("Passw0rd!"));
 // => { checks: { length: true, uppercase: true, ... }, score: 5, strong: true }
 ```
 
-### 8.3 名前付きキャプチャグループとルックアラウンドの組み合わせ
+### 8.3 Combining Named Capture Groups with Lookaround
 
 ```javascript
-// ES2018 の名前付きキャプチャグループとルックアラウンドを組み合わせ
+// Combining ES2018 named capture groups with lookaround
 const logLine = '2024-01-15T10:30:45 [ERROR] Database connection failed: timeout';
 
 const pattern = /(?<=\[)(?<level>\w+)(?=\])/;
@@ -1119,7 +1118,7 @@ const match = logLine.match(pattern);
 console.log(match.groups.level);
 // => 'ERROR'
 
-// 複数のログレベルを一括抽出
+// Bulk extraction of multiple log levels
 const logs = `
 2024-01-15 [INFO] Server started
 2024-01-15 [ERROR] Connection failed
@@ -1134,9 +1133,9 @@ levels.forEach(m => console.log(m.groups.level));
 
 ---
 
-## 9. Java でのルックアラウンド
+## 9. Lookaround in Java
 
-### 9.1 基本的な使い方
+### 9.1 Basic Usage
 
 ```java
 import java.util.regex.*;
@@ -1144,16 +1143,16 @@ import java.util.*;
 
 public class LookaroundExample {
     public static void main(String[] args) {
-        // 肯定先読み
+        // Positive lookahead
         Pattern p1 = Pattern.compile("\\d+(?=円)");
-        Matcher m1 = p1.matcher("商品A: 1000円、商品B: 2500円");
+        Matcher m1 = p1.matcher("Product A: 1000円, Product B: 2500円");
         while (m1.find()) {
-            System.out.println("金額: " + m1.group());
+            System.out.println("Amount: " + m1.group());
         }
-        // => 金額: 1000
-        // => 金額: 2500
+        // => Amount: 1000
+        // => Amount: 2500
 
-        // 肯定後読み（固定長のみ）
+        // Positive lookbehind (fixed-length only)
         Pattern p2 = Pattern.compile("(?<=\\$)\\d+");
         Matcher m2 = p2.matcher("$100 $200 300");
         while (m2.find()) {
@@ -1162,7 +1161,7 @@ public class LookaroundExample {
         // => USD: 100
         // => USD: 200
 
-        // 数値の桁区切り
+        // Digit grouping
         String number = "1234567890";
         String formatted = number.replaceAll(
             "(?<=\\d)(?=(\\d{3})+(?!\\d))", ","
@@ -1173,219 +1172,219 @@ public class LookaroundExample {
 }
 ```
 
-### 9.2 Java 固有の注意点
+### 9.2 Java-Specific Notes
 
 ```java
-// Java の後読みは固定長のみ
-// 以下はコンパイルエラーになる
+// Java lookbehind is fixed-length only
+// The following causes a compile error
 
 try {
     Pattern.compile("(?<=\\w+)\\d+");
     // => PatternSyntaxException: Look-behind group does not have
     //    an obvious maximum length
 } catch (PatternSyntaxException e) {
-    System.out.println("エラー: " + e.getMessage());
+    System.out.println("Error: " + e.getMessage());
 }
 
-// 回避策: 固定長の選択肢を使う
-// (?<=\\w{1}|\\w{2}|\\w{3})\\d+  -- 1〜3文字の後読み
-// ただしこのアプローチは非実用的なので、
-// キャプチャグループを使う方が良い
+// Workaround: use fixed-length alternatives
+// (?<=\\w{1}|\\w{2}|\\w{3})\\d+  -- lookbehind of 1-3 characters
+// However, this approach is impractical,
+// so using capture groups is better
 
-// Java 13+ では一部の可変長後読みが改善されている
-// ただし公式には固定長のみサポート
+// Java 13+ has some improvements for variable-length lookbehind
+// But officially only fixed-length is supported
 ```
 
 ---
 
-## 10. ASCII 図解
+## 10. ASCII Diagrams
 
-### 10.1 4種類のルックアラウンド動作
-
-```
-テキスト: "$100"
-
-肯定先読み (?=\d):
-  位置: $ [ここ] 1 0 0
-  「右側に \d があるか?」 → 1 がある → 成功
-
-否定先読み (?!\$):
-  位置: [ここ] $ 1 0 0
-  「右側に \$ がないか?」 → $ がある → 失敗
-  位置: $ [ここ] 1 0 0
-  「右側に \$ がないか?」 → 1 は $ でない → 成功
-
-肯定後読み (?<=\$):
-  位置: $ [ここ] 1 0 0
-  「左側に \$ があるか?」 → $ がある → 成功
-
-否定後読み (?<!\$):
-  位置: [ここ] $ 1 0 0
-  「左側に \$ がないか?」 → 何もない → 成功
-  位置: $ [ここ] 1 0 0
-  「左側に \$ がないか?」 → $ がある → 失敗
-```
-
-### 10.2 パスワード検証の先読みチェーン
+### 10.1 The 4 Types of Lookaround in Action
 
 ```
-パターン: ^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*]).{8,}$
+Text: "$100"
 
-入力: "Passw0rd!"
+Positive lookahead (?=\d):
+  Position: $ [here] 1 0 0
+  "Is there \d to the right?" -> 1 is there -> success
 
-位置0(文字列先頭):
-  (?=.*[A-Z])     → 先読み: "P" が大文字 → 成功 (位置は戻る)
-  (?=.*[a-z])     → 先読み: "a" が小文字 → 成功 (位置は戻る)
-  (?=.*\d)        → 先読み: "0" が数字 → 成功 (位置は戻る)
-  (?=.*[!@#$%^&*])→ 先読み: "!" が記号 → 成功 (位置は戻る)
-  .{8,}$          → "Passw0rd!" 9文字 ≥ 8 → 成功
+Negative lookahead (?!\$):
+  Position: [here] $ 1 0 0
+  "Is there no \$ to the right?" -> $ is there -> failure
+  Position: $ [here] 1 0 0
+  "Is there no \$ to the right?" -> 1 is not $ -> success
 
-全ての先読みが同じ位置0から開始される
-(ゼロ幅なので位置が進まない)
+Positive lookbehind (?<=\$):
+  Position: $ [here] 1 0 0
+  "Is there \$ to the left?" -> $ is there -> success
+
+Negative lookbehind (?<!\$):
+  Position: [here] $ 1 0 0
+  "Is there no \$ to the left?" -> nothing there -> success
+  Position: $ [here] 1 0 0
+  "Is there no \$ to the left?" -> $ is there -> failure
 ```
 
-### 10.3 桁区切りの先読み動作
+### 10.2 Password Validation Lookahead Chain
 
 ```
-入力: "1234567"
-パターン: (?<=\d)(?=(?:\d{3})+(?!\d))
+Pattern: ^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*]).{8,}$
 
-位置を一つずつ検査:
+Input: "Passw0rd!"
+
+Position 0 (start of string):
+  (?=.*[A-Z])     -> lookahead: "P" is uppercase -> success (position resets)
+  (?=.*[a-z])     -> lookahead: "a" is lowercase -> success (position resets)
+  (?=.*\d)        -> lookahead: "0" is a digit -> success (position resets)
+  (?=.*[!@#$%^&*])-> lookahead: "!" is a symbol -> success (position resets)
+  .{8,}$          -> "Passw0rd!" is 9 chars >= 8 -> success
+
+All lookaheads start from the same position 0
+(zero-width, so position does not advance)
+```
+
+### 10.3 Digit Grouping Lookahead in Action
+
+```
+Input: "1234567"
+Pattern: (?<=\d)(?=(?:\d{3})+(?!\d))
+
+Checking each position:
 
   1 | 2 3 4 5 6 7
-    ↑
-  (?<=\d): 1がある → OK
-  (?=(?:\d{3})+(?!\d)): "234567" = 3桁×2 + 末尾に数字なし → OK
-  → カンマ挿入位置!
+    ^
+  (?<=\d): 1 is there -> OK
+  (?=(?:\d{3})+(?!\d)): "234567" = 3 digits x 2 + no digit after -> OK
+  -> Comma insertion point!
 
   1 2 | 3 4 5 6 7
-      ↑
-  (?<=\d): 2がある → OK
-  (?=(?:\d{3})+(?!\d)): "34567" = 3桁×1 + "67"余り → NG
-  → スキップ
+      ^
+  (?<=\d): 2 is there -> OK
+  (?=(?:\d{3})+(?!\d)): "34567" = 3 digits x 1 + "67" remainder -> NG
+  -> Skip
 
   1 2 3 | 4 5 6 7
-        ↑
-  (?<=\d): 3がある → OK
-  (?=(?:\d{3})+(?!\d)): "4567" = 3桁×1 + "7"余り → NG
-  → スキップ
+        ^
+  (?<=\d): 3 is there -> OK
+  (?=(?:\d{3})+(?!\d)): "4567" = 3 digits x 1 + "7" remainder -> NG
+  -> Skip
 
   1 2 3 4 | 5 6 7
-          ↑
-  (?<=\d): 4がある → OK
-  (?=(?:\d{3})+(?!\d)): "567" = 3桁×1 + 末尾に数字なし → OK
-  → カンマ挿入位置!
+          ^
+  (?<=\d): 4 is there -> OK
+  (?=(?:\d{3})+(?!\d)): "567" = 3 digits x 1 + no digit after -> OK
+  -> Comma insertion point!
 
-結果: "1,234,567"
+Result: "1,234,567"
 ```
 
-### 10.4 ネストされたルックアラウンドの動作
+### 10.4 Nested Lookaround in Action
 
 ```
-パターン: (?<=(?<=[A-Z])[a-z])\d
-テキスト: "Ab1Cd2ef3"
+Pattern: (?<=(?<=[A-Z])[a-z])\d
+Text: "Ab1Cd2ef3"
 
-検査: 各位置で3つの条件をチェック
+Checking: 3 conditions checked at each position
 
-位置2 '1':
-  外側の後読み (?<=...): 位置1を検査
-    位置1 'b' は [a-z] → OK
-    内側の後読み (?<=[A-Z]): 位置0を検査
-      位置0 'A' は [A-Z] → OK
-  → 全条件成功! '1' がマッチ
+Position 2 '1':
+  Outer lookbehind (?<=...): check position 1
+    Position 1 'b' is [a-z] -> OK
+    Inner lookbehind (?<=[A-Z]): check position 0
+      Position 0 'A' is [A-Z] -> OK
+  -> All conditions passed! '1' matches
 
-位置5 '2':
-  外側の後読み (?<=...): 位置4を検査
-    位置4 'd' は [a-z] → OK
-    内側の後読み (?<=[A-Z]): 位置3を検査
-      位置3 'C' は [A-Z] → OK
-  → 全条件成功! '2' がマッチ
+Position 5 '2':
+  Outer lookbehind (?<=...): check position 4
+    Position 4 'd' is [a-z] -> OK
+    Inner lookbehind (?<=[A-Z]): check position 3
+      Position 3 'C' is [A-Z] -> OK
+  -> All conditions passed! '2' matches
 
-位置8 '3':
-  外側の後読み (?<=...): 位置7を検査
-    位置7 'f' は [a-z] → OK
-    内側の後読み (?<=[A-Z]): 位置6を検査
-      位置6 'e' は [A-Z]? → NO!
-  → 内側の後読み失敗! '3' はマッチしない
+Position 8 '3':
+  Outer lookbehind (?<=...): check position 7
+    Position 7 'f' is [a-z] -> OK
+    Inner lookbehind (?<=[A-Z]): check position 6
+      Position 6 'e' is [A-Z]? -> NO!
+  -> Inner lookbehind fails! '3' does not match
 
-結果: ['1', '2']
-意味: 「大文字→小文字→数字」のパターンの数字部分
+Result: ['1', '2']
+Meaning: the digit part of "uppercase -> lowercase -> digit" patterns
 ```
 
 ---
 
-## 11. 比較表
+## 11. Comparison Tables
 
-### 11.1 ルックアラウンド完全比較
+### 11.1 Complete Lookaround Comparison
 
-| 種類 | 構文 | 意味 | 例 | マッチ |
-|------|------|------|-----|--------|
-| 肯定先読み | `X(?=Y)` | XのあとにYがある | `\d+(?=円)` | "100" in "100円" |
-| 否定先読み | `X(?!Y)` | XのあとにYがない | `\d+(?!円)` | "200" in "200ドル" |
-| 肯定後読み | `(?<=Y)X` | Xの前にYがある | `(?<=\$)\d+` | "100" in "$100" |
-| 否定後読み | `(?<!Y)X` | Xの前にYがない | `(?<!\$)\d+` | "42" in "count: 42" |
+| Type | Syntax | Meaning | Example | Match |
+|------|--------|---------|---------|-------|
+| Positive lookahead | `X(?=Y)` | X followed by Y | `\d+(?=円)` | "100" in "100円" |
+| Negative lookahead | `X(?!Y)` | X NOT followed by Y | `\d+(?!円)` | "200" in "200ドル" |
+| Positive lookbehind | `(?<=Y)X` | X preceded by Y | `(?<=\$)\d+` | "100" in "$100" |
+| Negative lookbehind | `(?<!Y)X` | X NOT preceded by Y | `(?<!\$)\d+` | "42" in "count: 42" |
 
-### 11.2 言語サポート状況
+### 11.2 Language Support Status
 
-| 機能 | Python | JavaScript | Java | Go(RE2) | Rust | .NET | Perl | Ruby |
-|------|--------|------------|------|---------|------|------|------|------|
-| 肯定先読み `(?=)` | OK | OK | OK | 不可 | 不可 | OK | OK | OK |
-| 否定先読み `(?!)` | OK | OK | OK | 不可 | 不可 | OK | OK | OK |
-| 肯定後読み `(?<=)` | OK(固定長) | OK(可変長) | OK(固定長) | 不可 | 不可 | OK(可変長) | OK(固定長) | OK(固定長) |
-| 否定後読み `(?<!)` | OK(固定長) | OK(可変長) | OK(固定長) | 不可 | 不可 | OK(可変長) | OK(固定長) | OK(固定長) |
-| 可変長後読み | regex モジュール | ES2018+ | 不可 | N/A | fancy-regex | 標準 | 不可 | 不可 |
+| Feature | Python | JavaScript | Java | Go(RE2) | Rust | .NET | Perl | Ruby |
+|---------|--------|------------|------|---------|------|------|------|------|
+| Positive lookahead `(?=)` | OK | OK | OK | N/A | N/A | OK | OK | OK |
+| Negative lookahead `(?!)` | OK | OK | OK | N/A | N/A | OK | OK | OK |
+| Positive lookbehind `(?<=)` | OK(fixed) | OK(variable) | OK(fixed) | N/A | N/A | OK(variable) | OK(fixed) | OK(fixed) |
+| Negative lookbehind `(?<!)` | OK(fixed) | OK(variable) | OK(fixed) | N/A | N/A | OK(variable) | OK(fixed) | OK(fixed) |
+| Variable-length lookbehind | regex module | ES2018+ | N/A | N/A | fancy-regex | Standard | N/A | N/A |
 
-### 11.3 ルックアラウンド vs キャプチャグループ
+### 11.3 Lookaround vs Capture Groups
 
-| 比較項目 | ルックアラウンド | キャプチャグループ |
-|----------|------------------|-------------------|
-| マッチに含まれるか | 含まれない（ゼロ幅） | 含まれる |
-| 置換時の扱い | 周囲のテキストを保持 | グループとして参照可能 |
-| パフォーマンス | やや遅い（バックトラック） | 一般的に速い |
-| 可読性 | 複雑になりやすい | 比較的読みやすい |
-| 用途 | 位置の条件指定 | 部分文字列の抽出 |
-| AND条件 | 連鎖で実現可能 | 単独では不可 |
-| エンジン互換性 | エンジン依存が大きい | ほぼ全エンジン対応 |
+| Comparison | Lookaround | Capture Groups |
+|------------|-----------|----------------|
+| Included in match? | No (zero-width) | Yes |
+| Behavior in replacement | Preserves surrounding text | Can be referenced as a group |
+| Performance | Slightly slower (backtracking) | Generally faster |
+| Readability | Tends to be complex | Relatively readable |
+| Use case | Positional condition specification | Substring extraction |
+| AND conditions | Achievable by chaining | Not possible alone |
+| Engine compatibility | Highly engine-dependent | Nearly all engines support |
 
 ```python
 import re
 
-# 比較例: 同じ結果を得る2つのアプローチ
+# Comparison example: two approaches for the same result
 
 text = "Price: $100, $200, $300"
 
-# アプローチ1: 後読み（$を含まずに数値を取得）
+# Approach 1: lookbehind (get number without $)
 result1 = re.findall(r'(?<=\$)\d+', text)
-print(f"後読み:     {result1}")   # => ['100', '200', '300']
+print(f"Lookbehind: {result1}")   # => ['100', '200', '300']
 
-# アプローチ2: キャプチャグループ
+# Approach 2: capture group
 result2 = re.findall(r'\$(\d+)', text)
-print(f"キャプチャ: {result2}")   # => ['100', '200', '300']
+print(f"Capture:    {result2}")   # => ['100', '200', '300']
 
-# 結果は同じだが、置換時に違いが出る:
-# 後読みを使った置換: $は保持される
+# Results are the same, but replacement behavior differs:
+# Lookbehind replacement: $ is preserved
 result3 = re.sub(r'(?<=\$)\d+', 'XXX', text)
-print(f"後読み置換: {result3}")
+print(f"Lookbehind replace: {result3}")
 # => "Price: $XXX, $XXX, $XXX"
 
-# キャプチャグループを使った置換: $も含めて指定が必要
+# Capture group replacement: $ must also be specified
 result4 = re.sub(r'\$\d+', '$XXX', text)
-print(f"グループ置換: {result4}")
+print(f"Group replace:      {result4}")
 # => "Price: $XXX, $XXX, $XXX"
 ```
 
 ---
 
-## 12. パフォーマンス考慮事項
+## 12. Performance Considerations
 
-### 12.1 ルックアラウンドのコスト
+### 12.1 Cost of Lookaround
 
 ```python
 import re
 import time
 
-# ルックアラウンドは各位置でサブパターンの評価が必要
-# 大量のテキストでは性能に影響する
+# Lookaround requires sub-pattern evaluation at each position
+# This can affect performance on large texts
 
 def benchmark(name, pattern, text, iterations=10000):
     compiled = re.compile(pattern)
@@ -1393,92 +1392,92 @@ def benchmark(name, pattern, text, iterations=10000):
     for _ in range(iterations):
         compiled.findall(text)
     elapsed = time.perf_counter() - start
-    print(f"  {name}: {elapsed:.4f}秒 ({iterations}回)")
+    print(f"  {name}: {elapsed:.4f}s ({iterations} iterations)")
 
 text = "The quick brown fox jumps over the lazy dog " * 100
 
-# 単純なパターン vs ルックアラウンド
-benchmark("単純マッチ", r'\b\w+\b', text)
-benchmark("先読み付き", r'\b\w+(?=\s)', text)
-benchmark("後読み付き", r'(?<=\s)\w+', text)
-benchmark("両方付き  ", r'(?<=\s)\w+(?=\s)', text)
+# Simple pattern vs lookaround
+benchmark("Simple match  ", r'\b\w+\b', text)
+benchmark("With lookahead", r'\b\w+(?=\s)', text)
+benchmark("With lookbehind", r'(?<=\s)\w+', text)
+benchmark("Both combined ", r'(?<=\s)\w+(?=\s)', text)
 ```
 
-### 12.2 ルックアラウンドによる破壊的バックトラッキング
+### 12.2 Catastrophic Backtracking with Lookaround
 
 ```python
 import re
 
-# 危険なパターンの例
+# Examples of dangerous patterns
 
-# 危険: ネストされた先読みと繰り返し
+# Dangerous: nested lookahead with repetition
 # pattern = r'(?=.*a)(?=.*b)(?=.*c).+'
-# 入力が長くなると指数的に遅くなる可能性がある
+# Can become exponentially slow with longer inputs
 
-# 安全: 各先読みの後に具体的なパターンを置く
+# Safe: place specific patterns after each lookahead
 safe_pattern = r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$'
-# これは各先読みが独立に評価され、.{8,} は線形時間
+# Each lookahead is evaluated independently, .{8,} runs in linear time
 
-# ReDoS のリスクがあるパターン
-# (?=.*a+)(?=.*b+) のような先読みの中の量指定子は
-# バックトラックの原因になりうる
+# Patterns with ReDoS risk
+# Quantifiers inside lookaheads like (?=.*a+)(?=.*b+)
+# can cause backtracking
 
-# 対策: 先読み内のパターンをできるだけ具体的に
-# NG: (?=.*a+)
-# OK: (?=.*a)
-# OK: (?=[^a]*a)  -- 否定文字クラスで効率化
+# Countermeasure: make patterns inside lookaheads as specific as possible
+# BAD: (?=.*a+)
+# OK:  (?=.*a)
+# OK:  (?=[^a]*a)  -- use negated character class for efficiency
 ```
 
-### 12.3 最適化テクニック
+### 12.3 Optimization Techniques
 
 ```python
 import re
 
-# テクニック1: 否定文字クラスで先読みを高速化
+# Technique 1: Speed up lookahead with negated character classes
 text = "abc123def456ghi789"
 
-# 遅い: .* が全文字列を試行してからバックトラック
+# Slow: .* tries the entire string then backtracks
 slow = r'(?=.*\d)\w+'
-# 速い: [^\d]* が数字でない文字だけスキップ
+# Fast: [^\d]* skips only non-digit characters
 fast = r'(?=[^\d]*\d)\w+'
 
-# テクニック2: アトミックグループ（対応エンジンの場合）
-# Python re では非対応、regex モジュールで利用可能
-# (?>pattern) はバックトラックを防止
+# Technique 2: Atomic groups (for supported engines)
+# Not supported in Python re; available in the regex module
+# (?>pattern) prevents backtracking
 
-# テクニック3: 先読みの順序を最適化
-# 失敗しやすい条件を先に置くことで早期に失敗できる
-# 例: パスワード検証で、記号チェックは最初に
-# （記号を含まないパスワードが多いため）
+# Technique 3: Optimize lookahead order
+# Place conditions most likely to fail first for early failure
+# Example: in password validation, check symbols first
+# (since passwords without symbols are most common)
 password_pattern = re.compile(
     r'^'
-    r'(?=.*[!@#$%^&*])'  # 記号チェック（最も失敗しやすい）
-    r'(?=.*\d)'            # 数字チェック
-    r'(?=.*[A-Z])'         # 大文字チェック
-    r'(?=.*[a-z])'         # 小文字チェック
+    r'(?=.*[!@#$%^&*])'  # Symbol check (most likely to fail)
+    r'(?=.*\d)'            # Digit check
+    r'(?=.*[A-Z])'         # Uppercase check
+    r'(?=.*[a-z])'         # Lowercase check
     r'.{8,}$'
 )
 
-# テクニック4: コンパイル済みパターンの再利用
-# ルックアラウンドを含むパターンは特にコンパイルコストが高い
-# 必ず re.compile() で事前コンパイルする
+# Technique 4: Reuse compiled patterns
+# Patterns with lookaround have especially high compilation costs
+# Always pre-compile with re.compile()
 compiled = re.compile(r'(?<=\$)\d+(?=\.\d{2})')
-# ループ内では compiled.findall(text) を使う
+# Use compiled.findall(text) inside loops
 ```
 
 ---
 
-## 13. 高度なテクニック
+## 13. Advanced Techniques
 
-### 13.1 条件付きパターン（ルックアラウンドの応用）
+### 13.1 Conditional Patterns (Lookaround Applications)
 
 ```python
 import re
 
-# 文脈依存の置換
+# Context-dependent replacement
 text = "foo_bar baz_qux FOO_BAR"
 
-# 先頭が大文字なら全体を大文字に、小文字なら小文字に変換
+# If first character is uppercase, convert entire word to uppercase; if lowercase, capitalize
 def context_aware_replace(match):
     word = match.group()
     parts = word.split('_')
@@ -1492,20 +1491,20 @@ print(result)
 # => "FooBar BazQux FOOBAR"
 ```
 
-### 13.2 再帰的パターンのシミュレーション
+### 13.2 Simulating Recursive Patterns
 
 ```python
 import re
 
-# Python re では再帰パターンはサポートされないが、
-# ルックアラウンドで一部をシミュレートできる
+# Python re doesn't support recursive patterns,
+# but some can be simulated with lookaround
 
-# ネストされた括弧の外側のカンマで分割
+# Split at commas outside nested parentheses
 text = "a(b,c),d,(e,f(g,h)),i"
 
-# Step 1: 括弧のネストレベルを追跡して分割
+# Step 1: Track parenthesis nesting level and split
 def split_at_top_level(text: str, delimiter: str = ',') -> list[str]:
-    """トップレベルのデリミタで分割（括弧内は無視）"""
+    """Split at top-level delimiters (ignoring content inside parentheses)"""
     result = []
     current = []
     depth = 0
@@ -1530,14 +1529,14 @@ print(split_at_top_level(text))
 # => ['a(b,c)', 'd', '(e,f(g,h))', 'i']
 ```
 
-### 13.3 複数のルックアラウンドを使った複雑な検証
+### 13.3 Complex Validation with Multiple Lookarounds
 
 ```python
 import re
 
 def validate_credit_card(number: str) -> dict:
-    """クレジットカード番号の検証（ルックアラウンド活用）"""
-    # スペースとハイフンを除去
+    """Credit card number validation (using lookaround)"""
+    # Remove spaces and hyphens
     clean = re.sub(r'[\s-]', '', number)
 
     result = {
@@ -1547,7 +1546,7 @@ def validate_credit_card(number: str) -> dict:
         'luhn_valid': False,
     }
 
-    # カードタイプの判定（先読みで番号パターンを検査）
+    # Card type detection (checking number patterns with lookahead)
     card_patterns = {
         'Visa': r'^4\d{12}(?:\d{3})?$',
         'MasterCard': r'^5[1-5]\d{14}$',
@@ -1562,7 +1561,7 @@ def validate_credit_card(number: str) -> dict:
             result['valid_format'] = True
             break
 
-    # Luhn アルゴリズムによる検証
+    # Luhn algorithm validation
     if result['valid_format']:
         digits = [int(d) for d in clean]
         checksum = 0
@@ -1576,12 +1575,12 @@ def validate_credit_card(number: str) -> dict:
 
     return result
 
-# テスト
+# Test
 test_cards = [
-    "4111 1111 1111 1111",   # Visa テストカード
-    "5500 0000 0000 0004",   # MasterCard テストカード
-    "3400 000000 00009",     # AmEx テストカード
-    "1234 5678 9012 3456",   # 無効
+    "4111 1111 1111 1111",   # Visa test card
+    "5500 0000 0000 0004",   # MasterCard test card
+    "3400 000000 00009",     # AmEx test card
+    "1234 5678 9012 3456",   # Invalid
 ]
 
 for card in test_cards:
@@ -1590,21 +1589,21 @@ for card in test_cards:
           f"(format: {result['valid_format']}, luhn: {result['luhn_valid']})")
 ```
 
-### 13.4 テキストのトークナイズにルックアラウンドを活用
+### 13.4 Using Lookaround for Text Tokenization
 
 ```python
 import re
 
-# ルックアラウンドを使った高度なトークナイズ
-# 文字種の境界で分割する
+# Advanced tokenization using lookaround
+# Split at character type boundaries
 
 def tokenize_mixed(text: str) -> list[str]:
-    """英数字、日本語、記号の境界で分割"""
-    # 文字種の境界にスペースを挿入
-    # 英字→数字、数字→英字の境界
+    """Split at boundaries between alphabetic, numeric, and Japanese characters"""
+    # Insert spaces at character type boundaries
+    # Boundary between letters and digits
     result = re.sub(r'(?<=[a-zA-Z])(?=\d)', ' ', text)
     result = re.sub(r'(?<=\d)(?=[a-zA-Z])', ' ', result)
-    # 英数字→日本語、日本語→英数字の境界
+    # Boundary between alphanumeric and Japanese characters
     result = re.sub(r'(?<=[a-zA-Z0-9])(?=[\u3040-\u9fff])', ' ', result)
     result = re.sub(r'(?<=[\u3040-\u9fff])(?=[a-zA-Z0-9])', ' ', result)
 
@@ -1622,21 +1621,21 @@ for tc in test_cases:
     print(f"  '{tc}' => {tokens}")
 ```
 
-### 13.5 ルックアラウンドを使ったCSVパーサー
+### 13.5 CSV Parser Using Lookaround
 
 ```python
 import re
 
 def parse_csv_field(line: str) -> list[str]:
-    """ルックアラウンドを活用したCSVフィールドのパース
+    """CSV field parsing leveraging lookaround
 
-    ダブルクォートで囲まれたフィールド内のカンマを正しく処理する
+    Correctly handles commas inside double-quoted fields
     """
     fields = []
-    # クォートされたフィールドとされていないフィールドの両方に対応
+    # Handle both quoted and unquoted fields
     pattern = re.compile(
-        r'"([^"]*(?:""[^"]*)*)"|'  # ダブルクォート内（"" はエスケープ）
-        r'([^,]*)'                  # クォートなしフィールド
+        r'"([^"]*(?:""[^"]*)*)"|'  # Inside double quotes ("" is escape)
+        r'([^,]*)'                  # Unquoted field
     )
 
     pos = 0
@@ -1644,12 +1643,12 @@ def parse_csv_field(line: str) -> list[str]:
         m = pattern.match(line, pos)
         if m:
             if m.group(1) is not None:
-                # クォートされたフィールド: "" を " に変換
+                # Quoted field: convert "" to "
                 fields.append(m.group(1).replace('""', '"'))
             else:
                 fields.append(m.group(2))
             pos = m.end()
-            # カンマをスキップ
+            # Skip comma
             if pos < len(line) and line[pos] == ',':
                 pos += 1
             elif pos >= len(line):
@@ -1659,7 +1658,7 @@ def parse_csv_field(line: str) -> list[str]:
 
     return fields
 
-# テスト
+# Test
 test_lines = [
     'Alice,30,Tokyo',
     '"Bob ""Jr""",25,"New York, NY"',
@@ -1668,16 +1667,16 @@ test_lines = [
 
 for line in test_lines:
     fields = parse_csv_field(line)
-    print(f"  入力: {line}")
-    print(f"  結果: {fields}")
+    print(f"  Input:  {line}")
+    print(f"  Result: {fields}")
     print()
 ```
 
 ---
 
-## 14. Go と Rust でのルックアラウンド代替策
+## 14. Lookaround Alternatives for Go and Rust
 
-### 14.1 Go (RE2) での代替手法
+### 14.1 Alternative Approaches in Go (RE2)
 
 ```go
 package main
@@ -1689,32 +1688,32 @@ import (
 )
 
 func main() {
-    // Go の RE2 エンジンはルックアラウンド非サポート
-    // キャプチャグループで代替する
+    // Go's RE2 engine does not support lookaround
+    // Use capture groups as an alternative
 
-    // 代替例1: (?<=\$)\d+ の代わり
+    // Alternative 1: instead of (?<=\$)\d+
     text := "Price: $100, $200, 300"
     re := regexp.MustCompile(`\$(\d+)`)
     matches := re.FindAllStringSubmatch(text, -1)
     for _, m := range matches {
-        fmt.Println("金額:", m[1]) // キャプチャグループ1
+        fmt.Println("Amount:", m[1]) // Capture group 1
     }
-    // => 金額: 100
-    // => 金額: 200
+    // => Amount: 100
+    // => Amount: 200
 
-    // 代替例2: 数値の桁区切り（ルックアラウンドなし）
+    // Alternative 2: digit grouping (without lookaround)
     number := "1234567890"
     formatted := addCommas(number)
-    fmt.Println("桁区切り:", formatted)
-    // => 桁区切り: 1,234,567,890
+    fmt.Println("Formatted:", formatted)
+    // => Formatted: 1,234,567,890
 
-    // 代替例3: パスワード検証（個別チェック）
+    // Alternative 3: password validation (individual checks)
     password := "Passw0rd!"
-    fmt.Println("パスワード強度:", validatePassword(password))
+    fmt.Println("Password strength:", validatePassword(password))
 }
 
 func addCommas(s string) string {
-    // ルックアラウンドなしで桁区切りを実装
+    // Implement digit grouping without lookaround
     n := len(s)
     if n <= 3 {
         return s
@@ -1738,7 +1737,7 @@ func addCommas(s string) string {
 }
 
 func validatePassword(pw string) bool {
-    // 各条件を個別にチェック（先読みの代替）
+    // Check each condition individually (alternative to lookahead)
     hasUpper := regexp.MustCompile(`[A-Z]`).MatchString(pw)
     hasLower := regexp.MustCompile(`[a-z]`).MatchString(pw)
     hasDigit := regexp.MustCompile(`\d`).MatchString(pw)
@@ -1749,28 +1748,28 @@ func validatePassword(pw string) bool {
 }
 ```
 
-### 14.2 Rust での代替手法
+### 14.2 Alternative Approaches in Rust
 
 ```rust
 use regex::Regex;
 
 fn main() {
-    // Rust の regex クレートはルックアラウンド非サポート
-    // fancy-regex クレートを使えば利用可能
+    // Rust's regex crate does not support lookaround
+    // fancy-regex crate can be used for support
 
-    // 標準 regex での代替: キャプチャグループ
+    // Standard regex alternative: capture groups
     let re = Regex::new(r"\$(\d+)").unwrap();
     let text = "Price: $100, $200, 300";
 
     for cap in re.captures_iter(text) {
-        println!("金額: {}", &cap[1]);
+        println!("Amount: {}", &cap[1]);
     }
-    // => 金額: 100
-    // => 金額: 200
+    // => Amount: 100
+    // => Amount: 200
 
-    // パスワード検証: 個別チェック
+    // Password validation: individual checks
     let password = "Passw0rd!";
-    println!("有効: {}", validate_password(password));
+    println!("Valid: {}", validate_password(password));
 }
 
 fn validate_password(pw: &str) -> bool {
@@ -1783,7 +1782,7 @@ fn validate_password(pw: &str) -> bool {
     has_upper && has_lower && has_digit && has_special && has_length
 }
 
-// fancy-regex を使う場合:
+// To use fancy-regex:
 // [dependencies]
 // fancy-regex = "0.11"
 //
@@ -1794,7 +1793,7 @@ fn validate_password(pw: &str) -> bool {
 //     let text = "Price: $100, $200";
 //     for m in re.find_iter(text) {
 //         if let Ok(m) = m {
-//             println!("金額: {}", m.as_str());
+//             println!("Amount: {}", m.as_str());
 //         }
 //     }
 // }
@@ -1802,19 +1801,19 @@ fn validate_password(pw: &str) -> bool {
 
 ---
 
-## 15. テスト駆動パターン開発
+## 15. Test-Driven Pattern Development
 
-### 15.1 ルックアラウンドパターンのユニットテスト
+### 15.1 Unit Testing Lookaround Patterns
 
 ```python
 import re
 import unittest
 
 class TestLookaroundPatterns(unittest.TestCase):
-    """ルックアラウンドパターンのテストスイート"""
+    """Test suite for lookaround patterns"""
 
     def test_positive_lookahead_yen(self):
-        """肯定先読み: 円の前の数値を抽出"""
+        """Positive lookahead: extract numbers before yen"""
         pattern = re.compile(r'\d+(?=円)')
         self.assertEqual(pattern.findall("1000円"), ['1000'])
         self.assertEqual(pattern.findall("1000ドル"), [])
@@ -1822,7 +1821,7 @@ class TestLookaroundPatterns(unittest.TestCase):
         self.assertEqual(pattern.findall("円1000"), [])
 
     def test_negative_lookahead_exclusion(self):
-        """否定先読み: 特定の単語を除外"""
+        """Negative lookahead: exclude specific words"""
         pattern = re.compile(r'\b(?!test\b)\w+')
         words = pattern.findall("test hello testing world")
         self.assertIn('hello', words)
@@ -1831,18 +1830,18 @@ class TestLookaroundPatterns(unittest.TestCase):
         self.assertNotIn('test', words)
 
     def test_positive_lookbehind_dollar(self):
-        """肯定後読み: $の後の数値を抽出"""
+        """Positive lookbehind: extract numbers after $"""
         pattern = re.compile(r'(?<=\$)\d+')
         self.assertEqual(pattern.findall("$100 $200 300"), ['100', '200'])
         self.assertEqual(pattern.findall("100 200"), [])
 
     def test_negative_lookbehind_no_dollar(self):
-        """否定後読み: $がない数値を抽出"""
+        """Negative lookbehind: extract numbers without $"""
         pattern = re.compile(r'(?<!\$)\b\d+')
         self.assertEqual(pattern.findall("$100 200 $300 400"), ['200', '400'])
 
     def test_password_validation(self):
-        """パスワード検証パターン"""
+        """Password validation pattern"""
         pattern = re.compile(
             r'^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*]).{8,}$'
         )
@@ -1855,7 +1854,7 @@ class TestLookaroundPatterns(unittest.TestCase):
         self.assertIsNone(pattern.match("NoSpecial1a"))
 
     def test_comma_formatting(self):
-        """桁区切りフォーマット"""
+        """Digit grouping format"""
         pattern = re.compile(r'(?<=\d)(?=(?:\d{3})+(?!\d))')
 
         def add_commas(n):
@@ -1867,7 +1866,7 @@ class TestLookaroundPatterns(unittest.TestCase):
         self.assertEqual(add_commas("1234567890"), "1,234,567,890")
 
     def test_camel_to_snake(self):
-        """CamelCase → snake_case 変換"""
+        """CamelCase -> snake_case conversion"""
         def camel_to_snake(name):
             s1 = re.sub(r'(?<=[a-z0-9])(?=[A-Z])', '_', name)
             s2 = re.sub(r'(?<=[A-Z])(?=[A-Z][a-z])', '_', s1)
@@ -1883,115 +1882,115 @@ if __name__ == '__main__':
     unittest.main()
 ```
 
-### 15.2 エッジケースのテスト
+### 15.2 Testing Edge Cases
 
 ```python
 import re
 
-# ルックアラウンドのエッジケース集
+# Comprehensive lookaround edge cases
 def test_edge_cases():
-    """エッジケースを網羅的にテスト"""
+    """Comprehensively test edge cases"""
 
-    # 1. 空文字列
+    # 1. Empty string
     pattern = re.compile(r'(?=\d)\d+')
     assert pattern.findall("") == []
 
-    # 2. 文字列の先頭/末尾でのルックアラウンド
-    # 先頭での後読み: 常に失敗（前に何もない）
+    # 2. Lookaround at string start/end
+    # Lookbehind at start: always fails (nothing before)
     assert re.findall(r'(?<=x)\w+', "abc") == []
-    # 先頭にマッチする文字がある場合
+    # When matching character is at the start
     assert re.findall(r'(?<=x)\w+', "xabc") == ['abc']
 
-    # 3. マルチライン対応
+    # 3. Multiline support
     text = "line1\nline2\nline3"
-    # ^ は各行の先頭（re.MULTILINE使用時）
+    # ^ matches each line start (with re.MULTILINE)
     assert re.findall(r'(?<=^)line\d', text, re.MULTILINE) == ['line1', 'line2', 'line3']
 
-    # 4. Unicode文字でのルックアラウンド
-    text = "価格：100円、200ドル"
+    # 4. Lookaround with Unicode characters
+    text = "Price: 100円, 200 dollars"
     assert re.findall(r'\d+(?=円)', text) == ['100']
-    assert re.findall(r'(?<=：)\d+', text) == ['100']
+    assert re.findall(r'(?<=: )\d+', text) == ['100']
 
-    # 5. 重複するルックアラウンド条件
-    # 同じ位置で矛盾する条件: 常に失敗
+    # 5. Overlapping lookaround conditions
+    # Contradictory conditions at the same position: always fails
     assert re.findall(r'(?=a)(?=b)', "ab") == []
-    # 同じ位置で両方満たせる条件
+    # Conditions that can both be satisfied at the same position
     assert len(re.findall(r'(?=a)(?!b)', "a")) == 1
 
-    # 6. ゼロ幅マッチの連続
+    # 6. Consecutive zero-width matches
     text = "abc"
-    # 全位置でマッチ（4位置: 0,1,2,3）
+    # Matches at all positions (4 positions: 0,1,2,3)
     assert len(re.findall(r'(?=.)?', text)) >= 3
 
-    print("全エッジケーステスト合格!")
+    print("All edge case tests passed!")
 
 test_edge_cases()
 ```
 
 ---
 
-## 16. アンチパターン
+## 16. Anti-Patterns
 
-### 16.1 アンチパターン: ルックアラウンドの過剰使用
+### 16.1 Anti-Pattern: Overuse of Lookaround
 
 ```python
 import re
 
-# NG: 単純な条件にルックアラウンドを使う
+# BAD: Using lookaround for a simple condition
 pattern_bad = r'(?<=price: )\d+'
-# ↑ 後読みを使わなくても抽出可能
+# ^ Extraction is possible without lookbehind
 
-# OK: キャプチャグループで十分
+# GOOD: A capture group is sufficient
 pattern_good = r'price: (\d+)'
 match = re.search(pattern_good, "price: 100")
 print(match.group(1))  # => '100'
 
-# ルックアラウンドが真に必要な場面:
-# ・置換で周囲のテキストを保持したい場合
-# ・複数の位置条件を AND で組み合わせたい場合
-# ・マッチ結果に特定の文字列を含めたくない場合
+# Scenarios where lookaround is genuinely needed:
+# - When you want to preserve surrounding text during replacement
+# - When you need to combine multiple positional conditions with AND
+# - When you don't want specific strings included in the match result
 ```
 
-### 16.2 アンチパターン: 可変長後読みを想定する
+### 16.2 Anti-Pattern: Assuming Variable-Length Lookbehind
 
 ```python
 import re
 
-# NG: Python re で可変長後読みを使う
+# BAD: Using variable-length lookbehind in Python re
 try:
     re.search(r'(?<=https?://)\w+', "https://example.com")
 except re.error as e:
-    print(f"エラー: {e}")
+    print(f"Error: {e}")
     # => look-behind requires fixed-width pattern
-    # "https?" は4文字または5文字 → 可変長
+    # "https?" is 4 or 5 characters -> variable-length
 
-# OK: 各長さを OR で列挙
+# OK: Enumerate each fixed length with OR
 pattern = r'(?<=http://|https://)\w+'
-# これも Python re ではエラー（選択肢の長さが異なる）
-# ※ Python 3.6+ では異なる固定長の選択肢は許可される
+# This also causes an error in Python re (different-length alternatives)
+# * In Python 3.6+, alternatives with different fixed lengths are allowed
 
-# 回避策1: 別のアプローチ
+# Workaround 1: Different approach
 pattern = r'https?://(\w+)'
 match = re.search(pattern, "https://example.com")
 print(match.group(1))  # => 'example'
 
-# 回避策2: regex モジュール(可変長後読みをサポート)
+# Workaround 2: regex module (supports variable-length lookbehind)
 # import regex
 # regex.search(r'(?<=https?://)\w+', "https://example.com")
 ```
 
-### 16.3 アンチパターン: ルックアラウンドで全てを解決しようとする
+### 16.3 Anti-Pattern: Trying to Solve Everything with Lookaround
 
 ```python
 import re
 
-# NG: 複雑すぎるルックアラウンドチェーン
-# 「大文字で始まり、数字を含み、5-10文字で、'test'を含まない単語」
+# BAD: Overly complex lookaround chain
+# "Words starting with uppercase, containing a digit, 5-10 chars, not containing 'test'"
 bad_pattern = r'\b(?=[A-Z])(?=\w*\d)(?!\w*test)(?=\w{5,10}\b)\w+'
 
-# OK: 段階的に処理する
+# GOOD: Process in stages
 def find_valid_words(text: str) -> list[str]:
-    """複数条件を段階的に適用"""
+    """Apply multiple conditions in stages"""
     words = re.findall(r'\b\w+\b', text)
     result = []
     for word in words:
@@ -2006,299 +2005,299 @@ def find_valid_words(text: str) -> list[str]:
         result.append(word)
     return result
 
-# 段階的処理の方が:
-# - 可読性が高い
-# - デバッグしやすい
-# - 各条件を独立にテストできる
-# - パフォーマンスも大差ない（短いテキストの場合）
+# Staged processing is:
+# - More readable
+# - Easier to debug
+# - Each condition can be tested independently
+# - Performance is comparable (for short texts)
 ```
 
-### 16.4 アンチパターン: ルックアラウンドの方向を間違える
+### 16.4 Anti-Pattern: Getting the Lookaround Direction Wrong
 
 ```python
 import re
 
-# 初心者がよくする間違い
+# Common beginner mistakes
 
-# 間違い: "100円" の "100" を取り出したい
-# 先読みと後読みを逆に使っている
+# Wrong: want to extract "100" from "100円"
+# Lookahead and lookbehind are reversed
 try:
     wrong = re.findall(r'(?=円)\d+', "100円")
-    print(f"間違い: {wrong}")  # => [] -- 何もマッチしない!
+    print(f"Wrong: {wrong}")  # => [] -- nothing matches!
 except:
     pass
 
-# 正解: "円" は数字の右側にある → 先読みを使う
+# Correct: "円" is to the right of the number -> use lookahead
 correct = re.findall(r'\d+(?=円)', "100円")
-print(f"正解: {correct}")  # => ['100']
+print(f"Correct: {correct}")  # => ['100']
 
-# 覚え方:
-# 先読み (Lookahead)  = 前方を見る = 右側をチェック = (?=...) or (?!...)
-# 後読み (Lookbehind) = 後方を見る = 左側をチェック = (?<=...) or (?<!...)
+# How to remember:
+# Lookahead  = look forward  = check the right side  = (?=...) or (?!...)
+# Lookbehind = look backward = check the left side   = (?<=...) or (?<!...)
 #
-# "先" = これから進む方向 = 右側
-# "後" = 既に通過した方向 = 左側
+# "ahead" = the direction we're going   = right side
+# "behind" = the direction we came from = left side
 ```
 
-### 16.5 アンチパターン: 置換時のグループ参照ミス
+### 16.5 Anti-Pattern: Group Reference Mistakes in Replacement
 
 ```python
 import re
 
-# ルックアラウンドのキャプチャグループは参照できるが注意が必要
+# Capture groups in lookaround can be referenced, but be careful
 
 text = "old_value: 100"
 
-# NG: ルックアラウンド内のキャプチャを参照しようとする
-# ルックアラウンドは消費しないので置換対象に含まれない
+# BAD: trying to reference captures inside lookaround
+# Lookaround doesn't consume, so it's not part of the replacement target
 result = re.sub(r'(?<=old_value: )(\d+)', r'NEW_\1', text)
 print(result)
-# => "old_value: NEW_100"  -- これは動くが...
+# => "old_value: NEW_100"  -- this works, but...
 
-# 注意: 後読みの中にキャプチャグループを入れると
-# 予期しない動作になることがある
-# 代わりにメインパターン内でキャプチャする方が安全
+# Note: putting capture groups inside lookbehind
+# can lead to unexpected behavior
+# It's safer to capture in the main pattern instead
 result = re.sub(r'(old_value: )(\d+)', r'\1NEW_\2', text)
 print(result)
-# => "old_value: NEW_100"  -- より明確
+# => "old_value: NEW_100"  -- more explicit
 ```
 
 ---
 
 ## 17. FAQ
 
-### Q1: ルックアラウンドはなぜ「ゼロ幅」と呼ばれるのか？
+### Q1: Why is lookaround called "zero-width"?
 
-**A**: ルックアラウンドは文字列中の「位置」をチェックするだけで、文字を「消費」しない。つまりマッチの結果に含まれず、エンジンの現在位置も進まない。これは `^` や `\b` と同じ「アサーション」の一種である:
+**A**: Lookaround only checks a "position" in the string and does not "consume" characters. This means it is not included in the match result and the engine's current position does not advance. It is a type of "assertion" just like `^` and `\b`:
 
 ```python
 import re
 text = "100円200ドル"
-# (?=円) は位置のみチェック -- 円自体は次のマッチで再び利用可能
+# (?=円) only checks the position -- 円 itself is available for the next match
 for m in re.finditer(r'\d+(?=円)', text):
-    print(f"位置 {m.start()}-{m.end()}: '{m.group()}'")
-# => 位置 0-3: '100'
-# "円" はマッチに含まれない
+    print(f"Position {m.start()}-{m.end()}: '{m.group()}'")
+# => Position 0-3: '100'
+# "円" is not included in the match
 ```
 
-### Q2: ルックアラウンドをネストできるか？
+### Q2: Can lookaround be nested?
 
-**A**: できる。ルックアラウンドの中に別のルックアラウンドを入れることが可能:
+**A**: Yes. It is possible to put another lookaround inside a lookaround:
 
 ```python
 import re
-# 「前の文字が大文字で、後ろに数字が続く」位置の文字
+# "Character at a position where the previous char is uppercase and the next is a digit"
 pattern = r'(?<=(?<=[A-Z])\w)(?=\d)'
-# これは複雑なので、通常はシンプルなパターンに分解することを推奨
+# This is complex, so it's usually recommended to decompose into simpler patterns
 ```
 
-ただし可読性が著しく低下するため、複雑なルックアラウンドのネストは避け、複数のパターンに分割するか、プログラムロジックで処理することを推奨する。
+However, nesting significantly reduces readability, so it is recommended to avoid complex lookaround nesting and instead split into multiple patterns or handle it with program logic.
 
-### Q3: Go や Rust でルックアラウンドが使えないのはなぜか？
+### Q3: Why is lookaround not available in Go and Rust?
 
-**A**: Go の RE2 と Rust の regex クレートは **DFA ベースのエンジン** を採用しており、O(n) の線形時間保証を重視している。ルックアラウンドはバックトラックを必要とする場合があり、線形時間保証と相容れない。Rust では `fancy-regex` クレートを使えばルックアラウンド対応のNFAエンジンが利用できるが、O(n) 保証は失われる:
+**A**: Go's RE2 and Rust's regex crate use **DFA-based engines** that prioritize O(n) linear time guarantees. Lookaround can require backtracking, which is incompatible with linear time guarantees. In Rust, the `fancy-regex` crate provides an NFA engine with lookaround support, but the O(n) guarantee is lost:
 
 ```rust
-// Rust 標準 regex: ルックアラウンド不可
+// Rust standard regex: lookaround not available
 // use regex::Regex;
 
-// fancy-regex: ルックアラウンド対応
+// fancy-regex: lookaround supported
 // use fancy_regex::Regex;
 // let re = Regex::new(r"(?<=\$)\d+").unwrap();
 ```
 
-### Q4: ルックアラウンド内でキャプチャグループを使えるか？
+### Q4: Can capture groups be used inside lookaround?
 
-**A**: 使える。ただし注意点がある:
+**A**: Yes, but with caveats:
 
 ```python
 import re
 
-# 先読み内のキャプチャグループ
+# Capture group inside lookahead
 text = "100円 200ドル 300ユーロ"
 pattern = r'\d+(?=(円|ドル|ユーロ))'
 matches = re.findall(pattern, text)
 print(matches)
 # => ['円', 'ドル', 'ユーロ']
-# 注: findall はキャプチャグループの内容を返す
+# Note: findall returns the capture group contents
 
-# 数値とグループの両方が欲しい場合
+# When you need both the number and the group
 pattern = r'(\d+)(?=(円|ドル|ユーロ))'
 matches = re.findall(pattern, text)
 print(matches)
 # => [('100', '円'), ('200', 'ドル'), ('300', 'ユーロ')]
 ```
 
-### Q5: ルックアラウンドと `\b` の違いは？
+### Q5: What is the difference between lookaround and `\b`?
 
-**A**: `\b` は「単語境界」という固定的な位置条件だが、ルックアラウンドは任意のパターンを位置条件として使える汎用的なアサーション:
+**A**: `\b` is a fixed positional condition for "word boundaries", while lookaround is a general-purpose assertion that can use any pattern as a positional condition:
 
 ```python
 import re
 
 text = "hello world 123"
 
-# \b: 単語文字と非単語文字の境界を検出
+# \b: detects boundaries between word and non-word characters
 print(re.findall(r'\b\w+\b', text))
 # => ['hello', 'world', '123']
 
-# (?=...): 任意の条件を右側にチェック
-# 例: 「右側にスペースまたは末尾がある位置の単語」
+# (?=...): checks any condition to the right
+# Example: "words at positions followed by a space or end"
 print(re.findall(r'\w+(?=\s|$)', text))
 # => ['hello', 'world', '123']
 
-# \b は固定的だが高速
-# ルックアラウンドは柔軟だがやや遅い
+# \b is fixed but fast
+# Lookaround is flexible but slightly slower
 ```
 
-### Q6: ルックアラウンドは POSIX 正規表現で使えるか？
+### Q6: Can lookaround be used in POSIX regular expressions?
 
-**A**: 使えない。POSIX BRE/ERE はルックアラウンドをサポートしていない。PCRE (Perl Compatible Regular Expressions) の機能である。`grep -P` を使えば PCRE が利用可能:
+**A**: No. POSIX BRE/ERE does not support lookaround. It is a PCRE (Perl Compatible Regular Expressions) feature. Use `grep -P` to access PCRE:
 
 ```bash
-# POSIX ERE (grep -E): ルックアラウンド不可
-# grep -E '(?<=\$)\d+' file.txt  # エラー
+# POSIX ERE (grep -E): lookaround not available
+# grep -E '(?<=\$)\d+' file.txt  # Error
 
-# PCRE (grep -P): ルックアラウンド可能
+# PCRE (grep -P): lookaround available
 grep -P '(?<=\$)\d+' file.txt
 
-# macOS の grep は -P をサポートしていない場合がある
-# その場合は ggrep (GNU grep) をインストール:
+# macOS grep may not support -P
+# In that case, install ggrep (GNU grep):
 # brew install grep
 # ggrep -P '(?<=\$)\d+' file.txt
 ```
 
-### Q7: 先読みの中に先読みを入れられるか？
+### Q7: Can lookahead be placed inside another lookahead?
 
-**A**: 入れられる。ルックアラウンドは自由にネスト可能:
+**A**: Yes. Lookaround can be nested freely:
 
 ```python
 import re
 
-# 先読みの中に先読み
-# 「右側に数字があり、その数字の右側にアルファベットがある位置」
+# Lookahead inside a lookahead
+# "Position where there is a digit to the right, and to the right of that digit is a letter"
 text = "a1b c2d e3 4f"
 pattern = r'(?=\d(?=[a-z]))\d'
 print(re.findall(pattern, text))
 # => ['1', '2']
-# '3' はマッチしない（右側がスペース）
-# '4' はマッチしない（先に \d にマッチする必要があるが、
-# (?=\d...) は位置チェックなのでその位置の右側に \d(?=[a-z]) がある位置）
+# '3' doesn't match (followed by a space)
+# '4' doesn't match (the lookahead (?=\d...) checks the position,
+# needing \d(?=[a-z]) to the right of that position)
 
-# 実用例は少ないが、理論的には任意の深さでネスト可能
-# ただし可読性のため、できるだけ避けることを推奨
+# Practical use cases are rare, but theoretically nestable to any depth
+# However, it's recommended to avoid for readability
 ```
 
-### Q8: ルックアラウンドとアトミックグループの関係は？
+### Q8: What is the relationship between lookaround and atomic groups?
 
-**A**: アトミックグループ `(?>...)` はバックトラックを禁止するグループで、ルックアラウンドの内部動作と関連がある。ルックアラウンド内のマッチは本質的にアトミック（一度成功/失敗が決まると覆さない）:
+**A**: Atomic groups `(?>...)` are groups that prohibit backtracking, and they are related to the internal behavior of lookaround. Matching inside lookaround is essentially atomic (once success/failure is determined, it is not reversed):
 
 ```python
-# Python re ではアトミックグループ非サポート
-# regex モジュールでは利用可能:
+# Atomic groups not supported in Python re
+# Available in the regex module:
 # import regex
 # pattern = regex.compile(r'(?>abc|ab)c')
-# regex.search(pattern, "abc")  # マッチしない
-# 通常の (abc|ab)c なら "abc" にマッチ
+# regex.search(pattern, "abc")  # Doesn't match
+# Normal (abc|ab)c would match "abc"
 
-# ルックアラウンド内は常にアトミック:
-# (?=abc|ab) は "abc" で成功したら "ab" は試行しない
-# これはパフォーマンスに有利だが、意図しない動作の原因にもなる
+# Lookaround internals are always atomic:
+# (?=abc|ab) -- once it succeeds with "abc", it doesn't try "ab"
+# This is beneficial for performance but can cause unexpected behavior
 ```
 
 ---
 
-## 18. デバッグとトラブルシューティング
+## 18. Debugging and Troubleshooting
 
-### 18.1 ルックアラウンドのデバッグ手法
+### 18.1 Debugging Lookaround
 
 ```python
 import re
 
-# 手法1: 段階的にパターンを構築
+# Method 1: Build patterns incrementally
 text = "Price: $100.50, Tax: $15.00, Total: 115.50"
 
-# Step 1: まずルックアラウンドなしでマッチを確認
+# Step 1: First verify matches without lookaround
 print("Step 1:", re.findall(r'\d+\.\d{2}', text))
 # => ['100.50', '15.00', '115.50']
 
-# Step 2: 後読みを追加
+# Step 2: Add lookbehind
 print("Step 2:", re.findall(r'(?<=\$)\d+\.\d{2}', text))
 # => ['100.50', '15.00']
 
-# Step 3: 先読みを追加
+# Step 3: Add lookahead
 print("Step 3:", re.findall(r'(?<=\$)\d+(?=\.\d{2})', text))
 # => ['100', '15']
 
-# 手法2: verbose モードでコメント付きパターン
+# Method 2: Commented patterns with verbose mode
 pattern = re.compile(r'''
-    (?<=\$)         # 前に $ がある位置（後読み）
-    \d+             # 1桁以上の数字（整数部分）
-    (?=\.\d{2})     # 後ろに .XX がある位置（先読み）
+    (?<=\$)         # Position preceded by $ (lookbehind)
+    \d+             # 1+ digits (integer part)
+    (?=\.\d{2})     # Position followed by .XX (lookahead)
 ''', re.VERBOSE)
 
 matches = pattern.findall(text)
 print("Verbose:", matches)
 
-# 手法3: finditer で位置情報を確認
+# Method 3: Verify position info with finditer
 for m in re.finditer(r'(?<=\$)\d+\.\d{2}', text):
-    print(f"  マッチ: '{m.group()}' at [{m.start()}:{m.end()}]")
+    print(f"  Match: '{m.group()}' at [{m.start()}:{m.end()}]")
 ```
 
-### 18.2 よくあるエラーと解決策
+### 18.2 Common Errors and Solutions
 
 ```python
 import re
 
-# エラー1: look-behind requires fixed-width pattern
+# Error 1: look-behind requires fixed-width pattern
 try:
     re.compile(r'(?<=\w+)\d+')
 except re.error as e:
-    print(f"エラー1: {e}")
-# 解決策: キャプチャグループを使う
+    print(f"Error 1: {e}")
+# Solution: use capture groups
 # re.findall(r'\w+(\d+)', text)
 
-# エラー2: 先読みが意図通りに動かない
+# Error 2: lookahead not working as intended
 text = "abc123"
-# 意図: 数字の前のアルファベットを取得
+# Intent: get alphabetic characters before a digit
 wrong = re.findall(r'(?=\d)[a-z]+', text)
-print(f"間違い: {wrong}")  # => []
-# 理由: (?=\d) の位置では [a-z] はマッチしない
+print(f"Wrong: {wrong}")  # => []
+# Reason: at the position of (?=\d), [a-z] cannot match
 correct = re.findall(r'[a-z]+(?=\d)', text)
-print(f"正解: {correct}")  # => ['abc']
+print(f"Correct: {correct}")  # => ['abc']
 
-# エラー3: 否定先読みが多くマッチしすぎる
+# Error 3: negative lookahead matching too much
 text = "foo foobar foobaz"
 wrong = re.findall(r'(?!foo)\w+', text)
-print(f"間違い: {wrong}")  # => 予期しない結果
-# 理由: 位置1から 'oo', 'oobar' なども マッチする
+print(f"Wrong: {wrong}")  # => unexpected results
+# Reason: from position 1, 'oo', 'oobar', etc. also match
 correct = re.findall(r'\b(?!foo)\w+', text)
-print(f"改善: {correct}")  # => [] -- 全ての単語がfooで始まる
+print(f"Improved: {correct}")  # => [] -- all words start with foo
 
-# エラー4: ルックアラウンドの範囲ミス
+# Error 4: lookaround range mistake
 text = "12ab34cd56"
-# 意図: アルファベットに挟まれた数字を抽出
+# Intent: extract digits sandwiched between alphabetic chars
 wrong = re.findall(r'(?<=[a-z])\d+(?=[a-z])', text)
-print(f"結果: {wrong}")  # => ['34']
-# "12" は前にアルファベットがない、"56" は後にアルファベットがない
-# 意図通りならOKだが、"12" も含めたい場合は条件を変える
+print(f"Result: {wrong}")  # => ['34']
+# "12" has no alphabetic char before it, "56" has none after
+# If intended, this is fine; adjust conditions if "12" should also be included
 ```
 
-### 18.3 regex101 でのデバッグ
+### 18.3 Debugging with regex101
 
 ```
-ルックアラウンドのデバッグには regex101.com が非常に有用:
+regex101.com is extremely useful for debugging lookaround:
 
-1. https://regex101.com/ にアクセス
-2. 左上で使用する言語(Python, JavaScript, Java など)を選択
-3. パターンを入力
-4. テスト文字列を入力
-5. 右側の "EXPLANATION" でパターンの解説を確認
-6. 下部の "MATCH INFORMATION" でマッチの詳細を確認
-7. "REGEX DEBUGGER" でステップバイステップの動作を追跡
+1. Go to https://regex101.com/
+2. Select the language (Python, JavaScript, Java, etc.) in the top left
+3. Enter the pattern
+4. Enter test strings
+5. Check the pattern explanation in "EXPLANATION" on the right
+6. Check match details in "MATCH INFORMATION" at the bottom
+7. Trace step-by-step behavior in "REGEX DEBUGGER"
 
-特に有用なのは REGEX DEBUGGER で、ルックアラウンドの
-各位置での成功/失敗を視覚的に確認できる。
+The REGEX DEBUGGER is particularly useful as it lets you visually
+confirm success/failure at each position during lookaround evaluation.
 ```
 
 ---
@@ -2306,50 +2305,50 @@ print(f"結果: {wrong}")  # => ['34']
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory but by actually writing code and verifying how it works.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the basics and jumping to advanced topics. We recommend thoroughly understanding the fundamental concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in real-world work?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently used in day-to-day development work. It is particularly important during code reviews and architecture design.
 
 ---
 
-## まとめ
+## Summary
 
-| 項目 | 内容 |
-|------|------|
-| `(?=X)` | 肯定先読み -- 右側にXがある位置 |
-| `(?!X)` | 否定先読み -- 右側にXがない位置 |
-| `(?<=X)` | 肯定後読み -- 左側にXがある位置 |
-| `(?<!X)` | 否定後読み -- 左側にXがない位置 |
-| ゼロ幅 | 文字を消費しない(位置のみチェック) |
-| 後読み制約 | 多くのエンジンで固定長のみ |
-| AND条件 | 複数の先読みを連鎖して実現 |
-| NOT条件 | 否定先読み/否定後読みで実現 |
-| 主な用途 | パスワード検証、桁区切り、条件付き抽出/置換 |
-| DFAエンジン | ルックアラウンド非サポート(RE2, Rust regex) |
-| 設計指針 | シンプルなパターンで代替可能なら避ける |
-| パフォーマンス | 先読みの順序最適化、否定文字クラスの活用 |
-| テスト | 段階的パターン構築、エッジケース網羅 |
+| Item | Description |
+|------|-------------|
+| `(?=X)` | Positive lookahead -- position where X is to the right |
+| `(?!X)` | Negative lookahead -- position where X is NOT to the right |
+| `(?<=X)` | Positive lookbehind -- position where X is to the left |
+| `(?<!X)` | Negative lookbehind -- position where X is NOT to the left |
+| Zero-width | Does not consume characters (checks position only) |
+| Lookbehind constraint | Fixed-length only in many engines |
+| AND condition | Achieved by chaining multiple lookaheads |
+| NOT condition | Achieved with negative lookahead/lookbehind |
+| Primary use cases | Password validation, digit grouping, conditional extraction/replacement |
+| DFA engines | Lookaround not supported (RE2, Rust regex) |
+| Design guideline | Avoid when a simpler pattern can achieve the same result |
+| Performance | Optimize lookahead order; leverage negated character classes |
+| Testing | Incremental pattern construction; comprehensive edge case coverage |
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
-- [02-unicode-regex.md](./02-unicode-regex.md) -- Unicode 正規表現
-- [03-performance.md](./03-performance.md) -- パフォーマンスとReDoS対策
+- [02-unicode-regex.md](./02-unicode-regex.md) -- Unicode Regular Expressions
+- [03-performance.md](./03-performance.md) -- Performance and ReDoS Prevention
 
-## 参考文献
+## References
 
-1. **Jeffrey E.F. Friedl** "Mastering Regular Expressions" O'Reilly, 2006 -- 第5章「ルックアラウンド」
-2. **MDN - Lookahead assertion** https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Regular_expressions/Lookahead_assertion -- JavaScript のルックアラウンド仕様
-3. **Regular-Expressions.info - Lookaround** https://www.regular-expressions.info/lookaround.html -- ルックアラウンドの包括的解説と全エンジン比較
-4. **Python re module documentation** https://docs.python.org/3/library/re.html -- Python 標準ライブラリのルックアラウンド仕様
-5. **TC39 Proposal - Lookbehind Assertions** https://github.com/tc39/proposal-regexp-lookbehind -- JavaScript ES2018 後読みの提案書
-6. **RE2 Syntax** https://github.com/google/re2/wiki/Syntax -- RE2(Go)のサポート構文一覧とルックアラウンド非サポートの理由
-7. **fancy-regex crate** https://docs.rs/fancy-regex/ -- Rust でルックアラウンドを使うためのクレート
-8. **regex101.com** https://regex101.com/ -- ルックアラウンドのデバッグに有用なオンラインツール
+1. **Jeffrey E.F. Friedl** "Mastering Regular Expressions" O'Reilly, 2006 -- Chapter 5: "Lookaround"
+2. **MDN - Lookahead assertion** https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Regular_expressions/Lookahead_assertion -- JavaScript lookaround specification
+3. **Regular-Expressions.info - Lookaround** https://www.regular-expressions.info/lookaround.html -- Comprehensive lookaround explanation and cross-engine comparison
+4. **Python re module documentation** https://docs.python.org/3/library/re.html -- Python standard library lookaround specification
+5. **TC39 Proposal - Lookbehind Assertions** https://github.com/tc39/proposal-regexp-lookbehind -- JavaScript ES2018 lookbehind proposal
+6. **RE2 Syntax** https://github.com/google/re2/wiki/Syntax -- RE2 (Go) supported syntax list and reasons for no lookaround support
+7. **fancy-regex crate** https://docs.rs/fancy-regex/ -- Rust crate for using lookaround
+8. **regex101.com** https://regex101.com/ -- Online tool useful for debugging lookaround
