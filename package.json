@@ -1,5 +1,5 @@
 {
-  "name": "claude-code-skills",
+  "name": "software-engineering-universe",
   "version": "4.0.0",
   "description": "MIT Master's Level Research Project: Mathematical proofs, distributed systems theory, and formal verification",
   "private": true,
@@ -33,7 +33,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Gaku52/claude-code-skills.git"
+    "url": "https://github.com/Gaku52/software-engineering-universe.git"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

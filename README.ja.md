@@ -1,6 +1,6 @@
 [English version](README.md)
 
-# Claude Code Skills
+# Software Engineering Universe
 
 <!-- PROGRESS_BADGES_START -->
 ![Skills](https://img.shields.io/badge/Skills-36-blue)
@@ -141,7 +141,7 @@ skill-name/
 ### Claude Codeでの使用
 
 ```bash
-git clone https://github.com/Gaku52/claude-code-skills.git ~/.claude/skills
+git clone https://github.com/Gaku52/software-engineering-universe.git ~/.claude/skills
 ```
 
 Claude Codeが `~/.claude/skills/` を自動参照。開発時にSkillの知識が適用される。
