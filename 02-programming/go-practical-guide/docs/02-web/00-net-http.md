@@ -1,43 +1,43 @@
-# net/http -- Go標準HTTPサーバー
+# net/http -- Go Standard HTTP Server
 
-> net/httpはGoの標準ライブラリでHTTPサーバー/クライアントを実装し、Handler・ServeMux・ミドルウェアパターンで本番品質のWebサービスを構築できる。
+> net/http implements HTTP servers and clients with Go's standard library, enabling production-quality web services through Handler, ServeMux, and middleware patterns.
 
 ---
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-1. **Handler / HandlerFunc** -- HTTPリクエスト処理の基本
-2. **ServeMux (Go 1.22+)** -- 強化されたルーティング
-3. **ミドルウェアパターン** -- 横断的関心事の分離
-4. **HTTPクライアント** -- 外部サービス呼び出し
-5. **Graceful Shutdown** -- 安全なサーバー停止
-6. **httptest** -- HTTPハンドラのテスト
-7. **本番運用** -- セキュリティ・パフォーマンス設定
+1. **Handler / HandlerFunc** -- The basics of HTTP request processing
+2. **ServeMux (Go 1.22+)** -- Enhanced routing
+3. **Middleware Patterns** -- Separation of cross-cutting concerns
+4. **HTTP Client** -- Calling external services
+5. **Graceful Shutdown** -- Safe server termination
+6. **httptest** -- Testing HTTP handlers
+7. **Production Operations** -- Security and performance configuration
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, the following knowledge will help deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
+- Basic programming knowledge
+- Understanding of related foundational concepts
 
 ---
 
 ## 1. Handler / HandlerFunc
 
-Go のHTTPサーバーは `http.Handler` インターフェースを中心に設計されている。このインターフェースはたった1つのメソッド `ServeHTTP(ResponseWriter, *Request)` を持つ。
+Go's HTTP server is designed around the `http.Handler` interface. This interface has just one method: `ServeHTTP(ResponseWriter, *Request)`.
 
-### 1.1 Handler インターフェースの基本
+### 1.1 Handler Interface Basics
 
 ```go
-// 標準ライブラリの定義
+// Standard library definition
 type Handler interface {
     ServeHTTP(ResponseWriter, *Request)
 }
 ```
 
-`HandlerFunc` は関数を `Handler` インターフェースに変換するアダプタ型である。
+`HandlerFunc` is an adapter type that converts a function into the `Handler` interface.
 
 ```go
 type HandlerFunc func(ResponseWriter, *Request)
@@ -47,7 +47,7 @@ func (f HandlerFunc) ServeHTTP(w ResponseWriter, r *Request) {
 }
 ```
 
-### コード例 1: 基本的なHTTPサーバー
+### Code Example 1: Basic HTTP Server
 
 ```go
 package main
@@ -62,12 +62,12 @@ import (
 func main() {
 	mux := http.NewServeMux()
 
-	// HandlerFunc パターン
+	// HandlerFunc pattern
 	mux.HandleFunc("GET /hello", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "Hello, World!")
 	})
 
-	// Handler インターフェース実装パターン
+	// Handler interface implementation pattern
 	mux.Handle("GET /health", &healthHandler{})
 
 	server := &http.Server{
@@ -82,7 +82,7 @@ func main() {
 	log.Fatal(server.ListenAndServe())
 }
 
-// healthHandler は Handler インターフェースを実装する構造体
+// healthHandler is a struct that implements the Handler interface
 type healthHandler struct{}
 
 func (h *healthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -91,9 +91,9 @@ func (h *healthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-### コード例 2: Go 1.22+ パターンマッチング
+### Code Example 2: Go 1.22+ Pattern Matching
 
-Go 1.22で `ServeMux` が大幅に強化され、HTTPメソッドの指定、パスパラメータ、ワイルドカードが標準サポートされた。
+In Go 1.22, `ServeMux` was significantly enhanced, adding native support for HTTP method specification, path parameters, and wildcards.
 
 ```go
 package main
@@ -120,18 +120,18 @@ var users = map[int]*User{
 func main() {
 	mux := http.NewServeMux()
 
-	// メソッド + パスパターン（Go 1.22+）
+	// Method + path pattern (Go 1.22+)
 	mux.HandleFunc("GET /users", listUsers)
 	mux.HandleFunc("POST /users", createUser)
-	mux.HandleFunc("GET /users/{id}", getUser)       // パスパラメータ
+	mux.HandleFunc("GET /users/{id}", getUser)       // Path parameter
 	mux.HandleFunc("PUT /users/{id}", updateUser)
 	mux.HandleFunc("DELETE /users/{id}", deleteUser)
 
-	// ワイルドカード（Go 1.22+）
-	mux.HandleFunc("GET /files/{path...}", serveFile) // 残りのパスを取得
+	// Wildcard (Go 1.22+)
+	mux.HandleFunc("GET /files/{path...}", serveFile) // Capture remaining path
 
-	// 優先順位: より具体的なパターンが優先
-	mux.HandleFunc("GET /users/me", getCurrentUser)   // /users/{id} より優先
+	// Priority: more specific patterns take precedence
+	mux.HandleFunc("GET /users/me", getCurrentUser)   // Prioritized over /users/{id}
 
 	server := &http.Server{
 		Addr:    ":8080",
@@ -149,7 +149,7 @@ func listUsers(w http.ResponseWriter, r *http.Request) {
 }
 
 func getUser(w http.ResponseWriter, r *http.Request) {
-	idStr := r.PathValue("id") // Go 1.22+ パスパラメータ
+	idStr := r.PathValue("id") // Go 1.22+ path parameter
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid user id")
@@ -208,15 +208,15 @@ func deleteUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func getCurrentUser(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, users[1]) // ダミー: 現在のユーザー
+	writeJSON(w, http.StatusOK, users[1]) // Dummy: current user
 }
 
 func serveFile(w http.ResponseWriter, r *http.Request) {
-	path := r.PathValue("path") // ワイルドカード: 残りのパス全体
+	path := r.PathValue("path") // Wildcard: entire remaining path
 	fmt.Fprintf(w, "Serving file: %s", path)
 }
 
-// --- ヘルパー関数 ---
+// --- Helper functions ---
 
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
@@ -231,11 +231,11 @@ func writeError(w http.ResponseWriter, status int, message string) {
 
 ---
 
-## 2. ミドルウェアパターン
+## 2. Middleware Patterns
 
-ミドルウェアは `func(http.Handler) http.Handler` のシグネチャを持つ関数で、リクエスト処理の前後に横断的関心事（ログ、認証、CORS等）を挿入する。
+Middleware is a function with the signature `func(http.Handler) http.Handler` that injects cross-cutting concerns (logging, authentication, CORS, etc.) before and after request processing.
 
-### コード例 3: 基本的なミドルウェア
+### Code Example 3: Basic Middleware
 
 ```go
 package main
@@ -246,12 +246,12 @@ import (
 	"time"
 )
 
-// loggingMiddleware はリクエストのログを記録する
+// loggingMiddleware records request logs
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
-		// カスタムResponseWriterでステータスコードをキャプチャ
+		// Custom ResponseWriter to capture status code
 		wrapped := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 
 		next.ServeHTTP(wrapped, r)
@@ -266,7 +266,7 @@ func loggingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// responseWriter はステータスコードをキャプチャするラッパー
+// responseWriter is a wrapper that captures the status code
 type responseWriter struct {
 	http.ResponseWriter
 	statusCode int
@@ -277,7 +277,7 @@ func (rw *responseWriter) WriteHeader(code int) {
 	rw.ResponseWriter.WriteHeader(code)
 }
 
-// authMiddleware は認証チェックを行う
+// authMiddleware performs authentication checks
 func authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := r.Header.Get("Authorization")
@@ -285,12 +285,12 @@ func authMiddleware(next http.Handler) http.Handler {
 			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 			return
 		}
-		// トークン検証（省略）
+		// Token validation (omitted)
 		next.ServeHTTP(w, r)
 	})
 }
 
-// corsMiddleware はCORSヘッダーを設定する
+// corsMiddleware sets CORS headers
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -306,7 +306,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// recoveryMiddleware はパニックからリカバリする
+// recoveryMiddleware recovers from panics
 func recoveryMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
@@ -319,10 +319,10 @@ func recoveryMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// rateLimitMiddleware はレート制限を行う
+// rateLimitMiddleware applies rate limiting
 func rateLimitMiddleware(rps int) func(http.Handler) http.Handler {
 	limiter := make(chan struct{}, rps)
-	// トークン補充
+	// Token replenishment
 	go func() {
 		ticker := time.NewTicker(time.Second / time.Duration(rps))
 		defer ticker.Stop()
@@ -333,7 +333,7 @@ func rateLimitMiddleware(rps int) func(http.Handler) http.Handler {
 			}
 		}
 	}()
-	// 初期トークン
+	// Initial tokens
 	for i := 0; i < rps; i++ {
 		limiter <- struct{}{}
 	}
@@ -356,7 +356,7 @@ func main() {
 		writeJSON(w, http.StatusOK, map[string]string{"data": "hello"})
 	})
 
-	// ミドルウェアチェーン（内側から外側に適用）
+	// Middleware chain (applied from inner to outer)
 	handler := recoveryMiddleware(
 		loggingMiddleware(
 			corsMiddleware(
@@ -369,21 +369,21 @@ func main() {
 }
 ```
 
-### コード例 4: ミドルウェアチェーンの構築ヘルパー
+### Code Example 4: Middleware Chain Builder Helper
 
 ```go
 package main
 
 import "net/http"
 
-// Middleware はミドルウェアの型定義
+// Middleware is the type definition for middleware
 type Middleware func(http.Handler) http.Handler
 
-// Chain は複数のミドルウェアを連結する
+// Chain concatenates multiple middleware
 func Chain(handler http.Handler, middlewares ...Middleware) http.Handler {
-	// 逆順に適用（最初のミドルウェアが最も外側になる）
+	// Applied in reverse order (first middleware becomes outermost)
 	for i := len(middlewares) - 1; i >= 0; i-- {
-		handler = middlewaresi
+		handler = middlewares[i](handler)
 	}
 	return handler
 }
@@ -393,18 +393,18 @@ func main() {
 	mux.HandleFunc("GET /api/users", listUsersHandler)
 	mux.HandleFunc("GET /api/public", publicHandler)
 
-	// 共通ミドルウェア
+	// Common middleware
 	commonMiddlewares := []Middleware{
 		recoveryMiddleware,
 		loggingMiddleware,
 		corsMiddleware,
 	}
 
-	// 認証が必要なAPI
+	// API requiring authentication
 	authMiddlewares := append(commonMiddlewares, authMiddleware)
 	authHandler := Chain(mux, authMiddlewares...)
 
-	// 全ルートに共通ミドルウェアを適用
+	// Apply common middleware to all routes
 	handler := Chain(mux, commonMiddlewares...)
 	_ = handler
 	_ = authHandler
@@ -414,7 +414,7 @@ func listUsersHandler(w http.ResponseWriter, r *http.Request) {}
 func publicHandler(w http.ResponseWriter, r *http.Request)    {}
 ```
 
-### コード例 5: Context連携ミドルウェア
+### Code Example 5: Context-Integrated Middleware
 
 ```go
 package main
@@ -435,7 +435,7 @@ const (
 	userIDKey    contextKey = "userID"
 )
 
-// requestIDMiddleware はリクエストIDを生成してContextに設定する
+// requestIDMiddleware generates a request ID and sets it in the Context
 func requestIDMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		reqID := r.Header.Get("X-Request-ID")
@@ -449,13 +449,13 @@ func requestIDMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// getRequestID はContextからリクエストIDを取得する
+// getRequestID retrieves the request ID from the Context
 func getRequestID(ctx context.Context) string {
 	id, _ := ctx.Value(requestIDKey).(string)
 	return id
 }
 
-// structuredLoggingMiddleware は構造化ログを出力する
+// structuredLoggingMiddleware outputs structured logs
 func structuredLoggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		reqID := getRequestID(r.Context())
@@ -481,9 +481,9 @@ func main() {
 
 ---
 
-## 3. JSONレスポンス・リクエスト処理
+## 3. JSON Response and Request Processing
 
-### コード例 6: 汎用的なJSON処理
+### Code Example 6: Generic JSON Processing
 
 ```go
 package main
@@ -496,22 +496,22 @@ import (
 	"strings"
 )
 
-// --- レスポンスヘルパー ---
+// --- Response helpers ---
 
-// APIResponse は統一されたAPIレスポンス
+// APIResponse is a unified API response
 type APIResponse struct {
 	Success bool        `json:"success"`
 	Data    interface{} `json:"data,omitempty"`
 	Error   *APIError   `json:"error,omitempty"`
 }
 
-// APIError はエラー情報
+// APIError contains error information
 type APIError struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 }
 
-// respondJSON はJSONレスポンスを送信する
+// respondJSON sends a JSON response
 func respondJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
@@ -523,7 +523,7 @@ func respondJSON(w http.ResponseWriter, status int, data interface{}) {
 	json.NewEncoder(w).Encode(resp)
 }
 
-// respondError はエラーレスポンスを送信する
+// respondError sends an error response
 func respondError(w http.ResponseWriter, status int, code, message string) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
@@ -538,27 +538,27 @@ func respondError(w http.ResponseWriter, status int, code, message string) {
 	json.NewEncoder(w).Encode(resp)
 }
 
-// --- リクエストボディのデコード ---
+// --- Request body decoding ---
 
-// decodeJSON はリクエストボディをJSONデコードする
+// decodeJSON decodes the request body as JSON
 func decodeJSON(r *http.Request, dst interface{}) error {
-	// Content-Type チェック
+	// Content-Type check
 	ct := r.Header.Get("Content-Type")
 	if !strings.HasPrefix(ct, "application/json") {
 		return errors.New("content-type must be application/json")
 	}
 
-	// ボディサイズ制限（1MB）
+	// Body size limit (1MB)
 	r.Body = http.MaxBytesReader(nil, r.Body, 1<<20)
 
 	dec := json.NewDecoder(r.Body)
-	dec.DisallowUnknownFields() // 未知のフィールドを拒否
+	dec.DisallowUnknownFields() // Reject unknown fields
 
 	if err := dec.Decode(dst); err != nil {
 		return fmt.Errorf("invalid json: %w", err)
 	}
 
-	// 複数のJSONオブジェクトが含まれていないかチェック
+	// Check that the body doesn't contain multiple JSON objects
 	if dec.More() {
 		return errors.New("request body must contain a single json object")
 	}
@@ -566,7 +566,7 @@ func decodeJSON(r *http.Request, dst interface{}) error {
 	return nil
 }
 
-// --- ハンドラ ---
+// --- Handlers ---
 
 type CreateUserRequest struct {
 	Name  string `json:"name"`
@@ -609,7 +609,7 @@ func main() {
 }
 ```
 
-### コード例 7: ストリーミングJSON
+### Code Example 7: Streaming JSON
 
 ```go
 package main
@@ -621,7 +621,7 @@ import (
 	"time"
 )
 
-// streamEvents はServer-Sent Events (SSE) でデータをストリーミングする
+// streamEvents streams data using Server-Sent Events (SSE)
 func streamEvents(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -636,7 +636,7 @@ func streamEvents(w http.ResponseWriter, r *http.Request) {
 	for i := 0; i < 10; i++ {
 		select {
 		case <-r.Context().Done():
-			// クライアント切断
+			// Client disconnected
 			return
 		default:
 			data, _ := json.Marshal(map[string]interface{}{
@@ -659,9 +659,9 @@ func main() {
 
 ---
 
-## 4. HTTPクライアント
+## 4. HTTP Client
 
-### コード例 8: 本番品質のHTTPクライアント
+### Code Example 8: Production-Quality HTTP Client
 
 ```go
 package main
@@ -675,13 +675,13 @@ import (
 	"time"
 )
 
-// HTTPClient は再利用可能なHTTPクライアント
+// HTTPClient is a reusable HTTP client
 type HTTPClient struct {
 	client  *http.Client
 	baseURL string
 }
 
-// NewHTTPClient は設定済みのHTTPクライアントを生成する
+// NewHTTPClient creates a configured HTTP client
 func NewHTTPClient(baseURL string) *HTTPClient {
 	return &HTTPClient{
 		client: &http.Client{
@@ -696,7 +696,7 @@ func NewHTTPClient(baseURL string) *HTTPClient {
 	}
 }
 
-// Get はGETリクエストを送信する
+// Get sends a GET request
 func (c *HTTPClient) Get(ctx context.Context, path string, result interface{}) error {
 	req, err := http.NewRequestWithContext(ctx, "GET", c.baseURL+path, nil)
 	if err != nil {
@@ -711,8 +711,8 @@ func (c *HTTPClient) Get(ctx context.Context, path string, result interface{}) e
 	}
 	defer resp.Body.Close()
 
-	// レスポンスボディのサイズ制限
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20)) // 10MB制限
+	// Response body size limit
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20)) // 10MB limit
 	if err != nil {
 		return fmt.Errorf("read body: %w", err)
 	}
@@ -745,7 +745,7 @@ func main() {
 }
 ```
 
-### コード例 9: リトライ付きHTTPクライアント
+### Code Example 9: HTTP Client with Retry
 
 ```go
 package main
@@ -759,15 +759,15 @@ import (
 	"time"
 )
 
-// RetryConfig はリトライ設定
+// RetryConfig holds retry configuration
 type RetryConfig struct {
 	MaxRetries  int
 	BaseDelay   time.Duration
 	MaxDelay    time.Duration
-	RetryOn     []int // リトライ対象のHTTPステータスコード
+	RetryOn     []int // HTTP status codes to retry on
 }
 
-// DefaultRetryConfig はデフォルトのリトライ設定
+// DefaultRetryConfig is the default retry configuration
 var DefaultRetryConfig = RetryConfig{
 	MaxRetries: 3,
 	BaseDelay:  100 * time.Millisecond,
@@ -775,13 +775,13 @@ var DefaultRetryConfig = RetryConfig{
 	RetryOn:    []int{429, 500, 502, 503, 504},
 }
 
-// doWithRetry はリトライ付きでHTTPリクエストを実行する
+// doWithRetry executes an HTTP request with retries
 func doWithRetry(ctx context.Context, client *http.Client, req *http.Request, config RetryConfig) (*http.Response, error) {
 	var lastErr error
 
 	for attempt := 0; attempt <= config.MaxRetries; attempt++ {
 		if attempt > 0 {
-			// 指数バックオフ + ジッター
+			// Exponential backoff + jitter
 			delay := time.Duration(math.Pow(2, float64(attempt-1))) * config.BaseDelay
 			jitter := time.Duration(rand.Int63n(int64(delay / 2)))
 			delay = delay + jitter
@@ -797,7 +797,7 @@ func doWithRetry(ctx context.Context, client *http.Client, req *http.Request, co
 			}
 		}
 
-		// リクエストのクローン（Body再利用のため）
+		// Clone the request (for Body reuse)
 		clonedReq := req.Clone(ctx)
 
 		resp, err := client.Do(clonedReq)
@@ -806,7 +806,7 @@ func doWithRetry(ctx context.Context, client *http.Client, req *http.Request, co
 			continue
 		}
 
-		// リトライ対象のステータスコードかチェック
+		// Check if the status code is retryable
 		if shouldRetry(resp.StatusCode, config.RetryOn) {
 			resp.Body.Close()
 			lastErr = fmt.Errorf("attempt %d: HTTP %d", attempt+1, resp.StatusCode)
@@ -849,7 +849,7 @@ func main() {
 
 ## 5. Graceful Shutdown
 
-### コード例 10: 完全なGraceful Shutdown
+### Code Example 10: Complete Graceful Shutdown
 
 ```go
 package main
@@ -874,7 +874,7 @@ func main() {
 	})
 
 	mux.HandleFunc("GET /slow", func(w http.ResponseWriter, r *http.Request) {
-		// 遅い処理のシミュレーション
+		// Simulate a slow operation
 		select {
 		case <-r.Context().Done():
 			log.Println("Client disconnected during slow request")
@@ -892,7 +892,7 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// サーバーをバックグラウンドで起動
+	// Start server in the background
 	serverErr := make(chan error, 1)
 	go func() {
 		log.Printf("Server starting on %s", server.Addr)
@@ -901,7 +901,7 @@ func main() {
 		}
 	}()
 
-	// シグナルを待機
+	// Wait for signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
@@ -919,16 +919,16 @@ func main() {
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		log.Printf("Server shutdown error: %v", err)
-		server.Close() // 強制停止
+		server.Close() // Force stop
 	}
 
 	log.Println("Server stopped gracefully")
 }
 ```
 
-### コード例 11: ヘルスチェック対応のGraceful Shutdown
+### Code Example 11: Graceful Shutdown with Health Check Support
 
-Kubernetes環境では、SIGTERMを受け取ってからヘルスチェックが失敗するまでの猶予期間（preStop hook）が必要。
+In Kubernetes environments, a grace period (preStop hook) is needed between receiving SIGTERM and the health check starting to fail.
 
 ```go
 package main
@@ -981,12 +981,12 @@ func main() {
 
 	log.Println("Received shutdown signal")
 
-	// Step 1: ヘルスチェックを失敗させる（ロードバランサーがトラフィックを停止するまで待つ）
+	// Step 1: Fail the health check (wait for load balancer to stop sending traffic)
 	atomic.StoreInt32(&isReady, 0)
 	log.Println("Health check now returns 503, waiting for LB drain...")
-	time.Sleep(10 * time.Second) // Kubernetes terminationGracePeriodSeconds の一部
+	time.Sleep(10 * time.Second) // Part of Kubernetes terminationGracePeriodSeconds
 
-	// Step 2: サーバーを停止
+	// Step 2: Stop the server
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
@@ -999,9 +999,9 @@ func main() {
 
 ---
 
-## 6. httptest によるテスト
+## 6. Testing with httptest
 
-### コード例 12: ハンドラのユニットテスト
+### Code Example 12: Unit Testing Handlers
 
 ```go
 package main
@@ -1015,14 +1015,14 @@ import (
 )
 
 func TestGetUser(t *testing.T) {
-	// リクエストの作成
+	// Create request
 	req := httptest.NewRequest("GET", "/users/1", nil)
 	rec := httptest.NewRecorder()
 
-	// ハンドラの実行
+	// Execute handler
 	getUser(rec, req)
 
-	// レスポンスの検証
+	// Verify response
 	resp := rec.Result()
 	defer resp.Body.Close()
 
@@ -1078,7 +1078,7 @@ func TestCreateUser_InvalidJSON(t *testing.T) {
 }
 ```
 
-### コード例 13: テーブルドリブンテスト
+### Code Example 13: Table-Driven Tests
 
 ```go
 package main
@@ -1144,8 +1144,8 @@ func TestUserEndpoints(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 
-			// ルーターにリクエストを渡す
-			mux := setupRoutes() // テスト対象のルーターをセットアップ
+			// Pass the request to the router
+			mux := setupRoutes() // Set up the router under test
 			mux.ServeHTTP(rec, req)
 
 			resp := rec.Result()
@@ -1167,7 +1167,7 @@ func setupRoutes() *http.ServeMux {
 }
 ```
 
-### コード例 14: httptest.Server を使った統合テスト
+### Code Example 14: Integration Tests with httptest.Server
 
 ```go
 package main
@@ -1183,11 +1183,11 @@ import (
 func TestUserAPI_Integration(t *testing.T) {
 	mux := setupRoutes()
 
-	// テストサーバーを起動
+	// Start test server
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	// 実際のHTTPクライアントでリクエスト
+	// Make requests with an actual HTTP client
 	client := server.Client()
 
 	t.Run("list users", func(t *testing.T) {
@@ -1222,7 +1222,7 @@ func TestUserAPI_Integration(t *testing.T) {
 }
 ```
 
-### コード例 15: ミドルウェアのテスト
+### Code Example 15: Testing Middleware
 
 ```go
 package main
@@ -1258,7 +1258,7 @@ func TestAuthMiddleware_NoToken(t *testing.T) {
 	handler := authMiddleware(inner)
 
 	req := httptest.NewRequest("GET", "/test", nil)
-	// Authorization ヘッダーなし
+	// No Authorization header
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)
@@ -1293,7 +1293,7 @@ func TestCORSMiddleware(t *testing.T) {
 
 	handler := corsMiddleware(inner)
 
-	// OPTIONS プリフライトリクエスト
+	// OPTIONS preflight request
 	req := httptest.NewRequest("OPTIONS", "/test", nil)
 	rec := httptest.NewRecorder()
 
@@ -1311,9 +1311,9 @@ func TestCORSMiddleware(t *testing.T) {
 
 ---
 
-## 7. ファイルアップロード・ダウンロード
+## 7. File Upload and Download
 
-### コード例 16: ファイルアップロード
+### Code Example 16: File Upload
 
 ```go
 package main
@@ -1327,7 +1327,7 @@ import (
 )
 
 func uploadHandler(w http.ResponseWriter, r *http.Request) {
-	// マルチパートフォームの解析（最大32MB）
+	// Parse multipart form (max 32MB)
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
 		http.Error(w, "file too large", http.StatusBadRequest)
 		return
@@ -1340,13 +1340,13 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	// ファイル名のサニタイズ
+	// Sanitize filename
 	filename := filepath.Base(header.Filename)
 
-	// 保存先のパス
+	// Destination path
 	savePath := filepath.Join("uploads", filename)
 
-	// ファイルを保存
+	// Save file
 	dst, err := os.Create(savePath)
 	if err != nil {
 		http.Error(w, "failed to create file", http.StatusInternalServerError)
@@ -1370,7 +1370,7 @@ func downloadHandler(w http.ResponseWriter, r *http.Request) {
 	filename := r.PathValue("filename")
 	filePath := filepath.Join("uploads", filepath.Base(filename))
 
-	// ファイルの存在チェック
+	// Check file existence
 	info, err := os.Stat(filePath)
 	if os.IsNotExist(err) {
 		http.Error(w, "file not found", http.StatusNotFound)
@@ -1396,169 +1396,170 @@ func main() {
 
 ---
 
-## 8. ASCII図解
+## 8. ASCII Diagrams
 
-### 図1: HTTPリクエスト処理フロー
+### Diagram 1: HTTP Request Processing Flow
 
 ```
 Client Request
-     │
-     ▼
-┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐
-│ Recovery │──>│ Logging  │──>│ Auth     │──>│ CORS     │
-│ MW       │   │ MW       │   │ MW       │   │ MW       │
-└──────────┘   └──────────┘   └──────────┘   └──────────┘
-                                                   │
-                                                   ▼
-                                             ┌──────────┐   ┌──────────┐
-                                             │ ServeMux │──>│ Handler  │
-                                             │ (Router) │   │ (Logic)  │
-                                             └──────────┘   └──────────┘
-                                                                  │
-     ┌────────────────────────────────────────────────────────────┘
-     │              Response (逆順で通過)
-     ▼
+     |
+     v
++----------+   +----------+   +----------+   +----------+
+| Recovery |-->| Logging  |-->| Auth     |-->| CORS     |
+| MW       |   | MW       |   | MW       |   | MW       |
++----------+   +----------+   +----------+   +----------+
+                                                   |
+                                                   v
+                                             +----------+   +----------+
+                                             | ServeMux |-->| Handler  |
+                                             | (Router) |   | (Logic)  |
+                                             +----------+   +----------+
+                                                                  |
+     +------------------------------------------------------------+
+     |              Response (passes through in reverse order)
+     v
   Client
 ```
 
-### 図2: Handler インターフェース
+### Diagram 2: Handler Interface
 
 ```
-┌─────────────────────────────────┐
-│ type Handler interface {        │
-│   ServeHTTP(ResponseWriter,     │
-│             *Request)           │
-│ }                               │
-└───────────┬─────────────────────┘
-            │ 実装
-    ┌───────┼───────┐
-    ▼       ▼       ▼
- ServeMux  HandlerFunc  カスタムHandler
- (router)  (関数→Handler  (structに
-            変換)         メソッド)
++-------------------------------+
+| type Handler interface {      |
+|   ServeHTTP(ResponseWriter,   |
+|             *Request)         |
+| }                             |
++-----------+-------------------+
+            | implements
+    +-------+-------+
+    v       v       v
+ ServeMux  HandlerFunc  Custom Handler
+ (router)  (function    (method on
+            to Handler   a struct)
+            adapter)
 ```
 
-### 図3: ミドルウェアチェーン
+### Diagram 3: Middleware Chain
 
 ```
-ミドルウェアの積み重ね (入れ子構造):
+Middleware stacking (nested structure):
 
 recovery(logging(auth(cors(mux))))
 
-リクエスト方向 →
-┌─────────────────────────────────────┐
-│ recovery                             │
-│  ┌──────────────────────────────┐   │
-│  │ logging                      │   │
-│  │  ┌──────────────────────┐   │   │
-│  │  │ auth                  │   │   │
-│  │  │  ┌──────────────┐   │   │   │
-│  │  │  │ cors          │   │   │   │
-│  │  │  │  ┌────────┐  │   │   │   │
-│  │  │  │  │ServeMux│  │   │   │   │
-│  │  │  │  │→Handler│  │   │   │   │
-│  │  │  │  └────────┘  │   │   │   │
-│  │  │  └──────────────┘   │   │   │
-│  │  └──────────────────────┘   │   │
-│  └──────────────────────────────┘   │
-└─────────────────────────────────────┘
-← レスポンス方向
+Request direction ->
++-------------------------------------+
+| recovery                            |
+|  +------------------------------+   |
+|  | logging                      |   |
+|  |  +----------------------+   |   |
+|  |  | auth                 |   |   |
+|  |  |  +--------------+   |   |   |
+|  |  |  | cors         |   |   |   |
+|  |  |  |  +--------+  |   |   |   |
+|  |  |  |  |ServeMux|  |   |   |   |
+|  |  |  |  |->Handler| |   |   |   |
+|  |  |  |  +--------+  |   |   |   |
+|  |  |  +--------------+   |   |   |
+|  |  +----------------------+   |   |
+|  +------------------------------+   |
++-------------------------------------+
+<- Response direction
 ```
 
-### 図4: Go 1.22 パターンマッチング
+### Diagram 4: Go 1.22 Pattern Matching
 
 ```
-パターン:  "GET /users/{id}"
-             │       │    │
-             │       │    └── パスパラメータ: r.PathValue("id")
-             │       └────── パスプレフィックス
-             └────────────── HTTPメソッド制約
+Pattern:  "GET /users/{id}"
+             |       |    |
+             |       |    +-- Path parameter: r.PathValue("id")
+             |       +------ Path prefix
+             +-------------- HTTP method constraint
 
-優先順位（具体的なパターンが優先）:
+Priority (more specific patterns take precedence):
   "GET /users/me"       > "GET /users/{id}"
   "GET /users/{id}"     > "GET /users/{path...}"
   "GET /users/{id}"     > "GET /{rest...}"
 ```
 
-### 図5: Graceful Shutdownフロー
+### Diagram 5: Graceful Shutdown Flow
 
 ```
                  SIGTERM
-                    │
-                    ▼
-  ┌─────────────────────────────────┐
-  │ 1. ヘルスチェック → 503         │ ← LBがトラフィック停止
-  │    atomic.Store(&isReady, 0)    │
-  │    wait(10s)                    │
-  ├─────────────────────────────────┤
-  │ 2. server.Shutdown(ctx)         │ ← 新規接続を拒否
-  │    処理中のリクエスト完了を待機  │
-  ├─────────────────────────────────┤
-  │ 3. 全リクエスト完了             │
-  │    or タイムアウト(30s)         │
-  ├─────────────────────────────────┤
-  │ 4. server.Close() (強制停止)    │ ← タイムアウト時のフォールバック
-  └─────────────────────────────────┘
+                    |
+                    v
+  +---------------------------------+
+  | 1. Health check -> 503          | <- LB stops sending traffic
+  |    atomic.Store(&isReady, 0)    |
+  |    wait(10s)                    |
+  +---------------------------------+
+  | 2. server.Shutdown(ctx)         | <- Reject new connections
+  |    Wait for in-flight requests  |
+  +---------------------------------+
+  | 3. All requests completed       |
+  |    or timeout(30s)              |
+  +---------------------------------+
+  | 4. server.Close() (force stop)  | <- Fallback on timeout
+  +---------------------------------+
 ```
 
 ---
 
-## 9. 比較表
+## 9. Comparison Tables
 
-### 表1: Go 1.21以前 vs Go 1.22以降のServeMux
+### Table 1: ServeMux Before Go 1.21 vs Go 1.22+
 
-| 機能 | Go 1.21以前 | Go 1.22以降 |
-|------|------------|------------|
-| メソッド指定 | 不可 (手動チェック) | `"GET /path"` |
-| パスパラメータ | 不可 (サードパーティ必要) | `"/users/{id}"` |
-| ワイルドカード | 不可 | `"/files/{path...}"` |
-| 優先順位 | 最長一致 | 最も具体的なパターン |
-| 外部依存 | gorilla/mux, chi等が必要 | 標準ライブラリで十分 |
-| パスパラメータ取得 | mux.Vars(r) 等 | r.PathValue("id") |
+| Feature | Before Go 1.21 | Go 1.22+ |
+|---------|---------------|----------|
+| Method specification | Not possible (manual check) | `"GET /path"` |
+| Path parameters | Not possible (third-party required) | `"/users/{id}"` |
+| Wildcards | Not possible | `"/files/{path...}"` |
+| Priority | Longest match | Most specific pattern |
+| External dependencies | gorilla/mux, chi, etc. required | Standard library sufficient |
+| Path parameter retrieval | mux.Vars(r), etc. | r.PathValue("id") |
 
-### 表2: 標準net/http vs サードパーティフレームワーク
+### Table 2: Standard net/http vs Third-Party Frameworks
 
-| 項目 | net/http (1.22+) | Gin | Echo | chi |
+| Item | net/http (1.22+) | Gin | Echo | chi |
 |------|-----------------|-----|------|-----|
-| パフォーマンス | 高 | 非常に高 | 非常に高 | 非常に高 |
-| ルーティング | パターンマッチ | Radix tree | Radix tree | Radix tree |
-| バリデーション | なし | binding | validator | なし |
-| Swagger生成 | 手動 | swaggo対応 | swaggo対応 | swaggo対応 |
-| 依存 | なし | あり | あり | 少 |
-| 標準互換 | ネイティブ | 独自Context | 独自Context | net/http互換 |
+| Performance | High | Very high | Very high | Very high |
+| Routing | Pattern matching | Radix tree | Radix tree | Radix tree |
+| Validation | None | binding | validator | None |
+| Swagger generation | Manual | swaggo support | swaggo support | swaggo support |
+| Dependencies | None | Yes | Yes | Few |
+| Standard compatibility | Native | Custom Context | Custom Context | net/http compatible |
 
-### 表3: http.Server タイムアウト設定
+### Table 3: http.Server Timeout Settings
 
-| パラメータ | 対象 | 推奨値 | 説明 |
-|-----------|------|-------|------|
-| ReadTimeout | リクエスト読み取り | 5-15s | ヘッダー + ボディ全体 |
-| ReadHeaderTimeout | ヘッダーのみ | 5s | Slowloris対策 |
-| WriteTimeout | レスポンス書き込み | 10-30s | ハンドラ処理時間含む |
-| IdleTimeout | Keep-Alive接続 | 60-120s | アイドル接続の維持時間 |
-| MaxHeaderBytes | ヘッダーサイズ | 1MB | DoS対策 |
+| Parameter | Target | Recommended | Description |
+|-----------|--------|-------------|-------------|
+| ReadTimeout | Request reading | 5-15s | Entire header + body |
+| ReadHeaderTimeout | Headers only | 5s | Slowloris protection |
+| WriteTimeout | Response writing | 10-30s | Includes handler processing time |
+| IdleTimeout | Keep-Alive connections | 60-120s | Idle connection retention time |
+| MaxHeaderBytes | Header size | 1MB | DoS protection |
 
-### 表4: HTTPクライアントのTransport設定
+### Table 4: HTTP Client Transport Settings
 
-| パラメータ | デフォルト | 推奨値 | 説明 |
-|-----------|----------|-------|------|
-| MaxIdleConns | 100 | 100 | 全ホスト合計のアイドル接続数 |
-| MaxIdleConnsPerHost | 2 | 10-25 | ホスト毎のアイドル接続数 |
-| IdleConnTimeout | 90s | 90s | アイドル接続のタイムアウト |
-| TLSHandshakeTimeout | 10s | 10s | TLSハンドシェイクの制限時間 |
-| ResponseHeaderTimeout | なし | 30s | レスポンスヘッダーの待機時間 |
-| ExpectContinueTimeout | 1s | 1s | 100-continue の待機時間 |
+| Parameter | Default | Recommended | Description |
+|-----------|---------|-------------|-------------|
+| MaxIdleConns | 100 | 100 | Total idle connections across all hosts |
+| MaxIdleConnsPerHost | 2 | 10-25 | Idle connections per host |
+| IdleConnTimeout | 90s | 90s | Idle connection timeout |
+| TLSHandshakeTimeout | 10s | 10s | TLS handshake time limit |
+| ResponseHeaderTimeout | None | 30s | Response header wait time |
+| ExpectContinueTimeout | 1s | 1s | 100-continue wait time |
 
 ---
 
-## 10. アンチパターン
+## 10. Anti-Patterns
 
-### アンチパターン 1: タイムアウト未設定のサーバー
+### Anti-Pattern 1: Server Without Timeout Settings
 
 ```go
-// BAD: デフォルトのhttp.ListenAndServe
-http.ListenAndServe(":8080", mux) // タイムアウトなし → Slowloris攻撃に脆弱
+// BAD: Default http.ListenAndServe
+http.ListenAndServe(":8080", mux) // No timeout -> vulnerable to Slowloris attacks
 
-// GOOD: タイムアウトを明示的に設定
+// GOOD: Explicitly set timeouts
 server := &http.Server{
 	Addr:              ":8080",
 	Handler:           mux,
@@ -1571,35 +1572,35 @@ server := &http.Server{
 server.ListenAndServe()
 ```
 
-### アンチパターン 2: レスポンスボディの二重書き込み
+### Anti-Pattern 2: Double Writing to ResponseWriter
 
 ```go
-// BAD: WriteHeaderの後にhttp.Errorを呼ぶ
+// BAD: Calling http.Error after WriteHeader
 func handler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	// ... 処理中にエラー発生
-	http.Error(w, "error", http.StatusInternalServerError) // 効かない！
+	// ... error occurs during processing
+	http.Error(w, "error", http.StatusInternalServerError) // Has no effect!
 }
 
-// GOOD: エラーチェックを先に行う
+// GOOD: Perform error checks first
 func handler(w http.ResponseWriter, r *http.Request) {
 	data, err := process()
 	if err != nil {
 		http.Error(w, "error", http.StatusInternalServerError)
-		return // 必ずreturn
+		return // Always return
 	}
 	w.WriteHeader(http.StatusOK)
 	w.Write(data)
 }
 ```
 
-### アンチパターン 3: http.DefaultClient の使用
+### Anti-Pattern 3: Using http.DefaultClient
 
 ```go
-// BAD: タイムアウトなしのデフォルトクライアント
-resp, err := http.Get("https://example.com/api") // タイムアウトなし
+// BAD: Default client without timeout
+resp, err := http.Get("https://example.com/api") // No timeout
 
-// GOOD: タイムアウト付きのカスタムクライアント
+// GOOD: Custom client with timeout
 client := &http.Client{
 	Timeout: 30 * time.Second,
 	Transport: &http.Transport{
@@ -1609,43 +1610,43 @@ client := &http.Client{
 resp, err := client.Get("https://example.com/api")
 ```
 
-### アンチパターン 4: レスポンスボディの読み忘れ
+### Anti-Pattern 4: Forgetting to Read Response Body
 
 ```go
-// BAD: レスポンスボディを読まずにCloseする
+// BAD: Closing without reading the response body
 resp, err := http.Get("https://example.com")
 if err != nil {
 	return err
 }
-resp.Body.Close() // ボディを読んでいない → TCP接続が再利用されない
+resp.Body.Close() // Body not read -> TCP connection cannot be reused
 
-// GOOD: ボディを完全に読み取ってからCloseする
+// GOOD: Fully read the body before closing
 resp, err := http.Get("https://example.com")
 if err != nil {
 	return err
 }
 defer resp.Body.Close()
-io.Copy(io.Discard, resp.Body) // ボディを完全に読み取る
+io.Copy(io.Discard, resp.Body) // Fully read the body
 ```
 
-### アンチパターン 5: goroutine内でResponseWriterを使う
+### Anti-Pattern 5: Using ResponseWriter in a Goroutine
 
 ```go
-// BAD: ハンドラ返却後にResponseWriterを使う
+// BAD: Using ResponseWriter after handler returns
 func handler(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		time.Sleep(1 * time.Second)
-		fmt.Fprintf(w, "delayed response") // ハンドラは既に返却済み → race condition
+		fmt.Fprintf(w, "delayed response") // Handler already returned -> race condition
 	}()
 }
 
-// GOOD: 必要な処理をハンドラ内で完結させる
+// GOOD: Complete all necessary processing within the handler
 func handler(w http.ResponseWriter, r *http.Request) {
-	// 同期的に処理を完了
+	// Complete processing synchronously
 	result := process()
 	fmt.Fprintf(w, "result: %s", result)
 
-	// 非同期タスクは別途処理
+	// Handle async tasks separately
 	go func() {
 		sendNotification(result)
 	}()
@@ -1654,9 +1655,9 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 ---
 
-## 11. 本番運用のベストプラクティス
+## 11. Production Best Practices
 
-### セキュリティヘッダーの設定
+### Security Header Configuration
 
 ```go
 func securityHeadersMiddleware(next http.Handler) http.Handler {
@@ -1672,7 +1673,7 @@ func securityHeadersMiddleware(next http.Handler) http.Handler {
 }
 ```
 
-### Request-IDによる分散トレーシング
+### Distributed Tracing with Request-ID
 
 ```go
 func traceMiddleware(next http.Handler) http.Handler {
@@ -1694,7 +1695,7 @@ func traceMiddleware(next http.Handler) http.Handler {
 }
 
 func generateUUID() string {
-	return "uuid-placeholder" // 実際にはuuid.New().String()
+	return "uuid-placeholder" // In practice, use uuid.New().String()
 }
 ```
 
@@ -1702,76 +1703,76 @@ func generateUUID() string {
 
 ## 12. FAQ
 
-### Q1: net/httpだけで本番サーバーは構築可能か？
+### Q1: Can a production server be built with net/http alone?
 
-Go 1.22以降であれば十分に可能。パスパラメータ・メソッドマッチング・ワイルドカードが標準サポートされた。ただし、バリデーション・Swagger自動生成・BindJSONなどはサードパーティが必要。シンプルなAPIやマイクロサービスなら標準ライブラリで十分である。
+With Go 1.22 and later, it is entirely possible. Path parameters, method matching, and wildcards are now natively supported. However, validation, automatic Swagger generation, BindJSON, and similar features still require third-party libraries. For simple APIs and microservices, the standard library is sufficient.
 
-### Q2: Graceful Shutdownはどう実装するか？
+### Q2: How should Graceful Shutdown be implemented?
 
-`server.Shutdown(ctx)` を使う。SIGTERMをキャッチし、処理中のリクエストの完了を待ってからシャットダウンする。Kubernetes環境ではヘルスチェックの503切り替えとpreStop hookの待機時間も考慮する。
+Use `server.Shutdown(ctx)`. Catch SIGTERM, wait for in-flight requests to complete, then shut down. In Kubernetes environments, also consider the health check 503 switch and preStop hook wait time.
 
-### Q3: http.Clientにもタイムアウトは必要か？
+### Q3: Are timeouts necessary for http.Client as well?
 
-必須。デフォルトの`http.DefaultClient`はタイムアウトなし。`&http.Client{Timeout: 30 * time.Second}` またはContextのタイムアウトを使う。外部サービス呼び出しではリトライとCircuit Breakerの組み合わせも検討する。
+Absolutely. The default `http.DefaultClient` has no timeout. Use `&http.Client{Timeout: 30 * time.Second}` or Context-based timeouts. For external service calls, also consider combining retries with a Circuit Breaker.
 
-### Q4: ResponseWriterに書き込む順序で注意すべき点は？
+### Q4: What ordering rules apply when writing to ResponseWriter?
 
-ヘッダー → WriteHeader → Body の順序を守る。`WriteHeader`または最初の`Write`呼び出し後にヘッダーを変更しても反映されない。`http.Error`は内部で`WriteHeader`を呼ぶため、それ以降のステータスコード変更は無効。
+Follow the order: Headers -> WriteHeader -> Body. Modifying headers after `WriteHeader` or the first `Write` call will have no effect. `http.Error` internally calls `WriteHeader`, so any subsequent status code changes are ignored.
 
-### Q5: ServeMuxのスレッドセーフ性は？
+### Q5: Is ServeMux thread-safe?
 
-`http.ServeMux`はスレッドセーフ。サーバー起動前にルートを登録すれば問題ない。ただし、サーバー起動後の動的ルート追加は`sync.Mutex`で保護が必要。
+`http.ServeMux` is thread-safe. There are no issues if routes are registered before the server starts. However, dynamic route addition after server startup requires protection with `sync.Mutex`.
 
-### Q6: Context キャンセルとResponseWriterの関係は？
+### Q6: What is the relationship between Context cancellation and ResponseWriter?
 
-クライアントが接続を切断すると`r.Context().Done()`が発火する。長時間かかるハンドラではcontextの状態をチェックし、切断済みなら処理を中断すべき。ただし、`ResponseWriter`への書き込み自体はcontextキャンセル後もエラーにならないことが多い（出力は無意味だが）。
+When a client disconnects, `r.Context().Done()` fires. Long-running handlers should check the context state and abort processing if the client has disconnected. Note that writes to `ResponseWriter` often do not error out even after context cancellation (though the output is meaningless).
 
-### Q7: http.FileServerの使い方と注意点は？
+### Q7: How should http.FileServer be used, and what are the caveats?
 
-`http.FileServer(http.Dir("./static"))` で静的ファイルを配信できる。ただし、ディレクトリリスティングがデフォルトで有効。無効にするにはカスタムFileSystemを実装するか、`index.html`を各ディレクトリに配置する。
+`http.FileServer(http.Dir("./static"))` serves static files. However, directory listing is enabled by default. To disable it, implement a custom FileSystem or place an `index.html` in each directory.
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important aspect. Understanding deepens not just through theory but by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the basics and jumping straight to advanced topics. We recommend thoroughly understanding the fundamental concepts explained in this guide before moving to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this knowledge applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-| 概念 | 要点 |
-|------|------|
-| Handler | `ServeHTTP(w, r)` を持つインターフェース |
-| ServeMux | Go 1.22+でメソッド・パスパラメータ対応 |
-| ミドルウェア | `func(http.Handler) http.Handler` パターン |
-| Server設定 | タイムアウトは必ず設定する |
-| HTTPクライアント | タイムアウト・Transport設定が必須 |
-| Graceful Shutdown | server.Shutdown(ctx) + シグナルハンドリング |
-| httptest | テスト用のRecorder/Request/Server |
+Knowledge of this topic is frequently applied in daily development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## Summary
 
-- [01-gin-echo.md](./01-gin-echo.md) -- Gin/Echoフレームワーク
-- [02-database.md](./02-database.md) -- データベース接続
-- [04-testing.md](./04-testing.md) -- HTTPテスト
+| Concept | Key Point |
+|---------|-----------|
+| Handler | Interface with `ServeHTTP(w, r)` |
+| ServeMux | Go 1.22+ supports methods and path parameters |
+| Middleware | `func(http.Handler) http.Handler` pattern |
+| Server settings | Timeouts must always be configured |
+| HTTP Client | Timeout and Transport settings are essential |
+| Graceful Shutdown | server.Shutdown(ctx) + signal handling |
+| httptest | Recorder/Request/Server for testing |
 
 ---
 
-## 参考文献
+## Recommended Next Reads
+
+- [01-gin-echo.md](./01-gin-echo.md) -- Gin/Echo Frameworks
+- [02-database.md](./02-database.md) -- Database Connectivity
+- [04-testing.md](./04-testing.md) -- HTTP Testing
+
+---
+
+## References
 
 1. **Go Standard Library: net/http** -- https://pkg.go.dev/net/http
 2. **Go Blog, "Routing Enhancements for Go 1.22"** -- https://go.dev/blog/routing-enhancements
