@@ -1,35 +1,35 @@
-# Gin / Echo -- Go Webフレームワーク
+# Gin / Echo -- Go Web Frameworks
 
-> GinとEchoはGoで最も人気のあるWebフレームワークであり、高速ルーティング・ミドルウェア・バリデーション・Swagger連携を提供する。
-
----
-
-## この章で学ぶこと
-
-1. **Gin / Echo の基本** -- ルーティングとハンドラ
-2. **ミドルウェアとバリデーション** -- 横断的関心事の実装
-3. **Swagger / OpenAPI** -- API仕様の自動生成
-4. **テスト** -- ハンドラとミドルウェアのテスト手法
-5. **本番運用** -- Graceful Shutdown・構造化ログ・ヘルスチェック
-
-
-## 前提知識
-
-このガイドを読む前に、以下の知識があると理解が深まります:
-
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [net/http -- Go標準HTTPサーバー](./00-net-http.md) の内容を理解していること
+> Gin and Echo are the most popular web frameworks in Go, providing high-performance routing, middleware, validation, and Swagger integration.
 
 ---
 
-### コード例 1: Gin 基本セットアップ
+## What You Will Learn in This Chapter
+
+1. **Gin / Echo Basics** -- Routing and Handlers
+2. **Middleware and Validation** -- Implementing Cross-Cutting Concerns
+3. **Swagger / OpenAPI** -- Automatic API Specification Generation
+4. **Testing** -- Testing Techniques for Handlers and Middleware
+5. **Production Operations** -- Graceful Shutdown, Structured Logging, and Health Checks
+
+
+## Prerequisites
+
+Before reading this guide, having the following knowledge will help deepen your understanding:
+
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Familiarity with the content of [net/http -- Go Standard HTTP Server](./00-net-http.md)
+
+---
+
+### Code Example 1: Gin Basic Setup
 
 ```go
 import "github.com/gin-gonic/gin"
 
 func main() {
-    r := gin.Default() // Logger + Recovery ミドルウェア付き
+    r := gin.Default() // Includes Logger + Recovery middleware
 
     r.GET("/users", listUsers)
     r.POST("/users", createUser)
@@ -46,29 +46,29 @@ func getUser(c *gin.Context) {
 }
 ```
 
-Gin の `Default()` は `Logger` と `Recovery` ミドルウェアが自動で組み込まれたエンジンを返す。`New()` を使えばミドルウェアなしの素のエンジンを取得できる。本番環境では `New()` を使い、必要なミドルウェアを明示的に追加するのが推奨される。
+Gin's `Default()` returns an engine with `Logger` and `Recovery` middleware automatically included. Using `New()` gives you a bare engine without any middleware. In production environments, it is recommended to use `New()` and explicitly add the required middleware.
 
-ルーティングパラメータは `:id` の形式で定義し、`c.Param("id")` で取得する。ワイルドカードパラメータは `*filepath` の形式で、`c.Param("filepath")` として取得できる。
+Routing parameters are defined in the `:id` format and retrieved with `c.Param("id")`. Wildcard parameters use the `*filepath` format and are retrieved with `c.Param("filepath")`.
 
 ```go
-// ワイルドカードルーティングの例
+// Wildcard routing example
 r.GET("/files/*filepath", func(c *gin.Context) {
     filepath := c.Param("filepath")
-    // filepath = "/images/logo.png" のように先頭スラッシュ付き
+    // filepath = "/images/logo.png" (includes leading slash)
     c.String(http.StatusOK, "Serving: %s", filepath)
 })
 ```
 
-クエリパラメータの取得方法も複数ある。
+There are also multiple ways to retrieve query parameters.
 
 ```go
 func listUsers(c *gin.Context) {
-    // クエリパラメータ
+    // Query parameters
     page := c.DefaultQuery("page", "1")
     limit := c.DefaultQuery("limit", "20")
-    sort := c.Query("sort") // 空文字列がデフォルト
+    sort := c.Query("sort") // Empty string as default
 
-    // 数値変換
+    // Numeric conversion
     pageNum, err := strconv.Atoi(page)
     if err != nil || pageNum < 1 {
         pageNum = 1
@@ -78,7 +78,7 @@ func listUsers(c *gin.Context) {
         limitNum = 20
     }
 
-    // ページネーション付きレスポンス
+    // Response with pagination
     c.JSON(http.StatusOK, gin.H{
         "page":  pageNum,
         "limit": limitNum,
@@ -88,7 +88,7 @@ func listUsers(c *gin.Context) {
 }
 ```
 
-### コード例 2: Echo 基本セットアップ
+### Code Example 2: Echo Basic Setup
 
 ```go
 import "github.com/labstack/echo/v4"
@@ -111,10 +111,10 @@ func getUser(c echo.Context) error {
 }
 ```
 
-Echo の大きな特徴はハンドラが `error` を返す点である。これによりエラーハンドリングを集約でき、ハンドラ内で `c.JSON()` を呼んだ後に `return nil` を忘れるバグを防げる。
+A key feature of Echo is that handlers return `error`. This enables centralized error handling and prevents bugs where you forget to `return nil` after calling `c.JSON()` in a handler.
 
 ```go
-// Echo のエラーハンドリングはハンドラの戻り値で制御できる
+// Echo's error handling is controlled by the handler's return value
 func getUser(c echo.Context) error {
     id := c.Param("id")
     user, err := userService.FindByID(c.Request().Context(), id)
@@ -128,16 +128,16 @@ func getUser(c echo.Context) error {
 }
 ```
 
-Echo ではルーティングパラメータの他に、パスセグメント以降すべてを取得するワイルドカードもサポートしている。
+Echo also supports wildcards that capture everything after a path segment, in addition to routing parameters.
 
 ```go
-// Echo ワイルドカード
+// Echo wildcard
 e.GET("/files/*", func(c echo.Context) error {
     filepath := c.Param("*")
     return c.String(http.StatusOK, "Serving: "+filepath)
 })
 
-// クエリパラメータ
+// Query parameters
 func listUsers(c echo.Context) error {
     page := c.QueryParam("page")
     limit := c.QueryParam("limit")
@@ -154,7 +154,7 @@ func listUsers(c echo.Context) error {
 }
 ```
 
-### コード例 3: Gin バリデーション
+### Code Example 3: Gin Validation
 
 ```go
 type CreateUserRequest struct {
@@ -170,25 +170,25 @@ func createUser(c *gin.Context) {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
-    // バリデーション通過
+    // Validation passed
     c.JSON(http.StatusCreated, gin.H{"name": req.Name})
 }
 ```
 
-Gin のバリデーションは内部で `go-playground/validator` を使用している。カスタムバリデーションルールの登録も可能である。
+Gin's validation internally uses `go-playground/validator`. You can also register custom validation rules.
 
 ```go
-// カスタムバリデーションルールの登録
+// Registering custom validation rules
 func setupValidator() {
     if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
-        // カスタムバリデーション: 日本の電話番号
+        // Custom validation: Japanese phone number
         v.RegisterValidation("jpphone", func(fl validator.FieldLevel) bool {
             phone := fl.Field().String()
             matched, _ := regexp.MatchString(`^0\d{1,4}-?\d{1,4}-?\d{4}$`, phone)
             return matched
         })
 
-        // カスタムバリデーション: パスワード強度
+        // Custom validation: password strength
         v.RegisterValidation("strongpassword", func(fl validator.FieldLevel) bool {
             password := fl.Field().String()
             hasUpper := regexp.MustCompile(`[A-Z]`).MatchString(password)
@@ -198,7 +198,7 @@ func setupValidator() {
             return hasUpper && hasLower && hasNumber && hasSpecial
         })
 
-        // JSON タグ名をエラーメッセージに使用
+        // Use JSON tag names in error messages
         v.RegisterTagNameFunc(func(fld reflect.StructField) string {
             name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
             if name == "-" {
@@ -209,7 +209,7 @@ func setupValidator() {
     }
 }
 
-// カスタムバリデーションを使用する構造体
+// Struct using custom validations
 type RegisterRequest struct {
     Name     string `json:"name" binding:"required,min=2,max=50"`
     Email    string `json:"email" binding:"required,email"`
@@ -218,10 +218,10 @@ type RegisterRequest struct {
 }
 ```
 
-バリデーションエラーのメッセージをユーザーフレンドリーに変換する関数も重要である。
+It is also important to have a function that converts validation errors into user-friendly messages.
 
 ```go
-// バリデーションエラーの変換
+// Converting validation errors
 func formatValidationErrors(err error) []map[string]string {
     var ve validator.ValidationErrors
     if !errors.As(err, &ve) {
@@ -243,23 +243,23 @@ func formatValidationErrors(err error) []map[string]string {
 func validationMessage(fe validator.FieldError) string {
     switch fe.Tag() {
     case "required":
-        return fmt.Sprintf("%s は必須です", fe.Field())
+        return fmt.Sprintf("%s is required", fe.Field())
     case "email":
-        return fmt.Sprintf("%s は有効なメールアドレスではありません", fe.Field())
+        return fmt.Sprintf("%s is not a valid email address", fe.Field())
     case "min":
-        return fmt.Sprintf("%s は %s 以上である必要があります", fe.Field(), fe.Param())
+        return fmt.Sprintf("%s must be at least %s", fe.Field(), fe.Param())
     case "max":
-        return fmt.Sprintf("%s は %s 以下である必要があります", fe.Field(), fe.Param())
+        return fmt.Sprintf("%s must be at most %s", fe.Field(), fe.Param())
     case "jpphone":
-        return fmt.Sprintf("%s は有効な日本の電話番号ではありません", fe.Field())
+        return fmt.Sprintf("%s is not a valid Japanese phone number", fe.Field())
     case "strongpassword":
-        return "パスワードには大文字・小文字・数字・特殊文字が必要です"
+        return "Password must contain uppercase, lowercase, numbers, and special characters"
     default:
-        return fmt.Sprintf("%s は %s を満たしていません", fe.Field(), fe.Tag())
+        return fmt.Sprintf("%s does not satisfy %s", fe.Field(), fe.Tag())
     }
 }
 
-// ハンドラでの使用
+// Usage in handler
 func createUser(c *gin.Context) {
     var req CreateUserRequest
     if err := c.ShouldBindJSON(&req); err != nil {
@@ -273,20 +273,20 @@ func createUser(c *gin.Context) {
 }
 ```
 
-### コード例 4: Gin ミドルウェアグループ
+### Code Example 4: Gin Middleware Groups
 
 ```go
 func main() {
     r := gin.Default()
 
-    // 公開API
+    // Public API
     public := r.Group("/api/v1")
     {
         public.POST("/login", login)
         public.POST("/register", register)
     }
 
-    // 認証必須API
+    // Authentication required API
     authorized := r.Group("/api/v1")
     authorized.Use(authMiddleware())
     {
@@ -294,7 +294,7 @@ func main() {
         authorized.PUT("/profile", updateProfile)
     }
 
-    // 管理者API
+    // Admin API
     admin := r.Group("/api/v1/admin")
     admin.Use(authMiddleware(), adminMiddleware())
     {
@@ -322,10 +322,10 @@ func authMiddleware() gin.HandlerFunc {
 }
 ```
 
-ミドルウェアの実行順序は重要である。`c.Next()` を呼ぶと後続のミドルウェアとハンドラが実行され、その後に `c.Next()` 以降のコードが実行される。`c.Abort()` を呼ぶとチェーンが中断される。
+The execution order of middleware is important. Calling `c.Next()` executes the subsequent middleware and handler, after which the code following `c.Next()` is executed. Calling `c.Abort()` interrupts the chain.
 
 ```go
-// ミドルウェアの実行順序を理解するための例
+// Example to understand middleware execution order
 func middleware1() gin.HandlerFunc {
     return func(c *gin.Context) {
         fmt.Println("middleware1: before")
@@ -342,7 +342,7 @@ func middleware2() gin.HandlerFunc {
     }
 }
 
-// 出力順序:
+// Output order:
 // middleware1: before
 // middleware2: before
 // handler
@@ -350,7 +350,7 @@ func middleware2() gin.HandlerFunc {
 // middleware1: after
 ```
 
-### コード例 5: Echo カスタムバリデータ
+### Code Example 5: Echo Custom Validator
 
 ```go
 import "github.com/go-playground/validator/v10"
@@ -380,10 +380,10 @@ func main() {
 }
 ```
 
-Echo でカスタムバリデータを使う場合、バリデーションエラーのフォーマットもカスタマイズできる。
+When using a custom validator in Echo, you can also customize the validation error formatting.
 
 ```go
-// 拡張カスタムバリデータ
+// Extended custom validator
 type CustomValidator struct {
     validator *validator.Validate
 }
@@ -391,7 +391,7 @@ type CustomValidator struct {
 func NewCustomValidator() *CustomValidator {
     v := validator.New()
 
-    // JSON タグ名をフィールド名として使用
+    // Use JSON tag names as field names
     v.RegisterTagNameFunc(func(fld reflect.StructField) string {
         name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
         if name == "-" {
@@ -414,7 +414,7 @@ func (cv *CustomValidator) Validate(i interface{}) error {
     return nil
 }
 
-// カスタムエラー型
+// Custom error type
 type ValidationError struct {
     Errors []FieldError `json:"errors"`
 }
@@ -442,21 +442,21 @@ func formatErrors(ve validator.ValidationErrors) []FieldError {
 func msgForTag(fe validator.FieldError) string {
     switch fe.Tag() {
     case "required":
-        return "この項目は必須です"
+        return "This field is required"
     case "email":
-        return "有効なメールアドレスを入力してください"
+        return "Please enter a valid email address"
     default:
         return fe.Error()
     }
 }
 ```
 
-### コード例 6: Gin 統一レスポンス構造
+### Code Example 6: Gin Unified Response Structure
 
-本番APIでは統一されたレスポンス構造が重要である。
+A unified response structure is important in production APIs.
 
 ```go
-// 統一レスポンス構造体
+// Unified response struct
 type Response struct {
     Code    int         `json:"code"`
     Message string      `json:"message"`
@@ -484,7 +484,7 @@ type ErrorResponse struct {
     Errors  []ErrorDetail `json:"errors,omitempty"`
 }
 
-// レスポンスヘルパー関数
+// Response helper functions
 func respondOK(c *gin.Context, data interface{}) {
     c.JSON(http.StatusOK, Response{
         Code:    http.StatusOK,
@@ -535,27 +535,27 @@ func respondValidationError(c *gin.Context, errors []ErrorDetail) {
     })
 }
 
-// ハンドラでの使用例
+// Usage example in handler
 func listUsers(c *gin.Context) {
     page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
     perPage, _ := strconv.Atoi(c.DefaultQuery("per_page", "20"))
 
     users, total, err := userService.List(c.Request.Context(), page, perPage)
     if err != nil {
-        respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "ユーザー一覧の取得に失敗しました")
+        respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to retrieve user list")
         return
     }
     respondPaginated(c, users, page, perPage, total)
 }
 ```
 
-### コード例 7: Echo ミドルウェア詳細
+### Code Example 7: Echo Middleware Details
 
-Echo では標準ミドルウェアが豊富に提供されている。
+Echo provides a rich set of built-in middleware.
 
 ```go
 func setupMiddlewares(e *echo.Echo) {
-    // リカバリー
+    // Recovery
     e.Use(middleware.RecoverWithConfig(middleware.RecoverConfig{
         StackSize:         4 << 10, // 4 KB
         DisableStackAll:   false,
@@ -580,7 +580,7 @@ func setupMiddlewares(e *echo.Echo) {
         MaxAge:           3600,
     }))
 
-    // レート制限
+    // Rate limiting
     e.Use(middleware.RateLimiterWithConfig(middleware.RateLimiterConfig{
         Skipper: middleware.DefaultSkipper,
         Store: middleware.NewRateLimiterMemoryStoreWithConfig(
@@ -606,15 +606,15 @@ func setupMiddlewares(e *echo.Echo) {
         },
     }))
 
-    // リクエストID
+    // Request ID
     e.Use(middleware.RequestID())
 
-    // タイムアウト
+    // Timeout
     e.Use(middleware.TimeoutWithConfig(middleware.TimeoutConfig{
         Timeout: 30 * time.Second,
     }))
 
-    // Gzip圧縮
+    // Gzip compression
     e.Use(middleware.GzipWithConfig(middleware.GzipConfig{
         Level: 5,
         Skipper: func(c echo.Context) bool {
@@ -622,7 +622,7 @@ func setupMiddlewares(e *echo.Echo) {
         },
     }))
 
-    // セキュリティヘッダ
+    // Security headers
     e.Use(middleware.SecureWithConfig(middleware.SecureConfig{
         XSSProtection:         "1; mode=block",
         ContentTypeNosniff:    "nosniff",
@@ -633,12 +633,12 @@ func setupMiddlewares(e *echo.Echo) {
 }
 ```
 
-### コード例 8: Gin カスタムミドルウェア集
+### Code Example 8: Gin Custom Middleware Collection
 
-本番環境でよく使うカスタムミドルウェアをまとめる。
+A collection of custom middleware commonly used in production environments.
 
 ```go
-// リクエストIDミドルウェア
+// Request ID middleware
 func RequestIDMiddleware() gin.HandlerFunc {
     return func(c *gin.Context) {
         requestID := c.GetHeader("X-Request-ID")
@@ -651,7 +651,7 @@ func RequestIDMiddleware() gin.HandlerFunc {
     }
 }
 
-// 構造化ログミドルウェア
+// Structured logger middleware
 func StructuredLoggerMiddleware(logger *slog.Logger) gin.HandlerFunc {
     return func(c *gin.Context) {
         start := time.Now()
@@ -687,7 +687,7 @@ func StructuredLoggerMiddleware(logger *slog.Logger) gin.HandlerFunc {
     }
 }
 
-// CORSミドルウェア
+// CORS middleware
 func CORSMiddleware(allowOrigins []string) gin.HandlerFunc {
     originMap := make(map[string]bool)
     for _, o := range allowOrigins {
@@ -713,7 +713,7 @@ func CORSMiddleware(allowOrigins []string) gin.HandlerFunc {
     }
 }
 
-// レート制限ミドルウェア (Token Bucket)
+// Rate limiting middleware (Token Bucket)
 func RateLimitMiddleware(rps int, burst int) gin.HandlerFunc {
     var mu sync.Mutex
     limiters := make(map[string]*rate.Limiter)
@@ -729,7 +729,7 @@ func RateLimitMiddleware(rps int, burst int) gin.HandlerFunc {
         return limiter
     }
 
-    // 古いエントリの定期クリーンアップ
+    // Periodic cleanup of stale entries
     go func() {
         for range time.Tick(10 * time.Minute) {
             mu.Lock()
@@ -743,7 +743,7 @@ func RateLimitMiddleware(rps int, burst int) gin.HandlerFunc {
         if !limiter.Allow() {
             c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
                 "code":    "RATE_LIMIT_EXCEEDED",
-                "message": "リクエスト数が制限を超えました",
+                "message": "Request rate limit exceeded",
             })
             return
         }
@@ -751,7 +751,7 @@ func RateLimitMiddleware(rps int, burst int) gin.HandlerFunc {
     }
 }
 
-// タイムアウトミドルウェア
+// Timeout middleware
 func TimeoutMiddleware(timeout time.Duration) gin.HandlerFunc {
     return func(c *gin.Context) {
         ctx, cancel := context.WithTimeout(c.Request.Context(), timeout)
@@ -771,13 +771,13 @@ func TimeoutMiddleware(timeout time.Duration) gin.HandlerFunc {
         case <-ctx.Done():
             c.AbortWithStatusJSON(http.StatusGatewayTimeout, gin.H{
                 "code":    "TIMEOUT",
-                "message": "リクエストがタイムアウトしました",
+                "message": "Request timed out",
             })
         }
     }
 }
 
-// セキュリティヘッダミドルウェア
+// Security headers middleware
 func SecurityHeadersMiddleware() gin.HandlerFunc {
     return func(c *gin.Context) {
         c.Header("X-Content-Type-Options", "nosniff")
@@ -792,16 +792,16 @@ func SecurityHeadersMiddleware() gin.HandlerFunc {
 }
 ```
 
-### コード例 9: Gin JWT認証の完全実装
+### Code Example 9: Complete Gin JWT Authentication Implementation
 
-JWT認証は多くのAPIで必要となる。
+JWT authentication is required in many APIs.
 
 ```go
 import (
     "github.com/golang-jwt/jwt/v5"
 )
 
-// JWT設定
+// JWT configuration
 type JWTConfig struct {
     SecretKey     []byte
     Issuer        string
@@ -809,7 +809,7 @@ type JWTConfig struct {
     RefreshExpiry time.Duration
 }
 
-// カスタムクレーム
+// Custom claims
 type Claims struct {
     UserID int64  `json:"user_id"`
     Email  string `json:"email"`
@@ -817,18 +817,18 @@ type Claims struct {
     jwt.RegisteredClaims
 }
 
-// トークンペア
+// Token pair
 type TokenPair struct {
     AccessToken  string `json:"access_token"`
     RefreshToken string `json:"refresh_token"`
     ExpiresAt    int64  `json:"expires_at"`
 }
 
-// トークン生成
+// Token generation
 func (cfg *JWTConfig) GenerateTokenPair(userID int64, email, role string) (*TokenPair, error) {
     now := time.Now()
 
-    // アクセストークン
+    // Access token
     accessClaims := Claims{
         UserID: userID,
         Email:  email,
@@ -848,7 +848,7 @@ func (cfg *JWTConfig) GenerateTokenPair(userID int64, email, role string) (*Toke
         return nil, fmt.Errorf("access token signing: %w", err)
     }
 
-    // リフレッシュトークン
+    // Refresh token
     refreshClaims := jwt.RegisteredClaims{
         Issuer:    cfg.Issuer,
         Subject:   strconv.FormatInt(userID, 10),
@@ -869,7 +869,7 @@ func (cfg *JWTConfig) GenerateTokenPair(userID int64, email, role string) (*Toke
     }, nil
 }
 
-// トークン検証
+// Token validation
 func (cfg *JWTConfig) ValidateToken(tokenStr string) (*Claims, error) {
     token, err := jwt.ParseWithClaims(tokenStr, &Claims{}, func(token *jwt.Token) (interface{}, error) {
         if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -888,24 +888,24 @@ func (cfg *JWTConfig) ValidateToken(tokenStr string) (*Claims, error) {
     return claims, nil
 }
 
-// JWT認証ミドルウェア
+// JWT authentication middleware
 func JWTAuthMiddleware(jwtCfg *JWTConfig) gin.HandlerFunc {
     return func(c *gin.Context) {
         authHeader := c.GetHeader("Authorization")
         if authHeader == "" {
             c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
                 "code":    "UNAUTHORIZED",
-                "message": "Authorization ヘッダが必要です",
+                "message": "Authorization header is required",
             })
             return
         }
 
-        // "Bearer <token>" 形式の検証
+        // Validate "Bearer <token>" format
         parts := strings.SplitN(authHeader, " ", 2)
         if len(parts) != 2 || !strings.EqualFold(parts[0], "bearer") {
             c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
                 "code":    "INVALID_TOKEN_FORMAT",
-                "message": "Bearer トークン形式が無効です",
+                "message": "Invalid Bearer token format",
             })
             return
         }
@@ -914,12 +914,12 @@ func JWTAuthMiddleware(jwtCfg *JWTConfig) gin.HandlerFunc {
         if err != nil {
             c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
                 "code":    "INVALID_TOKEN",
-                "message": "トークンが無効または期限切れです",
+                "message": "Token is invalid or expired",
             })
             return
         }
 
-        // コンテキストにユーザー情報をセット
+        // Set user info in context
         c.Set("userID", claims.UserID)
         c.Set("email", claims.Email)
         c.Set("role", claims.Role)
@@ -928,7 +928,7 @@ func JWTAuthMiddleware(jwtCfg *JWTConfig) gin.HandlerFunc {
     }
 }
 
-// ロールベース認可ミドルウェア
+// Role-based authorization middleware
 func RequireRole(roles ...string) gin.HandlerFunc {
     roleSet := make(map[string]bool)
     for _, r := range roles {
@@ -940,7 +940,7 @@ func RequireRole(roles ...string) gin.HandlerFunc {
         if !exists {
             c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
                 "code":    "FORBIDDEN",
-                "message": "権限がありません",
+                "message": "Permission denied",
             })
             return
         }
@@ -948,7 +948,7 @@ func RequireRole(roles ...string) gin.HandlerFunc {
         if !roleSet[role.(string)] {
             c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
                 "code":    "INSUFFICIENT_ROLE",
-                "message": fmt.Sprintf("必要なロール: %v", roles),
+                "message": fmt.Sprintf("Required role: %v", roles),
             })
             return
         }
@@ -956,7 +956,7 @@ func RequireRole(roles ...string) gin.HandlerFunc {
     }
 }
 
-// ログインハンドラ
+// Login handler
 func loginHandler(jwtCfg *JWTConfig, userService UserService) gin.HandlerFunc {
     return func(c *gin.Context) {
         var req LoginRequest
@@ -967,13 +967,13 @@ func loginHandler(jwtCfg *JWTConfig, userService UserService) gin.HandlerFunc {
 
         user, err := userService.Authenticate(c.Request.Context(), req.Email, req.Password)
         if err != nil {
-            respondError(c, http.StatusUnauthorized, "INVALID_CREDENTIALS", "メールアドレスまたはパスワードが間違っています")
+            respondError(c, http.StatusUnauthorized, "INVALID_CREDENTIALS", "Invalid email or password")
             return
         }
 
         tokens, err := jwtCfg.GenerateTokenPair(user.ID, user.Email, user.Role)
         if err != nil {
-            respondError(c, http.StatusInternalServerError, "TOKEN_GENERATION_ERROR", "トークンの生成に失敗しました")
+            respondError(c, http.StatusInternalServerError, "TOKEN_GENERATION_ERROR", "Failed to generate token")
             return
         }
 
@@ -986,19 +986,19 @@ func loginHandler(jwtCfg *JWTConfig, userService UserService) gin.HandlerFunc {
 }
 ```
 
-### コード例 10: Echo グループとカスタムコンテキスト
+### Code Example 10: Echo Groups and Custom Context
 
-Echo ではカスタムコンテキストでハンドラの共通機能を拡張できる。
+In Echo, you can extend common handler functionality using a custom context.
 
 ```go
-// カスタムコンテキスト
+// Custom context
 type AppContext struct {
     echo.Context
     UserID int64
     Role   string
 }
 
-// カスタムコンテキストミドルウェア
+// Custom context middleware
 func CustomContextMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
     return func(c echo.Context) error {
         cc := &AppContext{Context: c}
@@ -1006,7 +1006,7 @@ func CustomContextMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
     }
 }
 
-// カスタムコンテキストを使ったハンドラ
+// Handler using custom context
 func getProfile(c echo.Context) error {
     cc := c.(*AppContext)
     user, err := userService.FindByID(cc.Request().Context(), cc.UserID)
@@ -1016,13 +1016,13 @@ func getProfile(c echo.Context) error {
     return cc.JSON(http.StatusOK, user)
 }
 
-// Echo グループの構成
+// Echo group configuration
 func setupRoutes(e *echo.Echo, jwtCfg *JWTConfig) {
-    // APIバージョニング
+    // API versioning
     v1 := e.Group("/api/v1")
     v1.Use(CustomContextMiddleware)
 
-    // 公開エンドポイント
+    // Public endpoints
     public := v1.Group("")
     {
         public.POST("/auth/login", loginHandler)
@@ -1030,7 +1030,7 @@ func setupRoutes(e *echo.Echo, jwtCfg *JWTConfig) {
         public.POST("/auth/refresh", refreshTokenHandler)
     }
 
-    // 認証必須エンドポイント
+    // Authentication required endpoints
     auth := v1.Group("")
     auth.Use(echoJWTMiddleware(jwtCfg))
     {
@@ -1039,7 +1039,7 @@ func setupRoutes(e *echo.Echo, jwtCfg *JWTConfig) {
         auth.GET("/users/:id", getUserByID)
     }
 
-    // 管理者エンドポイント
+    // Admin endpoints
     admin := v1.Group("/admin")
     admin.Use(echoJWTMiddleware(jwtCfg), echoRequireRole("admin"))
     {
@@ -1050,67 +1050,67 @@ func setupRoutes(e *echo.Echo, jwtCfg *JWTConfig) {
 }
 ```
 
-### コード例 11: Swagger / OpenAPI 統合
+### Code Example 11: Swagger / OpenAPI Integration
 
-Gin でSwagger APIドキュメントを自動生成する。
+Auto-generating Swagger API documentation with Gin.
 
 ```go
-// Swaggerアノテーション付きハンドラ
+// Handler with Swagger annotations
 
-// @Summary ユーザー一覧取得
-// @Description ページネーション付きのユーザー一覧を取得する
+// @Summary Get user list
+// @Description Get a paginated list of users
 // @Tags users
 // @Accept json
 // @Produce json
-// @Param page query int false "ページ番号" default(1)
-// @Param per_page query int false "1ページあたりの件数" default(20) maximum(100)
-// @Param sort query string false "ソート項目" Enums(name, email, created_at)
-// @Param order query string false "ソート順序" Enums(asc, desc) default(asc)
-// @Success 200 {object} Response{data=[]User,meta=Meta} "成功"
-// @Failure 400 {object} ErrorResponse "バリデーションエラー"
-// @Failure 401 {object} ErrorResponse "認証エラー"
-// @Failure 500 {object} ErrorResponse "サーバーエラー"
+// @Param page query int false "Page number" default(1)
+// @Param per_page query int false "Items per page" default(20) maximum(100)
+// @Param sort query string false "Sort field" Enums(name, email, created_at)
+// @Param order query string false "Sort order" Enums(asc, desc) default(asc)
+// @Success 200 {object} Response{data=[]User,meta=Meta} "Success"
+// @Failure 400 {object} ErrorResponse "Validation error"
+// @Failure 401 {object} ErrorResponse "Authentication error"
+// @Failure 500 {object} ErrorResponse "Server error"
 // @Security BearerAuth
 // @Router /api/v1/users [get]
 func listUsers(c *gin.Context) {
-    // 実装
+    // Implementation
 }
 
-// @Summary ユーザー作成
-// @Description 新しいユーザーを作成する
+// @Summary Create user
+// @Description Create a new user
 // @Tags users
 // @Accept json
 // @Produce json
-// @Param request body CreateUserRequest true "ユーザー作成リクエスト"
-// @Success 201 {object} Response{data=User} "作成成功"
-// @Failure 400 {object} ErrorResponse "バリデーションエラー"
-// @Failure 409 {object} ErrorResponse "メールアドレス重複"
-// @Failure 500 {object} ErrorResponse "サーバーエラー"
+// @Param request body CreateUserRequest true "Create user request"
+// @Success 201 {object} Response{data=User} "Created successfully"
+// @Failure 400 {object} ErrorResponse "Validation error"
+// @Failure 409 {object} ErrorResponse "Email already exists"
+// @Failure 500 {object} ErrorResponse "Server error"
 // @Security BearerAuth
 // @Router /api/v1/users [post]
 func createUser(c *gin.Context) {
-    // 実装
+    // Implementation
 }
 
-// @Summary ユーザー取得
-// @Description IDでユーザーを取得する
+// @Summary Get user
+// @Description Get a user by ID
 // @Tags users
 // @Accept json
 // @Produce json
-// @Param id path int true "ユーザーID"
-// @Success 200 {object} Response{data=User} "成功"
-// @Failure 404 {object} ErrorResponse "ユーザーが見つかりません"
-// @Failure 500 {object} ErrorResponse "サーバーエラー"
+// @Param id path int true "User ID"
+// @Success 200 {object} Response{data=User} "Success"
+// @Failure 404 {object} ErrorResponse "User not found"
+// @Failure 500 {object} ErrorResponse "Server error"
 // @Security BearerAuth
 // @Router /api/v1/users/{id} [get]
 func getUser(c *gin.Context) {
-    // 実装
+    // Implementation
 }
 
-// Swaggerの設定
+// Swagger configuration
 // @title My API
 // @version 1.0
-// @description ユーザー管理API
+// @description User Management API
 // @host localhost:8080
 // @BasePath /api/v1
 // @securityDefinitions.apikey BearerAuth
@@ -1120,10 +1120,10 @@ func getUser(c *gin.Context) {
 func main() {
     r := gin.Default()
 
-    // Swaggerエンドポイント
+    // Swagger endpoint
     r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
-    // API ルーティング
+    // API routing
     v1 := r.Group("/api/v1")
     {
         v1.GET("/users", listUsers)
@@ -1135,24 +1135,24 @@ func main() {
 }
 ```
 
-Swagger ドキュメントの生成コマンド。
+Command to generate Swagger documentation.
 
 ```bash
-# swag のインストール
+# Install swag
 go install github.com/swaggo/swag/cmd/swag@latest
 
-# ドキュメント生成
+# Generate documentation
 swag init -g cmd/api/main.go -o docs
 
-# 生成されるファイル:
+# Generated files:
 # docs/docs.go
 # docs/swagger.json
 # docs/swagger.yaml
 ```
 
-### コード例 12: Gin テスト
+### Code Example 12: Gin Testing
 
-ハンドラのテストは httptest を使用する。
+Handler testing uses httptest.
 
 ```go
 import (
@@ -1165,14 +1165,14 @@ import (
     "github.com/stretchr/testify/require"
 )
 
-// テスト用のGinエンジンを作成するヘルパー
+// Helper to create a Gin engine for testing
 func setupTestRouter() *gin.Engine {
     gin.SetMode(gin.TestMode)
     r := gin.New()
     return r
 }
 
-// ハンドラのユニットテスト
+// Unit test for handler
 func TestGetUser(t *testing.T) {
     r := setupTestRouter()
 
@@ -1191,19 +1191,19 @@ func TestGetUser(t *testing.T) {
         wantBody   string
     }{
         {
-            name:       "正常系: ユーザー取得",
+            name:       "Success: get user",
             userID:     "1",
             wantStatus: http.StatusOK,
             wantBody:   `"name":"Tanaka"`,
         },
         {
-            name:       "異常系: ユーザーが存在しない",
+            name:       "Error: user does not exist",
             userID:     "999",
             wantStatus: http.StatusNotFound,
             wantBody:   `"code":"NOT_FOUND"`,
         },
         {
-            name:       "異常系: 無効なID",
+            name:       "Error: invalid ID",
             userID:     "abc",
             wantStatus: http.StatusBadRequest,
             wantBody:   `"code":"INVALID_ID"`,
@@ -1223,7 +1223,7 @@ func TestGetUser(t *testing.T) {
     }
 }
 
-// POST ハンドラのテスト
+// POST handler test
 func TestCreateUser(t *testing.T) {
     r := setupTestRouter()
     mockService := &MockUserService{users: make(map[int64]*User)}
@@ -1235,22 +1235,22 @@ func TestCreateUser(t *testing.T) {
         wantStatus int
     }{
         {
-            name:       "正常系: ユーザー作成",
+            name:       "Success: create user",
             body:       `{"name":"Yamada","email":"yamada@example.com","password":"P@ssw0rd!"}`,
             wantStatus: http.StatusCreated,
         },
         {
-            name:       "異常系: 名前が空",
+            name:       "Error: empty name",
             body:       `{"name":"","email":"yamada@example.com","password":"P@ssw0rd!"}`,
             wantStatus: http.StatusBadRequest,
         },
         {
-            name:       "異常系: 無効なメール",
+            name:       "Error: invalid email",
             body:       `{"name":"Yamada","email":"invalid","password":"P@ssw0rd!"}`,
             wantStatus: http.StatusBadRequest,
         },
         {
-            name:       "異常系: JSONパースエラー",
+            name:       "Error: JSON parse error",
             body:       `{invalid json`,
             wantStatus: http.StatusBadRequest,
         },
@@ -1270,7 +1270,7 @@ func TestCreateUser(t *testing.T) {
     }
 }
 
-// ミドルウェアのテスト
+// Middleware test
 func TestAuthMiddleware(t *testing.T) {
     jwtCfg := &JWTConfig{
         SecretKey:    []byte("test-secret"),
@@ -1285,14 +1285,14 @@ func TestAuthMiddleware(t *testing.T) {
         c.JSON(http.StatusOK, gin.H{"user_id": userID})
     })
 
-    t.Run("トークンなし", func(t *testing.T) {
+    t.Run("No token", func(t *testing.T) {
         req := httptest.NewRequest(http.MethodGet, "/protected", nil)
         w := httptest.NewRecorder()
         r.ServeHTTP(w, req)
         assert.Equal(t, http.StatusUnauthorized, w.Code)
     })
 
-    t.Run("有効なトークン", func(t *testing.T) {
+    t.Run("Valid token", func(t *testing.T) {
         tokens, err := jwtCfg.GenerateTokenPair(42, "test@example.com", "user")
         require.NoError(t, err)
 
@@ -1305,7 +1305,7 @@ func TestAuthMiddleware(t *testing.T) {
         assert.Contains(t, w.Body.String(), `"user_id":42`)
     })
 
-    t.Run("無効なトークン", func(t *testing.T) {
+    t.Run("Invalid token", func(t *testing.T) {
         req := httptest.NewRequest(http.MethodGet, "/protected", nil)
         req.Header.Set("Authorization", "Bearer invalid-token")
         w := httptest.NewRecorder()
@@ -1315,7 +1315,7 @@ func TestAuthMiddleware(t *testing.T) {
 }
 ```
 
-### コード例 13: Echo テスト
+### Code Example 13: Echo Testing
 
 ```go
 func TestEchoGetUser(t *testing.T) {
@@ -1335,13 +1335,13 @@ func TestEchoGetUser(t *testing.T) {
         wantBody   string
     }{
         {
-            name:       "正常系",
+            name:       "Success",
             userID:     "1",
             wantStatus: http.StatusOK,
             wantBody:   `"name":"Tanaka"`,
         },
         {
-            name:       "ユーザー未存在",
+            name:       "User not found",
             userID:     "999",
             wantStatus: http.StatusNotFound,
         },
@@ -1374,7 +1374,7 @@ func TestEchoGetUser(t *testing.T) {
     }
 }
 
-// Echo ミドルウェアのテスト
+// Echo middleware test
 func TestEchoRateLimitMiddleware(t *testing.T) {
     e := echo.New()
     e.Use(middleware.RateLimiterWithConfig(middleware.RateLimiterConfig{
@@ -1397,7 +1397,7 @@ func TestEchoRateLimitMiddleware(t *testing.T) {
         return c.String(http.StatusOK, "ok")
     })
 
-    // 最初の2リクエストは成功
+    // First 2 requests succeed
     for i := 0; i < 2; i++ {
         req := httptest.NewRequest(http.MethodGet, "/test", nil)
         rec := httptest.NewRecorder()
@@ -1405,7 +1405,7 @@ func TestEchoRateLimitMiddleware(t *testing.T) {
         assert.Equal(t, http.StatusOK, rec.Code)
     }
 
-    // 3番目のリクエストはレート制限
+    // Third request is rate limited
     req := httptest.NewRequest(http.MethodGet, "/test", nil)
     rec := httptest.NewRecorder()
     e.ServeHTTP(rec, req)
@@ -1413,23 +1413,23 @@ func TestEchoRateLimitMiddleware(t *testing.T) {
 }
 ```
 
-### コード例 14: Gin Graceful Shutdown
+### Code Example 14: Gin Graceful Shutdown
 
 ```go
 func main() {
-    // Releaseモード設定
+    // Set release mode
     gin.SetMode(gin.ReleaseMode)
 
     r := gin.New()
 
-    // ミドルウェアの設定
+    // Middleware setup
     r.Use(RequestIDMiddleware())
     r.Use(StructuredLoggerMiddleware(slog.Default()))
     r.Use(gin.Recovery())
     r.Use(CORSMiddleware([]string{"https://example.com"}))
     r.Use(SecurityHeadersMiddleware())
 
-    // ヘルスチェック
+    // Health check
     r.GET("/health", func(c *gin.Context) {
         c.JSON(http.StatusOK, gin.H{
             "status": "ok",
@@ -1437,7 +1437,7 @@ func main() {
         })
     })
 
-    // Readiness チェック (DBなど外部依存の状態も確認)
+    // Readiness check (also verifies external dependencies such as DB)
     r.GET("/ready", func(c *gin.Context) {
         if err := db.PingContext(c.Request.Context()); err != nil {
             c.JSON(http.StatusServiceUnavailable, gin.H{
@@ -1449,17 +1449,17 @@ func main() {
         c.JSON(http.StatusOK, gin.H{"status": "ready"})
     })
 
-    // API ルーティング
+    // API routing
     setupRoutes(r)
 
-    // サーバー設定
+    // Server configuration
     srv := &http.Server{
         Addr:         ":8080",
         Handler:      r,
         ReadTimeout:  15 * time.Second,
         WriteTimeout: 30 * time.Second,
         IdleTimeout:  60 * time.Second,
-        // ヘッダサイズの制限
+        // Header size limit
         MaxHeaderBytes: 1 << 20, // 1 MB
     }
 
@@ -1489,20 +1489,20 @@ func main() {
 }
 ```
 
-### コード例 15: Echo Graceful Shutdown
+### Code Example 15: Echo Graceful Shutdown
 
 ```go
 func main() {
     e := echo.New()
     e.HideBanner = true
 
-    // ミドルウェアの設定
+    // Middleware setup
     setupMiddlewares(e)
 
-    // ルーティングの設定
+    // Routing setup
     setupRoutes(e, jwtCfg)
 
-    // ヘルスチェック
+    // Health check
     e.GET("/health", func(c echo.Context) error {
         return c.JSON(http.StatusOK, map[string]string{
             "status": "ok",
@@ -1510,7 +1510,7 @@ func main() {
         })
     })
 
-    // カスタムHTTPエラーハンドラ
+    // Custom HTTP error handler
     e.HTTPErrorHandler = func(err error, c echo.Context) {
         if c.Response().Committed {
             return
@@ -1543,7 +1543,7 @@ func main() {
             return
         }
 
-        // 未知のエラー
+        // Unknown error
         slog.Error("Unhandled error", "error", err, "path", c.Path())
         c.JSON(http.StatusInternalServerError, map[string]interface{}{
             "code":    http.StatusInternalServerError,
@@ -1572,26 +1572,26 @@ func main() {
 }
 ```
 
-### コード例 16: ファイルアップロード
+### Code Example 16: File Upload
 
-Gin と Echo でのファイルアップロード処理。
+File upload handling in Gin and Echo.
 
 ```go
-// Gin: シングルファイルアップロード
+// Gin: Single file upload
 func uploadFile(c *gin.Context) {
     file, err := c.FormFile("file")
     if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "ファイルが必要です"})
+        c.JSON(http.StatusBadRequest, gin.H{"error": "File is required"})
         return
     }
 
-    // バリデーション
-    if file.Size > 10<<20 { // 10MB制限
-        c.JSON(http.StatusBadRequest, gin.H{"error": "ファイルサイズが大きすぎます (最大10MB)"})
+    // Validation
+    if file.Size > 10<<20 { // 10MB limit
+        c.JSON(http.StatusBadRequest, gin.H{"error": "File size is too large (max 10MB)"})
         return
     }
 
-    // MIMEタイプチェック
+    // MIME type check
     allowedTypes := map[string]bool{
         "image/jpeg": true,
         "image/png":  true,
@@ -1601,33 +1601,33 @@ func uploadFile(c *gin.Context) {
 
     src, err := file.Open()
     if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "ファイルの読み取りに失敗"})
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read file"})
         return
     }
     defer src.Close()
 
-    // 最初の512バイトでMIMEタイプを判定
+    // Determine MIME type from the first 512 bytes
     buffer := make([]byte, 512)
     _, err = src.Read(buffer)
     if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "ファイルの読み取りに失敗"})
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read file"})
         return
     }
     contentType := http.DetectContentType(buffer)
     if !allowedTypes[contentType] {
         c.JSON(http.StatusBadRequest, gin.H{
-            "error": fmt.Sprintf("許可されていないファイルタイプ: %s", contentType),
+            "error": fmt.Sprintf("File type not allowed: %s", contentType),
         })
         return
     }
 
-    // ファイル保存 (ユニーク名生成)
+    // Save file (generate unique name)
     ext := filepath.Ext(file.Filename)
     filename := fmt.Sprintf("%s%s", uuid.New().String(), ext)
     dst := filepath.Join("uploads", filename)
 
     if err := c.SaveUploadedFile(file, dst); err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "ファイルの保存に失敗"})
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
         return
     }
 
@@ -1639,7 +1639,7 @@ func uploadFile(c *gin.Context) {
     })
 }
 
-// Gin: 複数ファイルアップロード
+// Gin: Multiple file upload
 func uploadMultipleFiles(c *gin.Context) {
     form, err := c.MultipartForm()
     if err != nil {
@@ -1649,11 +1649,11 @@ func uploadMultipleFiles(c *gin.Context) {
 
     files := form.File["files"]
     if len(files) == 0 {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "ファイルが必要です"})
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Files are required"})
         return
     }
     if len(files) > 10 {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "最大10ファイルまでです"})
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Maximum 10 files allowed"})
         return
     }
 
@@ -1678,20 +1678,20 @@ func uploadMultipleFiles(c *gin.Context) {
     })
 }
 
-// Echo: ファイルアップロード
+// Echo: File upload
 func echoUploadFile(c echo.Context) error {
     file, err := c.FormFile("file")
     if err != nil {
-        return echo.NewHTTPError(http.StatusBadRequest, "ファイルが必要です")
+        return echo.NewHTTPError(http.StatusBadRequest, "File is required")
     }
 
     if file.Size > 10<<20 {
-        return echo.NewHTTPError(http.StatusBadRequest, "ファイルサイズが大きすぎます")
+        return echo.NewHTTPError(http.StatusBadRequest, "File size is too large")
     }
 
     src, err := file.Open()
     if err != nil {
-        return echo.NewHTTPError(http.StatusInternalServerError, "ファイルの読み取りに失敗")
+        return echo.NewHTTPError(http.StatusInternalServerError, "Failed to read file")
     }
     defer src.Close()
 
@@ -1699,12 +1699,12 @@ func echoUploadFile(c echo.Context) error {
     filename := fmt.Sprintf("%s%s", uuid.New().String(), ext)
     dst, err := os.Create(filepath.Join("uploads", filename))
     if err != nil {
-        return echo.NewHTTPError(http.StatusInternalServerError, "ファイルの保存に失敗")
+        return echo.NewHTTPError(http.StatusInternalServerError, "Failed to save file")
     }
     defer dst.Close()
 
     if _, err = io.Copy(dst, src); err != nil {
-        return echo.NewHTTPError(http.StatusInternalServerError, "ファイルのコピーに失敗")
+        return echo.NewHTTPError(http.StatusInternalServerError, "Failed to copy file")
     }
 
     return c.JSON(http.StatusOK, map[string]interface{}{
@@ -1714,9 +1714,9 @@ func echoUploadFile(c echo.Context) error {
 }
 ```
 
-### コード例 17: WebSocket
+### Code Example 17: WebSocket
 
-Gin と Echo での WebSocket 実装。
+WebSocket implementation in Gin and Echo.
 
 ```go
 import "github.com/gorilla/websocket"
@@ -1731,7 +1731,7 @@ var upgrader = websocket.Upgrader{
     },
 }
 
-// WebSocket ハブ (接続管理)
+// WebSocket Hub (connection management)
 type Hub struct {
     clients    map[*Client]bool
     broadcast  chan []byte
@@ -1784,7 +1784,7 @@ func (h *Hub) run() {
     }
 }
 
-// Gin WebSocket ハンドラ
+// Gin WebSocket handler
 func wsHandler(hub *Hub) gin.HandlerFunc {
     return func(c *gin.Context) {
         conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
@@ -1854,12 +1854,12 @@ func (c *Client) writePump() {
 }
 ```
 
-### コード例 18: 依存性注入パターン (Clean Architecture)
+### Code Example 18: Dependency Injection Pattern (Clean Architecture)
 
-実際のプロジェクトではクリーンアーキテクチャが重要である。
+Clean architecture is important in real-world projects.
 
 ```go
-// ドメイン層 (domain/user.go)
+// Domain layer (domain/user.go)
 type User struct {
     ID        int64     `json:"id"`
     Name      string    `json:"name"`
@@ -1883,7 +1883,7 @@ type UserService interface {
     DeleteUser(ctx context.Context, id int64) error
 }
 
-// ユースケース層 (usecase/user_service.go)
+// Use case layer (usecase/user_service.go)
 type userServiceImpl struct {
     repo   UserRepository
     logger *slog.Logger
@@ -1916,7 +1916,7 @@ func (s *userServiceImpl) CreateUser(ctx context.Context, req *CreateUserRequest
     return user, nil
 }
 
-// インフラ層 (infrastructure/user_repository.go)
+// Infrastructure layer (infrastructure/user_repository.go)
 type postgresUserRepo struct {
     db *sqlx.DB
 }
@@ -1934,7 +1934,7 @@ func (r *postgresUserRepo) FindByID(ctx context.Context, id int64) (*User, error
     return &user, err
 }
 
-// プレゼンテーション層 (handler/user_handler.go)
+// Presentation layer (handler/user_handler.go)
 type UserHandler struct {
     service UserService
 }
@@ -1947,26 +1947,26 @@ func (h *UserHandler) GetUser(c *gin.Context) {
     idStr := c.Param("id")
     id, err := strconv.ParseInt(idStr, 10, 64)
     if err != nil {
-        respondError(c, http.StatusBadRequest, "INVALID_ID", "IDは数値である必要があります")
+        respondError(c, http.StatusBadRequest, "INVALID_ID", "ID must be a number")
         return
     }
 
     user, err := h.service.GetUser(c.Request.Context(), id)
     if err != nil {
         if errors.Is(err, ErrNotFound) {
-            respondError(c, http.StatusNotFound, "NOT_FOUND", "ユーザーが見つかりません")
+            respondError(c, http.StatusNotFound, "NOT_FOUND", "User not found")
             return
         }
-        respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "内部エラー")
+        respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal error")
         return
     }
 
     respondOK(c, user)
 }
 
-// ワイヤリング (cmd/api/main.go)
+// Wiring (cmd/api/main.go)
 func main() {
-    // 依存の構築
+    // Build dependencies
     db := setupDB()
     logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
@@ -1974,7 +1974,7 @@ func main() {
     userService := NewUserService(userRepo, logger)
     userHandler := NewUserHandler(userService)
 
-    // ルーティング
+    // Routing
     r := gin.New()
     r.Use(gin.Recovery())
 
@@ -1990,7 +1990,7 @@ func main() {
         }
     }
 
-    // サーバー起動
+    // Start server
     srv := &http.Server{Addr: ":8080", Handler: r}
     // ... Graceful Shutdown
 }
@@ -1998,283 +1998,283 @@ func main() {
 
 ---
 
-## 2. ASCII図解
+## 2. ASCII Diagrams
 
-### 図1: Ginのリクエスト処理フロー
+### Diagram 1: Gin Request Processing Flow
 
 ```
 Request
-  │
-  ▼
-┌──────────────┐
-│ gin.Engine   │
-│ ┌──────────┐ │
-│ │ Logger   │ │  Global Middleware
-│ │ Recovery │ │
-│ └────┬─────┘ │
-│      ▼       │
-│ ┌──────────┐ │
-│ │ RadixTree│ │  Route Matching
-│ │ Router   │ │  O(1) パス探索
-│ └────┬─────┘ │
-│      ▼       │
-│ ┌──────────┐ │
-│ │ Group MW │ │  Group Middleware
-│ └────┬─────┘ │
-│      ▼       │
-│ ┌──────────┐ │
-│ │ Handler  │ │  Business Logic
-│ └──────────┘ │
-└──────────────┘
+  |
+  v
++--------------+
+| gin.Engine   |
+| +----------+ |
+| | Logger   | |  Global Middleware
+| | Recovery | |
+| +----+-----+ |
+|      v       |
+| +----------+ |
+| | RadixTree| |  Route Matching
+| | Router   | |  O(1) path lookup
+| +----+-----+ |
+|      v       |
+| +----------+ |
+| | Group MW | |  Group Middleware
+| +----+-----+ |
+|      v       |
+| +----------+ |
+| | Handler  | |  Business Logic
+| +----------+ |
++--------------+
 ```
 
-### 図2: ルーティンググループ
+### Diagram 2: Routing Groups
 
 ```
 /api/v1
-├── /login          [POST]  (公開)
-├── /register       [POST]  (公開)
-├── /profile        [GET]   (認証必須)
-├── /profile        [PUT]   (認証必須)
-└── /admin
-    └── /users      [GET]   (認証+管理者権限)
++-- /login          [POST]  (Public)
++-- /register       [POST]  (Public)
++-- /profile        [GET]   (Auth required)
++-- /profile        [PUT]   (Auth required)
++-- /admin
+    +-- /users      [GET]   (Auth + Admin role)
 
-ミドルウェアの適用:
-  公開:     Logger → Recovery → Handler
-  認証必須:  Logger → Recovery → Auth → Handler
-  管理者:   Logger → Recovery → Auth → Admin → Handler
+Middleware application:
+  Public:        Logger -> Recovery -> Handler
+  Auth required: Logger -> Recovery -> Auth -> Handler
+  Admin:         Logger -> Recovery -> Auth -> Admin -> Handler
 ```
 
-### 図3: バリデーション処理フロー
+### Diagram 3: Validation Processing Flow
 
 ```
 JSON Request Body
-      │
-      ▼
-┌──────────────┐
-│ Bind (JSON)  │ ── 構文エラー → 400 Bad Request
-└──────┬───────┘
-       ▼
-┌──────────────┐
-│ Validate     │ ── バリデーション ── 失敗 → 400 + エラー詳細
-│  required    │    エラー
-│  min/max     │
-│  email       │
-│  custom      │
-└──────┬───────┘
-       ▼
+      |
+      v
++--------------+
+| Bind (JSON)  | -- Syntax error -> 400 Bad Request
++------+-------+
+       v
++--------------+
+| Validate     | -- Validation -- Failure -> 400 + Error details
+|  required    |    error
+|  min/max     |
+|  email       |
+|  custom      |
++------+-------+
+       v
   Handler Logic
 ```
 
-### 図4: ミドルウェアチェーンの実行順序
+### Diagram 4: Middleware Chain Execution Order
 
 ```
-リクエスト
-  │
-  ▼
-┌─────────────────────────────────────────┐
-│ Middleware 1                             │
-│  │ Before処理                           │
-│  │  ┌──────────────────────────────┐    │
-│  │  │ Middleware 2                  │    │
-│  │  │  │ Before処理               │    │
-│  │  │  │  ┌───────────────────┐   │    │
-│  │  │  │  │ Middleware 3       │   │    │
-│  │  │  │  │  │ Before処理     │   │    │
-│  │  │  │  │  │  ┌──────────┐  │   │    │
-│  │  │  │  │  │  │ Handler  │  │   │    │
-│  │  │  │  │  │  └──────────┘  │   │    │
-│  │  │  │  │  │ After処理      │   │    │
-│  │  │  │  └───────────────────┘   │    │
-│  │  │  │ After処理                │    │
-│  │  └──────────────────────────────┘    │
-│  │ After処理                            │
-└─────────────────────────────────────────┘
-  │
-  ▼
-レスポンス
+Request
+  |
+  v
++-----------------------------------------+
+| Middleware 1                             |
+|  | Before processing                    |
+|  |  +------------------------------+   |
+|  |  | Middleware 2                  |   |
+|  |  |  | Before processing         |   |
+|  |  |  |  +-------------------+    |   |
+|  |  |  |  | Middleware 3      |    |   |
+|  |  |  |  |  | Before proc.  |    |   |
+|  |  |  |  |  |  +----------+ |    |   |
+|  |  |  |  |  |  | Handler  | |    |   |
+|  |  |  |  |  |  +----------+ |    |   |
+|  |  |  |  |  | After proc.   |    |   |
+|  |  |  |  +-------------------+    |   |
+|  |  |  | After processing          |   |
+|  |  +------------------------------+   |
+|  | After processing                     |
++-----------------------------------------+
+  |
+  v
+Response
 ```
 
-### 図5: JWT認証フロー
+### Diagram 5: JWT Authentication Flow
 
 ```
 Client                API Server              Auth Service
-  │                      │                        │
-  │  POST /auth/login    │                        │
-  │  {email, password}   │                        │
-  │ ───────────────────> │                        │
-  │                      │  verify credentials    │
-  │                      │ ─────────────────────> │
-  │                      │  <── user info ──────  │
-  │                      │                        │
-  │                      │  generate JWT          │
-  │  <── {access_token,  │  (access + refresh)    │
-  │       refresh_token} │                        │
-  │                      │                        │
-  │  GET /api/v1/users   │                        │
-  │  Authorization:      │                        │
-  │  Bearer <token>      │                        │
-  │ ───────────────────> │                        │
-  │                      │  validate JWT          │
-  │                      │  extract claims        │
-  │  <── 200 OK          │  set context           │
-  │      {users: [...]}  │                        │
-  │                      │                        │
-  │  POST /auth/refresh  │                        │
-  │  {refresh_token}     │                        │
-  │ ───────────────────> │                        │
-  │                      │  validate refresh      │
-  │  <── {new tokens}    │  issue new pair        │
+  |                      |                        |
+  |  POST /auth/login    |                        |
+  |  {email, password}   |                        |
+  | ------------------> |                        |
+  |                      |  verify credentials    |
+  |                      | ---------------------> |
+  |                      |  <-- user info ------  |
+  |                      |                        |
+  |                      |  generate JWT          |
+  |  <-- {access_token,  |  (access + refresh)    |
+  |       refresh_token} |                        |
+  |                      |                        |
+  |  GET /api/v1/users   |                        |
+  |  Authorization:      |                        |
+  |  Bearer <token>      |                        |
+  | ------------------> |                        |
+  |                      |  validate JWT          |
+  |                      |  extract claims        |
+  |  <-- 200 OK          |  set context           |
+  |      {users: [...]}  |                        |
+  |                      |                        |
+  |  POST /auth/refresh  |                        |
+  |  {refresh_token}     |                        |
+  | ------------------> |                        |
+  |                      |  validate refresh      |
+  |  <-- {new tokens}    |  issue new pair        |
 ```
 
-### 図6: Clean Architecture レイヤー
+### Diagram 6: Clean Architecture Layers
 
 ```
-┌─────────────────────────────────────────────────┐
-│  Presentation Layer (Handler)                    │
-│  ┌───────────────────────────────────────────┐  │
-│  │ Gin/Echo Handler                          │  │
-│  │ リクエスト解析 → Service呼び出し → レスポンス  │  │
-│  └────────────────────┬──────────────────────┘  │
-│                       │ UserService interface    │
-│  ┌────────────────────▼──────────────────────┐  │
-│  │ Use Case Layer (Service)                  │  │
-│  │ ビジネスロジック・バリデーション               │  │
-│  └────────────────────┬──────────────────────┘  │
-│                       │ UserRepository interface │
-│  ┌────────────────────▼──────────────────────┐  │
-│  │ Infrastructure Layer (Repository)         │  │
-│  │ DB操作・外部API呼び出し                     │  │
-│  └───────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────┘
++-------------------------------------------------+
+|  Presentation Layer (Handler)                    |
+|  +-------------------------------------------+  |
+|  | Gin/Echo Handler                          |  |
+|  | Parse request -> Call service -> Response  |  |
+|  +--------------------+----------------------+  |
+|                       | UserService interface    |
+|  +--------------------v----------------------+  |
+|  | Use Case Layer (Service)                  |  |
+|  | Business logic and validation             |  |
+|  +--------------------+----------------------+  |
+|                       | UserRepository interface |
+|  +--------------------v----------------------+  |
+|  | Infrastructure Layer (Repository)         |  |
+|  | DB operations and external API calls      |  |
+|  +-------------------------------------------+  |
++-------------------------------------------------+
 
-依存の方向: Handler → Service → Repository (内側へ)
-インターフェース定義: 各層の境界に配置
-テスト: 各層をモックで独立テスト可能
+Dependency direction: Handler -> Service -> Repository (inward)
+Interface definitions: Placed at layer boundaries
+Testing: Each layer can be independently tested with mocks
 ```
 
-### 図7: WebSocket 通信フロー
+### Diagram 7: WebSocket Communication Flow
 
 ```
 Client A       Server (Hub)       Client B
-  │                │                  │
-  │── HTTP GET ──>│                  │
-  │  Upgrade:      │                  │
-  │  websocket     │                  │
-  │<─ 101 ────────│                  │
-  │  Switching     │                  │
-  │                │<── HTTP GET ────│
-  │                │   Upgrade: ws   │
-  │                │── 101 ────────>│
-  │                │                  │
-  │── message ──> │                  │
-  │  "Hello"       │── broadcast ──>│
-  │                │   "Hello"       │
-  │                │                  │
-  │                │<── message ────│
-  │<── broadcast ──│   "Hi"          │
-  │    "Hi"        │                  │
-  │                │                  │
-  │── ping ──────>│                  │
-  │<── pong ──────│                  │
+  |                |                  |
+  |-- HTTP GET -->|                  |
+  |  Upgrade:      |                  |
+  |  websocket     |                  |
+  |<- 101 --------|                  |
+  |  Switching     |                  |
+  |                |<-- HTTP GET ----|
+  |                |   Upgrade: ws   |
+  |                |-- 101 -------->|
+  |                |                  |
+  |-- message --> |                  |
+  |  "Hello"       |-- broadcast -->|
+  |                |   "Hello"       |
+  |                |                  |
+  |                |<-- message ----|
+  |<-- broadcast --|   "Hi"          |
+  |    "Hi"        |                  |
+  |                |                  |
+  |-- ping ------>|                  |
+  |<-- pong ------|                  |
 ```
 
 ---
 
-## 3. 比較表
+## 3. Comparison Tables
 
-### 表1: Gin vs Echo vs 標準net/http
+### Table 1: Gin vs Echo vs Standard net/http
 
-| 項目 | Gin | Echo | net/http (1.22+) |
+| Item | Gin | Echo | net/http (1.22+) |
 |------|-----|------|-----------------|
-| パフォーマンス | 非常に高速 | 非常に高速 | 高速 |
-| ルーティング | Radix tree | Radix tree | パターンマッチ |
-| バリデーション | binding (validator) | 別途追加 | なし |
-| ミドルウェア | `gin.HandlerFunc` | `echo.MiddlewareFunc` | `func(http.Handler) http.Handler` |
-| エラーハンドリング | `c.AbortWithJSON` | `echo.HTTPError` | `http.Error` |
-| GitHub Stars | 80k+ | 30k+ | 標準 |
-| 依存の少なさ | 中 | 中 | 依存なし |
-| ハンドラ型 | `func(*gin.Context)` | `func(echo.Context) error` | `func(w, r)` |
-| カスタムコンテキスト | `c.Set()/c.Get()` | カスタムContext型 | `context.Value()` |
-| Swagger連携 | gin-swagger | echo-swagger | 手動 |
+| Performance | Very fast | Very fast | Fast |
+| Routing | Radix tree | Radix tree | Pattern matching |
+| Validation | binding (validator) | Separate addition | None |
+| Middleware | `gin.HandlerFunc` | `echo.MiddlewareFunc` | `func(http.Handler) http.Handler` |
+| Error handling | `c.AbortWithJSON` | `echo.HTTPError` | `http.Error` |
+| GitHub Stars | 80k+ | 30k+ | Standard |
+| Minimal dependencies | Medium | Medium | No dependencies |
+| Handler type | `func(*gin.Context)` | `func(echo.Context) error` | `func(w, r)` |
+| Custom context | `c.Set()/c.Get()` | Custom Context type | `context.Value()` |
+| Swagger integration | gin-swagger | echo-swagger | Manual |
 | WebSocket | gorilla/websocket | gorilla/websocket | gorilla/websocket |
-| テスト | httptest | httptest | httptest |
-| Graceful Shutdown | 手動実装 | `e.Shutdown()` | `srv.Shutdown()` |
+| Testing | httptest | httptest | httptest |
+| Graceful Shutdown | Manual implementation | `e.Shutdown()` | `srv.Shutdown()` |
 
-### 表2: Gin バリデーションタグ
+### Table 2: Gin Validation Tags
 
-| タグ | 意味 | 例 |
-|------|------|-----|
-| `required` | 必須 | `binding:"required"` |
-| `email` | メール形式 | `binding:"email"` |
-| `min` | 最小値/最小長 | `binding:"min=3"` |
-| `max` | 最大値/最大長 | `binding:"max=100"` |
-| `oneof` | 列挙値 | `binding:"oneof=admin user"` |
-| `gte` | 以上 | `binding:"gte=0"` |
-| `lte` | 以下 | `binding:"lte=150"` |
-| `url` | URL形式 | `binding:"url"` |
-| `uuid` | UUID形式 | `binding:"uuid"` |
-| `datetime` | 日時形式 | `binding:"datetime=2006-01-02"` |
-| `len` | 固定長 | `binding:"len=10"` |
-| `alphanum` | 英数字のみ | `binding:"alphanum"` |
-| `contains` | 含む | `binding:"contains=@"` |
-| `excludes` | 含まない | `binding:"excludes= "` |
-| `ip` | IPアドレス | `binding:"ip"` |
-| `numeric` | 数値文字列 | `binding:"numeric"` |
+| Tag | Meaning | Example |
+|-----|---------|---------|
+| `required` | Required | `binding:"required"` |
+| `email` | Email format | `binding:"email"` |
+| `min` | Minimum value/length | `binding:"min=3"` |
+| `max` | Maximum value/length | `binding:"max=100"` |
+| `oneof` | Enumerated values | `binding:"oneof=admin user"` |
+| `gte` | Greater than or equal | `binding:"gte=0"` |
+| `lte` | Less than or equal | `binding:"lte=150"` |
+| `url` | URL format | `binding:"url"` |
+| `uuid` | UUID format | `binding:"uuid"` |
+| `datetime` | DateTime format | `binding:"datetime=2006-01-02"` |
+| `len` | Fixed length | `binding:"len=10"` |
+| `alphanum` | Alphanumeric only | `binding:"alphanum"` |
+| `contains` | Contains | `binding:"contains=@"` |
+| `excludes` | Excludes | `binding:"excludes= "` |
+| `ip` | IP address | `binding:"ip"` |
+| `numeric` | Numeric string | `binding:"numeric"` |
 
-### 表3: ミドルウェア比較
+### Table 3: Middleware Comparison
 
-| ミドルウェア | Gin (組み込み) | Echo (組み込み) | 用途 |
-|-------------|---------------|----------------|------|
-| Logger | `gin.Logger()` | `middleware.Logger()` | リクエストログ |
-| Recovery | `gin.Recovery()` | `middleware.Recover()` | パニック回復 |
-| CORS | 別途追加 | `middleware.CORS()` | クロスオリジン |
-| Rate Limit | 別途追加 | `middleware.RateLimiter()` | レート制限 |
-| JWT | 別途追加 | `middleware.JWT()` | JWT認証 |
-| Basic Auth | `gin.BasicAuth()` | `middleware.BasicAuth()` | Basic認証 |
-| Gzip | 別途追加 | `middleware.Gzip()` | 圧縮 |
-| Request ID | 別途追加 | `middleware.RequestID()` | リクエスト追跡 |
-| Timeout | 別途追加 | `middleware.Timeout()` | タイムアウト |
-| Secure | 別途追加 | `middleware.Secure()` | セキュリティヘッダ |
-| CSRF | 別途追加 | `middleware.CSRF()` | CSRF対策 |
-| Body Limit | 別途追加 | `middleware.BodyLimit()` | ボディサイズ制限 |
+| Middleware | Gin (built-in) | Echo (built-in) | Purpose |
+|-----------|----------------|-----------------|---------|
+| Logger | `gin.Logger()` | `middleware.Logger()` | Request logging |
+| Recovery | `gin.Recovery()` | `middleware.Recover()` | Panic recovery |
+| CORS | Separate addition | `middleware.CORS()` | Cross-origin |
+| Rate Limit | Separate addition | `middleware.RateLimiter()` | Rate limiting |
+| JWT | Separate addition | `middleware.JWT()` | JWT authentication |
+| Basic Auth | `gin.BasicAuth()` | `middleware.BasicAuth()` | Basic authentication |
+| Gzip | Separate addition | `middleware.Gzip()` | Compression |
+| Request ID | Separate addition | `middleware.RequestID()` | Request tracking |
+| Timeout | Separate addition | `middleware.Timeout()` | Timeout |
+| Secure | Separate addition | `middleware.Secure()` | Security headers |
+| CSRF | Separate addition | `middleware.CSRF()` | CSRF protection |
+| Body Limit | Separate addition | `middleware.BodyLimit()` | Body size limit |
 
-### 表4: エラーハンドリング比較
+### Table 4: Error Handling Comparison
 
-| 項目 | Gin | Echo |
+| Item | Gin | Echo |
 |------|-----|------|
-| エラー返却 | `c.JSON()` + `return` | `return error` |
-| 中断 | `c.Abort()` / `c.AbortWithStatusJSON()` | `return echo.NewHTTPError()` |
-| カスタムエラー | `gin.H{}` で自由形式 | `echo.HTTPError` 構造体 |
-| 集約ハンドラ | なし (ミドルウェアで実装) | `e.HTTPErrorHandler` |
-| エラーログ | ミドルウェアで取得 | `HTTPErrorHandler` 内 |
-| パニック回復 | `gin.Recovery()` | `middleware.Recover()` |
+| Error response | `c.JSON()` + `return` | `return error` |
+| Abort | `c.Abort()` / `c.AbortWithStatusJSON()` | `return echo.NewHTTPError()` |
+| Custom error | Free-form with `gin.H{}` | `echo.HTTPError` struct |
+| Centralized handler | None (implement via middleware) | `e.HTTPErrorHandler` |
+| Error logging | Captured in middleware | Inside `HTTPErrorHandler` |
+| Panic recovery | `gin.Recovery()` | `middleware.Recover()` |
 
-### 表5: プロジェクト構成比較
+### Table 5: Project Structure Comparison
 
-| 規模 | 推奨構成 | フレームワーク選択 |
-|------|---------|-----------------|
-| 小規模 (API数 < 10) | flat構成 | net/http (1.22+) |
-| 中規模 (API数 10-50) | レイヤード | Gin / Echo |
-| 大規模 (API数 50+) | Clean Architecture | Gin / Echo + DI |
-| マイクロサービス | DDD + gRPC | Gin (REST gateway) + gRPC |
+| Scale | Recommended Structure | Framework Choice |
+|-------|----------------------|-----------------|
+| Small (API count < 10) | Flat structure | net/http (1.22+) |
+| Medium (API count 10-50) | Layered | Gin / Echo |
+| Large (API count 50+) | Clean Architecture | Gin / Echo + DI |
+| Microservices | DDD + gRPC | Gin (REST gateway) + gRPC |
 
 ---
 
-## 4. アンチパターン
+## 4. Anti-Patterns
 
-### アンチパターン 1: コンテキストの漏洩
+### Anti-Pattern 1: Context Leaking
 
 ```go
-// BAD: gin.Context をgoroutineに渡す
+// BAD: Passing gin.Context to a goroutine
 func handler(c *gin.Context) {
     go func() {
         time.Sleep(5 * time.Second)
-        c.JSON(200, gin.H{"ok": true}) // レスポンスは既に返却済みの可能性
+        c.JSON(200, gin.H{"ok": true}) // Response may have already been sent
     }()
 }
 
-// GOOD: 必要な値をコピーしてからgoroutineに渡す
+// GOOD: Copy the needed values before passing to a goroutine
 func handler(c *gin.Context) {
     userID := c.GetString("userID")
     go func() {
@@ -2284,17 +2284,17 @@ func handler(c *gin.Context) {
 }
 ```
 
-gin.Contextはリクエストのライフサイクルに紐づいており、レスポンスが返却された後にアクセスすると不正な動作やパニックの原因となる。goroutineに渡す場合は、必要な値を先に取り出してプリミティブ型として渡すこと。
+gin.Context is tied to the request lifecycle, and accessing it after the response has been sent can cause undefined behavior or panics. When passing to a goroutine, extract the needed values first and pass them as primitive types.
 
-### アンチパターン 2: エラーレスポンスの不統一
+### Anti-Pattern 2: Inconsistent Error Responses
 
 ```go
-// BAD: エラーレスポンスのフォーマットがバラバラ
+// BAD: Inconsistent error response formats
 c.JSON(400, gin.H{"error": "bad request"})
 c.JSON(400, gin.H{"message": "invalid input"})
 c.JSON(400, "error occurred")
 
-// GOOD: 統一されたエラーレスポンス型
+// GOOD: Unified error response type
 type ErrorResponse struct {
     Code    string `json:"code"`
     Message string `json:"message"`
@@ -2305,20 +2305,20 @@ func respondError(c *gin.Context, status int, code, msg string) {
 }
 ```
 
-APIのクライアントはエラーレスポンスのフォーマットを予測してパースする必要がある。フォーマットが不統一だとクライアント側の実装が複雑になり、バグの原因となる。
+API clients need to predict and parse the error response format. Inconsistent formats make client-side implementation complex and become a source of bugs.
 
-### アンチパターン 3: ミドルウェアでのc.Next()忘れ
+### Anti-Pattern 3: Forgetting c.Next() in Middleware
 
 ```go
-// BAD: c.Next() を呼び忘れるとチェーンが停止
+// BAD: Forgetting c.Next() stops the chain
 func loggingMiddleware() gin.HandlerFunc {
     return func(c *gin.Context) {
         log.Printf("Request: %s %s", c.Request.Method, c.Request.URL.Path)
-        // c.Next() がない！後続のハンドラが実行されない
+        // c.Next() is missing! Subsequent handlers won't be executed
     }
 }
 
-// GOOD: 明示的に c.Next() を呼ぶ
+// GOOD: Explicitly call c.Next()
 func loggingMiddleware() gin.HandlerFunc {
     return func(c *gin.Context) {
         start := time.Now()
@@ -2329,17 +2329,17 @@ func loggingMiddleware() gin.HandlerFunc {
 }
 ```
 
-### アンチパターン 4: バリデーションの二重実装
+### Anti-Pattern 4: Duplicate Validation
 
 ```go
-// BAD: ハンドラ内でバリデーションロジックを手書き
+// BAD: Hand-writing validation logic in the handler
 func createUser(c *gin.Context) {
     var req CreateUserRequest
     if err := c.ShouldBindJSON(&req); err != nil {
         c.JSON(400, gin.H{"error": err.Error()})
         return
     }
-    // バリデーションの二重実装
+    // Duplicate validation
     if len(req.Name) < 2 {
         c.JSON(400, gin.H{"error": "name too short"})
         return
@@ -2351,7 +2351,7 @@ func createUser(c *gin.Context) {
     // ...
 }
 
-// GOOD: バリデーションはbindingタグに集約
+// GOOD: Consolidate validation in binding tags
 type CreateUserRequest struct {
     Name  string `json:"name" binding:"required,min=2,max=50"`
     Email string `json:"email" binding:"required,email"`
@@ -2363,27 +2363,27 @@ func createUser(c *gin.Context) {
         c.JSON(400, gin.H{"errors": formatValidationErrors(err)})
         return
     }
-    // バリデーション通過後のビジネスロジックのみ
+    // Only business logic after validation passes
 }
 ```
 
-### アンチパターン 5: gin.Default() を本番で使う
+### Anti-Pattern 5: Using gin.Default() in Production
 
 ```go
-// BAD: gin.Default() はデバッグ向けのLogger付き
+// BAD: gin.Default() includes debug-oriented Logger
 func main() {
     r := gin.Default()
     r.Run(":8080")
 }
 
-// GOOD: 本番環境では明示的にミドルウェアを設定
+// GOOD: Explicitly configure middleware in production
 func main() {
     gin.SetMode(gin.ReleaseMode)
     r := gin.New()
 
-    // 構造化ログ
+    // Structured logging
     r.Use(StructuredLoggerMiddleware(slog.Default()))
-    // パニックリカバリ（カスタム）
+    // Panic recovery (custom)
     r.Use(gin.CustomRecoveryWithWriter(nil, func(c *gin.Context, err any) {
         slog.Error("Panic recovered", "error", err)
         c.AbortWithStatusJSON(500, gin.H{
@@ -2391,7 +2391,7 @@ func main() {
             "message": "internal server error",
         })
     }))
-    // セキュリティ
+    // Security
     r.Use(SecurityHeadersMiddleware())
     r.Use(CORSMiddleware(allowedOrigins))
     r.Use(RateLimitMiddleware(100, 200))
@@ -2400,10 +2400,10 @@ func main() {
 }
 ```
 
-### アンチパターン 6: サービス層をスキップする
+### Anti-Pattern 6: Skipping the Service Layer
 
 ```go
-// BAD: ハンドラに直接DBアクセスコードを書く
+// BAD: Writing DB access code directly in the handler
 func getUser(c *gin.Context) {
     id := c.Param("id")
     var user User
@@ -2415,48 +2415,48 @@ func getUser(c *gin.Context) {
     c.JSON(200, user)
 }
 
-// GOOD: サービス層を経由する
+// GOOD: Go through the service layer
 func (h *UserHandler) GetUser(c *gin.Context) {
     id, err := strconv.ParseInt(c.Param("id"), 10, 64)
     if err != nil {
-        respondError(c, http.StatusBadRequest, "INVALID_ID", "無効なIDです")
+        respondError(c, http.StatusBadRequest, "INVALID_ID", "Invalid ID")
         return
     }
 
     user, err := h.service.GetUser(c.Request.Context(), id)
     if err != nil {
         if errors.Is(err, ErrNotFound) {
-            respondError(c, http.StatusNotFound, "NOT_FOUND", "ユーザーが見つかりません")
+            respondError(c, http.StatusNotFound, "NOT_FOUND", "User not found")
             return
         }
-        respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "内部エラー")
+        respondError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal error")
         return
     }
     respondOK(c, user)
 }
 ```
 
-ハンドラにDBアクセスを直書きすると、テストが困難になり、ビジネスロジックの再利用ができない。サービス層を挟むことで、ハンドラはHTTPの入出力変換に集中できる。
+Writing DB access directly in the handler makes testing difficult and prevents reuse of business logic. By introducing a service layer, handlers can focus on HTTP input/output transformation.
 
 ---
 
 ## 5. FAQ
 
-### Q1: GinとEchoのどちらを選ぶべきか？
+### Q1: Should I choose Gin or Echo?
 
-両者の性能差はほぼなし。Ginはエコシステムが大きく情報が多い。Echoはコード設計がクリーンでerrorを返すハンドラが特徴的。チームの好みで選んでよいが、Go 1.22+の標準net/httpで十分なケースも多い。
+There is virtually no performance difference between the two. Gin has a larger ecosystem and more available resources. Echo has a cleaner code design with the distinctive error-returning handler pattern. You can choose based on team preference, but in many cases Go 1.22+'s standard net/http is sufficient.
 
-判断基準:
-- **Gin**: 大きなコミュニティが欲しい、日本語情報が多い方が良い、既存のGinプロジェクトへの追従
-- **Echo**: error戻り値パターンが好み、組み込みミドルウェアが豊富、カスタムコンテキストを使いたい
-- **net/http**: 外部依存を最小化したい、Go 1.22+ の新しいルーティングで十分、マイクロサービスで軽量にしたい
+Decision criteria:
+- **Gin**: Want a large community, prefer more resources available (including in Japanese), following existing Gin projects
+- **Echo**: Prefer the error return value pattern, want rich built-in middleware, want to use custom context
+- **net/http**: Want to minimize external dependencies, Go 1.22+'s new routing is sufficient, want lightweight microservices
 
-### Q2: Gin Releaseモードとは？
+### Q2: What is Gin Release mode?
 
-`gin.SetMode(gin.ReleaseMode)` で本番モードに切り替える。デバッグログが抑制され、パフォーマンスが若干向上する。環境変数 `GIN_MODE=release` でも設定可能。本番デプロイ時は必ずReleaseモードにすること。Debugモードのままだと、ルーティングテーブルの出力など不要な情報がログに含まれる。
+Switching to production mode with `gin.SetMode(gin.ReleaseMode)` suppresses debug logging and slightly improves performance. It can also be set with the environment variable `GIN_MODE=release`. Always use Release mode in production deployments. In Debug mode, unnecessary information such as routing table output will appear in the logs.
 
 ```go
-// 環境変数で切り替え
+// Switch via environment variable
 func init() {
     mode := os.Getenv("GIN_MODE")
     if mode == "" {
@@ -2466,36 +2466,36 @@ func init() {
 }
 ```
 
-### Q3: Swagger/OpenAPIはどう統合するか？
+### Q3: How do you integrate Swagger/OpenAPI?
 
-`swaggo/swag` を使い、ハンドラのコメントからSwagger仕様を自動生成する。`gin-swagger` または `echo-swagger` で `/swagger/index.html` を提供する。CI/CDパイプラインで `swag init` を実行し、生成されたファイルをバージョン管理に含めるのが一般的。
+Use `swaggo/swag` to automatically generate Swagger specs from handler comments. Serve `/swagger/index.html` with `gin-swagger` or `echo-swagger`. It is common practice to run `swag init` in the CI/CD pipeline and include the generated files in version control.
 
-### Q4: Gin/Echoでcontext.Contextをどう使うか？
+### Q4: How do you use context.Context in Gin/Echo?
 
-Gin では `c.Request.Context()` で標準の `context.Context` を取得できる。サービス層やリポジトリ層へは必ずこのcontextを伝搬させる。Echoでも `c.Request().Context()` で同様に取得可能。
+In Gin, you can get the standard `context.Context` with `c.Request.Context()`. Always propagate this context to the service and repository layers. In Echo, it can similarly be obtained with `c.Request().Context()`.
 
 ```go
-// Gin: context伝搬
+// Gin: context propagation
 func (h *UserHandler) GetUser(c *gin.Context) {
     ctx := c.Request.Context()
-    user, err := h.service.GetUser(ctx, id) // ctxを渡す
+    user, err := h.service.GetUser(ctx, id) // Pass ctx
     // ...
 }
 
-// Echo: context伝搬
+// Echo: context propagation
 func (h *UserHandler) GetUser(c echo.Context) error {
     ctx := c.Request().Context()
-    user, err := h.service.GetUser(ctx, id) // ctxを渡す
+    user, err := h.service.GetUser(ctx, id) // Pass ctx
     // ...
 }
 ```
 
-### Q5: バージョニングはどう設計するか？
+### Q5: How should versioning be designed?
 
-URLパスでのバージョニングが最も一般的である。ヘッダーベースのバージョニングは実装が複雑になるため、URLパスが推奨される。
+URL path versioning is the most common approach. Header-based versioning makes implementation complex, so URL path versioning is recommended.
 
 ```go
-// URLパスバージョニング
+// URL path versioning
 v1 := r.Group("/api/v1")
 {
     v1.GET("/users", v1ListUsers)
@@ -2503,16 +2503,16 @@ v1 := r.Group("/api/v1")
 
 v2 := r.Group("/api/v2")
 {
-    v2.GET("/users", v2ListUsers) // レスポンス構造が異なる
+    v2.GET("/users", v2ListUsers) // Different response structure
 }
 ```
 
-### Q6: テストでデータベースをどうモックするか？
+### Q6: How do you mock the database in tests?
 
-インターフェースを定義し、テスト時にモック実装を注入する。これはClean Architectureのリポジトリパターンで自然に実現できる。
+Define interfaces and inject mock implementations during testing. This is naturally achieved with the Clean Architecture repository pattern.
 
 ```go
-// モックリポジトリ
+// Mock repository
 type MockUserRepository struct {
     users map[int64]*User
 }
@@ -2525,7 +2525,7 @@ func (m *MockUserRepository) FindByID(ctx context.Context, id int64) (*User, err
     return user, nil
 }
 
-// テストでの使用
+// Usage in tests
 func TestGetUser(t *testing.T) {
     mockRepo := &MockUserRepository{
         users: map[int64]*User{1: {ID: 1, Name: "Test"}},
@@ -2536,9 +2536,9 @@ func TestGetUser(t *testing.T) {
 }
 ```
 
-### Q7: 大量のルーティングを整理するには？
+### Q7: How do you organize a large number of routes?
 
-ルーティングをファイル分割し、SetupXxxRoutes 関数として定義するのがベストプラクティスである。
+The best practice is to split routes into separate files and define them as SetupXxxRoutes functions.
 
 ```go
 // routes/user.go
@@ -2573,57 +2573,57 @@ func setupRoutes(r *gin.Engine, handlers *Handlers) {
 }
 ```
 
-### Q8: Gin/EchoでのWebSocket実装のポイントは？
+### Q8: What are the key points for WebSocket implementation in Gin/Echo?
 
-WebSocketはGin/Echoのルーティングで登録し、`gorilla/websocket` でアップグレードする。接続管理にはHub パターンを使い、goroutineでread/writeを分離する。本番ではpingによるコネクション死活監視が必須。
+WebSocket connections are registered via Gin/Echo routing and upgraded with `gorilla/websocket`. Use the Hub pattern for connection management, and separate read/write operations into different goroutines. In production, connection health monitoring via ping is essential.
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this knowledge applied in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-| 概念 | 要点 |
-|------|------|
-| Gin | 高速・大エコシステム。gin.H、binding |
-| Echo | クリーン設計。error戻り値パターン |
-| ルーティング | Radix tree で高速パスマッチ |
-| バリデーション | go-playground/validator ベース |
-| ミドルウェア | グループ単位で適用可能 |
-| JWT認証 | golang-jwt でトークン発行・検証 |
-| Swagger | swaggo で自動生成 |
-| テスト | httptest + testify でユニット/統合テスト |
-| WebSocket | gorilla/websocket + Hub パターン |
-| 本番運用 | Graceful Shutdown, 構造化ログ, ヘルスチェック |
-| Clean Architecture | Handler → Service → Repository の依存方向 |
+The knowledge from this topic is frequently used in day-to-day development work. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## Summary
 
-- [02-database.md](./02-database.md) -- データベース接続
+| Concept | Key Points |
+|---------|------------|
+| Gin | High performance, large ecosystem. gin.H, binding |
+| Echo | Clean design. Error return value pattern |
+| Routing | Fast path matching with Radix tree |
+| Validation | Based on go-playground/validator |
+| Middleware | Can be applied per group |
+| JWT Authentication | Token issuance and validation with golang-jwt |
+| Swagger | Auto-generation with swaggo |
+| Testing | Unit/integration testing with httptest + testify |
+| WebSocket | gorilla/websocket + Hub pattern |
+| Production Operations | Graceful Shutdown, structured logging, health checks |
+| Clean Architecture | Dependency direction: Handler -> Service -> Repository |
+
+---
+
+## Recommended Next Reads
+
+- [02-database.md](./02-database.md) -- Database Connectivity
 - [03-grpc.md](./03-grpc.md) -- gRPC
-- [04-testing.md](./04-testing.md) -- テスト
-- [00-net-http.md](./00-net-http.md) -- 標準net/http
+- [04-testing.md](./04-testing.md) -- Testing
+- [00-net-http.md](./00-net-http.md) -- Standard net/http
 
 ---
 
-## 参考文献
+## References
 
 1. **Gin Web Framework** -- https://gin-gonic.com/docs/
 2. **Echo -- High performance, extensible, minimalist Go web framework** -- https://echo.labstack.com/
