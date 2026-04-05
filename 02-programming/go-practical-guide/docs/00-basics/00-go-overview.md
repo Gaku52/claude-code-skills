@@ -1,59 +1,59 @@
-# Go言語概要 -- 設計哲学とエコシステム
+# Go Language Overview -- Design Philosophy and Ecosystem
 
-> Goはシンプルさ・並行性・高速コンパイルを柱に設計された、Google発の静的型付けコンパイル言語である。
-
----
-
-## この章で学ぶこと
-
-1. **Go の設計哲学** -- なぜ「少ない機能」が強みになるのか
-2. **並行性モデル** -- goroutine/channel が解決する課題
-3. **開発ワークフロー** -- コンパイル・テスト・デプロイの高速サイクル
-4. **型システムの特徴** -- 構造的部分型とインターフェースの力
-5. **標準ライブラリ** -- "batteries included" の実践
-6. **エコシステム** -- ツールチェイン・パッケージ管理・CI/CD統合
-7. **歴史と進化** -- Go 1.0 から最新バージョンまでの変遷
-
-
-## 前提知識
-
-このガイドを読む前に、以下の知識があると理解が深まります:
-
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
+> Go is a statically typed, compiled language from Google, designed around the three pillars of simplicity, concurrency, and fast compilation.
 
 ---
 
-## 1. Goの設計哲学
+## What You Will Learn in This Chapter
 
-### 1.1 シンプルさの追求
+1. **Go's design philosophy** -- Why "fewer features" becomes a strength
+2. **Concurrency model** -- The problems goroutines and channels solve
+3. **Development workflow** -- The fast cycle of compile, test, and deploy
+4. **Type system characteristics** -- The power of structural subtyping and interfaces
+5. **Standard library** -- "Batteries included" in practice
+6. **Ecosystem** -- Toolchain, package management, and CI/CD integration
+7. **History and evolution** -- The progression from Go 1.0 to the latest version
 
-Go は Robert Griesemer、Rob Pike、Ken Thompson によって Google 内で2007年に設計が開始された。彼らが共有していた課題意識は「大規模ソフトウェア開発における複雑性の爆発」であった。C++ のコンパイル時間の長さ、Java の冗長な記述、動的言語の型安全性の欠如 -- これらの問題を同時に解決する言語を目指した。
 
-Go の設計原則は以下の3つに集約される:
+## Prerequisites
 
-1. **直交性（Orthogonality）**: 各機能が独立しており、組み合わせで表現力を得る
-2. **明示性（Explicitness）**: 暗黙の動作を排し、コードが意図を明確に表現する
-3. **実用性（Pragmatism）**: 理論的な美しさより、実際のソフトウェア開発における生産性を重視する
+Before reading this guide, the following knowledge will help deepen your understanding:
 
-Go が意図的に省いた機能は多い。クラス継承、例外機構、アサーション、ジェネリクス（初期）、マクロ、演算子オーバーロードなど。これは「機能を追加するのは簡単だが、削除するのは不可能」という認識に基づく。
+- Basic programming knowledge
+- Understanding of related foundational concepts
 
-### 1.2 Go Proverbs（Go格言）
+---
 
-Rob Pike が提唱した Go Proverbs は、Go の設計哲学を簡潔に表現している:
+## 1. Go's Design Philosophy
 
-- **Don't communicate by sharing memory; share memory by communicating.** -- 共有メモリで通信するのではなく、通信でメモリを共有せよ
-- **Concurrency is not parallelism.** -- 並行性は並列性ではない
-- **Channels orchestrate; mutexes serialize.** -- チャネルはオーケストレーション、ミューテックスは直列化
-- **The bigger the interface, the weaker the abstraction.** -- インターフェースが大きいほど、抽象化は弱くなる
-- **Make the zero value useful.** -- ゼロ値を有用にせよ
-- **interface{} says nothing.** -- interface{} は何も語らない
-- **Gofmt's style is no one's favorite, yet gofmt is everyone's favorite.** -- gofmtのスタイルは誰のお気に入りでもないが、gofmt自体は全員のお気に入り
-- **A little copying is better than a little dependency.** -- 少しのコピーは少しの依存より良い
-- **Clear is better than clever.** -- 賢さより明快さ
-- **Errors are values.** -- エラーは値である
+### 1.1 The Pursuit of Simplicity
 
-### コード例 1: Hello World
+Go's design was started in 2007 at Google by Robert Griesemer, Rob Pike, and Ken Thompson. The shared concern they had was "the explosion of complexity in large-scale software development." The long compile times of C++, the verbose syntax of Java, the lack of type safety in dynamic languages -- they aimed to create a language that would solve these problems simultaneously.
+
+Go's design principles can be summarized as the following three:
+
+1. **Orthogonality**: Each feature is independent, and expressiveness is gained through combination
+2. **Explicitness**: Eliminates implicit behavior; code clearly expresses intent
+3. **Pragmatism**: Prioritizes productivity in real-world software development over theoretical beauty
+
+There are many features Go intentionally omitted. Class inheritance, exception mechanisms, assertions, generics (initially), macros, operator overloading, and more. This is based on the recognition that "adding features is easy, but removing them is impossible."
+
+### 1.2 Go Proverbs
+
+The Go Proverbs, proposed by Rob Pike, concisely express Go's design philosophy:
+
+- **Don't communicate by sharing memory; share memory by communicating.**
+- **Concurrency is not parallelism.**
+- **Channels orchestrate; mutexes serialize.**
+- **The bigger the interface, the weaker the abstraction.**
+- **Make the zero value useful.**
+- **interface{} says nothing.**
+- **Gofmt's style is no one's favorite, yet gofmt is everyone's favorite.**
+- **A little copying is better than a little dependency.**
+- **Clear is better than clever.**
+- **Errors are values.**
+
+### Code Example 1: Hello World
 
 ```go
 package main
@@ -65,9 +65,9 @@ func main() {
 }
 ```
 
-この最小のプログラムにも Go の哲学が表れている。`package main` はエントリーポイントを明示し、`import` は依存を宣言し、`func main()` はプログラムの開始点を定義する。未使用のインポートはコンパイルエラーになる -- これが Go の「明示性」の一例である。
+Even this minimal program reflects Go's philosophy. `package main` makes the entry point explicit, `import` declares dependencies, and `func main()` defines the program's starting point. Unused imports cause compile errors -- this is one example of Go's "explicitness."
 
-### コード例 2: 複数戻り値
+### Code Example 2: Multiple Return Values
 
 ```go
 package main
@@ -84,18 +84,18 @@ func divide(a, b float64) (float64, error) {
     return a / b, nil
 }
 
-// 名前付き戻り値を使ったバリエーション
+// A variation using named return values
 func safeSqrt(x float64) (result float64, err error) {
     if x < 0 {
         err = fmt.Errorf("cannot take square root of negative number: %f", x)
-        return // result=0.0, err=上記のエラー
+        return // result=0.0, err=the error above
     }
     result = math.Sqrt(x)
-    return // result=計算結果, err=nil
+    return // result=computed value, err=nil
 }
 
 func main() {
-    // 複数戻り値の受け取り
+    // Receiving multiple return values
     result, err := divide(10, 3)
     if err != nil {
         fmt.Printf("Error: %v\n", err)
@@ -103,7 +103,7 @@ func main() {
     }
     fmt.Printf("10 / 3 = %.4f\n", result)
 
-    // 名前付き戻り値の関数
+    // Function with named return values
     sqrt, err := safeSqrt(16)
     if err != nil {
         fmt.Printf("Error: %v\n", err)
@@ -111,7 +111,7 @@ func main() {
     }
     fmt.Printf("sqrt(16) = %.1f\n", sqrt)
 
-    // エラーケースの確認
+    // Verifying the error case
     _, err = safeSqrt(-4)
     if err != nil {
         fmt.Printf("Expected error: %v\n", err)
@@ -119,9 +119,9 @@ func main() {
 }
 ```
 
-Go の複数戻り値は例外機構の代替として機能する。関数は正常な結果とエラーを同時に返し、呼び出し側は即座にエラーを検査する。この明示的なエラーハンドリングが Go コードの堅牢性を支える。
+Go's multiple return values act as an alternative to exception mechanisms. A function returns both a normal result and an error simultaneously, and the caller immediately checks for errors. This explicit error handling underpins the robustness of Go code.
 
-### コード例 3: 構造体とメソッド
+### Code Example 3: Structs and Methods
 
 ```go
 package main
@@ -131,7 +131,7 @@ import (
     "strings"
 )
 
-// Server はHTTPサーバーの設定を表す構造体
+// Server is a struct representing HTTP server configuration
 type Server struct {
     Host     string
     Port     int
@@ -140,12 +140,12 @@ type Server struct {
     KeyFile  string
 }
 
-// Address は接続先アドレスを返す（値レシーバ）
+// Address returns the connection address (value receiver)
 func (s Server) Address() string {
     return fmt.Sprintf("%s:%d", s.Host, s.Port)
 }
 
-// URL は完全なURLを返す（値レシーバ）
+// URL returns the full URL (value receiver)
 func (s Server) URL() string {
     scheme := "http"
     if s.TLS {
@@ -154,7 +154,7 @@ func (s Server) URL() string {
     return fmt.Sprintf("%s://%s", scheme, s.Address())
 }
 
-// String は fmt.Stringer インターフェースを実装
+// String implements the fmt.Stringer interface
 func (s Server) String() string {
     var parts []string
     parts = append(parts, fmt.Sprintf("host=%s", s.Host))
@@ -165,7 +165,7 @@ func (s Server) String() string {
     return fmt.Sprintf("Server{%s}", strings.Join(parts, ", "))
 }
 
-// EnableTLS はTLSを有効化する（ポインタレシーバ -- 構造体を変更）
+// EnableTLS enables TLS (pointer receiver -- modifies the struct)
 func (s *Server) EnableTLS(certFile, keyFile string) {
     s.TLS = true
     s.CertFile = certFile
@@ -183,7 +183,7 @@ func main() {
 }
 ```
 
-### コード例 4: インターフェースと構造的部分型
+### Code Example 4: Interfaces and Structural Subtyping
 
 ```go
 package main
@@ -194,12 +194,12 @@ import (
     "strings"
 )
 
-// Writer インターフェース（io.Writerと同じシグネチャ）
+// Writer interface (same signature as io.Writer)
 type Writer interface {
     Write(p []byte) (n int, err error)
 }
 
-// 構造体が暗黙的にインターフェースを満たす -- 宣言不要
+// A struct implicitly satisfies an interface -- no declaration needed
 type FileWriter struct {
     Path string
 }
@@ -209,7 +209,7 @@ func (fw FileWriter) Write(p []byte) (int, error) {
     return len(p), nil
 }
 
-// ConsoleWriter も同じインターフェースを満たす
+// ConsoleWriter also satisfies the same interface
 type ConsoleWriter struct {
     Prefix string
 }
@@ -219,26 +219,26 @@ func (cw ConsoleWriter) Write(p []byte) (int, error) {
     return len(p), nil
 }
 
-// インターフェースの合成
+// Interface composition
 type ReadWriteCloser interface {
     io.Reader
     io.Writer
     io.Closer
 }
 
-// 多態性の活用: Writer を受け取る関数
+// Leveraging polymorphism: a function that accepts a Writer
 func writeMessage(w Writer, msg string) error {
     _, err := w.Write([]byte(msg))
     return err
 }
 
-// 空インターフェースとany
+// Empty interface and any
 func printType(v any) {
     fmt.Printf("type=%T, value=%v\n", v, v)
 }
 
 func main() {
-    // FileWriter と ConsoleWriter は同じインターフェースを満たす
+    // FileWriter and ConsoleWriter satisfy the same interface
     var w Writer
 
     w = FileWriter{Path: "/tmp/log.txt"}
@@ -247,7 +247,7 @@ func main() {
     w = ConsoleWriter{Prefix: "CONSOLE"}
     writeMessage(w, "hello from console writer\n")
 
-    // 標準ライブラリの strings.Reader も io.Reader を満たす
+    // The standard library's strings.Reader also satisfies io.Reader
     reader := strings.NewReader("Go is great!")
     buf := make([]byte, 12)
     n, _ := reader.Read(buf)
@@ -255,7 +255,7 @@ func main() {
 }
 ```
 
-### コード例 5: goroutine と channel
+### Code Example 5: Goroutines and Channels
 
 ```go
 package main
@@ -267,11 +267,11 @@ import (
     "time"
 )
 
-// ワーカーパターン: 複数のgoroutineでタスクを処理
+// Worker pattern: process tasks with multiple goroutines
 func worker(id int, tasks <-chan int, results chan<- string, wg *sync.WaitGroup) {
     defer wg.Done()
     for task := range tasks {
-        // シミュレートされた処理
+        // Simulated processing
         duration := time.Duration(rand.Intn(100)) * time.Millisecond
         time.Sleep(duration)
         results <- fmt.Sprintf("worker %d processed task %d in %v", id, task, duration)
@@ -279,7 +279,7 @@ func worker(id int, tasks <-chan int, results chan<- string, wg *sync.WaitGroup)
 }
 
 func main() {
-    // チャネルの基本
+    // Channel basics
     ch := make(chan string)
     go func() {
         ch <- "hello from goroutine"
@@ -287,7 +287,7 @@ func main() {
     msg := <-ch
     fmt.Println(msg)
 
-    // ワーカープール
+    // Worker pool
     const numWorkers = 3
     const numTasks = 10
 
@@ -300,26 +300,26 @@ func main() {
         go worker(i, tasks, results, &wg)
     }
 
-    // タスクを送信
+    // Send tasks
     for i := 0; i < numTasks; i++ {
         tasks <- i
     }
-    close(tasks) // 全タスク送信後にクローズ
+    close(tasks) // Close after sending all tasks
 
-    // 結果を別のgoroutineで収集
+    // Collect results in a separate goroutine
     go func() {
         wg.Wait()
-        close(results) // 全ワーカー完了後にクローズ
+        close(results) // Close after all workers complete
     }()
 
-    // 結果を表示
+    // Display results
     for result := range results {
         fmt.Println(result)
     }
 }
 ```
 
-### コード例 6: defer, panic, recover
+### Code Example 6: defer, panic, recover
 
 ```go
 package main
@@ -329,23 +329,23 @@ import (
     "os"
 )
 
-// deferの基本: LIFO順で実行される
+// defer basics: executed in LIFO order
 func deferExample() {
     fmt.Println("start")
     defer fmt.Println("deferred 1")
     defer fmt.Println("deferred 2")
     defer fmt.Println("deferred 3")
     fmt.Println("end")
-    // 出力: start, end, deferred 3, deferred 2, deferred 1
+    // Output: start, end, deferred 3, deferred 2, deferred 1
 }
 
-// deferでファイルクローズ（リソース管理の典型パターン）
+// Closing a file with defer (a typical resource management pattern)
 func readFile(path string) ([]byte, error) {
     f, err := os.Open(path)
     if err != nil {
         return nil, fmt.Errorf("open %s: %w", path, err)
     }
-    defer f.Close() // 関数終了時に必ずクローズ
+    defer f.Close() // Always close when the function exits
 
     info, err := f.Stat()
     if err != nil {
@@ -360,7 +360,7 @@ func readFile(path string) ([]byte, error) {
     return buf, nil
 }
 
-// panic/recover: ライブラリ境界でのパニック回復
+// panic/recover: panic recovery at library boundaries
 func safeDivide(a, b int) (result int, err error) {
     defer func() {
         if r := recover(); r != nil {
@@ -368,7 +368,7 @@ func safeDivide(a, b int) (result int, err error) {
         }
     }()
 
-    // bが0の場合、整数除算はpanicする
+    // When b is 0, integer division panics
     return a / b, nil
 }
 
@@ -391,7 +391,7 @@ func main() {
 }
 ```
 
-### コード例 7: スライスとマップの操作
+### Code Example 7: Slice and Map Operations
 
 ```go
 package main
@@ -403,10 +403,10 @@ import (
 )
 
 func main() {
-    // スライスの基本操作
+    // Basic slice operations
     numbers := []int{5, 3, 8, 1, 9, 2, 7}
 
-    // ソート
+    // Sort
     sort.Ints(numbers)
     fmt.Println("sorted:", numbers)
 
@@ -414,43 +414,43 @@ func main() {
     numbers = append(numbers, 10, 11)
     fmt.Println("appended:", numbers)
 
-    // スライス式
+    // Slice expressions
     first3 := numbers[:3]
     last3 := numbers[len(numbers)-3:]
     fmt.Println("first 3:", first3)
     fmt.Println("last 3:", last3)
 
-    // make でサイズ指定
+    // Specifying size with make
     buf := make([]byte, 0, 1024) // length=0, capacity=1024
     buf = append(buf, "hello"...)
     fmt.Printf("buf: %s (len=%d, cap=%d)\n", buf, len(buf), cap(buf))
 
-    // マップの基本操作
+    // Basic map operations
     scores := map[string]int{
         "Alice": 95,
         "Bob":   87,
         "Carol": 92,
     }
 
-    // 要素の追加と取得
+    // Adding and retrieving elements
     scores["Dave"] = 88
 
-    // 存在チェック
+    // Existence check
     if score, ok := scores["Eve"]; ok {
         fmt.Printf("Eve's score: %d\n", score)
     } else {
         fmt.Println("Eve not found")
     }
 
-    // 削除
+    // Deletion
     delete(scores, "Bob")
 
-    // マップの走査（順序は非決定的）
+    // Map iteration (order is non-deterministic)
     for name, score := range scores {
         fmt.Printf("%s: %d\n", name, score)
     }
 
-    // 文字列操作
+    // String operations
     text := "Go is a statically typed, compiled language"
     words := strings.Fields(text)
     fmt.Printf("Word count: %d\n", len(words))
@@ -459,7 +459,7 @@ func main() {
 }
 ```
 
-### コード例 8: ジェネリクス (Go 1.18+)
+### Code Example 8: Generics (Go 1.18+)
 
 ```go
 package main
@@ -469,7 +469,7 @@ import (
     "golang.org/x/exp/constraints"
 )
 
-// 型パラメータを持つ関数
+// A function with type parameters
 func MinT constraints.Ordered T {
     if a < b {
         return a
@@ -484,7 +484,7 @@ func MaxT constraints.Ordered T {
     return b
 }
 
-// ジェネリックなスライス操作
+// Generic slice operations
 func FilterT any bool) []T {
     var result []T
     for _, v := range slice {
@@ -511,7 +511,7 @@ func ReduceT any, U any U) U {
     return result
 }
 
-// 型制約の定義
+// Defining a type constraint
 type Number interface {
     ~int | ~int8 | ~int16 | ~int32 | ~int64 |
         ~float32 | ~float64
@@ -525,7 +525,7 @@ func SumT Number T {
     return total
 }
 
-// ジェネリックなデータ構造
+// A generic data structure
 type Stack[T any] struct {
     items []T
 }
@@ -557,7 +557,7 @@ func (s *Stack[T]) Len() int {
 }
 
 func main() {
-    // 型推論でジェネリック関数を呼び出し
+    // Call generic functions with type inference
     fmt.Println(Min(3, 7))         // 3
     fmt.Println(Min("apple", "banana")) // "apple"
     fmt.Println(Max(3.14, 2.71))   // 3.14
@@ -574,7 +574,7 @@ func main() {
     sum := Reduce(numbers, 0, func(acc, n int) int { return acc + n })
     fmt.Println("sum:", sum)
 
-    // ジェネリックStack
+    // Generic Stack
     stack := &Stack[string]{}
     stack.Push("first")
     stack.Push("second")
@@ -590,200 +590,202 @@ func main() {
 
 ---
 
-## 2. Goの歴史と進化
+## 2. History and Evolution of Go
 
-### 2.1 タイムライン
+### 2.1 Timeline
 
-| 年 | バージョン | 主要な変更 |
+| Year | Version | Major Changes |
 |-----|-----------|-----------|
-| 2007 | -- | 設計開始（Griesemer, Pike, Thompson） |
-| 2009 | -- | オープンソースとして公開 |
-| 2012 | Go 1.0 | 安定版リリース。Go 1互換性保証の開始 |
-| 2013 | Go 1.1 | メソッド値、整数除算の改善 |
-| 2014 | Go 1.3 | スタックの連続メモリ化（セグメント方式から変更） |
-| 2015 | Go 1.5 | セルフホスティング（CからGoに移行）、並行GC |
-| 2016 | Go 1.7 | context パッケージが標準ライブラリに |
-| 2017 | Go 1.9 | 型エイリアス、sync.Map |
-| 2018 | Go 1.11 | Go Modules 導入（実験的） |
-| 2019 | Go 1.13 | Go Modules デフォルト化、errors.Is/As |
-| 2020 | Go 1.16 | embed パッケージ、io/fs |
-| 2022 | Go 1.18 | **ジェネリクス**、Fuzzing、Workspace |
-| 2023 | Go 1.21 | min/max組み込み関数、slog（構造化ログ） |
-| 2023 | Go 1.22 | ループ変数のスコープ修正、net/http ルーティング強化 |
-| 2024 | Go 1.23 | イテレータ (range over func)、タイマー改善 |
+| 2007 | -- | Design started (Griesemer, Pike, Thompson) |
+| 2009 | -- | Released as open source |
+| 2012 | Go 1.0 | Stable release. Go 1 compatibility guarantee begins |
+| 2013 | Go 1.1 | Method values, improved integer division |
+| 2014 | Go 1.3 | Contiguous stack memory (changed from segmented approach) |
+| 2015 | Go 1.5 | Self-hosting (migrated from C to Go), concurrent GC |
+| 2016 | Go 1.7 | context package added to the standard library |
+| 2017 | Go 1.9 | Type aliases, sync.Map |
+| 2018 | Go 1.11 | Go Modules introduced (experimental) |
+| 2019 | Go 1.13 | Go Modules made default, errors.Is/As |
+| 2020 | Go 1.16 | embed package, io/fs |
+| 2022 | Go 1.18 | **Generics**, Fuzzing, Workspace |
+| 2023 | Go 1.21 | min/max built-in functions, slog (structured logging) |
+| 2023 | Go 1.22 | Loop variable scoping fix, enhanced net/http routing |
+| 2024 | Go 1.23 | Iterators (range over func), timer improvements |
 
-### 2.2 Go 1互換性保証
+### 2.2 The Go 1 Compatibility Guarantee
 
-Go の最大の強みの一つは **Go 1互換性保証** である。Go 1.0 で書かれたコードは、最新のGoコンパイラでも（原則として）そのままコンパイル・実行できる。これは以下の保証を意味する:
+One of Go's greatest strengths is the **Go 1 compatibility guarantee**. Code written for Go 1.0 can (in principle) still be compiled and executed with the latest Go compiler. This guarantee means:
 
-- ソースレベルの後方互換性
-- コンパイル後のバイナリの動作互換性
-- 標準ライブラリのAPIの安定性
+- Source-level backward compatibility
+- Behavioral compatibility of compiled binaries
+- API stability of the standard library
 
-ただし、バグ修正や未定義動作の明確化による変更はあり得る。また、`unsafe` パッケージを使用するコードは保証対象外である。
+However, changes due to bug fixes or clarification of undefined behavior may occur. Code using the `unsafe` package is also excluded from the guarantee.
 
 ---
 
-## 3. ASCII図解
+## 3. ASCII Diagrams
 
-### 図1: Goのコンパイルフロー
+### Diagram 1: Go's Compilation Flow
 
 ```
 ┌──────────┐    ┌──────────┐    ┌──────────────┐    ┌────────────┐
-│ .go ファイル│───>│  パーサー  │───>│  型チェッカー  │───>│ ネイティブ   │
-│ (ソース)   │    │  (AST)   │    │  (SSA/IR)    │    │ バイナリ    │
+│ .go file │───>│  Parser  │───>│ Type Checker │───>│   Native   │
+│ (source) │    │  (AST)   │    │  (SSA/IR)    │    │   Binary   │
 └──────────┘    └──────────┘    └──────────────┘    └────────────┘
-          全工程が数秒で完了 (大規模プロジェクトでも)
+          The entire process completes in seconds (even for large projects)
 
-詳細フロー:
+Detailed flow:
 ┌─────────┐   ┌─────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐
-│ 字句解析 │──>│ 構文解析 │──>│ 型チェック │──>│ SSA生成  │──>│ コード生成 │
-│ (Lexer) │   │ (Parser)│   │ (Checker)│   │ (SSA IR) │   │ (CodeGen)│
+│ Lexical │──>│ Parsing │──>│   Type   │──>│   SSA    │──>│   Code   │
+│ (Lexer) │   │ (Parser)│   │ Checking │   │ Generate │   │   Gen    │
 └─────────┘   └─────────┘   └──────────┘   └──────────┘   └──────────┘
      │              │              │              │              │
      ▼              ▼              ▼              ▼              ▼
-  トークン列       AST           型付きAST      最適化IR      機械語
+  Token stream     AST         Typed AST     Optimized IR   Machine code
 
-最適化パス:
-  SSA → デッドコード除去 → インライン化 → エスケープ解析 → レジスタ割当
+Optimization passes:
+  SSA → dead code elimination → inlining → escape analysis → register allocation
 ```
 
-### 図2: Go のメモリモデル
+### Diagram 2: Go's Memory Model
 
 ```
 ┌─────────────────────────────────────┐
-│              Go ランタイム             │
+│             Go Runtime              │
 │  ┌──────┐ ┌──────┐ ┌──────┐        │
 │  │ G1   │ │ G2   │ │ G3   │ goroutine│
 │  └──┬───┘ └──┬───┘ └──┬───┘        │
 │     │        │        │             │
 │  ┌──▼────────▼────────▼───┐         │
-│  │     スケジューラ (M:N)    │         │
+│  │    Scheduler (M:N)     │         │
 │  └──┬────────┬────────┬───┘         │
 │     │        │        │             │
 │  ┌──▼───┐ ┌──▼───┐ ┌──▼───┐        │
-│  │ OS   │ │ OS   │ │ OS   │ スレッド │
+│  │ OS   │ │ OS   │ │ OS   │ Thread  │
 │  │Thread│ │Thread│ │Thread│        │
 │  └──────┘ └──────┘ └──────┘        │
 └─────────────────────────────────────┘
 
-メモリ管理の詳細:
+Memory management details:
 ┌─────────────────────────────────────┐
-│                ヒープ                 │
+│                Heap                  │
 │  ┌─────────┐ ┌─────────┐            │
-│  │  小オブジェクト │ │ 大オブジェクト │   │
-│  │  (mcache)  │ │ (mheap) │          │
+│  │ Small   │ │ Large   │            │
+│  │ objects │ │ objects │            │
+│  │(mcache) │ │ (mheap) │            │
 │  └─────────┘ └─────────┘            │
 │                                      │
-│  エスケープ解析:                       │
-│  ・ローカル変数がスコープ外で参照される   │
-│    → ヒープに割当                      │
-│  ・スコープ内で完結 → スタックに割当     │
-│  ・go build -gcflags="-m" で確認可     │
+│  Escape analysis:                    │
+│  - Local variables referenced outside│
+│    their scope → allocated on heap   │
+│  - Scope-contained → stack allocation│
+│  - Verify with go build              │
+│    -gcflags="-m"                     │
 └─────────────────────────────────────┘
 ```
 
-### 図3: Go ツールチェイン
+### Diagram 3: Go Toolchain
 
 ```
 ┌─────────────────────────────────────────┐
-│           go コマンド                     │
+│           go command                    │
 │                                         │
-│  go build   ── コンパイル                  │
-│  go test    ── テスト実行                  │
-│  go run     ── ビルド+実行                 │
-│  go fmt     ── フォーマット                 │
-│  go vet     ── 静的解析                    │
-│  go mod     ── モジュール管理               │
-│  go generate── コード生成                  │
-│  go tool pprof ── プロファイリング          │
-│  go doc     ── ドキュメント表示             │
-│  go install ── バイナリのインストール        │
-│  go env     ── 環境変数の表示              │
-│  go clean   ── ビルドキャッシュの削除       │
-│  go work    ── ワークスペース管理           │
+│  go build   ── Compile                  │
+│  go test    ── Run tests                │
+│  go run     ── Build + execute          │
+│  go fmt     ── Format                   │
+│  go vet     ── Static analysis          │
+│  go mod     ── Module management        │
+│  go generate── Code generation          │
+│  go tool pprof ── Profiling             │
+│  go doc     ── Show documentation       │
+│  go install ── Install binaries         │
+│  go env     ── Show environment vars    │
+│  go clean   ── Delete build cache       │
+│  go work    ── Workspace management     │
 └─────────────────────────────────────────┘
 
-関連外部ツール:
+Related external tools:
 ┌─────────────────────────────────────────┐
-│  staticcheck  ── 高度な静的解析            │
-│  golangci-lint── リンター集約             │
-│  dlv (delve)  ── デバッガ                 │
-│  gopls        ── Language Server          │
-│  govulncheck  ── 脆弱性チェック            │
-│  goreleaser   ── リリース自動化            │
+│  staticcheck  ── Advanced static analysis│
+│  golangci-lint── Linter aggregator      │
+│  dlv (delve)  ── Debugger               │
+│  gopls        ── Language Server        │
+│  govulncheck  ── Vulnerability checker  │
+│  goreleaser   ── Release automation     │
 └─────────────────────────────────────────┘
 ```
 
-### 図4: Go のガベージコレクション
+### Diagram 4: Go's Garbage Collection
 
 ```
-Go GC のフェーズ:
+Phases of Go GC:
 
 Phase 1: Mark Setup (STW)
-  全goroutineを停止 → ライトバリア有効化
+  Stop all goroutines → Enable write barrier
   ┌──────────────────────────────┐
   │  STW (< 1ms)                 │
-  │  ・ルートオブジェクトの特定    │
-  │  ・ライトバリアの有効化       │
+  │  - Identify root objects     │
+  │  - Enable write barrier      │
   └──────────────────────────────┘
               │
               ▼
 Phase 2: Marking (Concurrent)
-  アプリケーションと並行してマーキング
+  Marking runs concurrently with the application
   ┌──────────────────────────────┐
-  │  並行マーキング              │
-  │  ・到達可能なオブジェクトに    │
-  │    マークを付ける             │
-  │  ・CPU の 25% を GC に割当   │
+  │  Concurrent marking          │
+  │  - Mark reachable objects    │
+  │  - Allocate 25% of CPU to GC │
   └──────────────────────────────┘
               │
               ▼
 Phase 3: Mark Termination (STW)
   ┌──────────────────────────────┐
   │  STW (< 1ms)                 │
-  │  ・マーキングの完了確認       │
-  │  ・ライトバリアの無効化       │
+  │  - Confirm marking completion│
+  │  - Disable write barrier     │
   └──────────────────────────────┘
               │
               ▼
 Phase 4: Sweeping (Concurrent)
   ┌──────────────────────────────┐
-  │  並行スイープ                 │
-  │  ・マークのないオブジェクトを │
-  │    解放                       │
-  │  ・次のGCまでに少しずつ実行   │
+  │  Concurrent sweep            │
+  │  - Free unmarked objects     │
+  │  - Performed gradually until │
+  │    the next GC               │
   └──────────────────────────────┘
 
-GOGC=100 (デフォルト):
-  ヒープが前回GC後の2倍になったらGCを実行
-  GOGC=50: より頻繁にGC（メモリ使用量削減、CPU負荷増）
-  GOGC=200: GC頻度低下（メモリ使用量増、CPU負荷減）
-  GOMEMLIMIT: メモリ上限を設定（Go 1.19+）
+GOGC=100 (default):
+  GC runs when the heap doubles compared to after the previous GC
+  GOGC=50: more frequent GC (reduced memory, increased CPU load)
+  GOGC=200: less frequent GC (increased memory, reduced CPU load)
+  GOMEMLIMIT: set memory limit (Go 1.19+)
 ```
 
-### 図5: クロスコンパイルの仕組み
+### Diagram 5: How Cross-Compilation Works
 
 ```
-Go のクロスコンパイル:
+Go cross-compilation:
 
-  開発マシン (darwin/amd64)
+  Development machine (darwin/amd64)
   ┌────────────────────────────────────────┐
   │                                        │
   │  GOOS=linux GOARCH=amd64 go build      │
-  │  → linux/amd64 用バイナリ生成           │
+  │  → Generates a linux/amd64 binary      │
   │                                        │
   │  GOOS=windows GOARCH=amd64 go build    │
-  │  → windows/amd64 用バイナリ生成         │
+  │  → Generates a windows/amd64 binary    │
   │                                        │
   │  GOOS=linux GOARCH=arm64 go build      │
-  │  → linux/arm64 用バイナリ生成           │
+  │  → Generates a linux/arm64 binary      │
   │                                        │
-  │  CGO_ENABLED=0 で純Go実装を強制         │
-  │  → 外部C依存なしのポータブルバイナリ     │
+  │  Use CGO_ENABLED=0 to force pure Go    │
+  │  → Portable binary with no external C  │
+  │    dependencies                        │
   └────────────────────────────────────────┘
 
-サポートプラットフォーム一覧（一部）:
+List of supported platforms (partial):
   ┌─────────┬───────────────────────────┐
   │  GOOS   │  GOARCH                   │
   ├─────────┼───────────────────────────┤
@@ -798,83 +800,83 @@ Go のクロスコンパイル:
 
 ---
 
-## 4. 比較表
+## 4. Comparison Tables
 
-### 表1: Go vs 他言語 -- 設計思想比較
+### Table 1: Go vs Other Languages -- Design Philosophy Comparison
 
-| 項目 | Go | Rust | Java | Python | TypeScript |
+| Item | Go | Rust | Java | Python | TypeScript |
 |------|-----|------|------|--------|------------|
-| 型システム | 静的・構造的部分型 | 静的・所有権 | 静的・名前的 | 動的 | 静的（段階的型付け） |
-| メモリ管理 | GC | 所有権システム | GC | GC+参照カウント | GC (V8) |
-| 並行モデル | goroutine+channel | async/await+thread | Thread+Virtual Thread | asyncio/thread | async/await (イベントループ) |
-| コンパイル速度 | 非常に高速 | 低速 | 中程度 | N/A (インタプリタ) | 高速 (型チェックのみ) |
-| バイナリサイズ | 中 (静的リンク) | 小〜中 | 大 (JVM必要) | N/A | N/A (ランタイム必要) |
-| 学習曲線 | 緩やか | 急峻 | 中程度 | 緩やか | 緩やか〜中程度 |
-| エラー処理 | 明示的 (error) | Result/Option | 例外 | 例外 | 例外 + Promise |
-| Null安全 | nil (ポインタのみ) | Option型 | Nullable annotation | None | strictNullChecks |
+| Type system | Static, structural subtyping | Static, ownership | Static, nominal | Dynamic | Static (gradual typing) |
+| Memory management | GC | Ownership system | GC | GC + reference counting | GC (V8) |
+| Concurrency model | goroutine + channel | async/await + thread | Thread + Virtual Thread | asyncio/thread | async/await (event loop) |
+| Compilation speed | Very fast | Slow | Moderate | N/A (interpreted) | Fast (type checking only) |
+| Binary size | Medium (statically linked) | Small-medium | Large (requires JVM) | N/A | N/A (requires runtime) |
+| Learning curve | Gentle | Steep | Moderate | Gentle | Gentle to moderate |
+| Error handling | Explicit (error) | Result/Option | Exceptions | Exceptions | Exceptions + Promise |
+| Null safety | nil (pointers only) | Option type | Nullable annotation | None | strictNullChecks |
 
-### 表2: Goが適する領域と不向きな領域
+### Table 2: Domains Where Go Excels and Where It Doesn't
 
-| 適する領域 | 理由 | 代表的なプロジェクト |
+| Well-suited domain | Reason | Representative projects |
 |-----------|------|-------------------|
-| マイクロサービス / API サーバー | 高速起動、低メモリ、並行処理 | Docker, Kubernetes |
-| CLI ツール | 単一バイナリ、クロスコンパイル | Terraform, Hugo |
-| DevOps / インフラツール | シングルバイナリデプロイ | Prometheus, Grafana |
-| ネットワークプログラミング | net パッケージの充実 | CoreDNS, Caddy |
-| データパイプライン | 並行処理の容易さ | CockroachDB, InfluxDB |
-| ブロックチェーン | 性能と並行性 | Ethereum (go-ethereum) |
+| Microservices / API servers | Fast startup, low memory, concurrent processing | Docker, Kubernetes |
+| CLI tools | Single binary, cross-compilation | Terraform, Hugo |
+| DevOps / infrastructure tools | Single-binary deployment | Prometheus, Grafana |
+| Network programming | Rich net package | CoreDNS, Caddy |
+| Data pipelines | Ease of concurrency | CockroachDB, InfluxDB |
+| Blockchain | Performance and concurrency | Ethereum (go-ethereum) |
 
-| 不向きな領域 | 理由 |
+| Unsuited domain | Reason |
 |-------------|------|
-| GUI デスクトップアプリ | ネイティブGUIライブラリが貧弱 |
-| 機械学習モデル構築 | Pythonエコシステムに遠く及ばない |
-| リアルタイムシステム (GCの影響) | GCのSTWが予測不能 |
-| 複雑な型レベルプログラミング | 型システムが意図的にシンプル |
-| 動的メタプログラミング | reflectは限定的、マクロなし |
-| ゲーム開発 | ゲームエンジン不足、GCの影響 |
+| GUI desktop apps | Native GUI libraries are weak |
+| Building ML models | Far from matching the Python ecosystem |
+| Real-time systems (due to GC) | GC STW is unpredictable |
+| Complex type-level programming | Type system is intentionally simple |
+| Dynamic metaprogramming | reflect is limited, no macros |
+| Game development | Lack of game engines, GC impact |
 
-### 表3: ビルドモードの比較
+### Table 3: Build Mode Comparison
 
-| ビルドモード | コマンド | 出力 | 用途 |
+| Build mode | Command | Output | Use case |
 |-------------|---------|------|------|
-| 実行バイナリ | `go build` | 単一バイナリ | デプロイ |
-| 実行+ビルド | `go run` | 一時バイナリ | 開発中の動作確認 |
-| プラグイン | `go build -buildmode=plugin` | .so ファイル | 動的ロード |
-| 共有ライブラリ | `go build -buildmode=c-shared` | .so + .h | C/FFI連携 |
-| 静的ライブラリ | `go build -buildmode=c-archive` | .a + .h | C/FFI連携 |
+| Executable binary | `go build` | Single binary | Deployment |
+| Run + build | `go run` | Temporary binary | Testing during development |
+| Plugin | `go build -buildmode=plugin` | .so file | Dynamic loading |
+| Shared library | `go build -buildmode=c-shared` | .so + .h | C/FFI integration |
+| Static library | `go build -buildmode=c-archive` | .a + .h | C/FFI integration |
 
 ---
 
-## 5. 標準ライブラリの概要
+## 5. Overview of the Standard Library
 
-Go の標準ライブラリは「batteries included」の精神で設計されており、多くのユースケースをサードパーティ依存なしでカバーできる。
+Go's standard library is designed around the "batteries included" spirit, and it covers many use cases without requiring third-party dependencies.
 
-### 表4: 標準ライブラリの主要パッケージ
+### Table 4: Key Packages in the Standard Library
 
-| パッケージ | 用途 | 特筆事項 |
+| Package | Purpose | Notable features |
 |-----------|------|---------|
-| `fmt` | 書式付きI/O | Printf, Sprintf, Errorf |
-| `io` | I/O プリミティブ | Reader, Writer, Closer インターフェース |
-| `os` | OS機能 | ファイル操作、環境変数、プロセス |
-| `net/http` | HTTPクライアント/サーバー | 本番品質のHTTPサーバーを標準で提供 |
-| `encoding/json` | JSON処理 | Marshal/Unmarshal、ストリーミング |
-| `database/sql` | DB抽象化 | ドライバーインターフェース |
-| `sync` | 同期プリミティブ | Mutex, WaitGroup, Once |
-| `context` | キャンセル・タイムアウト | goroutine制御の標準手法 |
-| `testing` | テストフレームワーク | ユニットテスト、ベンチマーク、ファジング |
-| `crypto` | 暗号化 | TLS, AES, RSA, SHA |
-| `strings` / `bytes` | 文字列/バイト列操作 | Builder, Reader, 各種変換 |
-| `regexp` | 正規表現 | RE2構文（線形時間保証） |
-| `time` | 時間操作 | Duration, Timer, Ticker |
-| `log/slog` | 構造化ログ (Go 1.21+) | JSON/Text ハンドラー |
-| `embed` | ファイル埋め込み (Go 1.16+) | バイナリにファイルを同梱 |
-| `reflect` | リフレクション | 型情報の実行時取得・操作 |
-| `sort` | ソート | Slice, SliceStable |
-| `math` | 数学関数 | 浮動小数点演算、乱数 |
-| `html/template` | HTMLテンプレート | XSS防止の自動エスケープ |
-| `text/template` | テキストテンプレート | 汎用テンプレートエンジン |
+| `fmt` | Formatted I/O | Printf, Sprintf, Errorf |
+| `io` | I/O primitives | Reader, Writer, Closer interfaces |
+| `os` | OS features | File operations, environment variables, processes |
+| `net/http` | HTTP client/server | Provides a production-quality HTTP server by default |
+| `encoding/json` | JSON handling | Marshal/Unmarshal, streaming |
+| `database/sql` | DB abstraction | Driver interface |
+| `sync` | Synchronization primitives | Mutex, WaitGroup, Once |
+| `context` | Cancellation and timeouts | Standard approach for goroutine control |
+| `testing` | Test framework | Unit tests, benchmarks, fuzzing |
+| `crypto` | Cryptography | TLS, AES, RSA, SHA |
+| `strings` / `bytes` | String/byte operations | Builder, Reader, various conversions |
+| `regexp` | Regular expressions | RE2 syntax (linear-time guarantee) |
+| `time` | Time operations | Duration, Timer, Ticker |
+| `log/slog` | Structured logging (Go 1.21+) | JSON/Text handlers |
+| `embed` | File embedding (Go 1.16+) | Bundles files into the binary |
+| `reflect` | Reflection | Runtime type info retrieval and manipulation |
+| `sort` | Sorting | Slice, SliceStable |
+| `math` | Math functions | Floating-point operations, random numbers |
+| `html/template` | HTML templates | Automatic escaping to prevent XSS |
+| `text/template` | Text templates | General-purpose template engine |
 
-### コード例 9: 標準ライブラリだけでHTTPサーバーを構築
+### Code Example 9: Building an HTTP Server with Only the Standard Library
 
 ```go
 package main
@@ -888,7 +890,7 @@ import (
     "time"
 )
 
-// User はユーザー情報を表す
+// User represents user information
 type User struct {
     ID        int       `json:"id"`
     Name      string    `json:"name"`
@@ -896,7 +898,7 @@ type User struct {
     CreatedAt time.Time `json:"created_at"`
 }
 
-// インメモリストア
+// In-memory store
 type UserStore struct {
     mu    sync.RWMutex
     users map[int]*User
@@ -937,11 +939,11 @@ func (s *UserStore) List() []*User {
 func main() {
     store := NewUserStore()
 
-    // サンプルデータ
+    // Sample data
     store.Create("Alice", "alice@example.com")
     store.Create("Bob", "bob@example.com")
 
-    // ルーティング（Go 1.22+ のパターンマッチング）
+    // Routing (pattern matching in Go 1.22+)
     mux := http.NewServeMux()
 
     mux.HandleFunc("GET /api/users", func(w http.ResponseWriter, r *http.Request) {
@@ -968,7 +970,7 @@ func main() {
         fmt.Fprintln(w, "OK")
     })
 
-    // ミドルウェア: ロギング
+    // Middleware: logging
     handler := loggingMiddleware(mux)
 
     server := &http.Server{
@@ -992,7 +994,7 @@ func loggingMiddleware(next http.Handler) http.Handler {
 }
 ```
 
-### コード例 10: テストの書き方
+### Code Example 10: How to Write Tests
 
 ```go
 package main
@@ -1001,7 +1003,7 @@ import (
     "testing"
 )
 
-// テスト対象の関数
+// Function under test
 func Add(a, b int) int {
     return a + b
 }
@@ -1013,7 +1015,7 @@ func Divide(a, b float64) (float64, error) {
     return a / b, nil
 }
 
-// 基本的なテスト
+// Basic test
 func TestAdd(t *testing.T) {
     got := Add(2, 3)
     want := 5
@@ -1022,7 +1024,7 @@ func TestAdd(t *testing.T) {
     }
 }
 
-// テーブル駆動テスト（Go の標準パターン）
+// Table-driven tests (the standard Go pattern)
 func TestDivide(t *testing.T) {
     tests := []struct {
         name    string
@@ -1053,14 +1055,14 @@ func TestDivide(t *testing.T) {
     }
 }
 
-// ベンチマーク
+// Benchmark
 func BenchmarkAdd(b *testing.B) {
     for i := 0; i < b.N; i++ {
         Add(100, 200)
     }
 }
 
-// サブテスト、パラレルテスト
+// Subtests, parallel tests
 func TestAddParallel(t *testing.T) {
     t.Parallel()
     tests := []struct {
@@ -1073,7 +1075,7 @@ func TestAddParallel(t *testing.T) {
     }
 
     for _, tt := range tests {
-        tt := tt // Go 1.21以前はキャプチャ必要
+        tt := tt // Capture required prior to Go 1.21
         t.Run(fmt.Sprintf("%d+%d", tt.a, tt.b), func(t *testing.T) {
             t.Parallel()
             if got := Add(tt.a, tt.b); got != tt.want {
@@ -1086,26 +1088,26 @@ func TestAddParallel(t *testing.T) {
 
 ---
 
-## 6. アンチパターン
+## 6. Anti-Patterns
 
-### アンチパターン 1: init()の乱用
+### Anti-Pattern 1: Overusing init()
 
 ```go
-// BAD: init()で複雑な初期化をする
+// BAD: Performing complex initialization in init()
 var db *sql.DB
 
 func init() {
-    db, _ = sql.Open("postgres", os.Getenv("DB_URL")) // エラー無視
-    db.Ping()                                          // テスト困難
+    db, _ = sql.Open("postgres", os.Getenv("DB_URL")) // Error ignored
+    db.Ping()                                          // Hard to test
 }
 
-// 問題点:
-// 1. エラーが無視される
-// 2. テスト時にDB接続が必須になる
-// 3. 初期化の順序が不明確
-// 4. 環境変数への暗黙的な依存
+// Problems:
+// 1. Errors are ignored
+// 2. DB connection becomes mandatory during testing
+// 3. Initialization order is unclear
+// 4. Implicit dependency on environment variables
 
-// GOOD: 明示的に初期化関数を呼ぶ
+// GOOD: Call an initialization function explicitly
 func NewDB(url string) (*sql.DB, error) {
     db, err := sql.Open("postgres", url)
     if err != nil {
@@ -1117,29 +1119,29 @@ func NewDB(url string) (*sql.DB, error) {
     return db, nil
 }
 
-// init() が適切な場面:
-// - ドライバの登録: sql.Register(), image.RegisterFormat()
-// - 定数の計算: 正規表現のコンパイル
+// Situations where init() is appropriate:
+// - Driver registration: sql.Register(), image.RegisterFormat()
+// - Constant computation: compiling regular expressions
 ```
 
-### アンチパターン 2: パニックをエラーハンドリング代わりに使う
+### Anti-Pattern 2: Using panic in Place of Error Handling
 
 ```go
-// BAD: panicでエラーを伝搬
+// BAD: Propagating errors via panic
 func MustParse(s string) int {
     v, err := strconv.Atoi(s)
     if err != nil {
-        panic(err) // ライブラリがpanicするべきではない
+        panic(err) // Libraries should not panic
     }
     return v
 }
 
-// Must パターンが許される場面:
-// - main() やパッケージ初期化時の設定読み込み
-// - テストヘルパー関数
-// - template.Must() のようなグローバル定数初期化
+// Situations where the Must pattern is acceptable:
+// - Loading configuration in main() or during package initialization
+// - Test helper functions
+// - Global constant initialization like template.Must()
 
-// GOOD: エラーを返す
+// GOOD: Return an error
 func Parse(s string) (int, error) {
     v, err := strconv.Atoi(s)
     if err != nil {
@@ -1148,7 +1150,7 @@ func Parse(s string) (int, error) {
     return v, nil
 }
 
-// Must パターンを使う場合の安全な実装
+// A safe implementation when using the Must pattern
 func MustCompileRegex(pattern string) *regexp.Regexp {
     re, err := regexp.Compile(pattern)
     if err != nil {
@@ -1157,18 +1159,18 @@ func MustCompileRegex(pattern string) *regexp.Regexp {
     return re
 }
 
-// パッケージレベルで使用（init時に確定する値）
+// Use at the package level (a value determined at init time)
 var emailRegex = MustCompileRegex(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
 ```
 
-### アンチパターン 3: インターフェースの過剰な事前定義
+### Anti-Pattern 3: Over-Defining Interfaces Up Front
 
 ```go
-// BAD: 使う前からインターフェースを定義（Java的な思考）
-// producer側でインターフェースを定義
+// BAD: Defining an interface before it is used (Java-style thinking)
+// Defining the interface on the producer side
 package storage
 
-type Storage interface {  // 最初から大きなインターフェース
+type Storage interface {  // A large interface from the start
     Get(key string) ([]byte, error)
     Set(key, value string) error
     Delete(key string) error
@@ -1179,17 +1181,17 @@ type Storage interface {  // 最初から大きなインターフェース
 type S3Storage struct { /* ... */ }
 // S3Storage implements Storage
 
-// GOOD: consumer側で必要最小限のインターフェースを定義
+// GOOD: Define the minimum required interface on the consumer side
 package handler
 
-// Getter は handler パッケージが必要とするインターフェース
+// Getter is the interface the handler package needs
 type Getter interface {
     Get(key string) ([]byte, error)
 }
 
-// UserHandler は Storage の Get のみ必要
+// UserHandler only needs Get from Storage
 type UserHandler struct {
-    store Getter  // 小さなインターフェース
+    store Getter  // Small interface
 }
 
 func NewUserHandler(store Getter) *UserHandler {
@@ -1197,17 +1199,17 @@ func NewUserHandler(store Getter) *UserHandler {
 }
 ```
 
-### アンチパターン 4: context.Background() の多用
+### Anti-Pattern 4: Excessive Use of context.Background()
 
 ```go
-// BAD: 至る所で context.Background() を使う
+// BAD: Using context.Background() everywhere
 func fetchData() (*Data, error) {
-    ctx := context.Background() // キャンセル不能
+    ctx := context.Background() // Cannot be cancelled
     resp, err := http.NewRequestWithContext(ctx, "GET", url, nil)
     // ...
 }
 
-// GOOD: 呼び出し元から context を受け取る
+// GOOD: Receive the context from the caller
 func fetchData(ctx context.Context) (*Data, error) {
     req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
     if err != nil {
@@ -1221,19 +1223,19 @@ func fetchData(ctx context.Context) (*Data, error) {
     // ...
 }
 
-// context は関数の第一引数として渡すのが慣習
+// It is conventional to pass context as the first argument
 // func DoSomething(ctx context.Context, args ...T) error
 ```
 
-### アンチパターン 5: エラーチェックの省略
+### Anti-Pattern 5: Skipping Error Checks
 
 ```go
-// BAD: エラーを _ で無視
+// BAD: Ignoring errors with _
 data, _ := json.Marshal(user)
 _ = os.Remove(tmpFile)
-fmt.Fprintf(w, "hello") // io.Writer のエラーを無視
+fmt.Fprintf(w, "hello") // io.Writer error ignored
 
-// GOOD: 全てのエラーをチェック
+// GOOD: Check all errors
 data, err := json.Marshal(user)
 if err != nil {
     return fmt.Errorf("marshal user: %w", err)
@@ -1241,7 +1243,7 @@ if err != nil {
 
 if err := os.Remove(tmpFile); err != nil {
     log.Printf("warning: failed to remove temp file: %v", err)
-    // クリーンアップの失敗は致命的でなければログだけでOK
+    // Cleanup failures are fine to log only if non-fatal
 }
 
 if _, err := fmt.Fprintf(w, "hello"); err != nil {
@@ -1251,9 +1253,9 @@ if _, err := fmt.Fprintf(w, "hello"); err != nil {
 
 ---
 
-## 7. 開発環境セットアップ
+## 7. Development Environment Setup
 
-### 7.1 インストールと初期設定
+### 7.1 Installation and Initial Setup
 
 ```bash
 # macOS
@@ -1264,98 +1266,98 @@ wget https://go.dev/dl/go1.23.0.linux-amd64.tar.gz
 sudo tar -C /usr/local -xzf go1.23.0.linux-amd64.tar.gz
 export PATH=$PATH:/usr/local/go/bin
 
-# バージョン確認
+# Check version
 go version
 
-# 環境変数
-go env GOPATH    # ワークスペースのパス
-go env GOROOT    # Goのインストール先
-go env GOPROXY   # モジュールプロキシ
+# Environment variables
+go env GOPATH    # Path to the workspace
+go env GOROOT    # Go installation location
+go env GOPROXY   # Module proxy
 
-# 新しいプロジェクトの作成
+# Create a new project
 mkdir myproject && cd myproject
 go mod init github.com/myorg/myproject
 ```
 
-### 7.2 エディタ / IDE
+### 7.2 Editors / IDEs
 
-| エディタ | Go サポート | 特徴 |
+| Editor | Go support | Features |
 |---------|-----------|------|
-| VS Code + Go拡張 | gopls (Language Server) | 最も普及。デバッグ、テスト統合 |
-| GoLand (JetBrains) | ネイティブ | 最も機能豊富。有料 |
-| Vim/Neovim + vim-go | gopls | 軽量。Vim ユーザー向け |
-| Emacs + lsp-mode | gopls | Emacs ユーザー向け |
+| VS Code + Go extension | gopls (Language Server) | Most widely used. Debugging, test integration |
+| GoLand (JetBrains) | Native | Most feature-rich. Paid |
+| Vim/Neovim + vim-go | gopls | Lightweight. For Vim users |
+| Emacs + lsp-mode | gopls | For Emacs users |
 
-### 7.3 よく使うコマンド
+### 7.3 Commonly Used Commands
 
 ```bash
-# ビルドとテスト
-go build ./...              # 全パッケージをビルド
-go test ./...               # 全テストを実行
-go test -race ./...         # レースコンディション検出
-go test -cover ./...        # カバレッジ付きテスト
-go test -bench=. ./...      # ベンチマーク実行
-go test -fuzz=FuzzXxx ./... # ファジングテスト (Go 1.18+)
+# Build and test
+go build ./...              # Build all packages
+go test ./...               # Run all tests
+go test -race ./...         # Detect race conditions
+go test -cover ./...        # Tests with coverage
+go test -bench=. ./...      # Run benchmarks
+go test -fuzz=FuzzXxx ./... # Fuzzing tests (Go 1.18+)
 
-# コード品質
-go fmt ./...                # フォーマット
-go vet ./...                # 静的解析
-golangci-lint run ./...     # 複合リンター
+# Code quality
+go fmt ./...                # Format
+go vet ./...                # Static analysis
+golangci-lint run ./...     # Composite linter
 
-# 依存関係管理
-go mod tidy                 # 未使用の依存を削除、不足を追加
-go mod download             # 依存をダウンロード
-go mod vendor               # vendorディレクトリに依存をコピー
-go mod graph                # 依存グラフを表示
+# Dependency management
+go mod tidy                 # Remove unused dependencies, add missing ones
+go mod download             # Download dependencies
+go mod vendor               # Copy dependencies to vendor directory
+go mod graph                # Show the dependency graph
 
-# ドキュメントとプロファイリング
-go doc fmt.Println          # ドキュメント表示
-go tool pprof cpu.prof      # CPUプロファイル解析
-go tool trace trace.out     # トレース解析
+# Documentation and profiling
+go doc fmt.Println          # Show documentation
+go tool pprof cpu.prof      # Analyze CPU profile
+go tool trace trace.out     # Analyze trace
 ```
 
 
 ---
 
-## 実践演習
+## Practical Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that satisfies the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate input data
+- Implement proper error handling
+- Write test code as well
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Basic implementation template
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Exercise for basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main data processing logic"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Get processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1364,26 +1366,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "Should have raised an exception"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation by adding the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Advanced patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Exercise for advanced patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1391,7 +1393,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1402,14 +1404,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Remove by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1417,7 +1419,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Get statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1425,44 +1427,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # Size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1471,7 +1473,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1486,50 +1488,50 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient version: {slow_time:.4f}s")
+    print(f"Efficient version:   {fast_time:.6f}s")
+    print(f"Speedup: {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key points:**
+- Be aware of algorithmic complexity
+- Choose appropriate data structures
+- Measure the effect with benchmarks
 ---
 
 ## 8. FAQ
 
-### Q1: GoにはなぜGenericsが後から追加されたのか？
+### Q1: Why were generics added to Go later?
 
-Go の設計者は「シンプルさ」を最優先し、初期リリース(2009年)では意図的にジェネリクスを省いた。Go 1.18(2022年)で型パラメータが導入されたのは、10年以上の議論と設計検討の結果である。シンプルさを保ちつつ実用的な型安全性を提供する設計が見つかるまで待った、という哲学的判断。
+Go's designers prioritized "simplicity" above all else and intentionally omitted generics from the initial release (2009). Type parameters were introduced in Go 1.18 (2022) after more than ten years of debate and design study. It was a philosophical decision to wait until a design was found that could preserve simplicity while providing practical type safety.
 
-ジェネリクス導入前、Go 開発者は以下の手法でジェネリクスの欠如を補っていた:
-- `interface{}` (any) を使った汎用コード（型安全性を犠牲に）
-- コード生成ツール（`go generate` と `stringer` 等）
-- コピー&ペースト（型ごとに同じロジックを複製）
+Before generics were introduced, Go developers compensated for their absence in the following ways:
+- Using `interface{}` (any) for generic code (at the cost of type safety)
+- Code generation tools (`go generate`, `stringer`, etc.)
+- Copy and paste (duplicating the same logic for each type)
 
-Go 1.18 で導入されたジェネリクスは、他言語のものと比較してシンプルである。型制約はインターフェースで表現され、高カインド型や特殊化（specialization）は含まれない。
+The generics introduced in Go 1.18 are simple compared to those of other languages. Type constraints are expressed as interfaces, and higher-kinded types and specialization are not included.
 
-### Q2: Goのガベージコレクタはレイテンシに影響するか？
+### Q2: Does Go's garbage collector affect latency?
 
-Go の GC は低レイテンシ設計（目標: STW < 1ms）。Go 1.5 以降、コンカレント GC により大幅に改善された。ほとんどのWebサービスでは問題にならないが、マイクロ秒単位のレイテンシが必要な場合は以下を検討する:
+Go's GC is designed for low latency (target: STW < 1ms). Since Go 1.5, concurrent GC has significantly improved this. It is rarely a problem for most web services, but if microsecond-level latency is required, consider the following:
 
-- `sync.Pool` やオブジェクトの再利用でGC負荷を低減
-- `GOGC` 環境変数でGC頻度を調整
-- `GOMEMLIMIT` でメモリ上限を設定（Go 1.19+）
-- アリーナ（arena）パッケージの実験的利用
-- アロケーションの削減（スタック割当の最大化）
+- Reduce GC load with `sync.Pool` and object reuse
+- Tune GC frequency with the `GOGC` environment variable
+- Set a memory limit with `GOMEMLIMIT` (Go 1.19+)
+- Experimental use of the arena package
+- Reduce allocations (maximize stack allocation)
 
 ```go
-// GCチューニングの例
-// GOGC=100 (デフォルト): ヒープが100%増加でGC実行
-// GOGC=50: より頻繁にGC、メモリ使用量を抑える
-// GOGC=200: GC頻度を下げ、CPUを節約
-// GOMEMLIMIT=4GiB: ヒープの上限を設定
+// GC tuning example
+// GOGC=100 (default): run GC when the heap grows by 100%
+// GOGC=50: more frequent GC, reduces memory usage
+// GOGC=200: less frequent GC, saves CPU
+// GOMEMLIMIT=4GiB: set a heap upper limit
 
-// プログラム内から確認
+// Check from within the program
 import "runtime/debug"
 
 func init() {
@@ -1538,36 +1540,36 @@ func init() {
 }
 ```
 
-### Q3: Goは大規模開発に向いているか？
+### Q3: Is Go suitable for large-scale development?
 
-はい。Google 内部で数百万行規模のGoコードベースが運用されている。大規模開発を支える要因:
+Yes. Google operates Go codebases comprising millions of lines internally. Factors that support large-scale development:
 
-1. **gofmt**: 全コードが同一スタイル。コードレビューでスタイル議論が発生しない
-2. **高速コンパイル**: 数百万行でも数十秒でビルド完了
-3. **パッケージシステム**: 明確な可視性制御（大文字/小文字、internal）
-4. **静的型付け**: リファクタリングが安全
-5. **go vet / staticcheck**: 自動的なバグ検出
-6. **テストの標準化**: testing パッケージが言語に統合
+1. **gofmt**: All code uses the same style. No style debates in code review
+2. **Fast compilation**: Millions of lines can be built in tens of seconds
+3. **Package system**: Clear visibility control (uppercase/lowercase, internal)
+4. **Static typing**: Refactoring is safe
+5. **go vet / staticcheck**: Automatic bug detection
+6. **Standardized testing**: The testing package is integrated into the language
 
-ただし、型システムの表現力ではRustやHaskellに劣る部分がある。複雑なドメインモデルを型で表現したい場合は制約を感じることもある。
+However, the expressive power of the type system is inferior to Rust or Haskell in some respects. You may feel constrained when you want to express complex domain models through types.
 
-### Q4: Go と Rust はどう使い分けるべきか？
+### Q4: How should Go and Rust be used differently?
 
-| 判断基準 | Go を選ぶ | Rust を選ぶ |
+| Criterion | Choose Go | Choose Rust |
 |---------|----------|------------|
-| 開発速度 | チーム全体の生産性が重要 | 性能が最優先 |
-| GC | 許容できる (web API等) | 許容できない (OS、組み込み) |
-| チーム規模 | 大人数・多様なスキルレベル | 少人数・高スキル |
-| 安全性 | メモリ安全(GCで保証) | メモリ安全(所有権で保証) + 並行安全 |
-| エコシステム | クラウドネイティブが豊富 | システムプログラミングが豊富 |
-| 学習曲線 | 数日〜数週間 | 数週間〜数ヶ月 |
+| Development speed | Team-wide productivity matters | Performance is the top priority |
+| GC | Acceptable (e.g., web APIs) | Not acceptable (OS, embedded) |
+| Team size | Large, diverse skill levels | Small, high-skill |
+| Safety | Memory safety (guaranteed by GC) | Memory safety (guaranteed by ownership) + concurrency safety |
+| Ecosystem | Rich in cloud-native | Rich in systems programming |
+| Learning curve | Days to weeks | Weeks to months |
 
-### Q5: Goでの依存性注入はどうするべきか？
+### Q5: How should dependency injection be done in Go?
 
-Go ではフレームワークによる依存性注入（Spring、Guice等）は一般的ではない。代わりに、コンストラクタ関数によるシンプルな依存注入が推奨される:
+In Go, framework-based dependency injection (Spring, Guice, etc.) is uncommon. Instead, simple dependency injection via constructor functions is recommended:
 
 ```go
-// インターフェースで依存を定義
+// Define dependencies as interfaces
 type UserRepository interface {
     FindByID(ctx context.Context, id int) (*User, error)
 }
@@ -1576,7 +1578,7 @@ type EmailSender interface {
     Send(ctx context.Context, to, subject, body string) error
 }
 
-// コンストラクタで注入
+// Inject through a constructor
 type UserService struct {
     repo   UserRepository
     mailer EmailSender
@@ -1591,7 +1593,7 @@ func NewUserService(repo UserRepository, mailer EmailSender, logger *slog.Logger
     }
 }
 
-// main() で組み立て（Composition Root）
+// Assemble in main() (Composition Root)
 func main() {
     db := connectDB()
     repo := postgres.NewUserRepository(db)
@@ -1604,18 +1606,18 @@ func main() {
 }
 ```
 
-### Q6: Go のエラーハンドリングは冗長すぎないか？
+### Q6: Isn't Go's error handling too verbose?
 
-`if err != nil` の繰り返しは確かに冗長に見えるが、以下のメリットがある:
+The repetition of `if err != nil` can certainly look verbose, but it has the following benefits:
 
-1. **エラーの処理漏れが目立つ**: 明示的なチェックにより、エラーを無視する意図的な選択が明確
-2. **制御フローが明確**: try-catch のようなジャンプがないため、コードの流れが読みやすい
-3. **文脈の追加が容易**: `fmt.Errorf("context: %w", err)` で各レイヤーが情報を追加
-4. **テストが容易**: エラーパスのテストが直接的
+1. **Missed error handling stands out**: Explicit checks make intentional choices to ignore errors obvious
+2. **Clear control flow**: Without try-catch style jumps, the flow of code is easy to read
+3. **Easy to add context**: `fmt.Errorf("context: %w", err)` lets each layer add information
+4. **Easy to test**: Error-path testing is straightforward
 
-冗長さを軽減するテクニック:
+Techniques to reduce verbosity:
 ```go
-// ヘルパー関数でまとめる
+// Bundle with a helper function
 func mustT any T {
     if err != nil {
         panic(err)
@@ -1623,7 +1625,7 @@ func mustT any T {
     return v
 }
 
-// errWriter パターン（bufio.Scanner等で使用）
+// errWriter pattern (used in bufio.Scanner, etc.)
 type errWriter struct {
     w   io.Writer
     err error
@@ -1642,46 +1644,46 @@ func (ew *errWriter) write(buf []byte) {
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point to focus on when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing and running code to see how things work.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the basics and jumping to advanced topics. We recommend solidly understanding the fundamental concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in real-world development?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+The knowledge from this topic is frequently applied in day-to-day development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 9. まとめ
+## 9. Summary
 
-| 概念 | 要点 |
+| Concept | Key points |
 |------|------|
-| 設計哲学 | シンプルさ・直交性・明示的なエラーハンドリング |
-| 並行性 | goroutine + channel による CSP モデル |
-| コンパイル | 静的リンク・高速ビルド・クロスコンパイル対応 |
-| ツールチェイン | go build/test/fmt/vet が標準で統合 |
-| 型システム | 構造的部分型 (structural subtyping)、Go 1.18+ でジェネリクス |
-| GC | 低レイテンシ・コンカレント GC、GOGC/GOMEMLIMIT で調整可 |
-| エコシステム | 標準ライブラリが充実・サードパーティは go get で管理 |
-| 互換性保証 | Go 1 互換性保証により長期的な安定性 |
-| 開発体験 | gofmt で統一、gopls で IDE 統合、race detector 標準搭載 |
-| デプロイ | 単一バイナリ、Dockerイメージの最小化が容易 |
+| Design philosophy | Simplicity, orthogonality, explicit error handling |
+| Concurrency | The CSP model with goroutines + channels |
+| Compilation | Static linking, fast builds, cross-compilation support |
+| Toolchain | go build/test/fmt/vet integrated by default |
+| Type system | Structural subtyping, generics in Go 1.18+ |
+| GC | Low-latency, concurrent GC, tunable via GOGC/GOMEMLIMIT |
+| Ecosystem | Rich standard library, third-party managed with go get |
+| Compatibility guarantee | Long-term stability via the Go 1 compatibility guarantee |
+| Developer experience | Unified by gofmt, IDE integration via gopls, race detector included |
+| Deployment | Single binary, easy to minimize Docker images |
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Reads
 
-- [01-types-and-structs.md](./01-types-and-structs.md) -- 型とstruct の詳細
-- [02-error-handling.md](./02-error-handling.md) -- エラーハンドリングパターン
-- [../01-concurrency/00-goroutines-channels.md](../01-concurrency/00-goroutines-channels.md) -- 並行プログラミング入門
+- [01-types-and-structs.md](./01-types-and-structs.md) -- Details of types and structs
+- [02-error-handling.md](./02-error-handling.md) -- Error handling patterns
+- [../01-concurrency/00-goroutines-channels.md](../01-concurrency/00-goroutines-channels.md) -- Introduction to concurrent programming
 
 ---
 
-## 参考文献
+## References
 
 1. **The Go Programming Language Specification** -- https://go.dev/ref/spec
 2. **Effective Go** -- https://go.dev/doc/effective_go

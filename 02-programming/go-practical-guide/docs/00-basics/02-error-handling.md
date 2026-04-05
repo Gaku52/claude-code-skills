@@ -1,49 +1,49 @@
-# エラーハンドリング -- Goのエラー設計哲学
+# Error Handling -- Go's Error Design Philosophy
 
-> Goはerror interfaceを中心とした明示的なエラーハンドリングを採用し、errors.Is/As・sentinel errors・wrappingで堅牢なエラー伝搬を実現する。
-
----
-
-## この章で学ぶこと
-
-1. **error interface** -- Go のエラーが単なるインターフェースである理由
-2. **errors.Is / errors.As** -- エラーチェーンの検査方法
-3. **エラーラッピング** -- `fmt.Errorf("%w", err)` による文脈の追加
-4. **カスタムエラー型** -- ドメイン固有のエラー設計
-5. **エラーハンドリング戦略** -- レイヤー別の処理方針
-6. **panic/recover** -- 適切な使用場面と回復パターン
-
-
-## 前提知識
-
-このガイドを読む前に、以下の知識があると理解が深まります:
-
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [型とstruct -- Goの型システムを理解する](./01-types-and-structs.md) の内容を理解していること
+> Go adopts explicit error handling centered on the error interface, and achieves robust error propagation through errors.Is/As, sentinel errors, and wrapping.
 
 ---
 
-## 1. error interface の基本
+## What You Will Learn in This Chapter
 
-### 1.1 error interface の定義
+1. **error interface** -- Why errors in Go are simply an interface
+2. **errors.Is / errors.As** -- How to inspect error chains
+3. **Error wrapping** -- Adding context with `fmt.Errorf("%w", err)`
+4. **Custom error types** -- Designing domain-specific errors
+5. **Error handling strategies** -- Processing policies by layer
+6. **panic/recover** -- Appropriate use cases and recovery patterns
 
-Go のエラーは特殊な構文ではなく、単なるインターフェースである。これが Go のエラー設計の根幹をなす。
+
+## Prerequisites
+
+Before reading this guide, the following knowledge will help deepen your understanding:
+
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding the content of [Types and Structs -- Understanding Go's Type System](./01-types-and-structs.md)
+
+---
+
+## 1. Basics of the error Interface
+
+### 1.1 Definition of the error Interface
+
+In Go, errors are not a special syntax but simply an interface. This forms the foundation of Go's error design.
 
 ```go
-// builtin パッケージで定義
+// Defined in the builtin package
 type error interface {
     Error() string
 }
 ```
 
-この設計の利点:
-- エラーが値（first-class value）として扱える
-- 任意の型がエラーインターフェースを実装できる
-- エラーに付加情報（コード、フィールド、スタックトレース等）を持たせられる
-- 条件分岐、比較、格納が通常の値と同様に可能
+Benefits of this design:
+- Errors can be treated as values (first-class values)
+- Any type can implement the error interface
+- Errors can carry additional information (codes, fields, stack traces, etc.)
+- They can be used in conditionals, comparisons, and storage just like any other value
 
-### コード例 1: error interface の基本と実装
+### Code Example 1: Basics and Implementation of the error Interface
 
 ```go
 package main
@@ -56,12 +56,12 @@ import (
     "time"
 )
 
-// error は組み込みインターフェース
+// error is a built-in interface
 // type error interface {
 //     Error() string
 // }
 
-// カスタムエラー型: バリデーションエラー
+// Custom error type: validation error
 type ValidationError struct {
     Field   string
     Message string
@@ -71,7 +71,7 @@ func (e *ValidationError) Error() string {
     return fmt.Sprintf("validation error: field=%q, message=%q", e.Field, e.Message)
 }
 
-// カスタムエラー型: ビジネスロジックエラー
+// Custom error type: business logic error
 type BusinessError struct {
     Code    string
     Message string
@@ -82,7 +82,7 @@ func (e *BusinessError) Error() string {
     return fmt.Sprintf("[%s] %s", e.Code, e.Message)
 }
 
-// カスタムエラー型: 一時的なエラー（リトライ可能）
+// Custom error type: temporary error (retryable)
 type RetryableError struct {
     Err       error
     RetryAfter time.Duration
@@ -100,7 +100,7 @@ func (e *RetryableError) Temporary() bool {
     return true
 }
 
-// errors.New でシンプルなエラーを作成
+// Create a simple error with errors.New
 func validateAge(age int) error {
     if age < 0 {
         return &ValidationError{Field: "age", Message: "must be non-negative"}
@@ -112,7 +112,7 @@ func validateAge(age int) error {
 }
 
 func main() {
-    // 標準ライブラリのエラー例
+    // Examples of errors from the standard library
     _, err := strconv.Atoi("not_a_number")
     fmt.Printf("strconv error: %v (type: %T)\n", err, err)
 
@@ -122,7 +122,7 @@ func main() {
     _, err = net.Dial("tcp", "invalid:address")
     fmt.Printf("net error: %v (type: %T)\n", err, err)
 
-    // カスタムエラーの使用
+    // Using custom errors
     err = validateAge(-5)
     fmt.Printf("validation error: %v\n", err)
 
@@ -131,7 +131,7 @@ func main() {
 }
 ```
 
-### コード例 2: sentinel errors（番兵エラー）
+### Code Example 2: Sentinel Errors
 
 ```go
 package main
@@ -141,8 +141,8 @@ import (
     "fmt"
 )
 
-// sentinel errors の定義
-// パッケージレベルで公開し、呼び出し元がチェックに使う
+// Definition of sentinel errors
+// Exposed at the package level; callers use them for checks
 var (
     ErrNotFound      = errors.New("not found")
     ErrUnauthorized  = errors.New("unauthorized")
@@ -154,7 +154,7 @@ var (
     ErrRateLimited   = errors.New("rate limited")
 )
 
-// ユーザーリポジトリ
+// User repository
 type User struct {
     ID    int
     Name  string
@@ -194,12 +194,12 @@ func CreateUser(name, email string) (*User, error) {
         return nil, fmt.Errorf("create user: name and email required: %w", ErrInvalidInput)
     }
 
-    // 重複チェック
+    // Duplicate check
     existing, err := FindUserByEmail(email)
     if err == nil && existing != nil {
         return nil, fmt.Errorf("create user: email %q already exists: %w", email, ErrConflict)
     }
-    // ErrNotFound は期待される結果（重複なし）
+    // ErrNotFound is an expected result (no duplicate)
     if err != nil && !errors.Is(err, ErrNotFound) {
         return nil, fmt.Errorf("create user: check existing: %w", err)
     }
@@ -214,7 +214,7 @@ func CreateUser(name, email string) (*User, error) {
 }
 
 func main() {
-    // 正常ケース
+    // Success case
     user, err := FindUser(1)
     if err != nil {
         fmt.Printf("Error: %v\n", err)
@@ -222,25 +222,25 @@ func main() {
         fmt.Printf("Found: %+v\n", user)
     }
 
-    // NotFound ケース
+    // NotFound case
     _, err = FindUser(999)
     if errors.Is(err, ErrNotFound) {
         fmt.Println("User not found (expected)")
     }
 
-    // InvalidInput ケース
+    // InvalidInput case
     _, err = FindUser(-1)
     if errors.Is(err, ErrInvalidInput) {
         fmt.Println("Invalid input (expected)")
     }
 
-    // Conflict ケース
+    // Conflict case
     _, err = CreateUser("Charlie", "alice@example.com")
     if errors.Is(err, ErrConflict) {
         fmt.Printf("Conflict: %v\n", err)
     }
 
-    // 正常な作成
+    // Successful creation
     user, err = CreateUser("Charlie", "charlie@example.com")
     if err == nil {
         fmt.Printf("Created: %+v\n", user)
@@ -248,7 +248,7 @@ func main() {
 }
 ```
 
-### コード例 3: エラーラッピングと文脈追加
+### Code Example 3: Error Wrapping and Adding Context
 
 ```go
 package main
@@ -275,9 +275,9 @@ type User struct {
     Name string
 }
 
-// レイヤー1: リポジトリ層
+// Layer 1: repository layer
 func findUserInDB(id int) (*User, error) {
-    // DB操作のシミュレーション
+    // Simulating a DB operation
     if id > 100 {
         return nil, fmt.Errorf("query users where id=%d: %w", id, ErrNotFound)
     }
@@ -291,7 +291,7 @@ func loadProfileFromDB(userID int) (*Profile, error) {
     return &Profile{Bio: "Hello", Avatar: "/avatars/default.png"}, nil
 }
 
-// レイヤー2: サービス層（文脈を追加してラップ）
+// Layer 2: service layer (wraps with added context)
 func GetUserProfile(id int) (*Profile, error) {
     user, err := findUserInDB(id)
     if err != nil {
@@ -307,21 +307,21 @@ func GetUserProfile(id int) (*Profile, error) {
     return profile, nil
 }
 
-// レイヤー3: ハンドラー層（エラーの種類に応じたHTTPレスポンス）
+// Layer 3: handler layer (HTTP response depending on error type)
 func handleGetProfile(w http.ResponseWriter, r *http.Request) {
-    userID := 200 // シミュレーション
+    userID := 200 // simulation
 
     profile, err := GetUserProfile(userID)
     if err != nil {
-        // エラーの種類に応じたHTTPステータスコード
+        // HTTP status code depending on the kind of error
         switch {
         case errors.Is(err, ErrNotFound):
             http.Error(w, "user or profile not found", http.StatusNotFound)
         default:
-            // 内部エラーの詳細はクライアントに返さない
+            // Do not return internal error details to the client
             http.Error(w, "internal server error", http.StatusInternalServerError)
         }
-        // ログには詳細を出力
+        // Output details to the log
         fmt.Printf("ERROR: %v\n", err)
         return
     }
@@ -329,7 +329,7 @@ func handleGetProfile(w http.ResponseWriter, r *http.Request) {
     json.NewEncoder(w).Encode(profile)
 }
 
-// 実践的なエラーラッピングのパターン
+// Practical error wrapping patterns
 func readConfig(path string) ([]byte, error) {
     data, err := os.ReadFile(path)
     if err != nil {
@@ -360,7 +360,7 @@ func loadConfig(path string) (map[string]string, error) {
     return config, nil
 }
 
-// ファイル処理での適切なエラーハンドリング
+// Proper error handling in file processing
 func copyFile(src, dst string) (int64, error) {
     srcFile, err := os.Open(src)
     if err != nil {
@@ -373,7 +373,7 @@ func copyFile(src, dst string) (int64, error) {
         return 0, fmt.Errorf("copy file: create dst %q: %w", dst, err)
     }
 
-    // defer で Close のエラーもチェック
+    // Also check the error from Close in a defer
     defer func() {
         if cerr := dstFile.Close(); cerr != nil && err == nil {
             err = fmt.Errorf("copy file: close dst %q: %w", dst, cerr)
@@ -389,18 +389,18 @@ func copyFile(src, dst string) (int64, error) {
 }
 
 func main() {
-    // エラーチェーンの確認
+    // Inspect the error chain
     _, err := GetUserProfile(200)
     fmt.Printf("Error: %v\n", err)
     fmt.Printf("Is ErrNotFound: %t\n", errors.Is(err, ErrNotFound))
 
-    // sql.ErrNoRows のチェック例
+    // Example of checking sql.ErrNoRows
     sqlErr := fmt.Errorf("get user: %w", sql.ErrNoRows)
     fmt.Printf("Is sql.ErrNoRows: %t\n", errors.Is(sqlErr, sql.ErrNoRows))
 }
 ```
 
-### コード例 4: errors.Is と errors.As の詳細
+### Code Example 4: errors.Is and errors.As in Detail
 
 ```go
 package main
@@ -412,7 +412,7 @@ import (
     "os"
 )
 
-// カスタムエラー型
+// Custom error type
 type HTTPError struct {
     StatusCode int
     Message    string
@@ -430,7 +430,7 @@ func (e *HTTPError) Unwrap() error {
     return e.Err
 }
 
-// カスタム Is メソッド: StatusCode が同じなら同一エラーとみなす
+// Custom Is method: treats errors with the same StatusCode as identical
 func (e *HTTPError) Is(target error) bool {
     t, ok := target.(*HTTPError)
     if !ok {
@@ -439,7 +439,7 @@ func (e *HTTPError) Is(target error) bool {
     return e.StatusCode == t.StatusCode
 }
 
-// ValidationError 型
+// ValidationError type
 type ValidationError struct {
     Field   string
     Message string
@@ -449,7 +449,7 @@ func (e *ValidationError) Error() string {
     return fmt.Sprintf("validation error: %s - %s", e.Field, e.Message)
 }
 
-// NotFoundError 型
+// NotFoundError type
 type NotFoundError struct {
     Resource string
     ID       interface{}
@@ -460,7 +460,7 @@ func (e *NotFoundError) Error() string {
 }
 
 func handleError(err error) {
-    // errors.Is: エラーチェーンに特定のエラーが含まれるか
+    // errors.Is: checks whether the error chain contains a specific error
     if errors.Is(err, os.ErrNotExist) {
         fmt.Println("→ File does not exist")
         return
@@ -471,7 +471,7 @@ func handleError(err error) {
         return
     }
 
-    // errors.As: エラーチェーンから特定の型を取り出す
+    // errors.As: extracts a specific type from the error chain
     var httpErr *HTTPError
     if errors.As(err, &httpErr) {
         fmt.Printf("→ HTTP error: status=%d, message=%q\n",
@@ -493,7 +493,7 @@ func handleError(err error) {
         return
     }
 
-    // net.Error のインターフェースチェック
+    // Interface check for net.Error
     var netErr net.Error
     if errors.As(err, &netErr) {
         fmt.Printf("→ Network error: timeout=%t, temporary=%t\n",
@@ -501,7 +501,7 @@ func handleError(err error) {
         return
     }
 
-    // os.PathError のチェック
+    // Check for os.PathError
     var pathErr *os.PathError
     if errors.As(err, &pathErr) {
         fmt.Printf("→ Path error: op=%q, path=%q, err=%v\n",
@@ -513,7 +513,7 @@ func handleError(err error) {
 }
 
 func main() {
-    // さまざまなエラーをテスト
+    // Test various errors
     errors_to_test := []error{
         fmt.Errorf("open config: %w", os.ErrNotExist),
         &HTTPError{StatusCode: 404, Message: "page not found", Err: nil},
@@ -529,7 +529,7 @@ func main() {
         handleError(err)
     }
 
-    // カスタム Is メソッドのテスト
+    // Test the custom Is method
     err1 := &HTTPError{StatusCode: 404, Message: "user not found"}
     err2 := &HTTPError{StatusCode: 404, Message: "different message"}
     err3 := &HTTPError{StatusCode: 500, Message: "internal error"}
@@ -537,7 +537,7 @@ func main() {
     fmt.Printf("\nerr1 Is err2 (same status): %t\n", errors.Is(err1, err2)) // true
     fmt.Printf("err1 Is err3 (diff status): %t\n", errors.Is(err1, err3))  // false
 
-    // ラップされたエラーでの検索
+    // Searching within a wrapped error
     wrapped := fmt.Errorf("handler: %w",
         fmt.Errorf("service: %w",
             &NotFoundError{Resource: "Order", ID: 123}))
@@ -550,7 +550,7 @@ func main() {
 }
 ```
 
-### コード例 5: 複数エラーの結合 (Go 1.20+)
+### Code Example 5: Joining Multiple Errors (Go 1.20+)
 
 ```go
 package main
@@ -577,7 +577,7 @@ type User struct {
     Age      int
 }
 
-// バリデーション: 複数エラーをまとめて返す
+// Validation: returns multiple errors together
 func validateUser(u *User) error {
     var errs []error
 
@@ -621,10 +621,10 @@ func validateUser(u *User) error {
             Field: "age", Message: fmt.Sprintf("invalid value: %d", u.Age)})
     }
 
-    return errors.Join(errs...) // Go 1.20+: 複数エラーを結合。errsが空ならnil
+    return errors.Join(errs...) // Go 1.20+: joins multiple errors. Returns nil if errs is empty
 }
 
-// カスタム MultiError 型（Go 1.20以前の互換用）
+// Custom MultiError type (for compatibility with pre-Go 1.20)
 type MultiError struct {
     Errors []error
 }
@@ -640,13 +640,13 @@ func (e *MultiError) Error() string {
     return fmt.Sprintf("%d errors: [%s]", len(e.Errors), strings.Join(msgs, "; "))
 }
 
-// Unwrap は Go 1.20+ の multiple unwrap をサポート
+// Unwrap supports the multiple unwrap feature in Go 1.20+
 func (e *MultiError) Unwrap() []error {
     return e.Errors
 }
 
 func main() {
-    // 全フィールドが不正なユーザー
+    // User with every field invalid
     badUser := &User{
         Name:     "",
         Email:    "invalid",
@@ -658,7 +658,7 @@ func main() {
     if err != nil {
         fmt.Printf("Validation errors:\n%v\n\n", err)
 
-        // errors.As で特定の型を検索
+        // Search for a specific type with errors.As
         var ve *ValidationError
         if errors.As(err, &ve) {
             fmt.Printf("First validation error: field=%s, msg=%s\n\n",
@@ -666,7 +666,7 @@ func main() {
         }
     }
 
-    // 正常なユーザー
+    // Valid user
     goodUser := &User{
         Name:     "Alice",
         Email:    "alice@example.com",
@@ -679,7 +679,7 @@ func main() {
         fmt.Println("Valid user!")
     }
 
-    // 部分的に不正なユーザー
+    // Partially invalid user
     partialUser := &User{
         Name:     "Bob",
         Email:    "bob@example.com",
@@ -694,7 +694,7 @@ func main() {
 }
 ```
 
-### コード例 6: カスタムエラー型にUnwrapを実装
+### Code Example 6: Implementing Unwrap on a Custom Error Type
 
 ```go
 package main
@@ -705,14 +705,14 @@ import (
     "time"
 )
 
-// AppError はアプリケーション全体で使うエラー型
+// AppError is an error type used throughout the application
 type AppError struct {
     Code       string
     Message    string
     Err        error
     Timestamp  time.Time
     RequestID  string
-    StackTrace string // 本番では runtime/debug.Stack() 等で取得
+    StackTrace string // In production, obtain with runtime/debug.Stack(), etc.
 }
 
 func NewAppError(code, message string, err error) *AppError {
@@ -740,7 +740,7 @@ func (e *AppError) WithRequestID(id string) *AppError {
     return e
 }
 
-// エラーコード定数
+// Error code constants
 const (
     ErrCodeNotFound      = "NOT_FOUND"
     ErrCodeUnauthorized  = "UNAUTHORIZED"
@@ -751,7 +751,7 @@ const (
     ErrCodeRateLimited   = "RATE_LIMITED"
 )
 
-// HTTPステータスコードへのマッピング
+// Mapping to HTTP status codes
 func (e *AppError) HTTPStatus() int {
     switch e.Code {
     case ErrCodeNotFound:
@@ -771,7 +771,7 @@ func (e *AppError) HTTPStatus() int {
     }
 }
 
-// JSON レスポンス用の構造体
+// Struct for JSON responses
 type ErrorResponse struct {
     Code      string `json:"code"`
     Message   string `json:"message"`
@@ -786,7 +786,7 @@ func (e *AppError) ToResponse() ErrorResponse {
     }
 }
 
-// 便利な生成関数
+// Convenient constructor functions
 var ErrNotFound = errors.New("not found")
 var ErrTimeout = errors.New("timeout")
 
@@ -809,30 +809,30 @@ func ValidationError(field, message string) *AppError {
 }
 
 func main() {
-    // AppError の使用例
+    // Usage example of AppError
     err := NotFoundError("User", 42).WithRequestID("req-abc-123")
     fmt.Println(err)
     fmt.Printf("HTTP Status: %d\n", err.HTTPStatus())
     fmt.Printf("Response: %+v\n", err.ToResponse())
 
-    // Unwrap チェーン
+    // Unwrap chain
     fmt.Println(errors.Is(err, ErrNotFound)) // true
 
-    // AppError の抽出
+    // Extracting AppError
     wrapped := fmt.Errorf("handler: %w", err)
     var appErr *AppError
     if errors.As(wrapped, &appErr) {
         fmt.Printf("Code: %s, Message: %s\n", appErr.Code, appErr.Message)
     }
 
-    // Timeout エラー
+    // Timeout error
     tErr := TimeoutError("database query", 5*time.Second)
     fmt.Println(tErr)
     fmt.Println(errors.Is(tErr, ErrTimeout)) // true
 }
 ```
 
-### コード例 7: panic/recover の適切な使用
+### Code Example 7: Appropriate Use of panic/recover
 
 ```go
 package main
@@ -844,20 +844,20 @@ import (
     "runtime/debug"
 )
 
-// panic が適切な場面:
-// 1. プログラミングエラー（到達不能なコード）
-// 2. 初期化時の回復不能なエラー
-// 3. ライブラリ内部のバグ検出
+// Situations where panic is appropriate:
+// 1. Programming errors (unreachable code)
+// 2. Unrecoverable errors during initialization
+// 3. Detecting bugs inside a library
 
-// recover を使ったミドルウェア
+// Middleware using recover
 func recoveryMiddleware(next http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
         defer func() {
             if rec := recover(); rec != nil {
-                // スタックトレースをログ
+                // Log the stack trace
                 log.Printf("PANIC recovered: %v\n%s", rec, debug.Stack())
 
-                // クライアントには500を返す
+                // Return 500 to the client
                 http.Error(w, "Internal Server Error", http.StatusInternalServerError)
             }
         }()
@@ -865,7 +865,7 @@ func recoveryMiddleware(next http.Handler) http.Handler {
     })
 }
 
-// ライブラリ内部でpanicを使い、公開APIでrecoverする
+// Use panic internally in a library, but recover in the public API
 func parseExpression(expr string) (result float64, err error) {
     defer func() {
         if r := recover(); r != nil {
@@ -873,20 +873,20 @@ func parseExpression(expr string) (result float64, err error) {
         }
     }()
 
-    // 内部ではpanicで簡潔にエラーを伝搬
+    // Internally, propagate errors concisely with panic
     result = evalExpr(expr)
     return result, nil
 }
 
 func evalExpr(expr string) float64 {
     if expr == "" {
-        panic("empty expression") // 内部でのみpanic
+        panic("empty expression") // panic only internally
     }
-    // 簡略化のためハードコード
+    // Hardcoded for simplicity
     return 42.0
 }
 
-// Must パターン: main/init でのみ使用
+// Must pattern: use only in main/init
 func MustParseConfig(path string) map[string]string {
     config, err := loadConfig(path)
     if err != nil {
@@ -896,11 +896,11 @@ func MustParseConfig(path string) map[string]string {
 }
 
 func loadConfig(path string) (map[string]string, error) {
-    // シミュレーション
+    // Simulation
     return map[string]string{"key": "value"}, nil
 }
 
-// assertNever: 到達不能なコードを示す
+// assertNever: indicates unreachable code
 func processStatus(status string) string {
     switch status {
     case "active":
@@ -910,14 +910,14 @@ func processStatus(status string) string {
     case "deleted":
         return "User is deleted"
     default:
-        // 未知のステータスはプログラミングエラー
+        // An unknown status is a programming error
         panic(fmt.Sprintf("unexpected status: %q", status))
     }
 }
 
-// cleanupリソースのdefer内でのpanicセーフな処理
+// Panic-safe handling inside a cleanup deferred function
 func processFile(path string) (err error) {
-    // deferでのrecover
+    // recover in defer
     defer func() {
         if r := recover(); r != nil {
             err = fmt.Errorf("process file: panic: %v", r)
@@ -925,16 +925,16 @@ func processFile(path string) (err error) {
     }()
 
     fmt.Printf("Processing %s\n", path)
-    // 処理...
+    // Processing...
     return nil
 }
 
 func main() {
-    // Must パターン
+    // Must pattern
     config := MustParseConfig("config.json")
     fmt.Printf("Config: %v\n", config)
 
-    // parseExpression のrecover
+    // recover in parseExpression
     result, err := parseExpression("1+2")
     if err != nil {
         fmt.Printf("Parse error: %v\n", err)
@@ -944,13 +944,13 @@ func main() {
 
     result, err = parseExpression("")
     if err != nil {
-        fmt.Printf("Parse error: %v\n", err) // panic が error に変換される
+        fmt.Printf("Parse error: %v\n", err) // panic is converted into an error
     }
 
     // processStatus
     fmt.Println(processStatus("active"))
 
-    // 不正なステータスはpanicになるが、deferでrecoverできる
+    // An invalid status will panic, but we can recover in defer
     func() {
         defer func() {
             if r := recover(); r != nil {
@@ -962,7 +962,7 @@ func main() {
 }
 ```
 
-### コード例 8: エラーハンドリングの実践パターン
+### Code Example 8: Practical Patterns for Error Handling
 
 ```go
 package main
@@ -975,16 +975,16 @@ import (
     "time"
 )
 
-// errWriter パターン: 連続するI/O操作のエラー集約
+// errWriter pattern: aggregating errors across consecutive I/O operations
 type errWriter struct {
     err error
 }
 
 func (ew *errWriter) writeString(s string) {
     if ew.err != nil {
-        return // 最初のエラー以降は何もしない
+        return // Do nothing after the first error
     }
-    fmt.Print(s) // 実際は io.Writer に書き込む
+    fmt.Print(s) // In practice, write to an io.Writer
 }
 
 func (ew *errWriter) writef(format string, args ...interface{}) {
@@ -994,7 +994,7 @@ func (ew *errWriter) writef(format string, args ...interface{}) {
     fmt.Printf(format, args...)
 }
 
-// リトライパターン
+// Retry pattern
 type RetryConfig struct {
     MaxRetries int
     BaseDelay  time.Duration
@@ -1018,7 +1018,7 @@ func retry(ctx context.Context, config RetryConfig, operation func() error) erro
                 return fmt.Errorf("retry cancelled: %w", ctx.Err())
             }
 
-            // 指数バックオフ
+            // Exponential backoff
             delay *= 2
             if delay > config.MaxDelay {
                 delay = config.MaxDelay
@@ -1030,7 +1030,7 @@ func retry(ctx context.Context, config RetryConfig, operation func() error) erro
             return nil
         }
 
-        // 一時的でないエラーはリトライしない
+        // Do not retry non-temporary errors
         if !isRetryable(lastErr) {
             return fmt.Errorf("non-retryable error: %w", lastErr)
         }
@@ -1040,30 +1040,30 @@ func retry(ctx context.Context, config RetryConfig, operation func() error) erro
 }
 
 func isRetryable(err error) bool {
-    // context のキャンセルはリトライしない
+    // Do not retry on context cancellation
     if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
         return false
     }
-    // 特定のエラー型をチェック
+    // Check for specific error types
     var tempErr interface{ Temporary() bool }
     if errors.As(err, &tempErr) {
         return tempErr.Temporary()
     }
-    return true // デフォルトはリトライ可能とみなす
+    return true // By default, treat as retryable
 }
 
-// エラーログのベストプラクティス
+// Best practices for error logging
 func handleRequest(ctx context.Context, userID int) error {
     logger := slog.With("user_id", userID, "request_id", "req-123")
 
     user, err := findUser(ctx, userID)
     if err != nil {
         if errors.Is(err, ErrNotFound) {
-            // 期待されるエラー: INFO レベル
+            // Expected error: INFO level
             logger.Info("user not found", "error", err)
             return err
         }
-        // 予期しないエラー: ERROR レベル
+        // Unexpected error: ERROR level
         logger.Error("failed to find user", "error", err)
         return fmt.Errorf("handle request: %w", err)
     }
@@ -1086,7 +1086,7 @@ func findUser(ctx context.Context, id int) (*User, error) {
     return &User{ID: id, Name: "Alice"}, nil
 }
 
-// エラー集約パターン（並行処理）
+// Error aggregation pattern (concurrent processing)
 func fetchAll(ctx context.Context, urls []string) ([]string, error) {
     type result struct {
         url  string
@@ -1098,7 +1098,7 @@ func fetchAll(ctx context.Context, urls []string) ([]string, error) {
 
     for _, url := range urls {
         go func(u string) {
-            // HTTP GET のシミュレーション
+            // Simulating HTTP GET
             body := fmt.Sprintf("body of %s", u)
             results <- result{url: u, body: body, err: nil}
         }(url)
@@ -1123,7 +1123,7 @@ func fetchAll(ctx context.Context, urls []string) ([]string, error) {
 }
 
 func main() {
-    // errWriter パターン
+    // errWriter pattern
     ew := &errWriter{}
     ew.writeString("Hello ")
     ew.writef("World %d\n", 42)
@@ -1131,7 +1131,7 @@ func main() {
         fmt.Printf("Write error: %v\n", ew.err)
     }
 
-    // リトライパターン
+    // Retry pattern
     ctx := context.Background()
     attempt := 0
     err := retry(ctx, RetryConfig{
@@ -1143,7 +1143,7 @@ func main() {
         if attempt < 3 {
             return fmt.Errorf("temporary error (attempt %d)", attempt)
         }
-        return nil // 3回目で成功
+        return nil // Succeeds on the 3rd try
     })
 
     if err != nil {
@@ -1152,7 +1152,7 @@ func main() {
         fmt.Printf("Succeeded after %d attempts\n", attempt)
     }
 
-    // 並行エラー集約
+    // Concurrent error aggregation
     urls := []string{"http://a.com", "http://b.com", "http://c.com"}
     bodies, err := fetchAll(ctx, urls)
     if err != nil {
@@ -1164,9 +1164,9 @@ func main() {
 
 ---
 
-## 2. ASCII図解
+## 2. ASCII Diagrams
 
-### 図1: エラーチェーン
+### Diagram 1: Error Chain
 
 ```
 fmt.Errorf("handler: %w",
@@ -1174,7 +1174,7 @@ fmt.Errorf("handler: %w",
     fmt.Errorf("repo: %w",
       ErrNotFound)))
 
-エラーチェーン:
+Error chain:
 ┌─────────────────┐
 │ "handler: ..."  │
 │   Unwrap() ─────┼──> ┌──────────────────┐
@@ -1183,102 +1183,104 @@ fmt.Errorf("handler: %w",
                        └──────────────────┘    │ "repo: ..."    │
                                                │   Unwrap() ────┼──> ErrNotFound
                                                └────────────────┘
-errors.Is(err, ErrNotFound) → チェーンを辿って true
+errors.Is(err, ErrNotFound) → walks the chain and returns true
 
-エラーメッセージ:
+Error message:
 "handler: service: repo: not found"
                          ↑
-                    元の sentinel error
+                 the original sentinel error
 ```
 
-### 図2: errors.Is vs errors.As
+### Diagram 2: errors.Is vs errors.As
 
 ```
 ┌─────────────────────────────────────────────┐
 │              errors.Is(err, target)          │
-│  目的: 特定のエラー値と一致するか検査           │
-│  探索: Unwrap()を再帰的に辿る                  │
-│  比較: == または Is()メソッド                   │
-│  戻値: bool                                   │
+│  Purpose: check whether a specific error     │
+│           value matches                      │
+│  Traversal: recursively follows Unwrap()     │
+│  Comparison: == or the Is() method           │
+│  Returns: bool                                │
 │                                              │
-│  使用場面:                                     │
-│  ・sentinel error のチェック                   │
-│  ・errors.Is(err, ErrNotFound)               │
-│  ・errors.Is(err, context.Canceled)          │
-│  ・errors.Is(err, sql.ErrNoRows)            │
+│  Use cases:                                    │
+│  - Checking for sentinel errors                │
+│  - errors.Is(err, ErrNotFound)               │
+│  - errors.Is(err, context.Canceled)          │
+│  - errors.Is(err, sql.ErrNoRows)            │
 ├─────────────────────────────────────────────┤
 │              errors.As(err, &target)         │
-│  目的: 特定のエラー型を取り出す                 │
-│  探索: Unwrap()を再帰的に辿る                  │
-│  比較: 型アサーション                           │
-│  戻値: bool (targetに値がセットされる)          │
+│  Purpose: extract a specific error type      │
+│  Traversal: recursively follows Unwrap()     │
+│  Comparison: type assertion                  │
+│  Returns: bool (target is set to the value)  │
 │                                              │
-│  使用場面:                                     │
-│  ・カスタムエラー型の詳細取得                   │
-│  ・var httpErr *HTTPError                    │
+│  Use cases:                                    │
+│  - Retrieving details from custom error types  │
+│  - var httpErr *HTTPError                    │
 │    errors.As(err, &httpErr)                  │
-│  ・var pathErr *os.PathError                 │
+│  - var pathErr *os.PathError                 │
 │    errors.As(err, &pathErr)                  │
 └─────────────────────────────────────────────┘
 ```
 
-### 図3: エラーハンドリングの判断フロー
+### Diagram 3: Decision Flow for Error Handling
 
 ```
-         エラーが発生
+         An error occurs
               │
               ▼
      ┌────────────────┐
-     │ エラーの種類は？ │
+     │ What kind of error? │
      └───┬────────┬───┘
          │        │
-    期待される   予期しない
-     エラー      エラー
+     Expected   Unexpected
+      error      error
          │        │
          ▼        ▼
    ┌──────────┐ ┌──────────────┐
-   │ 適切に    │ │ %wでラップして│
-   │ 処理する  │ │ 上位に返す    │
-   │ (ログ等) │ │              │
+   │ Handle    │ │ Wrap with %w │
+   │ properly  │ │ and return   │
+   │ (log etc.)│ │ to caller    │
    └──────────┘ └──────────────┘
          │              │
          ▼              ▼
    ┌──────────┐  ┌──────────────┐
-   │ リカバリ  │  │ 文脈情報を    │
-   │ 可能？   │  │ 追加して返す   │
-   │ YES→対処 │  └──────────────┘
-   │ NO→返す  │         │
+   │ Can it   │  │ Add context  │
+   │ recover? │  │ and return   │
+   │ YES→fix  │  └──────────────┘
+   │ NO→return│         │
    └──────────┘         ▼
                   ┌──────────────┐
-                  │ 最上位で      │
-                  │ ログ+レスポンス│
+                  │ Log and      │
+                  │ respond at   │
+                  │ the top      │
                   └──────────────┘
 
-レイヤー別の責務:
+Layer-specific responsibilities:
 ┌────────────────────────────────────────┐
-│ ハンドラー層: エラー種別→HTTPステータス   │
+│ Handler layer: error type → HTTP status │
 │ ├─ ErrNotFound → 404                  │
 │ ├─ ErrValidation → 400                │
 │ ├─ ErrUnauthorized → 401              │
-│ └─ その他 → 500                        │
+│ └─ Other → 500                         │
 ├────────────────────────────────────────┤
-│ サービス層: ビジネスロジックの文脈追加     │
+│ Service layer: add business-logic context│
 │ └─ fmt.Errorf("get user: %w", err)    │
 ├────────────────────────────────────────┤
-│ リポジトリ層: データアクセスの文脈追加     │
+│ Repository layer: add data-access context│
 │ └─ fmt.Errorf("query users: %w", err) │
 ├────────────────────────────────────────┤
-│ インフラ層: 低レベルエラーの生成          │
+│ Infrastructure layer: produces low-level errors│
 │ └─ sql.ErrNoRows, net.Error, etc.     │
 └────────────────────────────────────────┘
 ```
 
-### 図4: errors.Join の仕組み (Go 1.20+)
+### Diagram 4: How errors.Join Works (Go 1.20+)
 
 ```
 errors.Join(err1, err2, err3)
 
-結果:
+Result:
 ┌──────────────────────────────────────┐
 │  joinError                           │
 │  ┌──────┐ ┌──────┐ ┌──────┐        │
@@ -1294,135 +1296,136 @@ errors.Join(err1, err2, err3)
 │  Error() → "err1\nerr2\nerr3"       │
 └──────────────────────────────────────┘
 
-バリデーションでの活用:
+Using it in validation:
   validate(user) → errors.Join(
     nameErr,    // "name: required"
     emailErr,   // "email: invalid format"
     passErr,    // "password: too short"
   )
 
-  ↓ errors.As で個別のエラーも取得可能
+  ↓ Individual errors can also be retrieved with errors.As
 
   var ve *ValidationError
-  errors.As(joined, &ve) → true (最初の一致)
+  errors.As(joined, &ve) → true (the first match)
 ```
 
-### 図5: panic/recover のフロー
+### Diagram 5: panic/recover Flow
 
 ```
-goroutine の実行フロー:
+Execution flow of a goroutine:
 
-正常終了:
+Normal completion:
   main() → f1() → f2() → return → return → return
 
-panic 発生:
+Panic occurs:
   main() → f1() → f2() → panic("!!")
                               │
                     ┌─────────▼──────────┐
-                    │ defer スタックを逆順 │
-                    │ に実行               │
+                    │ Execute the defer   │
+                    │ stack in reverse    │
                     │                     │
-                    │ f2のdefer → 実行    │
-                    │ f1のdefer → 実行    │
-                    │ mainのdefer → 実行  │
+                    │ f2's defer → run    │
+                    │ f1's defer → run    │
+                    │ main's defer → run  │
                     └──────────┬──────────┘
                                │
                     ┌──────────▼──────────┐
-                    │ recover() がなければ │
-                    │ プログラム終了       │
+                    │ If there is no      │
+                    │ recover(), the      │
+                    │ program terminates  │
                     └─────────────────────┘
 
-recover() がある場合:
+When recover() is present:
   main() → f1() → f2() → panic("!!")
                               │
                     ┌─────────▼──────────┐
-                    │ f2のdefer:         │
-                    │   recover() → "!!" │ ← panic を捕捉
-                    │   err に変換       │
+                    │ f2's defer:        │
+                    │   recover() → "!!" │ ← captures the panic
+                    │   convert to err   │
                     └──────────┬──────────┘
                                │
                     ┌──────────▼──────────┐
-                    │ f2 は正常リターン    │
-                    │ (err を返す)        │
+                    │ f2 returns normally │
+                    │ (returns err)       │
                     └──────────┬──────────┘
                                │
-                    f1, main は通常通り実行継続
+                    f1 and main continue executing normally
 ```
 
 ---
 
-## 3. 比較表
+## 3. Comparison Tables
 
-### 表1: エラー処理アプローチ比較
+### Table 1: Comparison of Error Handling Approaches
 
-| アプローチ | Go | Java | Rust | Python | TypeScript |
+| Approach | Go | Java | Rust | Python | TypeScript |
 |-----------|-----|------|------|--------|------------|
-| 仕組み | 戻り値 (error) | 例外 (Exception) | Result<T,E> | 例外 (Exception) | 例外 + Promise |
-| 未処理時の動作 | コンパイルは通る | クラッシュ | コンパイルエラー | クラッシュ | クラッシュ |
-| 型情報 | interface (動的) | クラス階層 | enum (静的) | クラス階層 | any |
-| 網羅性チェック | なし | なし (checked除く) | あり (match) | なし | なし |
-| 制御フロー | 明示的 if err != nil | try-catch | ? 演算子 | try-except | try-catch + .catch |
-| 複数エラー | errors.Join | suppressed | -- | ExceptionGroup | AggregateError |
-| スタックトレース | なし（要実装） | 自動付与 | なし | 自動付与 | 自動付与 |
+| Mechanism | Return value (error) | Exception | Result<T,E> | Exception | Exception + Promise |
+| Behavior when unhandled | Compiles fine | Crashes | Compile error | Crashes | Crashes |
+| Type information | interface (dynamic) | Class hierarchy | enum (static) | Class hierarchy | any |
+| Exhaustiveness check | None | None (except checked) | Yes (match) | None | None |
+| Control flow | Explicit if err != nil | try-catch | ? operator | try-except | try-catch + .catch |
+| Multiple errors | errors.Join | suppressed | -- | ExceptionGroup | AggregateError |
+| Stack trace | None (implement manually) | Automatically attached | None | Automatically attached | Automatically attached |
 
-### 表2: Go エラーパターン比較
+### Table 2: Comparison of Go Error Patterns
 
-| パターン | 用途 | 例 | 利点 | 欠点 |
-|---------|------|-----|------|------|
-| sentinel error | 既知のエラー条件 | `ErrNotFound` | シンプル、高速な比較 | 付加情報がない |
-| カスタムエラー型 | 追加情報が必要 | `*ValidationError` | 豊富な情報、型安全 | 定義が冗長 |
-| `fmt.Errorf("%w")` | 文脈追加 | `"open config: %w"` | 簡単、チェーン検査可 | 型情報が失われる |
-| `errors.Join` | 複数エラー集約 | バリデーション | 網羅的検証可能 | エラーメッセージが長い |
-| panic/recover | 本当に回復不能な状態 | プログラミングエラー | 簡潔 | 乱用は危険 |
-| AppError (構造化) | API エラー | `{code, msg, err}` | HTTP統合、ログ統合 | 複雑性が増す |
+| Pattern | Use case | Example | Benefits | Drawbacks |
+|---------|---------|---------|----------|-----------|
+| sentinel error | Known error conditions | `ErrNotFound` | Simple, fast comparison | No additional information |
+| Custom error type | When additional information is needed | `*ValidationError` | Rich information, type safe | Verbose to define |
+| `fmt.Errorf("%w")` | Adding context | `"open config: %w"` | Easy, chain inspectable | Loses type information |
+| `errors.Join` | Aggregating multiple errors | Validation | Exhaustive validation possible | Longer error messages |
+| panic/recover | Truly unrecoverable state | Programming errors | Concise | Dangerous when abused |
+| AppError (structured) | API errors | `{code, msg, err}` | HTTP integration, log integration | Adds complexity |
 
-### 表3: %w vs %v の選択基準
+### Table 3: Criteria for Choosing %w vs %v
 
-| 状況 | 使うべき書式 | 理由 |
-|------|------------|------|
-| 内部エラーをそのまま伝搬 | `%w` | チェーン検査を可能にする |
-| ライブラリの公開API | `%v` | 内部実装の詳細を隠蔽 |
-| 同一パッケージ内 | `%w` | 詳細なエラーチェックが必要 |
-| 外部パッケージ境界 | 場合による | 安定したエラーのみ `%w` |
-| ログ出力用 | `%v` | 単に文字列として記録 |
-| sentinel error の伝搬 | `%w` | errors.Is で検査するため |
+| Situation | Format to use | Reason |
+|-----------|--------------|--------|
+| Propagating an internal error as-is | `%w` | Enables chain inspection |
+| Library public API | `%v` | Hides internal implementation details |
+| Within the same package | `%w` | Detailed error checks are needed |
+| External package boundaries | Depends | Use `%w` only for stable errors |
+| Log output | `%v` | Just record as a string |
+| Propagating a sentinel error | `%w` | To enable inspection with errors.Is |
 
 ---
 
-## 4. アンチパターン
+## 4. Anti-Patterns
 
-### アンチパターン 1: エラーを握りつぶす
+### Anti-Pattern 1: Swallowing Errors
 
 ```go
-// BAD: エラーを無視
+// BAD: ignoring the error
 result, _ := doSomething()
 
-// BAD: エラーをログだけして処理しない
+// BAD: only logging and not handling
 if err != nil {
-    log.Println(err) // 呼び出し元は成功したと思う
-    // return がない！
+    log.Println(err) // the caller thinks it succeeded
+    // no return!
 }
 
-// BAD: 空のエラーチェック
+// BAD: empty error check
 if err != nil {
     // TODO: handle error
 }
 
-// GOOD: エラーを返す
+// GOOD: return the error
 result, err := doSomething()
 if err != nil {
     return fmt.Errorf("do something: %w", err)
 }
 
-// GOOD: 意図的にエラーを無視する場合はコメント
+// GOOD: add a comment when deliberately ignoring an error
 _ = conn.Close() // best-effort close, error is intentionally ignored
 ```
 
-### アンチパターン 2: エラーメッセージの重複
+### Anti-Pattern 2: Redundant Error Messages
 
 ```go
-// BAD: "failed to" が連鎖して冗長
-// 結果: "failed to get user: failed to query db: failed to connect: timeout"
+// BAD: "failed to" chains become verbose
+// Result: "failed to get user: failed to query db: failed to connect: timeout"
 func getUser(id int) (*User, error) {
     user, err := queryDB(id)
     if err != nil {
@@ -1440,8 +1443,8 @@ func queryDB(id int) (*User, error) {
     return nil, nil
 }
 
-// GOOD: 簡潔に文脈を追加（動詞を省略）
-// 結果: "get user: query db: connect: timeout"
+// GOOD: add context concisely (omit verbs)
+// Result: "get user: query db: connect: timeout"
 func getUser(id int) (*User, error) {
     user, err := queryDB(id)
     if err != nil {
@@ -1460,22 +1463,22 @@ func queryDB(id int) (*User, error) {
 }
 ```
 
-### アンチパターン 3: エラーの二重処理
+### Anti-Pattern 3: Double-Handling Errors
 
 ```go
-// BAD: 同じエラーをログ出力してから返す
+// BAD: logging the same error and then returning it
 func processOrder(id int) error {
     order, err := findOrder(id)
     if err != nil {
-        log.Printf("ERROR: failed to find order: %v", err) // ログ出力
-        return fmt.Errorf("find order: %w", err)            // さらに返す
-        // → 上位でもログされる → 同じエラーが2回記録
+        log.Printf("ERROR: failed to find order: %v", err) // log output
+        return fmt.Errorf("find order: %w", err)            // and also return
+        // → it will be logged by the caller as well → the same error is recorded twice
     }
     _ = order
     return nil
 }
 
-// GOOD: 1つのレイヤーでのみログ（通常は最上位）
+// GOOD: log in only one layer (usually the top)
 func processOrder(id int) error {
     order, err := findOrder(id)
     if err != nil {
@@ -1485,28 +1488,28 @@ func processOrder(id int) error {
     return nil
 }
 
-// 最上位のハンドラーでログ
+// Log in the top-level handler
 func handleOrder(w http.ResponseWriter, r *http.Request) {
     if err := processOrder(42); err != nil {
-        log.Printf("ERROR: %v", err) // ここでのみログ
+        log.Printf("ERROR: %v", err) // log only here
         http.Error(w, "error", 500)
     }
 }
 ```
 
-### アンチパターン 4: panic をエラーハンドリング代わりに使う
+### Anti-Pattern 4: Using panic in Place of Error Handling
 
 ```go
-// BAD: ライブラリ関数が panic
+// BAD: library function panics
 func ParseConfig(data []byte) *Config {
     var config Config
     if err := json.Unmarshal(data, &config); err != nil {
-        panic(fmt.Sprintf("invalid config: %v", err)) // NG: 呼び出し元をクラッシュさせる
+        panic(fmt.Sprintf("invalid config: %v", err)) // NG: crashes the caller
     }
     return &config
 }
 
-// GOOD: error を返す
+// GOOD: return an error
 func ParseConfig(data []byte) (*Config, error) {
     var config Config
     if err := json.Unmarshal(data, &config); err != nil {
@@ -1515,7 +1518,7 @@ func ParseConfig(data []byte) (*Config, error) {
     return &config, nil
 }
 
-// Must パターンは main/init 限定
+// The Must pattern is limited to main/init
 func MustParseConfig(data []byte) *Config {
     config, err := ParseConfig(data)
     if err != nil {
@@ -1524,32 +1527,32 @@ func MustParseConfig(data []byte) *Config {
     return config
 }
 
-// main() でのみ Must を使用
+// Use Must only in main()
 func main() {
     config := MustParseConfig(configData)
     _ = config
 }
 ```
 
-### アンチパターン 5: エラーチェック前に結果を使う
+### Anti-Pattern 5: Using the Result Before Checking the Error
 
 ```go
-// BAD: エラーチェック前に result を使う
+// BAD: using result before checking err
 func process() {
     result, err := fetchData()
-    fmt.Println(result.Name) // err が非nil なら result は不正な可能性
+    fmt.Println(result.Name) // if err is non-nil, result may be invalid
     if err != nil {
         log.Fatal(err)
     }
 }
 
-// GOOD: エラーチェックを先に
+// GOOD: check the error first
 func process() {
     result, err := fetchData()
     if err != nil {
         log.Fatal(err)
     }
-    fmt.Println(result.Name) // エラーなしが確認された後に使用
+    fmt.Println(result.Name) // use after confirming there is no error
 }
 ```
 
@@ -1557,33 +1560,33 @@ func process() {
 
 ## 5. FAQ
 
-### Q1: panicはいつ使うべきか？
+### Q1: When should panic be used?
 
-panicはプログラミングエラー（nilポインタ参照、範囲外アクセス等）や、回復不能な初期化エラーのみに使う。通常のビジネスロジックでは必ず `error` を返す。ライブラリはpanicを呼び出し元に漏らしてはならない。
+Use panic only for programming errors (nil pointer dereferences, out-of-range access, etc.) or unrecoverable initialization errors. For ordinary business logic, always return an `error`. Libraries must not let panic leak out to their callers.
 
-panic が適切な場面:
-1. `main()` や `init()` での設定読み込み失敗
-2. プログラムの不変条件が破られたとき
-3. 到達不能なコードの表明（`default` ケース）
-4. テストヘルパーでの前提条件チェック
+Situations where panic is appropriate:
+1. Configuration loading failures in `main()` or `init()`
+2. When program invariants are violated
+3. Asserting unreachable code (e.g., `default` cases)
+4. Preconditions in test helpers
 
-### Q2: `%w` と `%v` の違いは？
+### Q2: What is the difference between `%w` and `%v`?
 
-`%w` はエラーをラップし、`errors.Is`/`errors.As` でチェーン検査可能にする。`%v` は単にエラーメッセージを文字列として埋め込む。原則として `%w` を使うが、内部実装を隠蔽したい場合（ライブラリの公開API等）は `%v` を使う。
+`%w` wraps an error and makes chain inspection with `errors.Is`/`errors.As` possible. `%v` simply embeds the error message as a string. As a rule, use `%w`, but use `%v` when you want to hide internal implementation (e.g., in a library's public API).
 
 ```go
-// %w: エラーチェーンが維持される
+// %w: the error chain is preserved
 err := fmt.Errorf("open: %w", os.ErrNotExist)
 errors.Is(err, os.ErrNotExist) // true
 
-// %v: エラーチェーンが切れる
+// %v: the error chain is broken
 err := fmt.Errorf("open: %v", os.ErrNotExist)
 errors.Is(err, os.ErrNotExist) // false
 ```
 
-### Q3: エラーメッセージの命名規則は？
+### Q3: What are the naming conventions for error messages?
 
-Go の慣例: (1) 小文字で始める、(2) "failed to" を付けない、(3) パッケージ名をプレフィックスにしない（ラップで自然に付く）、(4) 句読点で終わらない。例: `"open config file: %w"` が良い形。
+Go's conventions: (1) start with a lowercase letter, (2) do not prefix with "failed to", (3) do not prefix with the package name (it is added naturally by wrapping), (4) do not end with punctuation. Example: `"open config file: %w"` is a good form.
 
 ```go
 // BAD
@@ -1599,83 +1602,83 @@ return fmt.Errorf("mypackage.ReadConfig: %w", err)
 return fmt.Errorf("read config: %w", err)
 ```
 
-### Q4: errors.Is と == の違いは？
+### Q4: What is the difference between errors.Is and ==?
 
-`==` は直接比較のみ。`errors.Is` はエラーチェーンを辿って検索する。
+`==` performs a direct comparison only. `errors.Is` walks the error chain to search.
 
 ```go
 base := errors.New("base error")
 wrapped := fmt.Errorf("wrapped: %w", base)
 
-wrapped == base          // false (異なるオブジェクト)
-errors.Is(wrapped, base) // true (チェーンに base が含まれる)
+wrapped == base          // false (different objects)
+errors.Is(wrapped, base) // true (base is contained in the chain)
 ```
 
-また、`errors.Is` はカスタム `Is()` メソッドも呼び出す。これにより、値の部分一致など柔軟な比較が可能になる。
+Also, `errors.Is` calls a custom `Is()` method if one exists. This enables flexible comparisons such as partial value matching.
 
-### Q5: Go 1.13 以前と以後でエラー処理はどう変わったか？
+### Q5: How did error handling change from pre-Go 1.13 to post-Go 1.13?
 
-Go 1.13 で `errors.Is`, `errors.As`, `fmt.Errorf("%w")` が導入された。これにより:
+`errors.Is`, `errors.As`, and `fmt.Errorf("%w")` were introduced in Go 1.13. As a result:
 
-- **1.13以前**: `err == ErrNotFound` で直接比較。ラップすると比較できなくなる
-- **1.13以後**: `errors.Is(err, ErrNotFound)` でチェーン全体を検索。ラップしても検出可能
+- **Pre-1.13**: Direct comparison with `err == ErrNotFound`. Wrapping made comparison impossible
+- **Post-1.13**: `errors.Is(err, ErrNotFound)` searches the entire chain. Detection still works even after wrapping
 
-Go 1.20 では `errors.Join` が追加され、複数エラーの集約が標準化された。
+In Go 1.20, `errors.Join` was added, standardizing the aggregation of multiple errors.
 
-### Q6: エラーにスタックトレースを含めるべきか？
+### Q6: Should errors include a stack trace?
 
-Go の標準ライブラリはスタックトレースを含めない設計。理由: (1) パフォーマンスへの影響、(2) エラーメッセージの文脈追加で十分追跡可能、(3) 構造化ログとの組み合わせ。
+Go's standard library is designed not to include stack traces. The reasons are: (1) performance impact, (2) adding context to error messages provides sufficient traceability, (3) combining with structured logging works well.
 
-スタックトレースが必要な場合は、以下のアプローチがある:
-- `runtime/debug.Stack()` をログに出力
-- サードパーティ（`pkg/errors` 等）を使用
-- panic/recover で取得（本番ではrecoveryミドルウェアで）
-- OpenTelemetry によるトレーシング
+When a stack trace is needed, these approaches are available:
+- Output `runtime/debug.Stack()` to logs
+- Use a third-party library (`pkg/errors`, etc.)
+- Obtain it via panic/recover (in production, use recovery middleware)
+- Tracing via OpenTelemetry
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point to focus on when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing and running code to see how things work.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the basics and jumping to advanced topics. We recommend solidly understanding the fundamental concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in real-world development?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## 6. まとめ
-
-| 概念 | 要点 |
-|------|------|
-| error interface | `Error() string` を持つインターフェース |
-| sentinel error | `var ErrXxx = errors.New(...)` で定義 |
-| ラッピング | `fmt.Errorf("context: %w", err)` |
-| errors.Is | エラーチェーンに特定のエラーが含まれるか |
-| errors.As | エラーチェーンから特定の型を取り出す |
-| errors.Join | 複数エラーの結合 (Go 1.20+) |
-| panic/recover | 回復不能なエラーのみ。ライブラリは漏らさない |
-| エラーメッセージ | 小文字始まり、簡潔、文脈追加、"failed to" 不要 |
-| レイヤー別処理 | 下位:ラップして返す、上位:種別判定+レスポンス |
+The knowledge from this topic is frequently applied in day-to-day development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## 6. Summary
 
-- [03-packages-modules.md](./03-packages-modules.md) -- パッケージとモジュール
-- [../02-web/04-testing.md](../02-web/04-testing.md) -- テストにおけるエラー検証
-- [../03-tools/04-best-practices.md](../03-tools/04-best-practices.md) -- ベストプラクティス
+| Concept | Key Points |
+|---------|------------|
+| error interface | An interface with `Error() string` |
+| sentinel error | Defined as `var ErrXxx = errors.New(...)` |
+| Wrapping | `fmt.Errorf("context: %w", err)` |
+| errors.Is | Whether the error chain contains a specific error |
+| errors.As | Extracts a specific type from the error chain |
+| errors.Join | Joins multiple errors (Go 1.20+) |
+| panic/recover | Only for unrecoverable errors. Libraries must not let it leak |
+| Error messages | Lowercase start, concise, add context, no "failed to" |
+| Layered handling | Lower: wrap and return; Upper: identify kind + respond |
 
 ---
 
-## 参考文献
+## Recommended Next Reads
+
+- [03-packages-modules.md](./03-packages-modules.md) -- Packages and modules
+- [../02-web/04-testing.md](../02-web/04-testing.md) -- Error verification in testing
+- [../03-tools/04-best-practices.md](../03-tools/04-best-practices.md) -- Best practices
+
+---
+
+## References
 
 1. **Go Blog, "Working with Errors in Go 1.13"** -- https://go.dev/blog/go1.13-errors
 2. **Go Blog, "Error handling and Go"** -- https://go.dev/blog/error-handling-and-go

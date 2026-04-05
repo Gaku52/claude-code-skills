@@ -1,44 +1,44 @@
-# 並行パターン -- Fan-out/Fan-in, Pipeline, Worker Pool
+# Concurrency Patterns -- Fan-out/Fan-in, Pipeline, Worker Pool
 
-> Goの並行パターンはgoroutineとchannelを組み合わせ、Fan-out/Fan-in・Pipeline・Worker Pool・Contextにより実用的な並行処理を構築する。
-
----
-
-## この章で学ぶこと
-
-1. **Pipeline パターン** -- ステージをチャネルで連結する処理フロー
-2. **Fan-out / Fan-in** -- 並列分散と結果集約
-3. **Worker Pool** -- goroutine数を制限した並行処理
-4. **errgroup / セマフォ** -- エラーハンドリング付き並行制御
-5. **Or-Done / Tee / Bridge** -- 高度なチャネル合成パターン
-6. **Rate Limiter** -- スループット制御パターン
-7. **実践的なユースケース** -- 本番環境での適用事例
-
-
-## 前提知識
-
-このガイドを読む前に、以下の知識があると理解が深まります:
-
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [同期プリミティブ -- Mutex, RWMutex, Once, Pool, atomic](./01-sync-primitives.md) の内容を理解していること
+> Go's concurrency patterns combine goroutines and channels to build practical concurrent processing through Fan-out/Fan-in, Pipeline, Worker Pool, and Context.
 
 ---
 
-## 1. Pipeline パターン
+## What You Will Learn in This Chapter
 
-Pipelineパターンは、データ処理を複数のステージに分割し、各ステージをチャネルで連結する設計パターンである。各ステージは独立したgoroutineで動作し、入力チャネルからデータを受け取り、処理結果を出力チャネルに送信する。
+1. **Pipeline pattern** -- A processing flow that connects stages via channels
+2. **Fan-out / Fan-in** -- Parallel distribution and result aggregation
+3. **Worker Pool** -- Concurrent processing with a limited number of goroutines
+4. **errgroup / semaphore** -- Concurrency control with error handling
+5. **Or-Done / Tee / Bridge** -- Advanced channel composition patterns
+6. **Rate Limiter** -- Throughput control patterns
+7. **Practical use cases** -- Application examples in production environments
 
-### 1.1 Pipelineの設計原則
 
-Pipelineを設計する際の基本原則は以下の通りである。
+## Prerequisites
 
-- **単一責任**: 各ステージは1つの処理だけを担当する
-- **チャネル所有権**: チャネルを作成したgoroutineがcloseの責任を持つ
-- **バッファリング**: ステージ間の速度差はバッファ付きチャネルで吸収する
-- **キャンセル対応**: すべてのステージがcontextによるキャンセルに対応する
+Before reading this guide, the following knowledge will help deepen your understanding:
 
-### コード例 1: 基本的なPipeline
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding of [Synchronization Primitives -- Mutex, RWMutex, Once, Pool, atomic](./01-sync-primitives.md)
+
+---
+
+## 1. Pipeline Pattern
+
+The Pipeline pattern is a design pattern that divides data processing into multiple stages and connects each stage with channels. Each stage runs in its own goroutine, receives data from an input channel, and sends the processing results to an output channel.
+
+### 1.1 Design Principles of a Pipeline
+
+The basic principles when designing a Pipeline are as follows:
+
+- **Single responsibility**: Each stage is responsible for only one operation
+- **Channel ownership**: The goroutine that creates a channel is responsible for closing it
+- **Buffering**: Speed differences between stages are absorbed with buffered channels
+- **Cancellation support**: Every stage should support cancellation via context
+
+### Code Example 1: Basic Pipeline
 
 ```go
 package main
@@ -48,7 +48,7 @@ import (
 	"fmt"
 )
 
-// generate はスライスの要素を順番にチャネルに送信するジェネレータステージ
+// generate is a generator stage that sends slice elements to a channel in order
 func generate(nums ...int) <-chan int {
 	out := make(chan int)
 	go func() {
@@ -60,7 +60,7 @@ func generate(nums ...int) <-chan int {
 	return out
 }
 
-// square は入力値を二乗して出力するステージ
+// square is a stage that squares the input values and outputs them
 func square(in <-chan int) <-chan int {
 	out := make(chan int)
 	go func() {
@@ -72,7 +72,7 @@ func square(in <-chan int) <-chan int {
 	return out
 }
 
-// filter は条件に合う値だけを通過させるステージ
+// filter is a stage that passes through only values matching the condition
 func filter(in <-chan int, predicate func(int) bool) <-chan int {
 	out := make(chan int)
 	go func() {
@@ -87,7 +87,7 @@ func filter(in <-chan int, predicate func(int) bool) <-chan int {
 }
 
 func main() {
-	// Pipeline: generate → filter(偶数) → square → 出力
+	// Pipeline: generate -> filter(even) -> square -> output
 	ch := generate(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
 	even := filter(ch, func(n int) bool { return n%2 == 0 })
 	out := square(even)
@@ -98,9 +98,9 @@ func main() {
 }
 ```
 
-### コード例 2: Context対応Pipeline
+### Code Example 2: Context-Aware Pipeline
 
-本番環境のPipelineでは、キャンセル対応が必須である。すべてのステージがcontextを受け取り、キャンセルシグナルに応答する設計にする。
+In production Pipelines, cancellation support is essential. Design every stage to accept a context and respond to cancellation signals.
 
 ```go
 package main
@@ -111,7 +111,7 @@ import (
 	"time"
 )
 
-// generateWithCtx はcontext対応のジェネレータ
+// generateWithCtx is a context-aware generator
 func generateWithCtx(ctx context.Context, nums ...int) <-chan int {
 	out := make(chan int)
 	go func() {
@@ -119,7 +119,7 @@ func generateWithCtx(ctx context.Context, nums ...int) <-chan int {
 		for _, n := range nums {
 			select {
 			case <-ctx.Done():
-				return // キャンセル時は即座に終了
+				return // Exit immediately on cancellation
 			case out <- n:
 			}
 		}
@@ -127,7 +127,7 @@ func generateWithCtx(ctx context.Context, nums ...int) <-chan int {
 	return out
 }
 
-// squareWithCtx はcontext対応の二乗ステージ
+// squareWithCtx is a context-aware squaring stage
 func squareWithCtx(ctx context.Context, in <-chan int) <-chan int {
 	out := make(chan int)
 	go func() {
@@ -151,7 +151,7 @@ func squareWithCtx(ctx context.Context, in <-chan int) <-chan int {
 	return out
 }
 
-// accumulate は入力値を累積加算するステージ
+// accumulate is a stage that accumulates input values
 func accumulate(ctx context.Context, in <-chan int) <-chan int {
 	out := make(chan int)
 	go func() {
@@ -163,7 +163,7 @@ func accumulate(ctx context.Context, in <-chan int) <-chan int {
 				return
 			case n, ok := <-in:
 				if !ok {
-					// 最終結果を送信
+					// Send the final result
 					select {
 					case <-ctx.Done():
 					case out <- sum:
@@ -191,9 +191,9 @@ func main() {
 }
 ```
 
-### コード例 3: バッチ処理Pipeline
+### Code Example 3: Batch Processing Pipeline
 
-大量データを処理する場合、個別処理ではなくバッチ処理でスループットを向上させる。
+When processing large amounts of data, improve throughput by using batch processing instead of per-item processing.
 
 ```go
 package main
@@ -203,7 +203,7 @@ import (
 	"fmt"
 )
 
-// batch は入力チャネルの値をバッチサイズごとにまとめるステージ
+// batch is a stage that groups input channel values into batches of a given size
 func batch(ctx context.Context, in <-chan int, size int) <-chan []int {
 	out := make(chan []int)
 	go func() {
@@ -215,7 +215,7 @@ func batch(ctx context.Context, in <-chan int, size int) <-chan []int {
 				return
 			case v, ok := <-in:
 				if !ok {
-					// 残りのバッファを送信
+					// Send the remaining buffer
 					if len(buf) > 0 {
 						select {
 						case <-ctx.Done():
@@ -226,7 +226,7 @@ func batch(ctx context.Context, in <-chan int, size int) <-chan []int {
 				}
 				buf = append(buf, v)
 				if len(buf) >= size {
-					// バッファのコピーを送信（元のスライスは再利用）
+					// Send a copy of the buffer (the original slice will be reused)
 					batch := make([]int, len(buf))
 					copy(batch, buf)
 					select {
@@ -242,7 +242,7 @@ func batch(ctx context.Context, in <-chan int, size int) <-chan []int {
 	return out
 }
 
-// processBatch はバッチ単位で処理を行うステージ
+// processBatch is a stage that processes data in batch units
 func processBatch(ctx context.Context, in <-chan []int) <-chan int {
 	out := make(chan int)
 	go func() {
@@ -255,7 +255,7 @@ func processBatch(ctx context.Context, in <-chan []int) <-chan int {
 				if !ok {
 					return
 				}
-				// バッチ内の合計を計算
+				// Calculate the sum within the batch
 				sum := 0
 				for _, v := range items {
 					sum += v
@@ -274,7 +274,7 @@ func processBatch(ctx context.Context, in <-chan []int) <-chan int {
 func main() {
 	ctx := context.Background()
 
-	// 1〜100の数値を生成
+	// Generate numbers from 1 to 100
 	gen := func() <-chan int {
 		ch := make(chan int)
 		go func() {
@@ -286,7 +286,7 @@ func main() {
 		return ch
 	}
 
-	// Pipeline: 生成 → バッチ化(10個ずつ) → バッチ処理
+	// Pipeline: generate -> batch (10 at a time) -> batch processing
 	numbers := gen()
 	batched := batch(ctx, numbers, 10)
 	results := processBatch(ctx, batched)
@@ -301,17 +301,17 @@ func main() {
 
 ## 2. Fan-out / Fan-in
 
-Fan-outは1つの入力チャネルから複数のワーカーに処理を分散させるパターンである。Fan-inは複数のチャネルからの出力を1つのチャネルに統合するパターンである。これらを組み合わせることで、CPUバウンドやI/Oバウンドな処理を効率的に並列化できる。
+Fan-out is a pattern that distributes work from a single input channel across multiple workers. Fan-in is a pattern that merges outputs from multiple channels into a single channel. By combining these, you can efficiently parallelize CPU-bound or I/O-bound processing.
 
-### 2.1 Fan-out / Fan-inの適用基準
+### 2.1 Criteria for Applying Fan-out / Fan-in
 
-Fan-out/Fan-inが有効なケースは以下の通りである。
+Cases where Fan-out/Fan-in is effective include:
 
-- 各処理が独立しており、順序が重要でない場合
-- I/Oバウンドな処理（API呼び出し、DB問い合わせ等）を並列化したい場合
-- CPUバウンドな処理をマルチコアで分散したい場合
+- When each operation is independent and order does not matter
+- When you want to parallelize I/O-bound operations (API calls, DB queries, etc.)
+- When you want to distribute CPU-bound operations across multiple cores
 
-### コード例 4: Fan-out / Fan-in 基本実装
+### Code Example 4: Basic Fan-out / Fan-in Implementation
 
 ```go
 package main
@@ -324,7 +324,7 @@ import (
 	"time"
 )
 
-// fanOut は入力チャネルから複数のワーカーに処理を分散する
+// fanOut distributes work from the input channel to multiple workers
 func fanOut(ctx context.Context, in <-chan int, workers int) []<-chan int {
 	channels := make([]<-chan int, workers)
 	for i := 0; i < workers; i++ {
@@ -333,7 +333,7 @@ func fanOut(ctx context.Context, in <-chan int, workers int) []<-chan int {
 	return channels
 }
 
-// worker は個別のワーカーgoroutine
+// worker is an individual worker goroutine
 func worker(ctx context.Context, in <-chan int, id int) <-chan int {
 	out := make(chan int)
 	go func() {
@@ -346,7 +346,7 @@ func worker(ctx context.Context, in <-chan int, id int) <-chan int {
 				if !ok {
 					return
 				}
-				// 重い処理をシミュレート
+				// Simulate heavy processing
 				time.Sleep(time.Duration(rand.Intn(100)) * time.Millisecond)
 				result := n * n
 				select {
@@ -360,12 +360,12 @@ func worker(ctx context.Context, in <-chan int, id int) <-chan int {
 	return out
 }
 
-// fanIn は複数のチャネルを1つに統合する
+// fanIn merges multiple channels into one
 func fanIn(ctx context.Context, channels ...<-chan int) <-chan int {
 	var wg sync.WaitGroup
 	merged := make(chan int)
 
-	// 各入力チャネルからmergedチャネルに転送するgoroutineを起動
+	// Start a goroutine that forwards values from each input channel to the merged channel
 	for _, ch := range channels {
 		wg.Add(1)
 		go func(c <-chan int) {
@@ -388,7 +388,7 @@ func fanIn(ctx context.Context, channels ...<-chan int) <-chan int {
 		}(ch)
 	}
 
-	// 全ワーカー完了後にmergedチャネルを閉じる
+	// Close the merged channel after all workers complete
 	go func() {
 		wg.Wait()
 		close(merged)
@@ -401,7 +401,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// 入力データ生成
+	// Generate input data
 	input := make(chan int)
 	go func() {
 		defer close(input)
@@ -414,22 +414,22 @@ func main() {
 		}
 	}()
 
-	// Fan-out: 4つのワーカーに分散
+	// Fan-out: distribute across 4 workers
 	workers := fanOut(ctx, input, 4)
 
-	// Fan-in: 結果を統合
+	// Fan-in: merge the results
 	results := fanIn(ctx, workers...)
 
-	// 結果を収集
+	// Collect the results
 	for result := range results {
 		fmt.Println("Result:", result)
 	}
 }
 ```
 
-### コード例 5: 順序を保持するFan-out / Fan-in
+### Code Example 5: Order-Preserving Fan-out / Fan-in
 
-通常のFan-out/Fan-inでは結果の順序が保証されない。順序を保持する必要がある場合は、インデックスを付与する。
+Normal Fan-out/Fan-in does not guarantee the order of results. When order must be preserved, attach an index.
 
 ```go
 package main
@@ -442,14 +442,14 @@ import (
 	"time"
 )
 
-// IndexedItem はインデックス付きデータ
+// IndexedItem is an indexed data item
 type IndexedItem struct {
 	Index  int
 	Value  int
 	Result int
 }
 
-// orderedFanOut は順序情報を保持するFan-out
+// orderedFanOut is a Fan-out that preserves ordering information
 func orderedFanOut(ctx context.Context, items []int, workers int) <-chan IndexedItem {
 	input := make(chan IndexedItem, len(items))
 	go func() {
@@ -463,7 +463,7 @@ func orderedFanOut(ctx context.Context, items []int, workers int) <-chan Indexed
 		}
 	}()
 
-	// 各ワーカーの出力チャネル
+	// Output channel for each worker
 	outputs := make([]<-chan IndexedItem, workers)
 	for w := 0; w < workers; w++ {
 		out := make(chan IndexedItem)
@@ -475,7 +475,7 @@ func orderedFanOut(ctx context.Context, items []int, workers int) <-chan Indexed
 				case <-ctx.Done():
 					return
 				default:
-					// 重い処理をシミュレート
+					// Simulate heavy processing
 					time.Sleep(10 * time.Millisecond)
 					item.Result = item.Value * item.Value
 					select {
@@ -521,7 +521,7 @@ func main() {
 		results = append(results, item)
 	}
 
-	// インデックスでソートして元の順序を復元
+	// Sort by index to restore the original order
 	sort.Slice(results, func(i, j int) bool {
 		return results[i].Index < results[j].Index
 	})
@@ -536,16 +536,16 @@ func main() {
 
 ## 3. Worker Pool
 
-Worker Poolパターンは、固定数のgoroutine(ワーカー)を事前に起動し、ジョブキューからタスクを取得して処理するパターンである。goroutineの無制限起動を防ぎ、リソースの使用量を制御できる。
+The Worker Pool pattern pre-starts a fixed number of goroutines (workers) and has them retrieve tasks from a job queue for processing. It prevents unbounded goroutine creation and allows you to control resource usage.
 
-### 3.1 Worker Poolの設計指針
+### 3.1 Worker Pool Design Guidelines
 
-- **ワーカー数**: CPUバウンドは`runtime.NumCPU()`、I/Oバウンドは外部リソースの制約に合わせる
-- **ジョブキュー**: バッファ付きチャネルでバックプレッシャーを制御
-- **結果チャネル**: ワーカーの処理結果を集約
-- **エラーハンドリング**: ジョブ単位でエラーを扱う
+- **Number of workers**: For CPU-bound work, use `runtime.NumCPU()`; for I/O-bound work, match the constraints of external resources
+- **Job queue**: Control backpressure with a buffered channel
+- **Result channel**: Aggregate processing results from workers
+- **Error handling**: Handle errors on a per-job basis
 
-### コード例 6: 汎用Worker Pool
+### Code Example 6: Generic Worker Pool
 
 ```go
 package main
@@ -558,13 +558,13 @@ import (
 	"time"
 )
 
-// Job は処理すべきタスクを表す
+// Job represents a task to be processed
 type Job struct {
 	ID      int
 	Payload string
 }
 
-// Result は処理結果を表す
+// Result represents a processing result
 type Result struct {
 	JobID    int
 	Output   string
@@ -572,7 +572,7 @@ type Result struct {
 	Err      error
 }
 
-// WorkerPool は固定数のワーカーでジョブを処理するプール
+// WorkerPool is a pool that processes jobs with a fixed number of workers
 type WorkerPool struct {
 	numWorkers int
 	jobs       chan Job
@@ -580,7 +580,7 @@ type WorkerPool struct {
 	wg         sync.WaitGroup
 }
 
-// NewWorkerPool は新しいWorkerPoolを生成する
+// NewWorkerPool creates a new WorkerPool
 func NewWorkerPool(numWorkers, jobBufferSize int) *WorkerPool {
 	return &WorkerPool{
 		numWorkers: numWorkers,
@@ -589,21 +589,21 @@ func NewWorkerPool(numWorkers, jobBufferSize int) *WorkerPool {
 	}
 }
 
-// Start はワーカーを起動する
+// Start launches the workers
 func (wp *WorkerPool) Start(ctx context.Context) {
 	for i := 0; i < wp.numWorkers; i++ {
 		wp.wg.Add(1)
 		go wp.runWorker(ctx, i)
 	}
 
-	// 全ワーカー終了後にresultsチャネルを閉じる
+	// Close the results channel after all workers finish
 	go func() {
 		wp.wg.Wait()
 		close(wp.results)
 	}()
 }
 
-// runWorker は個別ワーカーの処理ループ
+// runWorker is the processing loop for an individual worker
 func (wp *WorkerPool) runWorker(ctx context.Context, id int) {
 	defer wp.wg.Done()
 	for {
@@ -628,24 +628,24 @@ func (wp *WorkerPool) runWorker(ctx context.Context, id int) {
 	}
 }
 
-// Submit はジョブをキューに追加する
+// Submit adds a job to the queue
 func (wp *WorkerPool) Submit(job Job) {
 	wp.jobs <- job
 }
 
-// Close はジョブキューを閉じる（新しいジョブの受け付けを停止）
+// Close closes the job queue (stops accepting new jobs)
 func (wp *WorkerPool) Close() {
 	close(wp.jobs)
 }
 
-// Results は結果チャネルを返す
+// Results returns the results channel
 func (wp *WorkerPool) Results() <-chan Result {
 	return wp.results
 }
 
-// processJob は個別ジョブの処理ロジック
+// processJob is the processing logic for an individual job
 func processJob(ctx context.Context, job Job) (string, error) {
-	// 処理シミュレート
+	// Simulate processing
 	select {
 	case <-ctx.Done():
 		return "", ctx.Err()
@@ -661,7 +661,7 @@ func main() {
 	pool := NewWorkerPool(5, 100)
 	pool.Start(ctx)
 
-	// ジョブを投入
+	// Submit jobs
 	go func() {
 		for i := 0; i < 50; i++ {
 			pool.Submit(Job{ID: i, Payload: fmt.Sprintf("task-%d", i)})
@@ -669,7 +669,7 @@ func main() {
 		pool.Close()
 	}()
 
-	// 結果を収集
+	// Collect results
 	successCount := 0
 	errorCount := 0
 	for result := range pool.Results() {
@@ -685,9 +685,9 @@ func main() {
 }
 ```
 
-### コード例 7: 動的スケーリングWorker Pool
+### Code Example 7: Dynamically Scaling Worker Pool
 
-負荷に応じてワーカー数を動的に調整するWorker Pool。
+A Worker Pool that dynamically adjusts the number of workers based on load.
 
 ```go
 package main
@@ -701,7 +701,7 @@ import (
 	"time"
 )
 
-// DynamicPool は動的にスケーリングするWorkerPool
+// DynamicPool is a WorkerPool that scales dynamically
 type DynamicPool struct {
 	minWorkers  int
 	maxWorkers  int
@@ -712,7 +712,7 @@ type DynamicPool struct {
 	workerCount int
 }
 
-// NewDynamicPool は動的プールを生成する
+// NewDynamicPool creates a dynamic pool
 func NewDynamicPool(minWorkers, maxWorkers, queueSize int) *DynamicPool {
 	dp := &DynamicPool{
 		minWorkers: minWorkers,
@@ -722,17 +722,17 @@ func NewDynamicPool(minWorkers, maxWorkers, queueSize int) *DynamicPool {
 	return dp
 }
 
-// Start は最小ワーカー数でプールを起動する
+// Start launches the pool with the minimum number of workers
 func (dp *DynamicPool) Start(ctx context.Context) {
 	for i := 0; i < dp.minWorkers; i++ {
 		dp.addWorker(ctx)
 	}
 
-	// 負荷監視goroutine
+	// Load monitoring goroutine
 	go dp.monitor(ctx)
 }
 
-// addWorker はワーカーを1つ追加する
+// addWorker adds one worker
 func (dp *DynamicPool) addWorker(ctx context.Context) {
 	dp.mu.Lock()
 	dp.workerCount++
@@ -763,7 +763,7 @@ func (dp *DynamicPool) addWorker(ctx context.Context) {
 	}()
 }
 
-// monitor は負荷を監視してワーカー数を調整する
+// monitor watches the load and adjusts the number of workers
 func (dp *DynamicPool) monitor(ctx context.Context) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
@@ -779,7 +779,7 @@ func (dp *DynamicPool) monitor(ctx context.Context) {
 			current := dp.workerCount
 			dp.mu.Unlock()
 
-			// キューが溢れそうならワーカーを追加
+			// Add workers if the queue is about to overflow
 			if queueLen > current && current < dp.maxWorkers {
 				toAdd := min(dp.maxWorkers-current, queueLen-current)
 				for i := 0; i < toAdd; i++ {
@@ -799,12 +799,12 @@ func min(a, b int) int {
 	return b
 }
 
-// Submit はジョブを投入する
+// Submit submits a job
 func (dp *DynamicPool) Submit(job func()) {
 	dp.jobs <- job
 }
 
-// Shutdown はプールをシャットダウンする
+// Shutdown shuts down the pool
 func (dp *DynamicPool) Shutdown() {
 	close(dp.jobs)
 	dp.wg.Wait()
@@ -819,7 +819,7 @@ func main() {
 
 	var completed int64
 
-	// 大量のジョブを一気に投入
+	// Submit a large number of jobs all at once
 	for i := 0; i < 200; i++ {
 		i := i
 		pool.Submit(func() {
@@ -838,11 +838,11 @@ func main() {
 
 ---
 
-## 4. errgroup による並行処理
+## 4. Concurrent Processing with errgroup
 
-`golang.org/x/sync/errgroup`は、複数のgoroutineの完了待ちとエラーハンドリングを統合するパッケージである。`sync.WaitGroup`を置き換え、エラー伝搬とContextキャンセルを自動化する。
+`golang.org/x/sync/errgroup` is a package that integrates waiting for multiple goroutines to complete with error handling. It replaces `sync.WaitGroup` and automates error propagation and context cancellation.
 
-### コード例 8: errgroup 基本パターン
+### Code Example 8: Basic errgroup Pattern
 
 ```go
 package main
@@ -857,7 +857,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// fetchURL はURLからコンテンツを取得する
+// fetchURL retrieves content from a URL
 func fetchURL(ctx context.Context, url string) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
@@ -878,17 +878,17 @@ func fetchURL(ctx context.Context, url string) (string, error) {
 	return string(body), nil
 }
 
-// fetchAll は複数URLを並行取得する
+// fetchAll fetches multiple URLs concurrently
 func fetchAll(ctx context.Context, urls []string) ([]string, error) {
 	g, ctx := errgroup.WithContext(ctx)
 	results := make([]string, len(urls))
 
 	for i, url := range urls {
-		i, url := i, url // ループ変数キャプチャ
+		i, url := i, url // Loop variable capture
 		g.Go(func() error {
 			body, err := fetchURL(ctx, url)
 			if err != nil {
-				return err // 1つでもエラーなら全体キャンセル
+				return err // A single error cancels the whole group
 			}
 			results[i] = body
 			return nil
@@ -921,7 +921,7 @@ func main() {
 }
 ```
 
-### コード例 9: errgroup.SetLimit による同時実行数制限
+### Code Example 9: Limiting Concurrency with errgroup.SetLimit
 
 ```go
 package main
@@ -935,13 +935,13 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// Task は処理タスクを表す
+// Task represents a processing task
 type Task struct {
 	ID   int
 	Name string
 }
 
-// processTask は個別タスクの処理
+// processTask processes an individual task
 func processTask(ctx context.Context, task Task) error {
 	log.Printf("Start task %d: %s", task.ID, task.Name)
 
@@ -963,7 +963,7 @@ func main() {
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(5) // 同時実行数を5に制限
+	g.SetLimit(5) // Limit concurrency to 5
 
 	for _, task := range tasks {
 		task := task
@@ -979,7 +979,7 @@ func main() {
 }
 ```
 
-### コード例 10: errgroup.TryGo によるノンブロッキング投入
+### Code Example 10: Non-Blocking Submission with errgroup.TryGo
 
 ```go
 package main
@@ -996,14 +996,14 @@ import (
 func main() {
 	ctx := context.Background()
 	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(3) // 最大3つまで同時実行
+	g.SetLimit(3) // Up to 3 concurrent executions
 
 	submitted := 0
 	dropped := 0
 
 	for i := 0; i < 20; i++ {
 		i := i
-		// TryGoはリミットに達している場合はfalseを返す（ブロックしない）
+		// TryGo returns false if the limit has been reached (does not block)
 		if g.TryGo(func() error {
 			log.Printf("Processing task %d", i)
 			time.Sleep(100 * time.Millisecond)
@@ -1026,11 +1026,11 @@ func main() {
 
 ---
 
-## 5. セマフォパターン
+## 5. Semaphore Pattern
 
-セマフォパターンは、バッファ付きチャネルを使って同時実行数を制限するシンプルなパターンである。errgroupのSetLimitより軽量で、細かい制御が可能。
+The semaphore pattern is a simple pattern that uses a buffered channel to limit concurrency. It is lighter-weight than errgroup's SetLimit and allows for fine-grained control.
 
-### コード例 11: 基本セマフォ
+### Code Example 11: Basic Semaphore
 
 ```go
 package main
@@ -1041,7 +1041,7 @@ import (
 	"time"
 )
 
-// Item は処理対象の項目
+// Item is an item to be processed
 type Item struct {
 	ID   int
 	Data string
@@ -1053,10 +1053,10 @@ func processWithLimit(items []Item, maxConcurrency int) {
 
 	for _, item := range items {
 		wg.Add(1)
-		sem <- struct{}{} // セマフォ取得（満杯ならブロック）
+		sem <- struct{}{} // Acquire the semaphore (blocks if full)
 		go func(it Item) {
 			defer wg.Done()
-			defer func() { <-sem }() // セマフォ解放
+			defer func() { <-sem }() // Release the semaphore
 			process(it)
 		}(item)
 	}
@@ -1064,7 +1064,7 @@ func processWithLimit(items []Item, maxConcurrency int) {
 }
 
 func process(item Item) {
-	time.Sleep(50 * time.Millisecond) // 処理シミュレート
+	time.Sleep(50 * time.Millisecond) // Simulate processing
 	fmt.Printf("Processed: %d\n", item.ID)
 }
 
@@ -1075,14 +1075,14 @@ func main() {
 	}
 
 	start := time.Now()
-	processWithLimit(items, 10) // 最大10並行
+	processWithLimit(items, 10) // Max 10 concurrent
 	fmt.Printf("Elapsed: %v\n", time.Since(start))
 }
 ```
 
-### コード例 12: golang.org/x/sync/semaphore の活用
+### Code Example 12: Using golang.org/x/sync/semaphore
 
-標準拡張ライブラリの`semaphore`パッケージは、重み付きセマフォを提供する。
+The standard extension library's `semaphore` package provides a weighted semaphore.
 
 ```go
 package main
@@ -1099,12 +1099,12 @@ import (
 func main() {
 	ctx := context.Background()
 
-	// 重み付きセマフォ（総重み10）
+	// Weighted semaphore (total weight of 10)
 	sem := semaphore.NewWeighted(10)
 
 	type Task struct {
 		Name   string
-		Weight int64 // リソース消費量
+		Weight int64 // Resource consumption
 	}
 
 	tasks := []Task{
@@ -1121,7 +1121,7 @@ func main() {
 	for _, task := range tasks {
 		task := task
 
-		// タスクの重みに応じてセマフォを取得
+		// Acquire the semaphore according to the task's weight
 		if err := sem.Acquire(ctx, task.Weight); err != nil {
 			log.Printf("Failed to acquire semaphore for %s: %v", task.Name, err)
 			continue
@@ -1135,7 +1135,7 @@ func main() {
 		}()
 	}
 
-	// 全タスクの完了を待つ（セマフォを全重み分取得）
+	// Wait for all tasks to complete (acquire the full weight of the semaphore)
 	if err := sem.Acquire(ctx, 10); err != nil {
 		log.Fatal(err)
 	}
@@ -1145,11 +1145,11 @@ func main() {
 
 ---
 
-## 6. Or-Done パターン
+## 6. Or-Done Pattern
 
-Or-Doneパターンは、チャネルの読み取りとキャンセルを同時に扱うヘルパーである。select文の冗長さを解消する。
+The Or-Done pattern is a helper that handles channel reads and cancellation at the same time. It eliminates the verbosity of select statements.
 
-### コード例 13: Or-Done チャネル
+### Code Example 13: Or-Done Channel
 
 ```go
 package main
@@ -1159,7 +1159,7 @@ import (
 	"fmt"
 )
 
-// orDone はcontextのキャンセルを考慮してチャネルから読み取る
+// orDone reads from a channel while respecting context cancellation
 func orDone(ctx context.Context, in <-chan int) <-chan int {
 	out := make(chan int)
 	go func() {
@@ -1187,7 +1187,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// 無限に値を生成するチャネル
+	// Channel that generates values infinitely
 	infinite := make(chan int)
 	go func() {
 		defer close(infinite)
@@ -1200,7 +1200,7 @@ func main() {
 		}
 	}()
 
-	// 最初の10個だけ取得
+	// Take only the first 10 values
 	count := 0
 	for v := range orDone(ctx, infinite) {
 		fmt.Println(v)
@@ -1215,11 +1215,11 @@ func main() {
 
 ---
 
-## 7. Tee パターン
+## 7. Tee Pattern
 
-Teeパターンは、1つのチャネルの値を2つのチャネルに分配するパターンである。Unixのteeコマンドと同じ概念で、同じデータを2つの異なる処理パイプラインに送信する場合に使う。
+The Tee pattern is a pattern that distributes values from a single channel to two channels. It uses the same concept as the Unix tee command and is used when you want to send the same data to two different processing pipelines.
 
-### コード例 14: Tee チャネル
+### Code Example 14: Tee Channel
 
 ```go
 package main
@@ -1229,7 +1229,7 @@ import (
 	"fmt"
 )
 
-// tee は入力チャネルの値を2つの出力チャネルに複製する
+// tee duplicates values from the input channel to two output channels
 func tee(ctx context.Context, in <-chan int) (<-chan int, <-chan int) {
 	out1 := make(chan int)
 	out2 := make(chan int)
@@ -1245,14 +1245,14 @@ func tee(ctx context.Context, in <-chan int) (<-chan int, <-chan int) {
 				if !ok {
 					return
 				}
-				// 両方の出力チャネルに送信（ローカル変数で保護）
+				// Send to both output channels (protected by local variables)
 				ch1, ch2 := out1, out2
 				for i := 0; i < 2; i++ {
 					select {
 					case <-ctx.Done():
 						return
 					case ch1 <- v:
-						ch1 = nil // 送信済みならnil化してブロック
+						ch1 = nil // Nil out after sending to block further sends
 					case ch2 <- v:
 						ch2 = nil
 					}
@@ -1267,7 +1267,7 @@ func tee(ctx context.Context, in <-chan int) (<-chan int, <-chan int) {
 func main() {
 	ctx := context.Background()
 
-	// データ生成
+	// Generate data
 	input := make(chan int)
 	go func() {
 		defer close(input)
@@ -1276,10 +1276,10 @@ func main() {
 		}
 	}()
 
-	// Teeで分岐
+	// Branch with Tee
 	ch1, ch2 := tee(ctx, input)
 
-	// 2つの処理パイプライン
+	// Two processing pipelines
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -1298,11 +1298,11 @@ func main() {
 
 ---
 
-## 8. Bridge パターン
+## 8. Bridge Pattern
 
-Bridgeパターンは、「チャネルのチャネル」（`<-chan <-chan T`）を単一のチャネルにフラット化するパターンである。複数のデータソースを動的に追加・切り替える場合に有用。
+The Bridge pattern is a pattern that flattens a "channel of channels" (`<-chan <-chan T`) into a single channel. It is useful when dynamically adding or switching between multiple data sources.
 
-### コード例 15: Bridge チャネル
+### Code Example 15: Bridge Channel
 
 ```go
 package main
@@ -1312,7 +1312,7 @@ import (
 	"fmt"
 )
 
-// bridge はチャネルのチャネルを単一チャネルにフラット化する
+// bridge flattens a channel of channels into a single channel
 func bridge(ctx context.Context, chanStream <-chan <-chan int) <-chan int {
 	out := make(chan int)
 	go func() {
@@ -1335,7 +1335,7 @@ func bridge(ctx context.Context, chanStream <-chan <-chan int) <-chan int {
 					return
 				case v, ok := <-stream:
 					if !ok {
-						break // 次のストリームへ
+						break // Move to the next stream
 					}
 					select {
 					case <-ctx.Done():
@@ -1351,7 +1351,7 @@ func bridge(ctx context.Context, chanStream <-chan <-chan int) <-chan int {
 	return out
 }
 
-// genRange はstart〜endの範囲のチャネルを生成する
+// genRange generates a channel for the range from start to end
 func genRange(start, end int) <-chan int {
 	ch := make(chan int)
 	go func() {
@@ -1366,7 +1366,7 @@ func genRange(start, end int) <-chan int {
 func main() {
 	ctx := context.Background()
 
-	// チャネルのチャネルを生成
+	// Generate a channel of channels
 	chanStream := make(chan (<-chan int))
 	go func() {
 		defer close(chanStream)
@@ -1375,7 +1375,7 @@ func main() {
 		chanStream <- genRange(100, 102)
 	}()
 
-	// Bridgeでフラット化
+	// Flatten with Bridge
 	for v := range bridge(ctx, chanStream) {
 		fmt.Println(v) // 1, 2, 3, 10, 11, 12, 13, 100, 101, 102
 	}
@@ -1384,11 +1384,11 @@ func main() {
 
 ---
 
-## 9. Rate Limiter パターン
+## 9. Rate Limiter Pattern
 
-Rate Limiterパターンは、処理のスループットを一定レートに制限するパターンである。API呼び出しの制限やリソースの過負荷防止に使用する。
+The Rate Limiter pattern is a pattern that limits processing throughput to a constant rate. It is used for limiting API calls and preventing resource overload.
 
-### コード例 16: time.Ticker ベースのRate Limiter
+### Code Example 16: time.Ticker-Based Rate Limiter
 
 ```go
 package main
@@ -1400,30 +1400,30 @@ import (
 	"time"
 )
 
-// RateLimiter はトークンバケット方式のレートリミッター
+// RateLimiter is a token bucket rate limiter
 type RateLimiter struct {
 	ticker *time.Ticker
 	tokens chan struct{}
 }
 
-// NewRateLimiter は指定レートのリミッターを生成する
+// NewRateLimiter creates a limiter with the specified rate
 func NewRateLimiter(rate int, burst int) *RateLimiter {
 	rl := &RateLimiter{
 		ticker: time.NewTicker(time.Second / time.Duration(rate)),
 		tokens: make(chan struct{}, burst),
 	}
 
-	// 初期トークンをバーストサイズ分投入
+	// Inject initial tokens equal to the burst size
 	for i := 0; i < burst; i++ {
 		rl.tokens <- struct{}{}
 	}
 
-	// 定期的にトークンを補充
+	// Replenish tokens periodically
 	go func() {
 		for range rl.ticker.C {
 			select {
 			case rl.tokens <- struct{}{}:
-			default: // バケットが満杯なら破棄
+			default: // Discard if the bucket is full
 			}
 		}
 	}()
@@ -1431,7 +1431,7 @@ func NewRateLimiter(rate int, burst int) *RateLimiter {
 	return rl
 }
 
-// Wait はトークンが利用可能になるまで待機する
+// Wait waits until a token becomes available
 func (rl *RateLimiter) Wait(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
@@ -1441,7 +1441,7 @@ func (rl *RateLimiter) Wait(ctx context.Context) error {
 	}
 }
 
-// Stop はリミッターを停止する
+// Stop stops the limiter
 func (rl *RateLimiter) Stop() {
 	rl.ticker.Stop()
 }
@@ -1450,7 +1450,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// 毎秒5リクエスト、バースト10
+	// 5 requests per second, burst of 10
 	limiter := NewRateLimiter(5, 10)
 	defer limiter.Stop()
 
@@ -1464,7 +1464,7 @@ func main() {
 }
 ```
 
-### コード例 17: golang.org/x/time/rate の活用
+### Code Example 17: Using golang.org/x/time/rate
 
 ```go
 package main
@@ -1481,10 +1481,10 @@ import (
 func main() {
 	ctx := context.Background()
 
-	// 毎秒10イベント、バースト3
+	// 10 events per second, burst of 3
 	limiter := rate.NewLimiter(rate.Limit(10), 3)
 
-	// Wait: トークンが利用可能になるまでブロック
+	// Wait: blocks until a token becomes available
 	for i := 0; i < 20; i++ {
 		if err := limiter.Wait(ctx); err != nil {
 			log.Fatal(err)
@@ -1492,7 +1492,7 @@ func main() {
 		fmt.Printf("[%s] Event %d\n", time.Now().Format("15:04:05.000"), i)
 	}
 
-	// Allow: ノンブロッキング（即座にtrue/falseを返す）
+	// Allow: non-blocking (returns true/false immediately)
 	fmt.Println("\n--- Allow (non-blocking) ---")
 	for i := 0; i < 10; i++ {
 		if limiter.Allow() {
@@ -1502,7 +1502,7 @@ func main() {
 		}
 	}
 
-	// Reserve: トークン予約（待機時間を取得）
+	// Reserve: token reservation (retrieves the wait time)
 	fmt.Println("\n--- Reserve ---")
 	r := limiter.Reserve()
 	if r.OK() {
@@ -1515,9 +1515,9 @@ func main() {
 
 ---
 
-## 10. ASCII図解
+## 10. ASCII Diagrams
 
-### 図1: Pipeline パターン
+### Figure 1: Pipeline Pattern
 
 ```
 ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐
@@ -1525,11 +1525,11 @@ func main() {
 │  ch out  │    │ ch in/out│    │ ch in/out│    │  ch in   │
 └──────────┘    └──────────┘    └──────────┘    └──────────┘
 
-データフロー:
+Data flow:
   [1,2,3,4,5] → [2,4] → [4,16] → print
 ```
 
-### 図2: Fan-out / Fan-in
+### Figure 2: Fan-out / Fan-in
 
 ```
                     Fan-out              Fan-in
@@ -1544,7 +1544,7 @@ Input ─────────┼──> Worker2 ──┼──────>
              └──> [Worker 3] ──┘
 ```
 
-### 図3: Worker Pool
+### Figure 3: Worker Pool
 
 ```
 ┌─────────────────────────────────────────┐
@@ -1556,26 +1556,26 @@ Input ─────────┼──> Worker2 ──┼──────>
 │  │ Job 2   │──>│ Worker 2 │──>│ Res 2 │ │
 │  │ Job 3   │  │ Worker 3 │  │ Res 3  │ │
 │  │ ...     │  └──────────┘  │ ...    │ │
-│  └─────────┘   (固定数)      └────────┘ │
+│  └─────────┘  (fixed count) └────────┘ │
 │                                          │
-│  同時実行数 = Worker数 (制御可能)         │
+│  Concurrency = Number of Workers (controllable) │
 └─────────────────────────────────────────┘
 ```
 
-### 図4: Or-Done パターン
+### Figure 4: Or-Done Pattern
 
 ```
-通常のchannelリード:            Or-Done パターン:
+Normal channel read:            Or-Done pattern:
 
 for v := range ch {             for v := range orDone(ctx, ch) {
-    // ctxキャンセル非対応         // ctxキャンセル自動対応
+    // No ctx cancel support       // Automatic ctx cancel support
     process(v)                      process(v)
 }                               }
 
-⚠️ ctx.Done()を見ていない       ✅ ctx.Done()を自動チェック
+[!] Does not watch ctx.Done()   [OK] Automatically checks ctx.Done()
 ```
 
-### 図5: Tee パターン
+### Figure 5: Tee Pattern
 
 ```
                     ┌──> Pipeline A (ch1)
@@ -1584,10 +1584,10 @@ for v := range ch {             for v := range orDone(ctx, ch) {
                     │
                     └──> Pipeline B (ch2)
 
-  同じデータを2つの独立した処理に分配
+  Distributes the same data to two independent processes
 ```
 
-### 図6: Bridge パターン
+### Figure 6: Bridge Pattern
 
 ```
   Chan of Chans:
@@ -1601,96 +1601,96 @@ for v := range ch {             for v := range orDone(ctx, ch) {
   └────────────────────────────────────────┘
 ```
 
-### 図7: Rate Limiter（トークンバケット）
+### Figure 7: Rate Limiter (Token Bucket)
 
 ```
   ┌─────────────────────────────────┐
   │       Token Bucket              │
   │                                 │
-  │  バケット容量 = Burst Size      │
+  │  Bucket capacity = Burst Size   │
   │  ┌────────────────────────┐    │
-  │  │ ○ ○ ○ ○ ○ _ _ _ _ _  │    │  ○ = トークン
-  │  │ 5/10 トークン残り       │    │  _ = 空き
+  │  │ O O O O O _ _ _ _ _    │    │  O = token
+  │  │ 5/10 tokens remaining  │    │  _ = empty slot
   │  └────────────────────────┘    │
   │       ↑              ↓         │
-  │   Rate(r/s)で     リクエスト時  │
-  │   トークン補充    にトークン消費 │
+  │   Refill tokens  Consume tokens │
+  │   at Rate(r/s)   on request     │
   └─────────────────────────────────┘
 ```
 
 ---
 
-## 11. 比較表
+## 11. Comparison Tables
 
-### 表1: 並行パターンの比較
+### Table 1: Comparison of Concurrency Patterns
 
-| パターン | 用途 | 複雑度 | goroutine数 | キャンセル対応 |
-|---------|------|-------|------------|-------------|
-| Pipeline | 直列データ処理 | 低 | ステージ数分 | ステージ毎にselect |
-| Fan-out/Fan-in | 並列分散処理 | 中 | ワーカー数分 | context伝搬 |
-| Worker Pool | 制限付き並列処理 | 中 | 固定(設定可能) | context + jobs close |
-| errgroup | エラー付き並列 | 低 | タスク数分 | 自動(WithContext) |
-| セマフォ | 同時実行数制限 | 低 | タスク数分(制限付) | context渡し |
-| Or-Done | キャンセル対応読み取り | 低 | 1 | 組み込み |
-| Tee | チャネル分配 | 低 | 1 | context対応 |
-| Bridge | チャネルフラット化 | 中 | 1 | context対応 |
-| Rate Limiter | スループット制御 | 中 | 1-2 | context/Timer |
-| Pipeline + Cancel | キャンセル可能処理 | 高 | ステージ数分 | 全ステージ対応 |
+| Pattern | Use Case | Complexity | Goroutine Count | Cancellation Support |
+|---------|----------|------------|-----------------|----------------------|
+| Pipeline | Serial data processing | Low | One per stage | select in each stage |
+| Fan-out/Fan-in | Parallel distributed processing | Medium | One per worker | context propagation |
+| Worker Pool | Limited parallel processing | Medium | Fixed (configurable) | context + jobs close |
+| errgroup | Parallel with error handling | Low | One per task | Automatic (WithContext) |
+| Semaphore | Concurrency limit | Low | Per task (limited) | Pass context |
+| Or-Done | Cancellable reads | Low | 1 | Built-in |
+| Tee | Channel distribution | Low | 1 | Context-aware |
+| Bridge | Channel flattening | Medium | 1 | Context-aware |
+| Rate Limiter | Throughput control | Medium | 1-2 | context/Timer |
+| Pipeline + Cancel | Cancellable processing | High | One per stage | All stages |
 
-### 表2: errgroup vs WaitGroup vs セマフォ
+### Table 2: errgroup vs WaitGroup vs Semaphore
 
-| 項目 | errgroup | sync.WaitGroup | セマフォ |
-|------|----------|---------------|---------|
-| エラー伝搬 | 最初のエラーを返す | なし | なし |
-| キャンセル | context連携で自動 | 手動 | 手動 |
-| 同時実行制限 | `SetLimit(n)` | 不可（別途実装） | バッファサイズ |
-| ノンブロッキング投入 | `TryGo()` | 不可 | `TryAcquire` |
-| パッケージ | `golang.org/x/sync` | 標準`sync` | チャネル or `x/sync` |
-| 戻り値 | `error` | なし | なし |
-| 重み付き | 不可 | 不可 | `semaphore.Weighted` |
-| 用途 | エラー付き並行処理 | 単純な完了待ち | リソース制限 |
+| Item | errgroup | sync.WaitGroup | Semaphore |
+|------|----------|----------------|-----------|
+| Error propagation | Returns the first error | None | None |
+| Cancellation | Automatic via context integration | Manual | Manual |
+| Concurrency limit | `SetLimit(n)` | Not available (implement separately) | Buffer size |
+| Non-blocking submission | `TryGo()` | Not available | `TryAcquire` |
+| Package | `golang.org/x/sync` | Standard `sync` | channel or `x/sync` |
+| Return value | `error` | None | None |
+| Weighted | Not available | Not available | `semaphore.Weighted` |
+| Use case | Concurrent processing with errors | Simple completion wait | Resource limiting |
 
-### 表3: Rate Limiterの実装比較
+### Table 3: Comparison of Rate Limiter Implementations
 
-| 実装 | パッケージ | アルゴリズム | バースト | 分散対応 |
-|------|----------|------------|---------|---------|
-| time.Ticker | 標準 | 固定レート | なし | なし |
-| バッファ付きチャネル | 標準 | トークンバケット | あり | なし |
-| rate.Limiter | `x/time/rate` | トークンバケット | あり | なし |
-| Redis + Lua | redis-go | スライディングウィンドウ | あり | あり |
-| leaky bucket | カスタム | Leaky Bucket | なし | なし |
+| Implementation | Package | Algorithm | Burst | Distributed Support |
+|----------------|---------|-----------|-------|---------------------|
+| time.Ticker | Standard | Fixed rate | No | No |
+| Buffered channel | Standard | Token bucket | Yes | No |
+| rate.Limiter | `x/time/rate` | Token bucket | Yes | No |
+| Redis + Lua | redis-go | Sliding window | Yes | Yes |
+| leaky bucket | Custom | Leaky bucket | No | No |
 
-### 表4: パターン選択フローチャート
+### Table 4: Pattern Selection Flowchart
 
-| 要件 | 推奨パターン |
-|------|------------|
-| データを順番に変換したい | Pipeline |
-| 同じ処理を並列化したい | Fan-out/Fan-in |
-| goroutine数を制限したい | Worker Pool / セマフォ |
-| エラーで全体を止めたい | errgroup |
-| API呼び出し頻度を制限したい | Rate Limiter |
-| 1つの入力を複数に分配したい | Tee |
-| 複数ソースを逐次読みたい | Bridge |
-| キャンセル対応の読み取り | Or-Done |
+| Requirement | Recommended Pattern |
+|-------------|---------------------|
+| Transform data in sequence | Pipeline |
+| Parallelize the same operation | Fan-out/Fan-in |
+| Limit the number of goroutines | Worker Pool / Semaphore |
+| Stop everything on error | errgroup |
+| Limit API call frequency | Rate Limiter |
+| Distribute one input to many | Tee |
+| Read from multiple sources sequentially | Bridge |
+| Cancellable reads | Or-Done |
 
 ---
 
-## 12. アンチパターン
+## 12. Anti-Patterns
 
-### アンチパターン 1: 無制限goroutine起動
+### Anti-Pattern 1: Unbounded Goroutine Creation
 
 ```go
-// BAD: リクエスト毎にgoroutineを無制限に起動
+// BAD: spawns an unlimited number of goroutines per request
 func handler(w http.ResponseWriter, r *http.Request) {
-	for _, item := range getItems() { // 10万件
-		go process(item) // goroutine爆発、OOM
+	for _, item := range getItems() { // 100,000 items
+		go process(item) // goroutine explosion, OOM
 	}
 }
 
-// GOOD: Worker Poolで制限
+// GOOD: limit with a Worker Pool
 func handler(w http.ResponseWriter, r *http.Request) {
 	items := getItems()
-	sem := make(chan struct{}, 100) // 最大100並行
+	sem := make(chan struct{}, 100) // Max 100 concurrent
 	var wg sync.WaitGroup
 	for _, item := range items {
 		wg.Add(1)
@@ -1705,18 +1705,18 @@ func handler(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-### アンチパターン 2: channelの閉じ忘れ
+### Anti-Pattern 2: Forgetting to Close a Channel
 
 ```go
-// BAD: チャネルを閉じない → 受信側がrange で永遠にブロック
+// BAD: not closing the channel -> receiver blocks forever on range
 func produce(ch chan<- int) {
 	for i := 0; i < 10; i++ {
 		ch <- i
 	}
-	// close(ch) が無い
+	// close(ch) is missing
 }
 
-// GOOD: deferで確実にcloseする
+// GOOD: ensure close with defer
 func produce(ch chan<- int) {
 	defer close(ch)
 	for i := 0; i < 10; i++ {
@@ -1725,18 +1725,18 @@ func produce(ch chan<- int) {
 }
 ```
 
-### アンチパターン 3: 送信と受信の非対称なclose
+### Anti-Pattern 3: Asymmetric Close Between Send and Receive
 
 ```go
-// BAD: 受信側でチャネルを閉じる
+// BAD: closing the channel on the receiving side
 func consumer(ch <-chan int) {
 	for v := range ch {
 		process(v)
 	}
-	close(ch) // コンパイルエラー（receive-onlyチャネルはcloseできない）
+	close(ch) // Compile error (cannot close a receive-only channel)
 }
 
-// BAD: 複数のgoroutineで同じチャネルをcloseする
+// BAD: closing the same channel from multiple goroutines
 func multipleProducers(ch chan<- int) {
 	for i := 0; i < 3; i++ {
 		go func(id int) {
@@ -1746,7 +1746,7 @@ func multipleProducers(ch chan<- int) {
 	}
 }
 
-// GOOD: 1つの所有者がcloseの責任を持つ
+// GOOD: a single owner is responsible for closing
 func multipleProducers(ch chan<- int) {
 	var wg sync.WaitGroup
 	for i := 0; i < 3; i++ {
@@ -1758,27 +1758,27 @@ func multipleProducers(ch chan<- int) {
 	}
 	go func() {
 		wg.Wait()
-		close(ch) // WaitGroup完了後に1回だけclose
+		close(ch) // Close only once after the WaitGroup completes
 	}()
 }
 ```
 
-### アンチパターン 4: select文でのビジーウェイト
+### Anti-Pattern 4: Busy-Wait in a select Statement
 
 ```go
-// BAD: default節でビジーウェイト
+// BAD: busy-wait via the default branch
 func waitForResult(ch <-chan int) int {
 	for {
 		select {
 		case v := <-ch:
 			return v
 		default:
-			// CPU 100% 消費するビジーループ
+			// A busy loop that consumes 100% CPU
 		}
 	}
 }
 
-// GOOD: default節を使わずにブロック（またはtime.Afterでタイムアウト）
+// GOOD: block without a default branch (or use time.After for timeout)
 func waitForResult(ch <-chan int, timeout time.Duration) (int, error) {
 	select {
 	case v := <-ch:
@@ -1789,32 +1789,32 @@ func waitForResult(ch <-chan int, timeout time.Duration) (int, error) {
 }
 ```
 
-### アンチパターン 5: goroutineリーク
+### Anti-Pattern 5: Goroutine Leak
 
 ```go
-// BAD: 誰も受信しないチャネルに送信するgoroutineがリーク
+// BAD: a goroutine sending to a channel with no receiver leaks
 func leakyFunction() <-chan int {
 	ch := make(chan int)
 	go func() {
 		result := heavyComputation()
-		ch <- result // 受信者がいなければ永遠にブロック → goroutineリーク
+		ch <- result // If no receiver exists, blocks forever -> goroutine leak
 	}()
 	return ch
 }
 
-// 呼び出し側で結果を使わない場合
+// When the caller discards the result
 func caller() {
-	_ = leakyFunction() // チャネルを捨てる → goroutineが永遠にリーク
+	_ = leakyFunction() // Discarding the channel -> goroutine leaks forever
 }
 
-// GOOD: contextでキャンセル可能にする
+// GOOD: make it cancellable with a context
 func safeFunction(ctx context.Context) <-chan int {
-	ch := make(chan int, 1) // バッファ1で送信側がブロックしない
+	ch := make(chan int, 1) // Buffer of 1 so the sender does not block
 	go func() {
 		result := heavyComputation()
 		select {
 		case <-ctx.Done():
-			return // キャンセルされたら終了
+			return // Exit if cancelled
 		case ch <- result:
 		}
 	}()
@@ -1824,9 +1824,9 @@ func safeFunction(ctx context.Context) <-chan int {
 
 ---
 
-## 13. 実践ユースケース
+## 13. Practical Use Cases
 
-### ユースケース 1: 画像処理パイプライン
+### Use Case 1: Image Processing Pipeline
 
 ```go
 package main
@@ -1839,7 +1839,7 @@ import (
 	"time"
 )
 
-// Image は処理対象の画像
+// Image is an image to be processed
 type Image struct {
 	ID       int
 	Filename string
@@ -1848,7 +1848,7 @@ type Image struct {
 	Height   int
 }
 
-// ProcessedImage は処理済み画像
+// ProcessedImage is a processed image
 type ProcessedImage struct {
 	Original  Image
 	Thumbnail []byte
@@ -1856,7 +1856,7 @@ type ProcessedImage struct {
 	Duration  time.Duration
 }
 
-// download は画像をダウンロードするステージ
+// download is a stage that downloads images
 func download(ctx context.Context, urls <-chan string) <-chan Image {
 	out := make(chan Image)
 	go func() {
@@ -1867,7 +1867,7 @@ func download(ctx context.Context, urls <-chan string) <-chan Image {
 			case <-ctx.Done():
 				return
 			default:
-				// ダウンロード処理（シミュレート）
+				// Download processing (simulated)
 				time.Sleep(20 * time.Millisecond)
 				img := Image{
 					ID:       id,
@@ -1888,7 +1888,7 @@ func download(ctx context.Context, urls <-chan string) <-chan Image {
 	return out
 }
 
-// resize はサムネイルを生成するステージ（Fan-outで並列化）
+// resize is a stage that generates thumbnails (parallelized with Fan-out)
 func resize(ctx context.Context, in <-chan Image, workers int) <-chan ProcessedImage {
 	out := make(chan ProcessedImage)
 	var wg sync.WaitGroup
@@ -1903,7 +1903,7 @@ func resize(ctx context.Context, in <-chan Image, workers int) <-chan ProcessedI
 					return
 				default:
 					start := time.Now()
-					// リサイズ処理（シミュレート）
+					// Resize processing (simulated)
 					time.Sleep(30 * time.Millisecond)
 					processed := ProcessedImage{
 						Original:  img,
@@ -1933,7 +1933,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// 画像URLを生成
+	// Generate image URLs
 	urls := make(chan string)
 	go func() {
 		defer close(urls)
@@ -1942,11 +1942,11 @@ func main() {
 		}
 	}()
 
-	// Pipeline: ダウンロード → リサイズ（4ワーカー）
+	// Pipeline: download -> resize (4 workers)
 	images := download(ctx, urls)
 	results := resize(ctx, images, 4)
 
-	// 結果を収集
+	// Collect results
 	count := 0
 	for result := range results {
 		count++
@@ -1956,7 +1956,7 @@ func main() {
 }
 ```
 
-### ユースケース 2: マイクロサービスのデータ集約
+### Use Case 2: Microservice Data Aggregation
 
 ```go
 package main
@@ -1969,7 +1969,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// UserProfile はユーザープロフィール
+// UserProfile is a user profile
 type UserProfile struct {
 	UserID   int
 	Name     string
@@ -1990,13 +1990,13 @@ type Review struct {
 	Content string
 }
 
-// getUserProfile は複数サービスからデータを集約する
+// getUserProfile aggregates data from multiple services
 func getUserProfile(ctx context.Context, userID int) (*UserProfile, error) {
 	profile := &UserProfile{UserID: userID}
 
 	g, ctx := errgroup.WithContext(ctx)
 
-	// ユーザー基本情報を取得
+	// Fetch basic user information
 	g.Go(func() error {
 		name, email, err := fetchUserInfo(ctx, userID)
 		if err != nil {
@@ -2007,7 +2007,7 @@ func getUserProfile(ctx context.Context, userID int) (*UserProfile, error) {
 		return nil
 	})
 
-	// 注文履歴を取得
+	// Fetch order history
 	g.Go(func() error {
 		orders, err := fetchOrders(ctx, userID)
 		if err != nil {
@@ -2017,7 +2017,7 @@ func getUserProfile(ctx context.Context, userID int) (*UserProfile, error) {
 		return nil
 	})
 
-	// レビューを取得
+	// Fetch reviews
 	g.Go(func() error {
 		reviews, err := fetchReviews(ctx, userID)
 		if err != nil {
@@ -2027,7 +2027,7 @@ func getUserProfile(ctx context.Context, userID int) (*UserProfile, error) {
 		return nil
 	})
 
-	// ポイント残高を取得
+	// Fetch points balance
 	g.Go(func() error {
 		points, err := fetchPoints(ctx, userID)
 		if err != nil {
@@ -2037,7 +2037,7 @@ func getUserProfile(ctx context.Context, userID int) (*UserProfile, error) {
 		return nil
 	})
 
-	// プレミアム判定
+	// Check premium status
 	g.Go(func() error {
 		premium, err := checkPremium(ctx, userID)
 		if err != nil {
@@ -2053,7 +2053,7 @@ func getUserProfile(ctx context.Context, userID int) (*UserProfile, error) {
 	return profile, nil
 }
 
-// 以下はモックサービス呼び出し
+// The following are mock service calls
 func fetchUserInfo(ctx context.Context, id int) (string, string, error) {
 	time.Sleep(50 * time.Millisecond)
 	return "Tanaka", "tanaka@example.com", nil
@@ -2099,37 +2099,37 @@ func main() {
 
 ## 14. FAQ
 
-### Q1: Worker Poolのワーカー数はどう決めるか？
+### Q1: How do I decide the number of workers in a Worker Pool?
 
-CPUバウンド処理: `runtime.NumCPU()` を基準にする。I/Oバウンド処理: 外部リソースの許容並行数に合わせる（DB接続プール数、API rate limit等）。ベンチマークで最適値を探る。一般的なガイドラインとして:
+For CPU-bound work, use `runtime.NumCPU()` as a baseline. For I/O-bound work, match the acceptable concurrency of external resources (DB connection pool size, API rate limits, etc.). Find the optimal value through benchmarking. As a general guideline:
 
-- **CPUバウンド**: `runtime.NumCPU()` またはそれ以下
-- **I/Oバウンド（ローカルディスク）**: `runtime.NumCPU() * 2`
-- **I/Oバウンド（ネットワーク）**: 50〜200（外部サービスの制限に依存）
-- **混合ワークロード**: ベンチマークで最適値を特定
+- **CPU-bound**: `runtime.NumCPU()` or less
+- **I/O-bound (local disk)**: `runtime.NumCPU() * 2`
+- **I/O-bound (network)**: 50 to 200 (depends on the limits of the external service)
+- **Mixed workload**: Identify the optimal value through benchmarking
 
-### Q2: errgroupとWaitGroupのどちらを使うべきか？
+### Q2: Should I use errgroup or WaitGroup?
 
-エラーハンドリングが必要ならerrgroup、単純な完了待ちならWaitGroup。errgroupはContextとの連携も容易で、現代のGoコードでは多くの場合errgroupが推奨される。errgroup固有の利点として `SetLimit` による同時実行制限と `TryGo` によるノンブロッキング投入がある。
+Use errgroup when error handling is required; use WaitGroup for simple completion waiting. errgroup also integrates easily with Context, and in modern Go code errgroup is recommended in most cases. Specific advantages of errgroup include concurrency limiting via `SetLimit` and non-blocking submission via `TryGo`.
 
-### Q3: Pipelineパターンで遅いステージがあるとどうなるか？
+### Q3: What happens if there is a slow stage in a Pipeline pattern?
 
-最も遅いステージがボトルネックになる。対策は (1) 遅いステージをFan-outで並列化、(2) バッファ付きチャネルで一時的な速度差を吸収、(3) バッチ処理でスループット向上。ボトルネックの特定にはpprof/traceを活用する。
+The slowest stage becomes the bottleneck. Countermeasures include (1) parallelizing the slow stage with Fan-out, (2) absorbing temporary speed differences with buffered channels, and (3) improving throughput with batch processing. Use pprof/trace to identify bottlenecks.
 
-### Q4: goroutineリークをどう検出するか？
+### Q4: How do I detect goroutine leaks?
 
-(1) `runtime.NumGoroutine()` を定期的に監視する。(2) テストでは `goleak` パッケージ（`go.uber.org/goleak`）を使う。(3) pprofの `/debug/pprof/goroutine` エンドポイントで確認する。(4) `context.WithCancel` を適切に使い、キャンセル時に全goroutineが終了することを保証する。
+(1) Monitor `runtime.NumGoroutine()` periodically. (2) In tests, use the `goleak` package (`go.uber.org/goleak`). (3) Check the `/debug/pprof/goroutine` endpoint of pprof. (4) Use `context.WithCancel` appropriately to ensure that all goroutines terminate on cancellation.
 
-### Q5: Fan-outの結果の順序を保証するには？
+### Q5: How can I guarantee the order of Fan-out results?
 
-インデックス付きの結果構造体を使い、全結果収集後にソートする。または、結果をインデックスでマッピングする配列を事前に確保し、各ワーカーが自分のインデックスに直接書き込む（`results[i] = ...` パターン）。
+Use an indexed result struct and sort all results after collection. Alternatively, pre-allocate an array mapped by index and have each worker write directly to its own index (`results[i] = ...` pattern).
 
-### Q6: select文でのチャネル優先順位は？
+### Q6: How are channels prioritized in a select statement?
 
-Go言語のselect文には優先順位がない（複数のcaseが同時に準備できた場合はランダムに選択される）。優先順位が必要な場合はネストしたselect文を使う:
+Go's select statement has no priority (when multiple cases are ready simultaneously, one is chosen at random). When prioritization is needed, use nested select statements:
 
 ```go
-// ctx.Done()を優先的にチェック
+// Prioritize checking ctx.Done()
 select {
 case <-ctx.Done():
     return ctx.Err()
@@ -2143,57 +2143,57 @@ default:
 }
 ```
 
-### Q7: チャネルのバッファサイズはどう決めるか？
+### Q7: How do I decide the buffer size of a channel?
 
-- **バッファなし（0）**: 送受信が同期。厳密な手順制御が必要な場合
-- **小バッファ（1〜10）**: ステージ間の小さな速度差を吸収
-- **中バッファ（10〜100）**: I/O待ちの多いPipelineで有効
-- **大バッファ（100+）**: バースト的な入力を受け付ける場合。メモリ消費に注意
+- **Unbuffered (0)**: Send and receive are synchronized. Use when strict step-by-step control is required
+- **Small buffer (1 to 10)**: Absorbs minor speed differences between stages
+- **Medium buffer (10 to 100)**: Effective for Pipelines with many I/O waits
+- **Large buffer (100+)**: When accepting bursty input. Be mindful of memory consumption
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point to focus on when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and observing how it behaves.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the basics and jumping to advanced topics. We recommend solidly understanding the fundamental concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in real-world development?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-| 概念 | 要点 |
-|------|------|
-| Pipeline | チャネルでステージを連結。データの流れが明確 |
-| Fan-out/Fan-in | 処理を分散し結果を集約 |
-| Worker Pool | goroutine数を制限して安定運用 |
-| errgroup | エラー付き並行処理の標準パターン |
-| セマフォ | バッファ付きチャネルで同時実行数制限 |
-| Or-Done | キャンセル対応のチャネル読み取りヘルパー |
-| Tee | 1入力を2出力に分配 |
-| Bridge | チャネルのチャネルをフラット化 |
-| Rate Limiter | スループットを制御して外部リソースを保護 |
+The knowledge from this topic is frequently applied in day-to-day development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## Summary
 
-- [03-context.md](./03-context.md) -- Contextによるキャンセル制御
-- [../02-web/00-net-http.md](../02-web/00-net-http.md) -- HTTPサーバーでの並行処理
-- [../03-tools/02-profiling.md](../03-tools/02-profiling.md) -- 並行処理のプロファイリング
+| Concept | Key Points |
+|---------|------------|
+| Pipeline | Connect stages with channels. Data flow is explicit |
+| Fan-out/Fan-in | Distribute processing and aggregate results |
+| Worker Pool | Limit the number of goroutines for stable operation |
+| errgroup | Standard pattern for concurrent processing with errors |
+| Semaphore | Limit concurrency using a buffered channel |
+| Or-Done | Helper for cancellation-aware channel reading |
+| Tee | Distribute one input to two outputs |
+| Bridge | Flatten a channel of channels |
+| Rate Limiter | Control throughput to protect external resources |
 
 ---
 
-## 参考文献
+## Recommended Next Reads
+
+- [03-context.md](./03-context.md) -- Cancellation control with Context
+- [../02-web/00-net-http.md](../02-web/00-net-http.md) -- Concurrency in HTTP servers
+- [../03-tools/02-profiling.md](../03-tools/02-profiling.md) -- Profiling concurrent code
+
+---
+
+## References
 
 1. **Go Blog, "Go Concurrency Patterns: Pipelines and cancellation"** -- https://go.dev/blog/pipelines
 2. **Go Blog, "Advanced Go Concurrency Patterns"** -- https://go.dev/blog/io2013-talk-concurrency

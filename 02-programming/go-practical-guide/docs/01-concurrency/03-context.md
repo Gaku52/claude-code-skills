@@ -1,53 +1,53 @@
-# Context -- キャンセル・タイムアウト・値の伝搬
+# Context -- Cancellation, Timeouts, and Value Propagation
 
-> context.Contextはgoroutine間でキャンセルシグナル・タイムアウト・リクエストスコープの値を伝搬するための標準メカニズムである。
-
----
-
-## この章で学ぶこと
-
-1. **context.WithCancel** -- 手動キャンセル
-2. **context.WithTimeout / WithDeadline** -- タイムアウト制御
-3. **context.WithValue** -- 値の伝搬とベストプラクティス
-4. **context.AfterFunc (Go 1.21+)** -- キャンセル時のコールバック
-5. **context.WithoutCancel (Go 1.21+)** -- キャンセル伝搬の切断
-6. **実践パターン** -- HTTPサーバー・DB・マイクロサービスでのContext活用
-
-
-## 前提知識
-
-このガイドを読む前に、以下の知識があると理解が深まります:
-
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [並行パターン -- Fan-out/Fan-in, Pipeline, Worker Pool](./02-concurrency-patterns.md) の内容を理解していること
+> context.Context is the standard mechanism for propagating cancellation signals, timeouts, and request-scoped values across goroutines.
 
 ---
 
-## 1. Contextの基本概念
+## What You Will Learn in This Chapter
 
-context.Contextは以下の4つの機能を提供する。
+1. **context.WithCancel** -- Manual cancellation
+2. **context.WithTimeout / WithDeadline** -- Timeout control
+3. **context.WithValue** -- Value propagation and best practices
+4. **context.AfterFunc (Go 1.21+)** -- Callbacks on cancellation
+5. **context.WithoutCancel (Go 1.21+)** -- Severing cancellation propagation
+6. **Practical patterns** -- Using Context in HTTP servers, databases, and microservices
 
-1. **キャンセル伝搬**: 親のキャンセルが全子孫に自動伝搬する
-2. **デッドライン管理**: 処理の時間制限を設定する
-3. **値の伝搬**: リクエストスコープの横断的関心事を渡す
-4. **Done()チャネル**: キャンセルを検知するためのチャネルを提供する
 
-### 1.1 Contextの設計原則
+## Prerequisites
 
-- **第一引数に渡す**: 関数の第一引数を`ctx context.Context`にする
-- **構造体に保存しない**: リクエストスコープのcontextをフィールドに持たない
-- **nilを渡さない**: 不明な場合は`context.TODO()`を使う
-- **値は横断的関心事のみ**: ビジネスロジックのパラメータを入れない
-- **cancel関数は必ず呼ぶ**: `defer cancel()`を取得直後に書く
+Before reading this guide, the following knowledge will help deepen your understanding:
+
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Familiarity with the content of [Concurrency Patterns -- Fan-out/Fan-in, Pipeline, Worker Pool](./02-concurrency-patterns.md)
+
+---
+
+## 1. Core Concepts of Context
+
+context.Context provides the following four capabilities.
+
+1. **Cancellation propagation**: Cancellation of a parent automatically propagates to all descendants
+2. **Deadline management**: Sets time limits on processing
+3. **Value propagation**: Passes request-scoped cross-cutting concerns
+4. **Done() channel**: Provides a channel for detecting cancellation
+
+### 1.1 Design Principles of Context
+
+- **Pass as the first argument**: Make the first argument of functions `ctx context.Context`
+- **Don't store in structs**: Do not hold request-scoped contexts as fields
+- **Don't pass nil**: Use `context.TODO()` when unsure
+- **Values for cross-cutting concerns only**: Don't put business logic parameters in it
+- **Always call the cancel function**: Write `defer cancel()` immediately after obtaining it
 
 ---
 
 ## 2. context.WithCancel
 
-WithCancelは手動でキャンセルシグナルを送信するためのcontextを生成する。cancel関数を呼ぶと、そのcontextから派生した全ての子contextもキャンセルされる。
+WithCancel creates a context for manually sending a cancellation signal. When the cancel function is called, all child contexts derived from that context are also cancelled.
 
-### コード例 1: context.WithCancel 基本
+### Code Example 1: context.WithCancel Basics
 
 ```go
 package main
@@ -62,7 +62,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// バックグラウンドワーカー
+	// Background worker
 	go func() {
 		for {
 			select {
@@ -77,12 +77,12 @@ func main() {
 	}()
 
 	time.Sleep(2 * time.Second)
-	cancel() // goroutineにキャンセルを通知
-	time.Sleep(100 * time.Millisecond) // goroutineの終了を待つ
+	cancel() // Notify the goroutine of cancellation
+	time.Sleep(100 * time.Millisecond) // Wait for the goroutine to finish
 }
 ```
 
-### コード例 2: 複数goroutineの同時キャンセル
+### Code Example 2: Simultaneous Cancellation of Multiple Goroutines
 
 ```go
 package main
@@ -94,7 +94,7 @@ import (
 	"time"
 )
 
-// worker は定期的にジョブを処理するワーカー
+// worker is a worker that processes jobs periodically
 func worker(ctx context.Context, id int, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for {
@@ -112,13 +112,13 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	var wg sync.WaitGroup
-	// 5つのワーカーを起動
+	// Launch 5 workers
 	for i := 1; i <= 5; i++ {
 		wg.Add(1)
 		go worker(ctx, i, &wg)
 	}
 
-	// 1秒後に全ワーカーを停止
+	// Stop all workers after 1 second
 	time.Sleep(1 * time.Second)
 	fmt.Println("Cancelling all workers...")
 	cancel()
@@ -128,7 +128,7 @@ func main() {
 }
 ```
 
-### コード例 3: 条件付きキャンセル
+### Code Example 3: Conditional Cancellation
 
 ```go
 package main
@@ -143,7 +143,7 @@ import (
 
 var ErrCriticalFailure = errors.New("critical failure detected")
 
-// monitor はシステム状態を監視し、異常検知時にキャンセルする
+// monitor watches system state and cancels on anomaly detection
 func monitor(ctx context.Context, cancel context.CancelFunc) {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
@@ -153,17 +153,17 @@ func monitor(ctx context.Context, cancel context.CancelFunc) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			// ランダムに異常を検知するシミュレーション
+			// Simulation that randomly detects an anomaly
 			if rand.Float64() < 0.05 {
 				fmt.Println("Monitor: critical failure detected!")
-				cancel() // 全処理をキャンセル
+				cancel() // Cancel all processing
 				return
 			}
 		}
 	}
 }
 
-// processData はデータを順次処理する
+// processData processes data sequentially
 func processData(ctx context.Context) error {
 	for i := 0; i < 100; i++ {
 		select {
@@ -195,9 +195,9 @@ func main() {
 
 ## 3. context.WithTimeout / WithDeadline
 
-WithTimeoutは指定した期間後に自動的にキャンセルされるcontextを生成する。WithDeadlineは絶対時刻でデッドラインを指定する。内部的にはWithTimeoutはWithDeadlineの薄いラッパーである。
+WithTimeout creates a context that is automatically cancelled after a specified duration. WithDeadline specifies a deadline as an absolute point in time. Internally, WithTimeout is a thin wrapper around WithDeadline.
 
-### コード例 4: context.WithTimeout
+### Code Example 4: context.WithTimeout
 
 ```go
 package main
@@ -210,10 +210,10 @@ import (
 	"time"
 )
 
-// fetchWithTimeout はタイムアウト付きでHTTPリクエストを行う
+// fetchWithTimeout performs an HTTP request with a timeout
 func fetchWithTimeout(url string, timeout time.Duration) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel() // タイムアウト前に完了しても必ずcancelを呼ぶ
+	defer cancel() // Always call cancel even if completed before the timeout
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
@@ -222,7 +222,7 @@ func fetchWithTimeout(url string, timeout time.Duration) ([]byte, error) {
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("do request: %w", err) // タイムアウト時: context deadline exceeded
+		return nil, fmt.Errorf("do request: %w", err) // On timeout: context deadline exceeded
 	}
 	defer resp.Body.Close()
 
@@ -241,7 +241,7 @@ func main() {
 	}
 	fmt.Printf("Response: %d bytes\n", len(body))
 
-	// タイムアウトするケース
+	// Case that times out
 	_, err = fetchWithTimeout("https://httpbin.org/delay/10", 3*time.Second)
 	if err != nil {
 		fmt.Printf("Expected timeout error: %v\n", err)
@@ -249,7 +249,7 @@ func main() {
 }
 ```
 
-### コード例 5: context.WithDeadline
+### Code Example 5: context.WithDeadline
 
 ```go
 package main
@@ -260,7 +260,7 @@ import (
 	"time"
 )
 
-// processUntilDeadline はデッドラインまで処理を続ける
+// processUntilDeadline continues processing until the deadline
 func processUntilDeadline(ctx context.Context) (int, error) {
 	count := 0
 	for {
@@ -268,7 +268,7 @@ func processUntilDeadline(ctx context.Context) (int, error) {
 		case <-ctx.Done():
 			return count, ctx.Err() // context.DeadlineExceeded
 		default:
-			// 1アイテムの処理をシミュレート
+			// Simulate processing a single item
 			time.Sleep(100 * time.Millisecond)
 			count++
 			fmt.Printf("Processed item %d\n", count)
@@ -277,12 +277,12 @@ func processUntilDeadline(ctx context.Context) (int, error) {
 }
 
 func main() {
-	// 現在時刻から1秒後をデッドラインに設定
+	// Set the deadline 1 second from now
 	deadline := time.Now().Add(1 * time.Second)
 	ctx, cancel := context.WithDeadline(context.Background(), deadline)
 	defer cancel()
 
-	// デッドラインの確認
+	// Check the deadline
 	if d, ok := ctx.Deadline(); ok {
 		fmt.Printf("Deadline: %v (in %v)\n", d.Format(time.RFC3339), time.Until(d))
 	}
@@ -292,7 +292,7 @@ func main() {
 }
 ```
 
-### コード例 6: ネストしたタイムアウト
+### Code Example 6: Nested Timeouts
 
 ```go
 package main
@@ -303,27 +303,27 @@ import (
 	"time"
 )
 
-// 親のタイムアウトが子より短い場合、親のタイムアウトが優先される
+// When the parent's timeout is shorter than the child's, the parent's timeout takes precedence
 func demonstrateNestedTimeout() {
-	// 親: 2秒タイムアウト
+	// Parent: 2-second timeout
 	parentCtx, parentCancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer parentCancel()
 
-	// 子: 5秒タイムアウト（しかし親が2秒でキャンセルするため、実質2秒）
+	// Child: 5-second timeout (but effectively 2 seconds because the parent cancels at 2 seconds)
 	childCtx, childCancel := context.WithTimeout(parentCtx, 5*time.Second)
 	defer childCancel()
 
-	// 孫: 1秒タイムアウト（これが最も短い）
+	// Grandchild: 1-second timeout (this is the shortest)
 	grandchildCtx, grandchildCancel := context.WithTimeout(childCtx, 1*time.Second)
 	defer grandchildCancel()
 
-	// 孫は1秒でタイムアウト
+	// Grandchild times out in 1 second
 	select {
 	case <-grandchildCtx.Done():
 		fmt.Printf("Grandchild done: %v\n", grandchildCtx.Err())
 	}
 
-	// 子は親の2秒でタイムアウト（5秒ではない）
+	// Child times out at the parent's 2 seconds (not 5 seconds)
 	select {
 	case <-childCtx.Done():
 		fmt.Printf("Child done: %v\n", childCtx.Err())
@@ -335,7 +335,7 @@ func main() {
 }
 ```
 
-### コード例 7: タイムアウトの残り時間を確認して処理を分岐
+### Code Example 7: Branching Based on Remaining Timeout
 
 ```go
 package main
@@ -346,11 +346,11 @@ import (
 	"time"
 )
 
-// adaptiveProcess はタイムアウトの残り時間に応じて処理方法を変える
+// adaptiveProcess changes its processing approach based on the remaining timeout
 func adaptiveProcess(ctx context.Context) error {
 	deadline, ok := ctx.Deadline()
 	if !ok {
-		// デッドラインが設定されていない
+		// No deadline set
 		return fullProcess(ctx)
 	}
 
@@ -358,13 +358,13 @@ func adaptiveProcess(ctx context.Context) error {
 	fmt.Printf("Remaining time: %v\n", remaining)
 
 	if remaining < 1*time.Second {
-		// 残り時間が少ない → 簡易処理
+		// Little remaining time -> simplified processing
 		return quickProcess(ctx)
 	} else if remaining < 5*time.Second {
-		// 残り時間が中程度 → 標準処理
+		// Moderate remaining time -> standard processing
 		return standardProcess(ctx)
 	} else {
-		// 残り時間が十分 → フル処理
+		// Ample remaining time -> full processing
 		return fullProcess(ctx)
 	}
 }
@@ -410,9 +410,9 @@ func main() {
 
 ## 4. context.WithValue
 
-WithValueはリクエストスコープの値をcontextに格納する。ただし、ビジネスロジックのパラメータではなく、横断的関心事（トレースID、認証情報、ロケール等）のみを格納するべきである。
+WithValue stores request-scoped values in a context. However, you should only store cross-cutting concerns (trace IDs, authentication information, locale, etc.), not business logic parameters.
 
-### コード例 8: context.WithValue の基本
+### Code Example 8: context.WithValue Basics
 
 ```go
 package main
@@ -424,7 +424,7 @@ import (
 	"net/http"
 )
 
-// 独自のキー型を定義してキーの衝突を防ぐ
+// Define a custom key type to prevent key collisions
 type contextKey string
 
 const (
@@ -433,19 +433,19 @@ const (
 	localeKey    contextKey = "locale"
 )
 
-// requestIDMiddleware はリクエストIDをcontextに設定する
+// requestIDMiddleware sets the request ID on the context
 func requestIDMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		reqID := r.Header.Get("X-Request-ID")
 		if reqID == "" {
-			reqID = generateRequestID() // UUID生成
+			reqID = generateRequestID() // Generate UUID
 		}
 		ctx := context.WithValue(r.Context(), requestIDKey, reqID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
-// authMiddleware はユーザーIDをcontextに設定する
+// authMiddleware sets the user ID on the context
 func authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := r.Header.Get("Authorization")
@@ -459,7 +459,7 @@ func authMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// localeMiddleware はロケール情報をcontextに設定する
+// localeMiddleware sets locale information on the context
 func localeMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		locale := r.Header.Get("Accept-Language")
@@ -471,7 +471,7 @@ func localeMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// handler はcontextから値を取得する
+// handler retrieves values from the context
 func handler(w http.ResponseWriter, r *http.Request) {
 	reqID, _ := r.Context().Value(requestIDKey).(string)
 	userID, _ := r.Context().Value(userIDKey).(int)
@@ -482,11 +482,11 @@ func handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func generateRequestID() string {
-	return "req-12345" // 実際にはUUIDを生成する
+	return "req-12345" // In practice, generate a UUID
 }
 
 func validateToken(token string) (int, error) {
-	return 42, nil // 実際にはトークン検証を行う
+	return 42, nil // In practice, validate the token
 }
 
 func main() {
@@ -498,7 +498,7 @@ func main() {
 }
 ```
 
-### コード例 9: 型安全なContext値アクセサ
+### Code Example 9: Type-Safe Context Value Accessors
 
 ```go
 package main
@@ -509,7 +509,7 @@ import (
 	"fmt"
 )
 
-// --- キー定義 ---
+// --- Key definitions ---
 
 type contextKey int
 
@@ -520,20 +520,20 @@ const (
 	tenantIDKey
 )
 
-// --- 型安全なアクセサ ---
+// --- Type-safe accessors ---
 
-// SetRequestID はリクエストIDをcontextに設定する
+// SetRequestID sets the request ID on the context
 func SetRequestID(ctx context.Context, id string) context.Context {
 	return context.WithValue(ctx, requestIDKey, id)
 }
 
-// GetRequestID はcontextからリクエストIDを取得する
+// GetRequestID retrieves the request ID from the context
 func GetRequestID(ctx context.Context) (string, bool) {
 	id, ok := ctx.Value(requestIDKey).(string)
 	return id, ok
 }
 
-// MustGetRequestID はリクエストIDを取得する（存在しなければパニック）
+// MustGetRequestID retrieves the request ID (panics if not present)
 func MustGetRequestID(ctx context.Context) string {
 	id, ok := GetRequestID(ctx)
 	if !ok {
@@ -542,12 +542,12 @@ func MustGetRequestID(ctx context.Context) string {
 	return id
 }
 
-// SetUserID はユーザーIDをcontextに設定する
+// SetUserID sets the user ID on the context
 func SetUserID(ctx context.Context, id int) context.Context {
 	return context.WithValue(ctx, userIDKey, id)
 }
 
-// GetUserID はcontextからユーザーIDを取得する
+// GetUserID retrieves the user ID from the context
 func GetUserID(ctx context.Context) (int, error) {
 	id, ok := ctx.Value(userIDKey).(int)
 	if !ok {
@@ -556,15 +556,15 @@ func GetUserID(ctx context.Context) (int, error) {
 	return id, nil
 }
 
-// SetTraceID はトレースIDをcontextに設定する
+// SetTraceID sets the trace ID on the context
 func SetTraceID(ctx context.Context, id string) context.Context {
 	return context.WithValue(ctx, traceIDKey, id)
 }
 
-// GetTraceID はcontextからトレースIDを取得する
+// GetTraceID retrieves the trace ID from the context
 func GetTraceID(ctx context.Context) string {
 	id, _ := ctx.Value(traceIDKey).(string)
-	return id // 空文字列がデフォルト
+	return id // Empty string by default
 }
 
 func main() {
@@ -583,11 +583,11 @@ func main() {
 
 ---
 
-## 5. Contextの伝搬チェーン
+## 5. Context Propagation Chains
 
-実際のWebアプリケーションでは、HTTPリクエストのcontextを起点として、サービス層、リポジトリ層、外部API呼び出しへとcontextが伝搬する。
+In real web applications, the HTTP request's context serves as the starting point, propagating down through the service layer, repository layer, and external API calls.
 
-### コード例 10: HTTPリクエストからDBまでの完全な伝搬チェーン
+### Code Example 10: Complete Propagation Chain from HTTP Request to Database
 
 ```go
 package main
@@ -602,14 +602,14 @@ import (
 	"time"
 )
 
-// --- Handler層 ---
+// --- Handler layer ---
 
 func handleGetUser(userService *UserService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// HTTPリクエストのContextを基盤にする
+		// Use the HTTP request's Context as the foundation
 		ctx := r.Context()
 
-		// ハンドラ独自のタイムアウトを追加
+		// Add a handler-specific timeout
 		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
 
@@ -618,11 +618,11 @@ func handleGetUser(userService *UserService) http.HandlerFunc {
 		if err != nil {
 			switch {
 			case err == context.Canceled:
-				// クライアントが接続を切断した
+				// Client disconnected
 				log.Printf("Client disconnected: %v", err)
 				return
 			case err == context.DeadlineExceeded:
-				// タイムアウト
+				// Timeout
 				http.Error(w, "request timeout", http.StatusGatewayTimeout)
 				return
 			default:
@@ -636,7 +636,7 @@ func handleGetUser(userService *UserService) http.HandlerFunc {
 	}
 }
 
-// --- Service層 ---
+// --- Service layer ---
 
 type User struct {
 	ID    string `json:"id"`
@@ -650,19 +650,19 @@ type UserService struct {
 }
 
 func (s *UserService) GetUser(ctx context.Context, id string) (*User, error) {
-	// キャッシュから試行
+	// Try the cache first
 	user, err := s.cacheService.Get(ctx, "user:"+id)
 	if err == nil && user != nil {
 		return user, nil
 	}
 
-	// DBから取得
+	// Fetch from the database
 	user, err = s.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("find user: %w", err)
 	}
 
-	// キャッシュに保存（contextが有効な場合のみ）
+	// Save to cache (only if the context is still valid)
 	if ctx.Err() == nil {
 		_ = s.cacheService.Set(ctx, "user:"+id, user, 5*time.Minute)
 	}
@@ -670,7 +670,7 @@ func (s *UserService) GetUser(ctx context.Context, id string) (*User, error) {
 	return user, nil
 }
 
-// --- Repository層 ---
+// --- Repository layer ---
 
 type UserRepository struct {
 	db *sql.DB
@@ -687,7 +687,7 @@ func (r *UserRepository) FindByID(ctx context.Context, id string) (*User, error)
 	return &user, nil
 }
 
-// --- Cache層 ---
+// --- Cache layer ---
 
 type CacheService struct{}
 
@@ -697,7 +697,7 @@ func (c *CacheService) Get(ctx context.Context, key string) (*User, error) {
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	default:
-		return nil, fmt.Errorf("cache miss") // シミュレート
+		return nil, fmt.Errorf("cache miss") // Simulated
 	}
 }
 
@@ -706,17 +706,17 @@ func (c *CacheService) Set(ctx context.Context, key string, user *User, ttl time
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
-		return nil // シミュレート
+		return nil // Simulated
 	}
 }
 
 func main() {
-	// 省略: DB接続、サーバー起動
+	// Omitted: DB connection, server startup
 	log.Println("Server starting on :8080")
 }
 ```
 
-### コード例 11: マイクロサービス間のContext伝搬
+### Code Example 11: Context Propagation Between Microservices
 
 ```go
 package main
@@ -729,33 +729,33 @@ import (
 	"time"
 )
 
-// contextからHTTPヘッダーへの伝搬
+// Propagating from context to HTTP headers
 func propagateContext(ctx context.Context, req *http.Request) {
-	// トレースIDをHTTPヘッダーに伝搬
+	// Propagate the trace ID into HTTP headers
 	if traceID := GetTraceID(ctx); traceID != "" {
 		req.Header.Set("X-Trace-ID", traceID)
 	}
 
-	// リクエストIDも伝搬
+	// Also propagate the request ID
 	if reqID, ok := GetRequestID(ctx); ok {
 		req.Header.Set("X-Request-ID", reqID)
 	}
 
-	// デッドラインをヘッダーで伝搬（オプション）
+	// Propagate the deadline via a header (optional)
 	if deadline, ok := ctx.Deadline(); ok {
 		remaining := time.Until(deadline)
 		req.Header.Set("X-Timeout-Ms", fmt.Sprintf("%d", remaining.Milliseconds()))
 	}
 }
 
-// callExternalService は外部サービスを呼び出す
+// callExternalService calls an external service
 func callExternalService(ctx context.Context, url string) (map[string]interface{}, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	// contextの情報をHTTPヘッダーに伝搬
+	// Propagate context information into HTTP headers
 	propagateContext(ctx, req)
 
 	client := &http.Client{Timeout: 30 * time.Second}
@@ -793,9 +793,9 @@ func main() {
 
 ## 6. context.AfterFunc (Go 1.21+)
 
-Go 1.21で追加された`context.AfterFunc`は、contextがキャンセルされた後にコールバック関数を実行する。リソースのクリーンアップや通知に使用する。
+`context.AfterFunc`, added in Go 1.21, runs a callback function after a context is cancelled. It is used for resource cleanup and notifications.
 
-### コード例 12: context.AfterFunc
+### Code Example 12: context.AfterFunc
 
 ```go
 package main
@@ -809,24 +809,24 @@ import (
 func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	// contextがキャンセルされたらクリーンアップを実行
+	// Run cleanup when the context is cancelled
 	stop := context.AfterFunc(ctx, func() {
 		fmt.Println("AfterFunc: context was cancelled, cleaning up...")
-		// リソースのクリーンアップ処理
+		// Resource cleanup processing
 		closeConnections()
 		flushLogs()
 	})
 
-	// AfterFuncの戻り値で登録解除が可能
-	_ = stop // stop()を呼ぶとAfterFuncの登録を解除できる
+	// The return value of AfterFunc can be used to unregister
+	_ = stop // Calling stop() can unregister the AfterFunc
 
-	// 処理を実行
+	// Execute processing
 	fmt.Println("Processing...")
 	time.Sleep(1 * time.Second)
 
-	// キャンセル → AfterFuncが実行される
+	// Cancel -> AfterFunc runs
 	cancel()
-	time.Sleep(100 * time.Millisecond) // AfterFuncの実行を待つ
+	time.Sleep(100 * time.Millisecond) // Wait for AfterFunc to run
 }
 
 func closeConnections() {
@@ -838,7 +838,7 @@ func flushLogs() {
 }
 ```
 
-### コード例 13: AfterFuncによるリソース解放パターン
+### Code Example 13: Resource Release Pattern with AfterFunc
 
 ```go
 package main
@@ -849,7 +849,7 @@ import (
 	"sync"
 )
 
-// Resource はキャンセル時に自動解放されるリソース
+// Resource is a resource automatically released on cancellation
 type Resource struct {
 	name   string
 	mu     sync.Mutex
@@ -876,11 +876,11 @@ func (r *Resource) Use() error {
 	return nil
 }
 
-// acquireResource はcontextに紐づくリソースを取得する
+// acquireResource acquires a resource tied to the context
 func acquireResource(ctx context.Context, name string) *Resource {
 	r := &Resource{name: name}
 
-	// contextキャンセル時にリソースを自動解放
+	// Automatically release the resource when the context is cancelled
 	context.AfterFunc(ctx, func() {
 		r.Close()
 	})
@@ -897,10 +897,10 @@ func main() {
 	r1.Use()
 	r2.Use()
 
-	// キャンセル → 全リソースが自動解放
+	// Cancel -> all resources are released automatically
 	cancel()
 
-	// 解放後のアクセスはエラー
+	// Access after release is an error
 	if err := r1.Use(); err != nil {
 		fmt.Printf("Expected error: %v\n", err)
 	}
@@ -911,9 +911,9 @@ func main() {
 
 ## 7. context.WithoutCancel (Go 1.21+)
 
-Go 1.21で追加された`context.WithoutCancel`は、親contextの値は引き継ぐが、キャンセルシグナルは伝搬しない新しいcontextを生成する。バックグラウンド処理やクリーンアップ処理で有用。
+`context.WithoutCancel`, added in Go 1.21, creates a new context that inherits the parent's values but does not propagate cancellation signals. It is useful for background processing and cleanup tasks.
 
-### コード例 14: context.WithoutCancel
+### Code Example 14: context.WithoutCancel
 
 ```go
 package main
@@ -925,20 +925,20 @@ import (
 )
 
 func main() {
-	// 親context: 1秒でタイムアウト
+	// Parent context: 1-second timeout
 	parentCtx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
-	// 値を設定
+	// Set a value
 	parentCtx = SetTraceID(parentCtx, "trace-abc")
 
-	// WithoutCancel: 親のキャンセルを伝搬しない
+	// WithoutCancel: does not propagate the parent's cancellation
 	backgroundCtx := context.WithoutCancel(parentCtx)
 
-	// 値は引き継がれる
+	// Values are inherited
 	fmt.Printf("TraceID in background: %s\n", GetTraceID(backgroundCtx))
 
-	// 親がタイムアウトしても影響を受けない
+	// Unaffected even when the parent times out
 	time.Sleep(2 * time.Second)
 
 	if parentCtx.Err() != nil {
@@ -950,7 +950,7 @@ func main() {
 }
 ```
 
-### コード例 15: WithoutCancelの実践的な利用例
+### Code Example 15: Practical Use of WithoutCancel
 
 ```go
 package main
@@ -962,25 +962,25 @@ import (
 	"time"
 )
 
-// handleRequest はHTTPリクエストを処理する
+// handleRequest handles an HTTP request
 func handleRequest(ctx context.Context) {
-	// メイン処理（リクエストcontextに紐づく）
+	// Main processing (tied to the request context)
 	result, err := processRequest(ctx)
 	if err != nil {
 		log.Printf("Error: %v", err)
 		return
 	}
 
-	// 非同期のバックグラウンドタスク（リクエストcontextのキャンセルに影響されない）
+	// Asynchronous background task (unaffected by the request context's cancellation)
 	bgCtx := context.WithoutCancel(ctx)
-	// ただし独自のタイムアウトは設定する
+	// However, set its own timeout
 	bgCtx, bgCancel := context.WithTimeout(bgCtx, 30*time.Second)
 
 	go func() {
 		defer bgCancel()
-		// 監査ログの記録（リクエストが終了しても完了させたい）
+		// Record audit log (should complete even after the request ends)
 		writeAuditLog(bgCtx, result)
-		// メトリクス送信
+		// Send metrics
 		sendMetrics(bgCtx, result)
 	}()
 
@@ -1019,7 +1019,7 @@ func main() {
 	defer cancel()
 
 	handleRequest(ctx)
-	time.Sleep(1 * time.Second) // バックグラウンドタスクの完了を待つ
+	time.Sleep(1 * time.Second) // Wait for background tasks to complete
 }
 ```
 
@@ -1027,9 +1027,9 @@ func main() {
 
 ## 8. context.WithCancelCause (Go 1.20+)
 
-Go 1.20で追加された`context.WithCancelCause`は、キャンセル理由を付与できるcontextを生成する。デバッグやエラーレポートに有用。
+`context.WithCancelCause`, added in Go 1.20, creates a context that allows attaching a cancellation cause. It is useful for debugging and error reporting.
 
-### コード例 16: context.WithCancelCause
+### Code Example 16: context.WithCancelCause
 
 ```go
 package main
@@ -1051,18 +1051,18 @@ func main() {
 	ctx, cancel := context.WithCancelCause(context.Background())
 
 	go func() {
-		// 何らかの条件でキャンセル
+		// Cancel under some condition
 		time.Sleep(1 * time.Second)
-		cancel(ErrResourceLimit) // 原因付きでキャンセル
+		cancel(ErrResourceLimit) // Cancel with a cause
 	}()
 
 	<-ctx.Done()
 
-	// キャンセル原因を取得
+	// Retrieve the cancellation cause
 	fmt.Printf("Context error: %v\n", ctx.Err())           // context canceled
 	fmt.Printf("Cancel cause: %v\n", context.Cause(ctx))   // resource limit exceeded
 
-	// 原因に基づいた処理分岐
+	// Branch based on the cause
 	cause := context.Cause(ctx)
 	switch {
 	case errors.Is(cause, ErrUserAborted):
@@ -1079,11 +1079,11 @@ func main() {
 
 ---
 
-## 9. Graceful Shutdownとcontext
+## 9. Graceful Shutdown and context
 
-HTTPサーバーのGraceful Shutdownにおいて、contextは重要な役割を果たす。
+Context plays a crucial role in the graceful shutdown of HTTP servers.
 
-### コード例 17: Graceful Shutdown
+### Code Example 17: Graceful Shutdown
 
 ```go
 package main
@@ -1122,7 +1122,7 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// サーバーをバックグラウンドで起動
+	// Start the server in the background
 	go func() {
 		log.Printf("Server starting on %s", server.Addr)
 		if err := server.ListenAndServe(); err != http.ErrServerClosed {
@@ -1130,19 +1130,19 @@ func main() {
 		}
 	}()
 
-	// シグナルを待機
+	// Wait for a signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	sig := <-quit
 	log.Printf("Received signal: %v, shutting down...", sig)
 
-	// Graceful Shutdown: 処理中のリクエストの完了を最大30秒待つ
+	// Graceful shutdown: wait up to 30 seconds for in-flight requests to complete
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer shutdownCancel()
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		log.Printf("Graceful shutdown failed: %v", err)
-		// 強制終了
+		// Force termination
 		server.Close()
 	}
 
@@ -1150,7 +1150,7 @@ func main() {
 }
 ```
 
-### コード例 18: Graceful Shutdown with バックグラウンドワーカー
+### Code Example 18: Graceful Shutdown with Background Workers
 
 ```go
 package main
@@ -1165,7 +1165,7 @@ import (
 	"time"
 )
 
-// Application はアプリケーション全体のライフサイクルを管理する
+// Application manages the lifecycle of the entire application
 type Application struct {
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -1177,7 +1177,7 @@ func NewApplication() *Application {
 	return &Application{ctx: ctx, cancel: cancel}
 }
 
-// StartWorker はバックグラウンドワーカーを起動する
+// StartWorker starts a background worker
 func (app *Application) StartWorker(name string, fn func(context.Context)) {
 	app.wg.Add(1)
 	go func() {
@@ -1188,7 +1188,7 @@ func (app *Application) StartWorker(name string, fn func(context.Context)) {
 	}()
 }
 
-// Shutdown はアプリケーションをシャットダウンする
+// Shutdown shuts down the application
 func (app *Application) Shutdown(timeout time.Duration) {
 	log.Println("Application: initiating shutdown")
 	app.cancel()
@@ -1210,7 +1210,7 @@ func (app *Application) Shutdown(timeout time.Duration) {
 func main() {
 	app := NewApplication()
 
-	// メッセージ処理ワーカー
+	// Message processing worker
 	app.StartWorker("message-processor", func(ctx context.Context) {
 		ticker := time.NewTicker(1 * time.Second)
 		defer ticker.Stop()
@@ -1224,7 +1224,7 @@ func main() {
 		}
 	})
 
-	// メトリクス収集ワーカー
+	// Metrics collection worker
 	app.StartWorker("metrics-collector", func(ctx context.Context) {
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
@@ -1238,7 +1238,7 @@ func main() {
 		}
 	})
 
-	// ヘルスチェックワーカー
+	// Health check worker
 	app.StartWorker("health-checker", func(ctx context.Context) {
 		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()
@@ -1252,7 +1252,7 @@ func main() {
 		}
 	})
 
-	// シグナル待機
+	// Wait for signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
@@ -1263,9 +1263,9 @@ func main() {
 
 ---
 
-## 10. ASCII図解
+## 10. ASCII Diagrams
 
-### 図1: Contextツリーの伝搬
+### Diagram 1: Propagation of a Context Tree
 
 ```
 context.Background()
@@ -1280,17 +1280,17 @@ context.Background()
             │
             └── WithValue(traceID) ── Logger
 
-Cancel の伝搬: 親がキャンセル → 全ての子もキャンセル
+Cancellation propagation: parent cancels -> all children are also cancelled
 ```
 
-### 図2: キャンセル伝搬フロー
+### Diagram 2: Cancellation Propagation Flow
 
 ```
-     クライアント切断
+     Client disconnects
           │
           ▼
   ┌───────────────┐
-  │ HTTP Handler  │ ctx.Done() シグナル
+  │ HTTP Handler  │ ctx.Done() signal
   │  (ctx)        │──────┐
   └───────────────┘      │
           │              ▼
@@ -1301,141 +1301,142 @@ Cancel の伝搬: 親がキャンセル → 全ての子もキャンセル
   └───────────────┘└───────────┘  ▼
                             ┌───────────┐
                             │ DB Query  │
-                            │ (ctx)     │ ← キャンセルされる
+                            │ (ctx)     │ <- gets cancelled
                             └───────────┘
 ```
 
-### 図3: WithTimeout の内部動作
+### Diagram 3: Internal Behavior of WithTimeout
 
 ```
 t=0s          t=3s          t=5s
  │             │             │
- ├─ ctx作成 ───┤             │
+ ├─ ctx created┤             │
  │  Timeout=5s │             │
  │             │             │
- │  処理中...   │  処理中...   │ ctx.Done()
- │             │             │ ← シグナル送信
+ │ processing..│ processing..│ ctx.Done()
+ │             │             │ <- signal sent
  │             │             │
  │             │          ctx.Err() =
  │             │          DeadlineExceeded
  │             │
- │  cancel()で │
- │  早期終了可能 │
+ │  Can finish │
+ │  early with │
+ │  cancel()   │
 ```
 
-### 図4: ネストしたタイムアウト
+### Diagram 4: Nested Timeouts
 
 ```
 t=0s    t=1s    t=2s    t=3s    t=4s    t=5s
  │       │       │       │       │       │
- │  ┌────┼───────┼───────┼───────┼───────┤ 親: Timeout=5s
+ │  ┌────┼───────┼───────┼───────┼───────┤ Parent: Timeout=5s
  │  │    │       │       │       │       │
- │  │ ┌──┼───────┤       │       │       │ 子: Timeout=2s
+ │  │ ┌──┼───────┤       │       │       │ Child: Timeout=2s
  │  │ │  │       │       │       │       │
- │  │ │┌─┤       │       │       │       │ 孫: Timeout=1s
+ │  │ │┌─┤       │       │       │       │ Grandchild: Timeout=1s
  │  │ ││ │       │       │       │       │
- │  │ │└─┘ Done  │       │       │       │ 孫: 1秒でタイムアウト
- │  │ └── Done   │       │       │       │ 子: 2秒でタイムアウト
- │  └──────────── Done   │       │       │ 親: 5秒でタイムアウト
+ │  │ │└─┘ Done  │       │       │       │ Grandchild: times out at 1s
+ │  │ └── Done   │       │       │       │ Child: times out at 2s
+ │  └──────────── Done   │       │       │ Parent: times out at 5s
  │       │       │       │       │       │
- 実際: 孫(1s) → 子(2s) → 親(5s) の順でキャンセル
+ In practice: cancellation order is grandchild(1s) -> child(2s) -> parent(5s)
 ```
 
-### 図5: WithoutCancel の動作
+### Diagram 5: Behavior of WithoutCancel
 
 ```
   parent (WithTimeout 5s)
       │
-      ├── child1 (通常)
-      │     └── 親キャンセル時にキャンセルされる ✓
+      ├── child1 (normal)
+      │     └── Cancelled when parent is cancelled (yes)
       │
       └── child2 (WithoutCancel)
-            └── 親がキャンセルされても継続 ✗ (キャンセル伝搬なし)
-            └── 値は引き継ぐ ✓
+            └── Continues even when parent is cancelled (no cancellation propagation)
+            └── Values are inherited (yes)
 
-  用途: バックグラウンドタスク、監査ログ記録、メトリクス送信
+  Use cases: background tasks, audit log recording, metrics sending
 ```
 
-### 図6: WithCancelCause の活用
+### Diagram 6: Using WithCancelCause
 
 ```
   ctx, cancel := context.WithCancelCause(parent)
       │
       ├── cancel(ErrUserAborted)
-      │     └── context.Cause(ctx) → ErrUserAborted
+      │     └── context.Cause(ctx) -> ErrUserAborted
       │
       ├── cancel(ErrResourceLimit)
-      │     └── context.Cause(ctx) → ErrResourceLimit
+      │     └── context.Cause(ctx) -> ErrResourceLimit
       │
       └── cancel(nil)
-            └── context.Cause(ctx) → context.Canceled
+            └── context.Cause(ctx) -> context.Canceled
 
-  デバッグ・エラーレポートに有用
+  Useful for debugging and error reporting
 ```
 
 ---
 
-## 11. 比較表
+## 11. Comparison Tables
 
-### 表1: Context生成関数
+### Table 1: Context Creation Functions
 
-| 関数 | 用途 | Done()の発火条件 | Go版 |
-|------|------|-----------------|------|
-| `context.Background()` | ルート。main, init, テスト | 発火しない | 1.7+ |
-| `context.TODO()` | 未決定の一時的プレースホルダ | 発火しない | 1.7+ |
-| `WithCancel(parent)` | 手動キャンセル | cancel()呼び出し | 1.7+ |
-| `WithCancelCause(parent)` | 原因付きキャンセル | cancel(err)呼び出し | 1.20+ |
-| `WithTimeout(parent, d)` | 時間制限 | d経過 or cancel() | 1.7+ |
-| `WithDeadline(parent, t)` | 絶対時刻制限 | t到達 or cancel() | 1.7+ |
-| `WithValue(parent, k, v)` | 値の伝搬 | 親に依存 | 1.7+ |
-| `WithoutCancel(parent)` | キャンセル非伝搬 | 発火しない | 1.21+ |
-| `AfterFunc(ctx, fn)` | キャンセル時コールバック | - | 1.21+ |
+| Function | Purpose | Trigger for Done() | Go Version |
+|----------|---------|--------------------|------------|
+| `context.Background()` | Root. Used in main, init, tests | Never fires | 1.7+ |
+| `context.TODO()` | Temporary placeholder when undecided | Never fires | 1.7+ |
+| `WithCancel(parent)` | Manual cancellation | cancel() call | 1.7+ |
+| `WithCancelCause(parent)` | Cancellation with cause | cancel(err) call | 1.20+ |
+| `WithTimeout(parent, d)` | Time limit | After duration d or cancel() | 1.7+ |
+| `WithDeadline(parent, t)` | Absolute time limit | Reaching t or cancel() | 1.7+ |
+| `WithValue(parent, k, v)` | Value propagation | Depends on parent | 1.7+ |
+| `WithoutCancel(parent)` | Non-propagating cancellation | Never fires | 1.21+ |
+| `AfterFunc(ctx, fn)` | Callback on cancellation | - | 1.21+ |
 
-### 表2: context.Err() の戻り値
+### Table 2: Return Values of context.Err()
 
-| 状態 | ctx.Err() | ctx.Done() | context.Cause(ctx) |
-|------|-----------|-----------|-------------------|
-| 未キャンセル | nil | ブロック | nil |
-| cancel()済み | context.Canceled | クローズ済み | cancel引数 or Canceled |
-| タイムアウト | context.DeadlineExceeded | クローズ済み | DeadlineExceeded |
+| State | ctx.Err() | ctx.Done() | context.Cause(ctx) |
+|-------|-----------|-----------|-------------------|
+| Not cancelled | nil | blocks | nil |
+| cancel() called | context.Canceled | closed | cancel argument or Canceled |
+| Timed out | context.DeadlineExceeded | closed | DeadlineExceeded |
 
-### 表3: Context値に入れるべきもの / 入れるべきでないもの
+### Table 3: What to Put / Not Put in Context Values
 
-| 入れるべきもの | 入れるべきでないもの |
-|--------------|-------------------|
-| トレースID / SpanID | ユーザーID（引数で渡す） |
-| リクエストID | 検索条件・フィルタ |
-| 認証トークン / クレーム | ページネーション情報 |
-| ロケール / タイムゾーン | ビジネスロジックのパラメータ |
-| ロガーインスタンス | DB接続 / HTTPクライアント |
-| テナントID（マルチテナント） | 設定値・フラグ |
+| Should put in | Should NOT put in |
+|---------------|-------------------|
+| Trace ID / Span ID | User ID (pass as argument) |
+| Request ID | Search criteria / filters |
+| Auth tokens / claims | Pagination information |
+| Locale / timezone | Business logic parameters |
+| Logger instance | DB connection / HTTP client |
+| Tenant ID (multi-tenant) | Configuration values / flags |
 
-### 表4: Contextの伝搬先
+### Table 4: Propagation Targets for Context
 
-| 伝搬先 | メソッド例 | 重要度 |
-|--------|----------|-------|
-| database/sql | QueryContext, ExecContext | 必須 |
-| net/http | NewRequestWithContext | 必須 |
-| gRPC | メタデータ自動伝搬 | 自動 |
-| Redis | client.WithContext | 推奨 |
-| ログ | logger.WithContext | 推奨 |
-| 外部API | NewRequestWithContext | 必須 |
-| goroutine | 引数で渡す | 必須 |
+| Target | Method example | Importance |
+|--------|----------------|------------|
+| database/sql | QueryContext, ExecContext | Required |
+| net/http | NewRequestWithContext | Required |
+| gRPC | Automatic propagation via metadata | Automatic |
+| Redis | client.WithContext | Recommended |
+| Logs | logger.WithContext | Recommended |
+| External APIs | NewRequestWithContext | Required |
+| goroutines | Pass as argument | Required |
 
 ---
 
-## 12. アンチパターン
+## 12. Anti-Patterns
 
-### アンチパターン 1: contextをstructに保存する
+### Anti-Pattern 1: Storing context in a struct
 
 ```go
-// BAD: contextを構造体のフィールドにする
+// BAD: Making context a field of a struct
 type Service struct {
-	ctx context.Context // リクエスト毎に異なるcontextを保持できない
+	ctx context.Context // Cannot hold a different context per request
 	db  *sql.DB
 }
 
-// GOOD: メソッドの第1引数としてcontextを渡す
+// GOOD: Pass context as the first argument of a method
 type Service struct {
 	db *sql.DB
 }
@@ -1445,48 +1446,48 @@ func (s *Service) GetUser(ctx context.Context, id int) (*User, error) {
 }
 ```
 
-### アンチパターン 2: WithValueの乱用
+### Anti-Pattern 2: Abusing WithValue
 
 ```go
-// BAD: ビジネスロジックのパラメータをcontextに入れる
+// BAD: Putting business logic parameters in context
 ctx = context.WithValue(ctx, "userID", 42)
 ctx = context.WithValue(ctx, "orderID", 100)
 ctx = context.WithValue(ctx, "limit", 50)
 
-// GOOD: 関数の引数で渡す。contextは横断的関心事のみ
+// GOOD: Pass them as function arguments; context is for cross-cutting concerns only
 func GetOrders(ctx context.Context, userID, limit int) ([]Order, error) {
-	// contextにはトレースID・認証情報など横断的関心事のみ
+	// Only cross-cutting concerns like trace ID and auth info in context
 	traceID := ctx.Value(traceIDKey).(string)
 	// ...
 }
 ```
 
-### アンチパターン 3: cancel関数を呼ばない
+### Anti-Pattern 3: Not calling the cancel function
 
 ```go
-// BAD: cancel関数を呼ばない → リソースリーク
+// BAD: Not calling cancel function -> resource leak
 func processRequest(parentCtx context.Context) {
 	ctx, _ := context.WithTimeout(parentCtx, 5*time.Second)
-	// cancel が呼ばれない → タイマーgoroutineがリーク
+	// cancel is not called -> timer goroutine leaks
 	doWork(ctx)
 }
 
-// GOOD: defer cancel() を即座に書く
+// GOOD: Write defer cancel() immediately
 func processRequest(parentCtx context.Context) {
 	ctx, cancel := context.WithTimeout(parentCtx, 5*time.Second)
-	defer cancel() // 必ずリソースを解放
+	defer cancel() // Always release the resource
 	doWork(ctx)
 }
 ```
 
-### アンチパターン 4: 文字列キーの使用
+### Anti-Pattern 4: Using string keys
 
 ```go
-// BAD: 文字列をキーに使う（衝突リスク）
+// BAD: Using strings as keys (collision risk)
 ctx = context.WithValue(ctx, "userID", 42)
-ctx = context.WithValue(ctx, "userID", "conflict!") // 別パッケージが同じキーを使う可能性
+ctx = context.WithValue(ctx, "userID", "conflict!") // Another package might use the same key
 
-// GOOD: 独自の非公開型をキーに使う
+// GOOD: Use a custom unexported type as the key
 type contextKey int
 
 const userIDKey contextKey = 0
@@ -1494,43 +1495,43 @@ const userIDKey contextKey = 0
 ctx = context.WithValue(ctx, userIDKey, 42)
 ```
 
-### アンチパターン 5: context.Background()の乱用
+### Anti-Pattern 5: Overusing context.Background()
 
 ```go
-// BAD: 親contextを無視してBackgroundを使う
+// BAD: Ignoring the parent context and using Background
 func (s *Service) GetUser(ctx context.Context, id int) (*User, error) {
-	// 引数のctxを無視してBackgroundを使う → キャンセル・タイムアウトが効かない
+	// Ignores the argument ctx and uses Background -> cancellation/timeout don't work
 	dbCtx := context.Background()
 	return s.db.QueryRowContext(dbCtx, "SELECT ...", id).Scan(...)
 }
 
-// GOOD: 受け取ったcontextをそのまま伝搬
+// GOOD: Propagate the received context as-is
 func (s *Service) GetUser(ctx context.Context, id int) (*User, error) {
 	return s.db.QueryRowContext(ctx, "SELECT ...", id).Scan(...)
 }
 ```
 
-### アンチパターン 6: Contextのキャンセル後にリソースを使う
+### Anti-Pattern 6: Using resources after context cancellation
 
 ```go
-// BAD: contextキャンセル後にレスポンスを書く
+// BAD: Writing to the response after context is cancelled
 func handler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	result, err := longRunningTask(ctx)
 	if err != nil {
-		// contextがキャンセルされていてもResponseWriterに書き込む
-		http.Error(w, err.Error(), 500) // クライアント切断時は無意味
+		// Writes to ResponseWriter even if the context was cancelled
+		http.Error(w, err.Error(), 500) // Meaningless if the client disconnected
 		return
 	}
 	json.NewEncoder(w).Encode(result)
 }
 
-// GOOD: contextの状態をチェックしてから応答
+// GOOD: Check the context state before responding
 func handler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	result, err := longRunningTask(ctx)
 	if ctx.Err() != nil {
-		// クライアントは既に切断 → 応答不要
+		// Client has already disconnected -> no need to respond
 		log.Printf("Client disconnected: %v", ctx.Err())
 		return
 	}
@@ -1545,45 +1546,45 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 ---
 
-## 実践演習
+## Practical Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that satisfies the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate input data
+- Implement proper error handling
+- Write test code as well
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Basic implementation template
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Exercise for basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main data processing logic"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Get processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1592,26 +1593,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "Should have raised an exception"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation by adding the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Advanced patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Exercise for advanced patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1619,7 +1620,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1630,14 +1631,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Remove by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1645,7 +1646,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Get statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1653,44 +1654,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # Size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1699,7 +1700,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1714,47 +1715,47 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient version: {slow_time:.4f}s")
+    print(f"Efficient version:   {fast_time:.6f}s")
+    print(f"Speedup: {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key points:**
+- Be aware of algorithmic complexity
+- Choose appropriate data structures
+- Measure the effect with benchmarks
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
-|--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Error | Cause | Solution |
+|-------|-------|----------|
+| Initialization error | Configuration file issue | Check the config file path and format |
+| Timeout | Network latency / resource shortage | Adjust timeout values, add retry logic |
+| Out of memory | Data volume growth | Introduce batch processing, implement pagination |
+| Permission error | Insufficient access rights | Check the executing user's permissions and settings |
+| Data inconsistency | Concurrency contention | Introduce locking, manage transactions |
 
-### デバッグの手順
+### Debugging Steps
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check error messages**: Read the stack trace and identify the location of the issue
+2. **Establish reproduction steps**: Reproduce the error with minimal code
+3. **Formulate hypotheses**: List possible causes
+4. **Verify step by step**: Use logging and debuggers to test hypotheses
+5. **Fix and regression test**: After the fix, run tests in related areas as well
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utilities
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -1762,85 +1763,85 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs function input and output"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Call: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return value: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception: {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debug target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Issues
 
-パフォーマンス問題が発生した場合の診断手順:
+Steps to take when diagnosing performance problems:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify bottlenecks**: Measure with profiling tools
+2. **Check memory usage**: Look for memory leaks
+3. **Check I/O waits**: Examine disk and network I/O status
+4. **Check concurrent connections**: Inspect connection pool state
 
-| 問題の種類 | 診断ツール | 対策 |
-|-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| Problem type | Diagnostic tools | Countermeasures |
+|--------------|------------------|-----------------|
+| CPU load | cProfile, py-spy | Algorithmic improvements, parallelization |
+| Memory leaks | tracemalloc, objgraph | Proper release of references |
+| I/O bottlenecks | strace, iostat | Async I/O, caching |
+| DB latency | EXPLAIN, slow query log | Indexing, query optimization |
 ---
 
 ## 13. FAQ
 
-### Q1: context.Background()とcontext.TODO()の違いは？
+### Q1: What is the difference between context.Background() and context.TODO()?
 
-機能的には同じだが意図が異なる。`Background()`は「ルートcontextとして意図的に使う」、`TODO()`は「適切なcontextがまだ不明で後で修正する」場合に使う。linterで`TODO()`を検出して漏れを防げる。
+They are functionally identical, but their intent differs. `Background()` is used when you intentionally want a root context, while `TODO()` is used when the appropriate context is not yet decided and you plan to fix it later. Linters can detect `TODO()` to prevent oversights.
 
-### Q2: cancel関数は必ず呼ぶ必要があるか？
+### Q2: Must the cancel function always be called?
 
-はい。`WithCancel`/`WithTimeout`/`WithDeadline`のcancel関数を呼ばないとリソースリークが発生する。`defer cancel()` を取得直後に書くのが慣例。タイムアウトで自動キャンセルされても`cancel()`は安全に呼べる（何度呼んでもエラーにならない）。
+Yes. Failing to call the cancel function returned by `WithCancel`/`WithTimeout`/`WithDeadline` causes a resource leak. It is conventional to write `defer cancel()` immediately after obtaining it. Even if cancellation happens automatically via timeout, `cancel()` can be called safely (it can be called multiple times without error).
 
-### Q3: contextの値はどのような場面で使うべきか？
+### Q3: In what situations should context values be used?
 
-リクエストスコープの横断的関心事のみ: トレースID、認証情報、ロケール等。ビジネスロジックのパラメータには使わない。独自のキー型（`type contextKey string`）を定義してキーの衝突を防ぐ。
+Only for request-scoped cross-cutting concerns: trace IDs, authentication information, locale, etc. Do not use them for business logic parameters. Define a custom key type (`type contextKey string`) to prevent key collisions.
 
-### Q4: context.WithTimeout と http.Client.Timeout のどちらを使うべきか？
+### Q4: Should I use context.WithTimeout or http.Client.Timeout?
 
-両者は補完的である。`http.Client.Timeout`はクライアント全体のタイムアウト（接続～レスポンス読み取りまで）を設定する。`context.WithTimeout`はリクエスト単位で異なるタイムアウトを設定でき、キャンセル伝搬もサポートする。一般的には両方を設定し、`http.Client.Timeout`を安全策として長めに、contextのタイムアウトをリクエスト固有の値に設定する。
+The two are complementary. `http.Client.Timeout` sets a timeout for the entire client (from connection through response read). `context.WithTimeout` allows setting different timeouts per request and also supports cancellation propagation. Generally, you set both: `http.Client.Timeout` as a longer safety net, and the context timeout to a request-specific value.
 
-### Q5: DBトランザクション中にcontextがキャンセルされたらどうなるか？
+### Q5: What happens if the context is cancelled during a database transaction?
 
-`database/sql`はcontextのキャンセルを検知してクエリを中断する。ただし、トランザクションの状態はドライバ依存。一般的には:
-- 実行中のクエリは中断される
-- コミット前ならロールバックされる
-- `defer tx.Rollback()` パターンで安全にクリーンアップする
+`database/sql` detects context cancellation and aborts the query. However, transaction state is driver-dependent. Generally:
+- In-flight queries are aborted
+- If not yet committed, the transaction is rolled back
+- Use the `defer tx.Rollback()` pattern to clean up safely
 
-### Q6: contextをgoroutineに渡すときの注意点は？
+### Q6: What should I be careful of when passing context to goroutines?
 
-- 値をコピーしてからgoroutineに渡す（gin.Contextなど、リクエスト終了後に無効になるオブジェクトに注意）
-- バックグラウンドgoroutineには`context.WithoutCancel`を検討する
-- 独自のタイムアウトを設定する
-- goroutineリークを防ぐため、必ずキャンセル経路を確保する
+- Copy values before passing them to goroutines (be careful with objects that become invalid after the request ends, such as gin.Context)
+- Consider `context.WithoutCancel` for background goroutines
+- Set your own timeouts
+- To prevent goroutine leaks, always ensure a cancellation path
 
-### Q7: Go 1.21のAfterFuncとWithoutCancelはどう使い分けるか？
+### Q7: How do I choose between Go 1.21's AfterFunc and WithoutCancel?
 
-- `AfterFunc`: キャンセル時に特定のクリーンアップ処理を実行したい場合（リソース解放、ログ記録等）
-- `WithoutCancel`: 親のキャンセルに影響されずに処理を続行したい場合（バックグラウンドタスク、監査ログ等）
+- `AfterFunc`: When you want to run specific cleanup (resource release, logging, etc.) on cancellation
+- `WithoutCancel`: When you want processing to continue unaffected by the parent's cancellation (background tasks, audit logs, etc.)
 
-### Q8: テストでcontextをどう扱うべきか？
+### Q8: How should context be handled in tests?
 
-テストでは`context.Background()`に適切なタイムアウトを設定する。デッドラインの長いテストはCI環境でのフレーク（不安定なテスト）の原因になるため、タイムアウトは短めに設定する:
+In tests, set an appropriate timeout on `context.Background()`. Since tests with long deadlines can cause flaky (unstable) tests in CI environments, set short timeouts:
 
 ```go
 func TestGetUser(t *testing.T) {
@@ -1860,46 +1861,46 @@ func TestGetUser(t *testing.T) {
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point to focus on when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the basics and jumping to advanced topics. We recommend solidly understanding the fundamental concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in real-world development?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-| 概念 | 要点 |
-|------|------|
-| Context | goroutine間のキャンセル・タイムアウト・値伝搬 |
-| WithCancel | 手動キャンセル制御 |
-| WithCancelCause | 原因付きキャンセル (Go 1.20+) |
-| WithTimeout | 時間制限付き処理 |
-| WithDeadline | 絶対時刻によるデッドライン |
-| WithValue | 横断的関心事の伝搬のみに使う |
-| WithoutCancel | キャンセル伝搬を切断 (Go 1.21+) |
-| AfterFunc | キャンセル時コールバック (Go 1.21+) |
-| cancel() | 必ずdefer cancel()で呼ぶ |
-| 伝搬 | 親キャンセル → 全子孫にキャンセル伝搬 |
+The knowledge from this topic is frequently applied in day-to-day development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## Summary
 
-- [../02-web/00-net-http.md](../02-web/00-net-http.md) -- HTTPサーバーでのContext活用
-- [../02-web/02-database.md](../02-web/02-database.md) -- DBクエリのContext制御
-- [../02-web/03-grpc.md](../02-web/03-grpc.md) -- gRPCのContext
+| Concept | Key Points |
+|---------|------------|
+| Context | Cancellation, timeouts, and value propagation across goroutines |
+| WithCancel | Manual cancellation control |
+| WithCancelCause | Cancellation with cause (Go 1.20+) |
+| WithTimeout | Processing with time limits |
+| WithDeadline | Deadline based on absolute time |
+| WithValue | Use only for propagating cross-cutting concerns |
+| WithoutCancel | Severs cancellation propagation (Go 1.21+) |
+| AfterFunc | Callback on cancellation (Go 1.21+) |
+| cancel() | Always call via defer cancel() |
+| Propagation | Parent cancellation -> cancellation propagates to all descendants |
 
 ---
 
-## 参考文献
+## Recommended Next Reads
+
+- [../02-web/00-net-http.md](../02-web/00-net-http.md) -- Using Context in HTTP servers
+- [../02-web/02-database.md](../02-web/02-database.md) -- Context control in DB queries
+- [../02-web/03-grpc.md](../02-web/03-grpc.md) -- Context in gRPC
+
+---
+
+## References
 
 1. **Go Blog, "Go Concurrency Patterns: Context"** -- https://go.dev/blog/context
 2. **Go Standard Library: context** -- https://pkg.go.dev/context

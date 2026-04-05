@@ -1,31 +1,31 @@
-# 同期プリミティブ -- Mutex, RWMutex, Once, Pool, atomic
+# Synchronization Primitives -- Mutex, RWMutex, Once, Pool, atomic
 
-> syncパッケージはMutex・RWMutex・Once・Poolなどの同期プリミティブを提供し、sync/atomicはロックフリーのアトミック操作を実現する。
+> The sync package provides synchronization primitives such as Mutex, RWMutex, Once, and Pool, while sync/atomic offers lock-free atomic operations.
 
 ---
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-1. **Mutex / RWMutex** -- 排他制御と読み書きロック
-2. **sync.Once / sync.Pool** -- 一度だけの初期化とオブジェクトの再利用
-3. **sync/atomic** -- ロックフリーなアトミック操作
-4. **sync.Cond / sync.Map** -- 条件変数と並行安全マップ
-5. **実践パターン** -- 本番コードでの同期プリミティブ活用
+1. **Mutex / RWMutex** -- Exclusive control and read/write locks
+2. **sync.Once / sync.Pool** -- One-time initialization and object reuse
+3. **sync/atomic** -- Lock-free atomic operations
+4. **sync.Cond / sync.Map** -- Condition variables and concurrency-safe maps
+5. **Practical patterns** -- Leveraging synchronization primitives in production code
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, the following knowledge will help deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [Goroutine と Channel -- Go並行プログラミングの基盤](./00-goroutines-channels.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding the content of [Goroutines and Channels -- The Foundation of Go Concurrent Programming](./00-goroutines-channels.md)
 
 ---
 
 ## 1. Mutex
 
-### コード例 1: sync.Mutex の基本
+### Code Example 1: Basics of sync.Mutex
 
 ```go
 type SafeCounter struct {
@@ -46,33 +46,33 @@ func (c *SafeCounter) Value(key string) int {
 }
 ```
 
-### Mutex の内部動作
+### How Mutex Works Internally
 
-Go の Mutex は2つのモードを持つ: 通常モード（Normal mode）と飢餓モード（Starvation mode）。
+Go's Mutex has two modes: Normal mode and Starvation mode.
 
 ```
-通常モード (Normal mode):
-  新しく到着した goroutine がロック獲得を試みる
+Normal mode:
+  Newly arriving goroutines attempt to acquire the lock
   ┌──────────┐     ┌──────────┐     ┌──────────┐
   │ Waiting  │────>│ Spinning │────>│ Acquired │
   │ goroutine│     │ (CAS)    │     │ Lock     │
   └──────────┘     └──────────┘     └──────────┘
-  → 新規 goroutine が待機中の goroutine より先に
-    ロックを取得できる（性能は良いが公平ではない）
+  → A newly arrived goroutine can acquire the lock before
+    goroutines already waiting (good performance but not fair)
 
-飢餓モード (Starvation mode):
-  待機時間が 1ms を超えた goroutine がいる場合に遷移
+Starvation mode:
+  Entered when a goroutine has been waiting for more than 1ms
   ┌──────────┐     ┌──────────┐
   │ FIFO     │────>│ Acquired │
   │ Queue    │     │ Lock     │
   └──────────┘     └──────────┘
-  → 厳密な FIFO 順序でロックを付与
-  → スピンなし、公平性を保証
-  → 待機キューが空 or 最後の待機者の待ち時間 < 1ms で
-    通常モードに戻る
+  → The lock is granted in strict FIFO order
+  → No spinning; fairness is guaranteed
+  → Returns to normal mode when the wait queue is empty
+    or the last waiter's wait time is < 1ms
 ```
 
-### コード例: Mutex で保護されたキャッシュ
+### Code Example: A Mutex-Protected Cache
 
 ```go
 type TTLCache struct {
@@ -163,7 +163,7 @@ func (c *TTLCache) Close() {
 
 ## 2. RWMutex
 
-### コード例 2: sync.RWMutex
+### Code Example 2: sync.RWMutex
 
 ```go
 type Cache struct {
@@ -172,33 +172,33 @@ type Cache struct {
 }
 
 func (c *Cache) Get(key string) (string, bool) {
-    c.mu.RLock()         // 読み取りロック（複数同時可）
+    c.mu.RLock()         // Read lock (multiple readers allowed simultaneously)
     defer c.mu.RUnlock()
     v, ok := c.data[key]
     return v, ok
 }
 
 func (c *Cache) Set(key, value string) {
-    c.mu.Lock()          // 書き込みロック（排他）
+    c.mu.Lock()          // Write lock (exclusive)
     defer c.mu.Unlock()
     c.data[key] = value
 }
 ```
 
-### RWMutex の詳細な動作
+### Detailed Behavior of RWMutex
 
 ```go
-// RWMutex の読み取り/書き込みの動作
+// Read/write behavior of RWMutex
 //
-// 読み取りロック (RLock):
-//   - 書き込みロックが保持されていなければ即座に取得
-//   - 複数の goroutine が同時に RLock を保持可能
-//   - 書き込みロックが待機中の場合、新しい RLock は待機する
-//     （書き込み側の飢餓を防ぐ）
+// Read lock (RLock):
+//   - Acquired immediately if no write lock is held
+//   - Multiple goroutines can hold RLock simultaneously
+//   - If a write lock is waiting, new RLocks must wait
+//     (to prevent writer starvation)
 //
-// 書き込みロック (Lock):
-//   - 全ての RLock が解放されるまで待機
-//   - 取得後は他の RLock も Lock も取得不可
+// Write lock (Lock):
+//   - Waits until all RLocks are released
+//   - Once acquired, no other RLock or Lock can be obtained
 
 type ConfigManager struct {
     mu     sync.RWMutex
@@ -211,19 +211,19 @@ func NewConfigManager() *ConfigManager {
     }
 }
 
-// 読み取りは複数同時可能
+// Reads can happen concurrently
 func (cm *ConfigManager) Get(key string) string {
     cm.mu.RLock()
     defer cm.mu.RUnlock()
     return cm.config[key]
 }
 
-// GetAll は設定のスナップショットを返す
+// GetAll returns a snapshot of the config
 func (cm *ConfigManager) GetAll() map[string]string {
     cm.mu.RLock()
     defer cm.mu.RUnlock()
 
-    // コピーを返す（ロック外での変更を防ぐ）
+    // Return a copy (to prevent modification outside the lock)
     snapshot := make(map[string]string, len(cm.config))
     for k, v := range cm.config {
         snapshot[k] = v
@@ -231,14 +231,14 @@ func (cm *ConfigManager) GetAll() map[string]string {
     return snapshot
 }
 
-// 書き込みは排他
+// Writes are exclusive
 func (cm *ConfigManager) Set(key, value string) {
     cm.mu.Lock()
     defer cm.mu.Unlock()
     cm.config[key] = value
 }
 
-// バルク更新（トランザクション的な更新）
+// Bulk update (transactional-style update)
 func (cm *ConfigManager) Update(updates map[string]string) {
     cm.mu.Lock()
     defer cm.mu.Unlock()
@@ -249,10 +249,10 @@ func (cm *ConfigManager) Update(updates map[string]string) {
 }
 ```
 
-### RWMutex vs Mutex のベンチマーク
+### RWMutex vs Mutex Benchmark
 
 ```go
-// ベンチマークで読み取り割合による性能差を測定
+// Benchmark to measure performance difference based on read ratio
 func BenchmarkMutexRead(b *testing.B) {
     var mu sync.Mutex
     data := map[string]int{"key": 42}
@@ -279,20 +279,20 @@ func BenchmarkRWMutexRead(b *testing.B) {
     })
 }
 
-// 結果の目安（8コアマシン）:
+// Approximate results (8-core machine):
 // BenchmarkMutexRead-8      20000000    60 ns/op
 // BenchmarkRWMutexRead-8    50000000    25 ns/op
 //
-// → 読み取りが95%以上の場合、RWMutexが有利
-// → 書き込みが50%以上の場合、Mutexの方が良いことがある
-//   （RWMutexのオーバーヘッドのため）
+// → When reads are 95%+, RWMutex is advantageous
+// → When writes are 50%+, Mutex can be better
+//   (due to RWMutex overhead)
 ```
 
 ---
 
 ## 3. sync.Once
 
-### コード例 3: sync.Once の基本
+### Code Example 3: Basics of sync.Once
 
 ```go
 var (
@@ -302,7 +302,7 @@ var (
 
 func GetDB() *Database {
     once.Do(func() {
-        // 複数goroutineから呼ばれても1度だけ実行
+        // Executed only once even when called from multiple goroutines
         instance = &Database{
             conn: connectDB(),
         }
@@ -311,46 +311,46 @@ func GetDB() *Database {
 }
 ```
 
-### Go 1.21+ の OnceFunc / OnceValue / OnceValues
+### OnceFunc / OnceValue / OnceValues in Go 1.21+
 
 ```go
-// Go 1.21 で追加された便利なヘルパー
+// Convenient helpers added in Go 1.21
 
-// sync.OnceFunc: 関数を1回だけ実行するラッパーを返す
+// sync.OnceFunc: returns a wrapper that runs the function only once
 cleanup := sync.OnceFunc(func() {
-    fmt.Println("クリーンアップ実行")
+    fmt.Println("Running cleanup")
     db.Close()
 })
 
-cleanup() // "クリーンアップ実行" が出力
-cleanup() // 何も起きない（2回目は実行されない）
+cleanup() // Outputs "Running cleanup"
+cleanup() // Nothing happens (second call is not executed)
 
-// sync.OnceValue: 値を1回だけ計算するラッパーを返す
+// sync.OnceValue: returns a wrapper that computes a value only once
 getConfig := sync.OnceValue(func() *Config {
-    fmt.Println("設定読み込み中...")
+    fmt.Println("Loading config...")
     cfg, err := loadConfig("config.yaml")
     if err != nil {
-        panic(err) // panicは再呼び出し時にも再送出される
+        panic(err) // Panics are re-raised on subsequent calls
     }
     return cfg
 })
 
-cfg := getConfig() // "設定読み込み中..." が出力
-cfg = getConfig()  // キャッシュされた値を返す
+cfg := getConfig() // Outputs "Loading config..."
+cfg = getConfig()  // Returns the cached value
 
-// sync.OnceValues: 値とエラーを返す版
+// sync.OnceValues: version that returns a value and an error
 loadCert := sync.OnceValues(func() (*tls.Certificate, error) {
     return tls.LoadX509KeyPair("cert.pem", "key.pem")
 })
 
-cert, err := loadCert() // 初回: ファイルを読み込む
-cert, err = loadCert()  // 2回目: キャッシュされた結果を返す
+cert, err := loadCert() // First call: reads the files
+cert, err = loadCert()  // Second call: returns the cached result
 ```
 
-### Once のエラーハンドリングパターン
+### Error-Handling Patterns with Once
 
 ```go
-// sync.Once で初期化エラーを安全に扱うパターン
+// Pattern for safely handling initialization errors with sync.Once
 type LazyDB struct {
     once sync.Once
     db   *sql.DB
@@ -368,10 +368,10 @@ func (l *LazyDB) Get() (*sql.DB, error) {
     return l.db, l.err
 }
 
-// 注意: Once.Do は panic しても「完了」とみなす
-// エラーの場合はリトライしたければ別のアプローチが必要
+// Note: Once.Do considers the call "done" even if it panics
+// If you want to retry on error, you need a different approach
 
-// リトライ可能な初期化（sync.Once は使えない）
+// Retryable initialization (sync.Once cannot be used)
 type RetryableInit struct {
     mu       sync.Mutex
     db       *sql.DB
@@ -388,12 +388,12 @@ func (r *RetryableInit) Get() (*sql.DB, error) {
 
     db, err := sql.Open("postgres", os.Getenv("DATABASE_URL"))
     if err != nil {
-        return nil, err // 次回の呼び出しで再試行可能
+        return nil, err // Can be retried on the next call
     }
 
     if err := db.Ping(); err != nil {
         db.Close()
-        return nil, err // 次回の呼び出しで再試行可能
+        return nil, err // Can be retried on the next call
     }
 
     r.db = db
@@ -406,7 +406,7 @@ func (r *RetryableInit) Get() (*sql.DB, error) {
 
 ## 4. sync.Pool
 
-### コード例 4: sync.Pool の基本
+### Code Example 4: Basics of sync.Pool
 
 ```go
 var bufPool = sync.Pool{
@@ -419,7 +419,7 @@ func processRequest(data []byte) string {
     buf := bufPool.Get().(*bytes.Buffer)
     defer func() {
         buf.Reset()
-        bufPool.Put(buf) // プールに返却
+        bufPool.Put(buf) // Return to the pool
     }()
 
     buf.Write(data)
@@ -427,10 +427,10 @@ func processRequest(data []byte) string {
 }
 ```
 
-### sync.Pool の実践的な使用例
+### Practical Uses of sync.Pool
 
 ```go
-// JSON エンコーダのプール
+// Pool of JSON encoders
 var encoderPool = sync.Pool{
     New: func() interface{} {
         return &bytes.Buffer{}
@@ -453,7 +453,7 @@ func respondJSON(w http.ResponseWriter, data interface{}) error {
     return err
 }
 
-// スライスのプール（固定サイズバッファ）
+// Slice pool (fixed-size buffer)
 var slicePool = sync.Pool{
     New: func() interface{} {
         s := make([]byte, 0, 4096)
@@ -463,23 +463,23 @@ var slicePool = sync.Pool{
 
 func processData(input []byte) []byte {
     bufPtr := slicePool.Get().(*[]byte)
-    buf := (*bufPtr)[:0] // 長さをリセット、容量は保持
+    buf := (*bufPtr)[:0] // Reset the length, keep the capacity
     defer func() {
         *bufPtr = buf[:0]
         slicePool.Put(bufPtr)
     }()
 
-    // buf を使って処理
+    // Use buf for processing
     buf = append(buf, input...)
-    // ... 処理 ...
+    // ... processing ...
 
-    // 結果をコピーして返す（プール外に持ち出す場合はコピー必須）
+    // Copy and return the result (copying is required when taking data out of the pool)
     result := make([]byte, len(buf))
     copy(result, buf)
     return result
 }
 
-// sync.Pool を使ったログフォーマッタ
+// A log formatter using sync.Pool
 type LogFormatter struct {
     pool sync.Pool
 }
@@ -518,30 +518,30 @@ func (f *LogFormatter) Format(level, msg string, fields map[string]interface{}) 
 }
 ```
 
-### sync.Pool の注意点
+### Caveats of sync.Pool
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│                sync.Pool の特性                       │
+│                Characteristics of sync.Pool          │
 │                                                      │
-│  ✅ 適切な使い方:                                     │
-│    - 頻繁に割り当て・解放される一時オブジェクト       │
-│    - バッファ、エンコーダ、フォーマッタ               │
-│    - GC負荷の軽減が目的                              │
+│  Appropriate uses:                                   │
+│    - Temporary objects frequently allocated/freed    │
+│    - Buffers, encoders, formatters                   │
+│    - Goal is to reduce GC pressure                   │
 │                                                      │
-│  ❌ 不適切な使い方:                                   │
-│    - キャッシュとして使う                             │
-│      → GCで予告なく回収される                        │
-│    - 接続プール（DB接続、HTTP接続）                   │
-│      → 接続の状態管理ができない                      │
-│    - 長寿命のオブジェクト                            │
-│      → Pool の目的に反する                           │
+│  Inappropriate uses:                                 │
+│    - Using as a cache                                │
+│      → Objects can be reclaimed by GC without notice │
+│    - Connection pools (DB, HTTP)                     │
+│      → Cannot manage connection state                │
+│    - Long-lived objects                              │
+│      → Contradicts the purpose of Pool               │
 │                                                      │
-│  ⚠️ 注意事項:                                       │
-│    - Pool.Get() の戻り値は必ず初期化してから使う     │
-│    - Pool.Put() の前にオブジェクトをリセットする     │
-│    - Pool から取得したオブジェクトを外に持ち出さない │
-│    - ベンチマークで効果を確認してから導入する        │
+│  Cautions:                                           │
+│    - Always initialize the result of Pool.Get()      │
+│    - Reset the object before calling Pool.Put()      │
+│    - Do not let objects from the pool escape         │
+│    - Verify the benefits with benchmarks first       │
 └──────────────────────────────────────────────────────┘
 ```
 
@@ -549,7 +549,7 @@ func (f *LogFormatter) Format(level, msg string, fields map[string]interface{}) 
 
 ## 5. sync/atomic
 
-### コード例 5: atomic の基本（Go 1.19+ 型安全API）
+### Code Example 5: Basics of atomic (Go 1.19+ type-safe API)
 
 ```go
 type AtomicCounter struct {
@@ -564,7 +564,7 @@ func (c *AtomicCounter) Value() int64 {
     return c.count.Load()
 }
 
-// atomic.Value で任意の値を安全に読み書き
+// Safely read/write arbitrary values with atomic.Value
 var config atomic.Value // *Config
 
 func UpdateConfig(cfg *Config) {
@@ -576,10 +576,10 @@ func GetConfig() *Config {
 }
 ```
 
-### atomic の詳細な使い方
+### Detailed Usage of atomic
 
 ```go
-// Go 1.19+ の型安全な atomic 型
+// Type-safe atomic types in Go 1.19+
 type Metrics struct {
     RequestCount  atomic.Int64
     ErrorCount    atomic.Int64
@@ -615,10 +615,10 @@ func (m *Metrics) Snapshot() map[string]interface{} {
 }
 ```
 
-### Compare-And-Swap (CAS) パターン
+### Compare-And-Swap (CAS) Pattern
 
 ```go
-// CAS を使ったロックフリーなスタック
+// Lock-free stack using CAS
 type LockFreeStack struct {
     top atomic.Pointer[node]
 }
@@ -633,11 +633,11 @@ func (s *LockFreeStack) Push(value int) {
     for {
         oldTop := s.top.Load()
         newNode.next = oldTop
-        // CAS: top が oldTop のままなら newNode に置き換え
+        // CAS: replace with newNode only if top is still oldTop
         if s.top.CompareAndSwap(oldTop, newNode) {
             return
         }
-        // 失敗した場合はリトライ（他の goroutine が先に変更した）
+        // Retry on failure (another goroutine modified it first)
     }
 }
 
@@ -647,15 +647,15 @@ func (s *LockFreeStack) Pop() (int, bool) {
         if oldTop == nil {
             return 0, false
         }
-        // CAS: top が oldTop のままなら next に置き換え
+        // CAS: replace with next only if top is still oldTop
         if s.top.CompareAndSwap(oldTop, oldTop.next) {
             return oldTop.value, true
         }
-        // 失敗した場合はリトライ
+        // Retry on failure
     }
 }
 
-// atomic.Value による設定のホットリロード
+// Config hot reload using atomic.Value
 type HotConfig struct {
     value atomic.Value
 }
@@ -672,11 +672,11 @@ func (hc *HotConfig) Get() *AppConfig {
 
 func (hc *HotConfig) Reload(newConfig *AppConfig) {
     hc.value.Store(newConfig)
-    // 読み取り側は次の Load() で新しい設定を取得
-    // ロック不要、読み取りは常にノンブロッキング
+    // Readers will get the new config on the next Load()
+    // No locking needed; reads are always non-blocking
 }
 
-// ファイル監視と組み合わせたホットリロード
+// Hot reload combined with file watching
 func (hc *HotConfig) WatchFile(ctx context.Context, path string) error {
     ticker := time.NewTicker(5 * time.Second)
     defer ticker.Stop()
@@ -688,19 +688,19 @@ func (hc *HotConfig) WatchFile(ctx context.Context, path string) error {
         case <-ticker.C:
             info, err := os.Stat(path)
             if err != nil {
-                log.Printf("設定ファイル確認エラー: %v", err)
+                log.Printf("Error checking config file: %v", err)
                 continue
             }
 
             if info.ModTime().After(lastModified) {
                 cfg, err := loadAppConfig(path)
                 if err != nil {
-                    log.Printf("設定読み込みエラー: %v", err)
+                    log.Printf("Error loading config: %v", err)
                     continue
                 }
                 hc.Reload(cfg)
                 lastModified = info.ModTime()
-                log.Printf("設定リロード完了: %s", path)
+                log.Printf("Config reload complete: %s", path)
             }
 
         case <-ctx.Done():
@@ -714,7 +714,7 @@ func (hc *HotConfig) WatchFile(ctx context.Context, path string) error {
 
 ## 6. sync.Map
 
-### コード例 6: sync.Map の基本
+### Code Example 6: Basics of sync.Map
 
 ```go
 var cache sync.Map
@@ -729,28 +729,28 @@ func main() {
         fmt.Println(v.(string))
     }
 
-    // LoadOrStore: 既存なら取得、なければ格納
+    // LoadOrStore: retrieve if present, otherwise store
     actual, loaded := cache.LoadOrStore("key3", "value3")
     fmt.Println(actual, loaded) // "value3" false
 
-    // Range: 全要素を走査
+    // Range: iterate over all entries
     cache.Range(func(key, value any) bool {
         fmt.Printf("%s: %s\n", key, value)
-        return true // falseで中断
+        return true // return false to stop iteration
     })
 }
 ```
 
-### sync.Map が適するケースと適さないケース
+### When sync.Map Is and Isn't Appropriate
 
 ```go
-// sync.Map が適するケース:
+// When sync.Map is appropriate:
 //
-// 1. キーが安定している（追加はあるが削除は少ない）
-// 2. 読み取りが圧倒的に多い
-// 3. キーごとにアクセスするgoroutineが異なる（キーの分散）
+// 1. Keys are stable (additions are common, deletions are rare)
+// 2. Reads vastly outnumber writes
+// 3. Different goroutines access different keys (key-level distribution)
 
-// ケース1: ルーティングテーブル（起動時に設定、ランタイムで読み取り）
+// Case 1: Routing table (set at startup, read at runtime)
 var routeHandlers sync.Map
 
 func registerRoute(pattern string, handler http.Handler) {
@@ -765,7 +765,7 @@ func findHandler(pattern string) (http.Handler, bool) {
     return v.(http.Handler), true
 }
 
-// ケース2: goroutine-local なストレージ
+// Case 2: Goroutine-local storage
 var goroutineData sync.Map
 
 func processWithID(id int) {
@@ -774,16 +774,16 @@ func processWithID(id int) {
     })
     defer goroutineData.Delete(id)
 
-    // 処理...
+    // Processing...
 }
 
-// sync.Map が適さないケース → map + RWMutex を使う
+// When sync.Map is inappropriate → use map + RWMutex
 //
-// 1. 頻繁な書き込みがある
-// 2. 全要素の走査（Range）が頻繁
-// 3. 型安全性が必要
+// 1. Frequent writes
+// 2. Frequent iteration over all entries (Range)
+// 3. Type safety is required
 
-// 型安全な汎用マップ（ジェネリクス + RWMutex）
+// Type-safe generic map (generics + RWMutex)
 type SafeMap[K comparable, V any] struct {
     mu   sync.RWMutex
     data map[K]V
@@ -835,11 +835,11 @@ func (m *SafeMap[K, V]) Range(fn func(K, V) bool) {
 
 ## 7. sync.Cond
 
-### 条件変数の使い方
+### Using Condition Variables
 
 ```go
-// sync.Cond は条件が満たされるまで goroutine を待機させる
-// チャネルでは実現しにくい「ブロードキャスト通知」が可能
+// sync.Cond makes goroutines wait until a condition is satisfied.
+// It enables "broadcast notification" which is hard to achieve with channels.
 
 type BoundedQueue struct {
     mu       sync.Mutex
@@ -863,20 +863,20 @@ func (q *BoundedQueue) Put(item interface{}) {
     q.mu.Lock()
     defer q.mu.Unlock()
 
-    // キューが満杯の間は待機
+    // Wait while the queue is full
     for len(q.items) >= q.maxSize {
-        q.notFull.Wait() // mu.Unlock() → 待機 → mu.Lock()
+        q.notFull.Wait() // mu.Unlock() → wait → mu.Lock()
     }
 
     q.items = append(q.items, item)
-    q.notEmpty.Signal() // 1つの待機goroutineを起こす
+    q.notEmpty.Signal() // Wake up one waiting goroutine
 }
 
 func (q *BoundedQueue) Take() interface{} {
     q.mu.Lock()
     defer q.mu.Unlock()
 
-    // キューが空の間は待機
+    // Wait while the queue is empty
     for len(q.items) == 0 {
         q.notEmpty.Wait()
     }
@@ -887,7 +887,7 @@ func (q *BoundedQueue) Take() interface{} {
     return item
 }
 
-// Broadcast の使用例: 全待機者への通知
+// Example of Broadcast: notifying all waiters
 type ReadyGate struct {
     mu    sync.Mutex
     cond  *sync.Cond
@@ -912,14 +912,14 @@ func (g *ReadyGate) Open() {
     g.mu.Lock()
     defer g.mu.Unlock()
     g.ready = true
-    g.cond.Broadcast() // 全ての待機 goroutine を起こす
+    g.cond.Broadcast() // Wake up all waiting goroutines
 }
 
-// 使用例
+// Usage example
 func main() {
     gate := NewReadyGate()
 
-    // 複数のワーカーがゲートの開放を待つ
+    // Multiple workers wait for the gate to open
     for i := 0; i < 10; i++ {
         go func(id int) {
             gate.Wait()
@@ -929,16 +929,16 @@ func main() {
 
     time.Sleep(time.Second)
     fmt.Println("Opening gate...")
-    gate.Open() // 全ワーカーが一斉に開始
+    gate.Open() // All workers start simultaneously
 }
 ```
 
 ---
 
-## 8. sync.WaitGroup の高度な使い方
+## 8. Advanced Use of sync.WaitGroup
 
 ```go
-// WaitGroup + セマフォ: 同時実行数制限付き並行処理
+// WaitGroup + semaphore: concurrency-limited parallel processing
 func processWithLimit(items []Item, maxConcurrency int) error {
     var wg sync.WaitGroup
     sem := make(chan struct{}, maxConcurrency)
@@ -949,8 +949,8 @@ func processWithLimit(items []Item, maxConcurrency int) error {
         go func(it Item) {
             defer wg.Done()
 
-            sem <- struct{}{}        // セマフォ取得
-            defer func() { <-sem }() // セマフォ解放
+            sem <- struct{}{}        // Acquire semaphore
+            defer func() { <-sem }() // Release semaphore
 
             if err := process(it); err != nil {
                 errCh <- err
@@ -961,18 +961,18 @@ func processWithLimit(items []Item, maxConcurrency int) error {
     wg.Wait()
     close(errCh)
 
-    // エラーの集約
+    // Aggregate errors
     var errs []error
     for err := range errCh {
         errs = append(errs, err)
     }
     if len(errs) > 0 {
-        return fmt.Errorf("処理エラー %d件: %v", len(errs), errs[0])
+        return fmt.Errorf("%d processing errors: %v", len(errs), errs[0])
     }
     return nil
 }
 
-// WaitGroup + 進捗報告
+// WaitGroup + progress reporting
 type ProgressTracker struct {
     total     int
     completed atomic.Int64
@@ -998,18 +998,18 @@ func (pt *ProgressTracker) Progress() float64 {
     return float64(pt.completed.Load()) / float64(pt.total) * 100
 }
 
-// 使用例
+// Usage example
 func processFiles(files []string) {
     pt := NewProgressTracker(len(files))
 
-    // 進捗報告 goroutine
+    // Progress reporting goroutine
     go func() {
         ticker := time.NewTicker(time.Second)
         defer ticker.Stop()
         for {
             select {
             case <-ticker.C:
-                fmt.Printf("進捗: %.1f%%\n", pt.Progress())
+                fmt.Printf("Progress: %.1f%%\n", pt.Progress())
                 if pt.Progress() >= 100 {
                     return
                 }
@@ -1025,18 +1025,18 @@ func processFiles(files []string) {
     }
 
     pt.Wait()
-    fmt.Println("全ファイル処理完了")
+    fmt.Println("All files processed")
 }
 ```
 
 ---
 
-## 9. 実践パターン: 複数の同期プリミティブの組み合わせ
+## 9. Practical Patterns: Combining Multiple Synchronization Primitives
 
-### パターン1: Sharded Map（シャーディングマップ）
+### Pattern 1: Sharded Map
 
 ```go
-// 大量のキーを持つ並行マップの性能を向上させるシャーディング
+// Sharding to improve the performance of a concurrent map with many keys
 const numShards = 32
 
 type ShardedMap[V any] struct {
@@ -1093,10 +1093,10 @@ func (sm *ShardedMap[V]) Len() int {
 }
 ```
 
-### パターン2: Singleton with Lazy Init
+### Pattern 2: Singleton with Lazy Init
 
 ```go
-// ジェネリクスを使った汎用 Singleton パターン
+// Generic singleton pattern using generics
 type Singleton[T any] struct {
     once     sync.Once
     value    T
@@ -1114,7 +1114,7 @@ func (s *Singleton[T]) Get() T {
     return s.value
 }
 
-// 使用例
+// Usage example
 var dbSingleton = NewSingleton(func() *sql.DB {
     db, err := sql.Open("postgres", os.Getenv("DATABASE_URL"))
     if err != nil {
@@ -1127,18 +1127,18 @@ var dbSingleton = NewSingleton(func() *sql.DB {
 
 func handler(w http.ResponseWriter, r *http.Request) {
     db := dbSingleton.Get()
-    // db を使用...
+    // Use db...
 }
 ```
 
-### パターン3: Rate Limiter (Token Bucket)
+### Pattern 3: Rate Limiter (Token Bucket)
 
 ```go
-// atomic を使ったトークンバケットレートリミッタ
+// Token bucket rate limiter using atomic
 type TokenBucket struct {
     tokens     atomic.Int64
     maxTokens  int64
-    refillRate int64 // 1秒あたりの補充数
+    refillRate int64 // Refill amount per second
     lastRefill atomic.Int64
 }
 
@@ -1157,7 +1157,7 @@ func (tb *TokenBucket) refill() {
     last := tb.lastRefill.Load()
     elapsed := float64(now-last) / float64(time.Second)
 
-    if elapsed < 0.001 { // 1ms未満は無視
+    if elapsed < 0.001 { // Ignore intervals less than 1ms
         return
     }
 
@@ -1190,97 +1190,97 @@ func (tb *TokenBucket) Allow() bool {
 
 ---
 
-## 10. ASCII図解
+## 10. ASCII Diagrams
 
-### 図1: Mutex vs RWMutex
+### Diagram 1: Mutex vs RWMutex
 
 ```
 Mutex (sync.Mutex):
   G1: [===Lock===]
   G2:             [===Lock===]
   G3:                         [===Lock===]
-  → 全アクセスが直列化
+  → All access is serialized
 
 RWMutex (sync.RWMutex):
   G1(R): [==RLock==]
-  G2(R): [==RLock==]  ← 読み取り同時可
+  G2(R): [==RLock==]  ← Reads can happen concurrently
   G3(R): [==RLock==]
-  G4(W):              [===Lock===]  ← 書き込みは排他
+  G4(W):              [===Lock===]  ← Writes are exclusive
   G5(R):                           [==RLock==]
 
-  → 読み取りが多い場合にスループット向上
+  → Improves throughput when reads are frequent
 
-RWMutex の書き込み飢餓防止:
+RWMutex writer starvation prevention:
   G1(R): [==RLock==]
-  G4(W):              待機 → [===Lock===]
-  G5(R):              待機──────────────>[==RLock==]
-  → G4(W) が待機中に到着した G5(R) も待機させる
+  G4(W):              waiting → [===Lock===]
+  G5(R):              waiting──────────────>[==RLock==]
+  → G5(R) arriving while G4(W) is waiting is also made to wait
 ```
 
-### 図2: sync.Pool のライフサイクル
+### Diagram 2: sync.Pool Lifecycle
 
 ```
 ┌──────────────────────────────────────┐
 │            sync.Pool                 │
 │  ┌──────┐ ┌──────┐ ┌──────┐        │
-│  │ buf1 │ │ buf2 │ │ buf3 │ プール  │
+│  │ buf1 │ │ buf2 │ │ buf3 │ pool    │
 │  └──┬───┘ └──────┘ └──────┘        │
 │     │                                │
-│  Get()  ───> buf1 を取得             │
-│              (プール空なら New() 呼出) │
+│  Get()  ───> retrieve buf1           │
+│              (calls New() if pool is empty) │
 │                                      │
-│  Put(buf1) ──> buf1 をプールに返却    │
+│  Put(buf1) ──> return buf1 to pool   │
 │                                      │
-│  ※ GC時にプール内のオブジェクトは     │
-│    回収される可能性がある             │
+│  * Objects in the pool may be        │
+│    reclaimed during GC               │
 └──────────────────────────────────────┘
 
-Pool の内部構造:
+Internal structure of Pool:
   ┌─────────────────────────────────────┐
   │  P0 (Processor)                     │
   │  ┌─────────────┐  ┌──────────────┐ │
   │  │ private     │  │ shared       │ │
-  │  │ (1つだけ)   │  │ (ロックフリー)│ │
+  │  │ (only one)  │  │ (lock-free)  │ │
   │  │ ┌───┐      │  │ ┌───┐┌───┐  │ │
   │  │ │buf│      │  │ │buf││buf│  │ │
   │  │ └───┘      │  │ └───┘└───┘  │ │
   │  └─────────────┘  └──────────────┘ │
   │                                     │
-  │  Get: private → shared → 他Pのshared → New()
-  │  Put: private（空なら）→ shared     │
+  │  Get: private → shared → other P's shared → New()
+  │  Put: private (if empty) → shared   │
   └─────────────────────────────────────┘
 ```
 
-### 図3: atomic操作 vs Mutex
+### Diagram 3: atomic operations vs Mutex
 
 ```
 atomic.Add:
-  CPU命令レベルで不可分操作
+  Indivisible operation at the CPU instruction level
   ┌─────┐
   │ CAS │  Compare-And-Swap
-  │命令  │  1命令で読み取り+比較+書き込み
+  │instr│  Read + compare + write in a single instruction
   └─────┘
-  → ロック不要、最速
+  → No lock required, fastest
 
 Mutex:
   ┌──────────┐
-  │ Lock()   │ ← スピンロック or OSスケジューラ
-  │ 操作     │
+  │ Lock()   │ ← Spin lock or OS scheduler
+  │ operation│
   │ Unlock() │
   └──────────┘
-  → コンテキストスイッチのオーバーヘッド
+  → Context switching overhead
 
-性能比較（目安）:
+Performance comparison (approximate):
   atomic.Int64.Add:     ~5ns/op
-  sync.Mutex + 操作:    ~25ns/op  (競合なし)
-  sync.Mutex + 操作:    ~100ns/op (高競合)
-  sync.RWMutex (Read):  ~15ns/op  (競合なし)
+  sync.Mutex + op:      ~25ns/op  (no contention)
+  sync.Mutex + op:      ~100ns/op (high contention)
+  sync.RWMutex (Read):  ~15ns/op  (no contention)
 ```
 
-### 図4: ShardedMap のアーキテクチャ
+### Diagram 4: Architecture of ShardedMap
 
 ```
-キー "user:123" → hash → shard 7
+Key "user:123" → hash → shard 7
 
 ┌─────────────────────────────────────────┐
 │              ShardedMap                  │
@@ -1293,97 +1293,97 @@ Mutex:
 │  │└─────┘│  │└─────┘│       │└─────┘│ │
 │  └───────┘  └───────┘       └───────┘ │
 │                                         │
-│  → 各シャードが独立したロックを持つ      │
-│  → 異なるシャードへのアクセスは並行可能  │
-│  → 32シャードで理論上32倍のスループット │
+│  → Each shard has its own independent lock │
+│  → Access to different shards can be concurrent │
+│  → With 32 shards, up to 32x throughput theoretically │
 └─────────────────────────────────────────┘
 ```
 
 ---
 
-## 11. 比較表
+## 11. Comparison Tables
 
-### 表1: 同期プリミティブの選択指針
+### Table 1: Selection Guide for Synchronization Primitives
 
-| プリミティブ | 用途 | コスト | スレッドセーフ |
-|-------------|------|--------|-------------|
-| sync.Mutex | 単純な排他制御 | 中 | はい |
-| sync.RWMutex | 読み多・書き少 | 中 | はい |
-| sync.Once | 1回だけ初期化 | 低 | はい |
-| sync.OnceValue | 1回だけ計算（値返却） | 低 | はい |
-| sync.Pool | オブジェクト再利用 | 低 | はい |
-| sync.Map | 特定パターンのmap | 中 | はい |
-| sync.Cond | 条件待ち・ブロードキャスト | 中 | はい |
-| atomic.Int64 | 単純なカウンタ | 最低 | はい |
-| atomic.Value | 任意の値のアトミック読み書き | 低 | はい |
-| atomic.Pointer | ポインタのCAS操作 | 低 | はい |
-| channel | データの所有権移転 | 中〜高 | はい |
+| Primitive | Purpose | Cost | Thread-safe |
+|-----------|---------|------|-------------|
+| sync.Mutex | Simple exclusive control | Medium | Yes |
+| sync.RWMutex | Read-heavy workloads | Medium | Yes |
+| sync.Once | One-time initialization | Low | Yes |
+| sync.OnceValue | One-time computation (returns value) | Low | Yes |
+| sync.Pool | Object reuse | Low | Yes |
+| sync.Map | Map with specific access patterns | Medium | Yes |
+| sync.Cond | Condition waiting, broadcasting | Medium | Yes |
+| atomic.Int64 | Simple counters | Lowest | Yes |
+| atomic.Value | Atomic read/write of any value | Low | Yes |
+| atomic.Pointer | CAS operations on pointers | Low | Yes |
+| channel | Transferring data ownership | Medium to high | Yes |
 
-### 表2: sync.Map vs map+Mutex vs ShardedMap
+### Table 2: sync.Map vs map+Mutex vs ShardedMap
 
-| 項目 | sync.Map | map + RWMutex | ShardedMap |
+| Item | sync.Map | map + RWMutex | ShardedMap |
 |------|----------|---------------|------------|
-| 読み取り性能 | 非常に高速 | 高速 | 非常に高速 |
-| 書き込み性能 | 低〜中 | 中 | 高速 |
-| 適する場面 | キーが安定、読み取り主体 | 頻繁な書き込み | 大量キー、高並行 |
-| 型安全性 | `any` (型アサーション必要) | ジェネリクスで型安全 | ジェネリクスで型安全 |
-| GC負荷 | やや高い | 低い | 低い |
-| 実装の複雑さ | 最も簡単 | 簡単 | 中程度 |
-| 推奨度 | 限定的な場面 | 一般的に推奨 | 高性能が必要な場面 |
+| Read performance | Very high | High | Very high |
+| Write performance | Low to medium | Medium | High |
+| Best for | Stable keys, read-heavy | Frequent writes | Many keys, high concurrency |
+| Type safety | `any` (type assertion needed) | Type-safe with generics | Type-safe with generics |
+| GC pressure | Somewhat high | Low | Low |
+| Implementation complexity | Simplest | Simple | Moderate |
+| Recommendation | Limited scenarios | Generally recommended | When high performance is needed |
 
-### 表3: ロック取得の戦略比較
+### Table 3: Comparison of Lock Acquisition Strategies
 
-| 戦略 | 仕組み | CPU使用 | レイテンシ | 用途 |
-|------|--------|---------|-----------|------|
-| スピンロック | ループで繰り返しCAS | 高い | 低い | 短時間のロック保持 |
-| Mutex (Go) | スピン→セマフォ | 適応的 | 中 | 汎用 |
-| チャネル | ランタイムスケジューラ | 低い | 中〜高 | メッセージパッシング |
-| atomic CAS | CPU命令1つ | 最低 | 最低 | 単一変数の更新 |
+| Strategy | Mechanism | CPU usage | Latency | Use case |
+|----------|-----------|-----------|---------|----------|
+| Spin lock | Repeated CAS in a loop | High | Low | Short-lived lock holding |
+| Mutex (Go) | Spin then semaphore | Adaptive | Medium | General-purpose |
+| Channel | Runtime scheduler | Low | Medium to high | Message passing |
+| atomic CAS | Single CPU instruction | Lowest | Lowest | Updating a single variable |
 
 ---
 
-## 12. アンチパターン
+## 12. Anti-Patterns
 
-### アンチパターン 1: Mutexのコピー
+### Anti-pattern 1: Copying a Mutex
 
 ```go
-// BAD: Mutexを含む構造体をコピー
+// BAD: Copying a struct that contains a Mutex
 type Counter struct {
     mu sync.Mutex
     n  int
 }
 
-func (c Counter) Value() int { // 値レシーバ → コピーされる！
+func (c Counter) Value() int { // Value receiver → the struct is copied!
     c.mu.Lock()
     defer c.mu.Unlock()
     return c.n
 }
 
-// GOOD: ポインタレシーバを使う
+// GOOD: Use a pointer receiver
 func (c *Counter) Value() int {
     c.mu.Lock()
     defer c.mu.Unlock()
     return c.n
 }
 
-// go vet で検出可能: copies lock value
+// Detectable by go vet: copies lock value
 ```
 
-### アンチパターン 2: ロックの粒度が大きすぎる
+### Anti-pattern 2: Lock Granularity Too Coarse
 
 ```go
-// BAD: 関数全体をロック
+// BAD: Locking the entire function
 func (s *Service) ProcessOrder(order *Order) error {
     s.mu.Lock()
     defer s.mu.Unlock()
 
-    validated := validate(order)        // ロック不要な処理
-    enriched := enrichData(validated)    // ロック不要な処理
-    s.orders[order.ID] = enriched       // これだけロック必要
+    validated := validate(order)        // Does not require the lock
+    enriched := enrichData(validated)    // Does not require the lock
+    s.orders[order.ID] = enriched       // Only this requires the lock
     return nil
 }
 
-// GOOD: 必要な箇所だけロック
+// GOOD: Lock only where needed
 func (s *Service) ProcessOrder(order *Order) error {
     validated := validate(order)
     enriched := enrichData(validated)
@@ -1395,19 +1395,19 @@ func (s *Service) ProcessOrder(order *Order) error {
 }
 ```
 
-### アンチパターン 3: デッドロック
+### Anti-pattern 3: Deadlock
 
 ```go
-// BAD: ロック順序の不一致によるデッドロック
+// BAD: Deadlock due to inconsistent lock ordering
 func transfer(from, to *Account, amount int) {
-    from.mu.Lock()   // goroutine1: A → B の順
-    to.mu.Lock()     // goroutine2: B → A の順（デッドロック！）
+    from.mu.Lock()   // goroutine1: A → B order
+    to.mu.Lock()     // goroutine2: B → A order (deadlock!)
     // ...
 }
 
-// GOOD: ロック順序を統一する
+// GOOD: Enforce a consistent lock order
 func transfer(from, to *Account, amount int) {
-    // ID の小さい方を先にロック（一貫した順序）
+    // Lock the one with the smaller ID first (consistent order)
     first, second := from, to
     if from.ID > to.ID {
         first, second = to, from
@@ -1422,27 +1422,27 @@ func transfer(from, to *Account, amount int) {
 }
 ```
 
-### アンチパターン 4: atomic と Mutex の混在
+### Anti-pattern 4: Mixing atomic and Mutex
 
 ```go
-// BAD: 同じデータに atomic と Mutex を混在させる
+// BAD: Mixing atomic and Mutex on the same data
 type Counter struct {
     mu    sync.Mutex
     count int64
 }
 
 func (c *Counter) Inc() {
-    atomic.AddInt64(&c.count, 1) // atomic で更新
+    atomic.AddInt64(&c.count, 1) // Updated with atomic
 }
 
 func (c *Counter) Reset() {
-    c.mu.Lock() // Mutex で保護
+    c.mu.Lock() // Protected by Mutex
     c.count = 0
     c.mu.Unlock()
 }
-// → atomic と Mutex の保護が競合し、データ競合の可能性
+// → atomic and Mutex protections conflict, causing potential data races
 
-// GOOD: 一貫した同期メカニズムを使う
+// GOOD: Use a consistent synchronization mechanism
 type Counter struct {
     count atomic.Int64
 }
@@ -1455,45 +1455,45 @@ func (c *Counter) Value() int64 { return c.count.Load() }
 
 ---
 
-## 実践演習
+## Practical Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that satisfies the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate input data
+- Implement proper error handling
+- Write test code as well
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Basic implementation template
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Exercise for basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main data processing logic"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Get processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1502,26 +1502,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "Should have raised an exception"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation by adding the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Advanced patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Exercise for advanced patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1529,7 +1529,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1540,14 +1540,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Remove by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1555,7 +1555,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Get statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1563,44 +1563,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # Size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1609,7 +1609,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1624,47 +1624,47 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient version: {slow_time:.4f}s")
+    print(f"Efficient version:   {fast_time:.6f}s")
+    print(f"Speedup: {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key points:**
+- Be aware of algorithmic complexity
+- Choose appropriate data structures
+- Measure the effect with benchmarks
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
-|--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Error | Cause | Solution |
+|-------|-------|----------|
+| Initialization error | Faulty config file | Check config file path and format |
+| Timeout | Network latency / insufficient resources | Adjust timeout values, add retry logic |
+| Out of memory | Increasing data volume | Introduce batch processing, implement pagination |
+| Permission error | Insufficient access rights | Check the executing user's permissions, review settings |
+| Data inconsistency | Concurrent processing conflicts | Introduce locking mechanisms, manage transactions |
 
-### デバッグの手順
+### Debugging Steps
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check error messages**: Read the stack trace and identify where the problem occurred
+2. **Establish reproduction steps**: Reproduce the error with minimal code
+3. **Form hypotheses**: List possible causes
+4. **Verify incrementally**: Use logging or a debugger to test hypotheses
+5. **Fix and regression test**: After the fix, also test related areas
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utility
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -1672,102 +1672,102 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs function inputs and outputs"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Call: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception: {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Process data (the debugging target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Issues
 
-パフォーマンス問題が発生した場合の診断手順:
+Steps to diagnose performance issues when they occur:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify bottlenecks**: Measure with profiling tools
+2. **Check memory usage**: Check for memory leaks
+3. **Check I/O waits**: Check disk and network I/O status
+4. **Check concurrent connection counts**: Check connection pool state
 
-| 問題の種類 | 診断ツール | 対策 |
-|-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| Problem type | Diagnostic tool | Countermeasure |
+|--------------|-----------------|-----------------|
+| CPU load | cProfile, py-spy | Improve algorithms, parallelize |
+| Memory leak | tracemalloc, objgraph | Properly release references |
+| I/O bottleneck | strace, iostat | Async I/O, caching |
+| DB latency | EXPLAIN, slow query log | Indexes, query optimization |
 
 ---
 
-## 設計判断ガイド
+## Design Decision Guide
 
-### 選択基準マトリクス
+### Selection Criteria Matrix
 
-技術選択を行う際の判断基準を以下にまとめます。
+Criteria to consider when making technical choices:
 
-| 判断基準 | 重視する場合 | 妥協できる場合 |
-|---------|------------|-------------|
-| パフォーマンス | リアルタイム処理、大規模データ | 管理画面、バッチ処理 |
-| 保守性 | 長期運用、チーム開発 | プロトタイプ、短期プロジェクト |
-| スケーラビリティ | 成長が見込まれるサービス | 社内ツール、固定ユーザー |
-| セキュリティ | 個人情報、金融データ | 公開データ、社内利用 |
-| 開発速度 | MVP、市場投入スピード | 品質重視、ミッションクリティカル |
+| Criterion | When to prioritize | When it can be compromised |
+|-----------|-------------------|----------------------------|
+| Performance | Real-time processing, large data | Admin dashboards, batch jobs |
+| Maintainability | Long-term operation, team development | Prototypes, short-term projects |
+| Scalability | Services expected to grow | Internal tools, fixed user base |
+| Security | Personal information, financial data | Public data, internal use |
+| Development speed | MVP, time-to-market | Quality-critical, mission-critical |
 
-### アーキテクチャパターンの選択
+### Choosing Architecture Patterns
 
 ```
 ┌─────────────────────────────────────────────────┐
-│              アーキテクチャ選択フロー              │
+│         Architecture Selection Flow              │
 ├─────────────────────────────────────────────────┤
 │                                                 │
-│  ① チーム規模は？                                │
-│    ├─ 小規模（1-5人）→ モノリス                   │
-│    └─ 大規模（10人+）→ ②へ                       │
+│  1. What's the team size?                       │
+│    ├─ Small (1-5) → Monolith                    │
+│    └─ Large (10+) → Go to 2                     │
 │                                                 │
-│  ② デプロイ頻度は？                               │
-│    ├─ 週1回以下 → モノリス + モジュール分割         │
-│    └─ 毎日/複数回 → ③へ                          │
+│  2. How often do you deploy?                    │
+│    ├─ Weekly or less → Monolith + modular split │
+│    └─ Daily / multiple times → Go to 3          │
 │                                                 │
-│  ③ チーム間の独立性は？                            │
-│    ├─ 高い → マイクロサービス                      │
-│    └─ 中程度 → モジュラーモノリス                   │
+│  3. How independent are the teams?              │
+│    ├─ Highly → Microservices                    │
+│    └─ Moderately → Modular monolith             │
 │                                                 │
 └─────────────────────────────────────────────────┘
 ```
 
-### トレードオフの分析
+### Analyzing Trade-offs
 
-技術的な判断には必ずトレードオフが伴います。以下の観点で分析を行いましょう:
+Technical decisions always involve trade-offs. Analyze them from the following perspectives:
 
-**1. 短期 vs 長期のコスト**
-- 短期的に速い方法が長期的には技術的負債になることがある
-- 逆に、過剰な設計は短期的なコストが高く、プロジェクトの遅延を招く
+**1. Short-term vs long-term cost**
+- A fast short-term approach may become technical debt in the long run
+- Conversely, over-engineering raises short-term costs and can delay the project
 
-**2. 一貫性 vs 柔軟性**
-- 統一された技術スタックは学習コストが低い
-- 多様な技術の採用は適材適所が可能だが、運用コストが増加
+**2. Consistency vs flexibility**
+- A unified tech stack has a lower learning curve
+- Adopting diverse technologies allows picking the right tool for the job, but increases operational cost
 
-**3. 抽象化のレベル**
-- 高い抽象化は再利用性が高いが、デバッグが困難になる場合がある
-- 低い抽象化は直感的だが、コードの重複が発生しやすい
+**3. Level of abstraction**
+- High abstraction increases reusability, but can make debugging harder
+- Low abstraction is intuitive, but code duplication tends to emerge
 
 ```python
-# 設計判断の記録テンプレート
+# Template for recording design decisions
 class ArchitectureDecisionRecord:
-    """ADR (Architecture Decision Record) の作成"""
+    """Creating an ADR (Architecture Decision Record)"""
 
     def __init__(self, title: str):
         self.title = title
@@ -1777,17 +1777,17 @@ class ArchitectureDecisionRecord:
         self.alternatives = []
 
     def set_context(self, context: str):
-        """背景と課題の記述"""
+        """Describe the background and problem"""
         self.context = context
         return self
 
     def set_decision(self, decision: str):
-        """決定内容の記述"""
+        """Describe the decision"""
         self.decision = decision
         return self
 
     def add_consequence(self, consequence: str, positive: bool = True):
-        """結果の追加"""
+        """Add a consequence"""
         self.consequences.append({
             'description': consequence,
             'type': 'positive' if positive else 'negative'
@@ -1795,7 +1795,7 @@ class ArchitectureDecisionRecord:
         return self
 
     def add_alternative(self, name: str, reason_rejected: str):
-        """却下した代替案の追加"""
+        """Add a rejected alternative"""
         self.alternatives.append({
             'name': name,
             'reason_rejected': reason_rejected
@@ -1803,15 +1803,15 @@ class ArchitectureDecisionRecord:
         return self
 
     def to_markdown(self) -> str:
-        """Markdown形式で出力"""
+        """Output as Markdown"""
         md = f"# ADR: {self.title}\n\n"
-        md += f"## 背景\n{self.context}\n\n"
-        md += f"## 決定\n{self.decision}\n\n"
-        md += "## 結果\n"
+        md += f"## Context\n{self.context}\n\n"
+        md += f"## Decision\n{self.decision}\n\n"
+        md += "## Consequences\n"
         for c in self.consequences:
-            icon = "✅" if c['type'] == 'positive' else "⚠️"
+            icon = "[+]" if c['type'] == 'positive' else "[!]"
             md += f"- {icon} {c['description']}\n"
-        md += "\n## 却下した代替案\n"
+        md += "\n## Rejected Alternatives\n"
         for a in self.alternatives:
             md += f"- **{a['name']}**: {a['reason_rejected']}\n"
         return md
@@ -1820,73 +1820,73 @@ class ArchitectureDecisionRecord:
 
 ## 13. FAQ
 
-### Q1: sync.Onceのfuncがpanicしたらどうなるか？
+### Q1: What happens if the func in sync.Once panics?
 
-`sync.Once`は一度実行されたらpanicしても「完了」とみなす。再呼び出しされない。Go 1.21で`sync.OnceFunc`/`sync.OnceValue`が追加され、panicの再送出やエラーハンドリングが容易になった。`OnceFunc`はpanicが発生した場合、次の呼び出しでも同じpanicを再送出する。
+`sync.Once` considers the call "done" even if it panics the first time it runs. It will not be called again. In Go 1.21, `sync.OnceFunc`/`sync.OnceValue` were added, making panic re-raising and error handling easier. `OnceFunc` re-raises the same panic on subsequent calls if a panic occurred.
 
-### Q2: sync.Poolはキャッシュとして使えるか？
+### Q2: Can sync.Pool be used as a cache?
 
-使えない。`sync.Pool`のオブジェクトはGC時にいつでも回収される可能性がある。キャッシュには`map+Mutex`や専用ライブラリ（groupcache等）を使う。Poolは一時オブジェクトの再利用（バッファ等）に限定する。2回連続のGCでプール内のオブジェクトは全て回収される仕様である。
+No. Objects in `sync.Pool` can be reclaimed at any time by the GC. Use `map+Mutex` or a dedicated library (such as groupcache) for caches. Pool should be limited to reusing temporary objects (e.g., buffers). By specification, all objects in the pool are reclaimed after two consecutive GC cycles.
 
-### Q3: atomicとMutexのどちらが速いか？
+### Q3: Which is faster, atomic or Mutex?
 
-単純な整数操作ならatomicが桁違いに速い（ロック不要）。ベンチマーク結果では、低競合時でatomicはMutexの5倍以上速い。ただしatomicは単一の値に対する操作に限られる。複数フィールドの整合性を保つにはMutexが必要。
+For simple integer operations, atomic is orders of magnitude faster (no locking required). Benchmarks show that atomic is more than 5x faster than Mutex under low contention. However, atomic is limited to operations on a single value. A Mutex is required to maintain consistency across multiple fields.
 
-### Q4: sync.Cond と channel のどちらを使うべきか？
+### Q4: Should I use sync.Cond or a channel?
 
-ほとんどのケースではchannelが推奨される。sync.Condが有利なのは、(1) ブロードキャスト通知が必要（チャネルのclose相当だが繰り返し可能）、(2) 複雑な条件での待機が必要（for ループ内の条件チェック）、(3) 既存のMutexベースのコードとの統合が必要、の3ケースに限られる。
+In most cases, a channel is recommended. sync.Cond is advantageous in only three cases: (1) when broadcast notification is needed (similar to channel close, but repeatable), (2) when waiting on complex conditions is required (condition checks inside a for loop), and (3) when integration with existing Mutex-based code is needed.
 
-### Q5: go vet や -race フラグで同期の問題を検出できるか？
+### Q5: Can go vet or -race detect synchronization problems?
 
-`go vet` はMutexのコピーなど静的に検出可能な問題を発見する。`go test -race` はデータ競合検出器を有効にし、実行時にデータ競合を検出する。ただし `-race` は実行されたコードパスでのみ検出するため、テストカバレッジが重要。本番では `-race` はパフォーマンスペナルティ（2-10倍の遅延）があるため通常は無効にする。
+`go vet` finds statically detectable problems such as Mutex copies. `go test -race` enables the data race detector, which detects data races at runtime. However, `-race` only detects races on code paths that are executed, so test coverage matters. In production, `-race` is usually disabled because of its performance penalty (2-10x slowdown).
 
-### Q6: RWMutex で RLock 中に同じ goroutine で Lock を取ると何が起きるか？
+### Q6: What happens if the same goroutine holds RLock on RWMutex and then calls Lock?
 
-デッドロックする。Go の RWMutex はリエントラント（再入可能）ではない。同じ goroutine が RLock を保持した状態で Lock を呼ぶと、RLock が解放されるのを待つが、同じ goroutine が保持しているため永久に待機する。これは設計上の制約であり、ロックの取得順序を注意深く管理する必要がある。
+It deadlocks. Go's RWMutex is not reentrant. If the same goroutine calls Lock while holding RLock, it will wait for the RLock to be released—but since the same goroutine is holding it, it will wait forever. This is a design constraint, and you must carefully manage lock acquisition order.
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point to focus on when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory, but by actually writing and running code to see how things work.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the basics and jumping to advanced topics. We recommend solidly understanding the fundamental concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in real-world development?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-| 概念 | 要点 |
-|------|------|
-| Mutex | 排他制御の基本。defer Unlock()を常に使う |
-| RWMutex | 読み取り多の場合に性能向上。書き込み飢餓防止あり |
-| Once | 初期化を1回だけ安全に実行。Go 1.21+ で OnceValue 追加 |
-| Pool | 一時オブジェクトの再利用でGC負荷低減。キャッシュではない |
-| atomic | ロックフリーの高速な値操作。CAS パターンも可能 |
-| sync.Map | 特定パターン向けの並行安全map。一般的には map+RWMutex |
-| sync.Cond | 条件変数。ブロードキャスト通知が必要な場面で使う |
-| ShardedMap | 高並行環境での大量キーマップ。シャードごとに独立ロック |
+The knowledge from this topic is frequently applied in day-to-day development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## Summary
 
-- [02-concurrency-patterns.md](./02-concurrency-patterns.md) -- 並行パターン
+| Concept | Key Points |
+|---------|------------|
+| Mutex | The basis of exclusive control. Always use defer Unlock() |
+| RWMutex | Improves performance for read-heavy workloads. Has writer starvation prevention |
+| Once | Safely runs initialization only once. Go 1.21+ adds OnceValue |
+| Pool | Reuses temporary objects to reduce GC pressure. Not a cache |
+| atomic | Fast lock-free value operations. Supports CAS patterns |
+| sync.Map | Concurrency-safe map for specific patterns. In general, prefer map+RWMutex |
+| sync.Cond | Condition variable. Use when broadcast notification is needed |
+| ShardedMap | Map for large key counts in high-concurrency environments. Independent locks per shard |
+
+---
+
+## Recommended Next Reads
+
+- [02-concurrency-patterns.md](./02-concurrency-patterns.md) -- Concurrency patterns
 - [03-context.md](./03-context.md) -- Context
-- [../03-tools/02-profiling.md](../03-tools/02-profiling.md) -- プロファイリング
+- [../03-tools/02-profiling.md](../03-tools/02-profiling.md) -- Profiling
 
 ---
 
-## 参考文献
+## References
 
 1. **Go Standard Library: sync** -- https://pkg.go.dev/sync
 2. **Go Standard Library: sync/atomic** -- https://pkg.go.dev/sync/atomic

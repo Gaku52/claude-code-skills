@@ -1,51 +1,51 @@
-# 型とstruct -- Goの型システムを理解する
+# Types and Structs -- Understanding Go's Type System
 
-> Goは静的型付けと構造的部分型を採用し、struct・interface・type assertionで柔軟かつ安全なデータモデリングを実現する。
-
----
-
-## この章で学ぶこと
-
-1. **基本型と複合型** -- int/string/sliceからstructまで
-2. **インターフェースと構造的部分型** -- 暗黙的なインターフェース満足
-3. **type assertionとtype switch** -- 動的な型判定の安全な方法
-4. **ジェネリクスと型制約** -- Go 1.18+ の型パラメータ
-5. **実践的なデータモデリング** -- ドメインモデルの設計手法
-
-
-## 前提知識
-
-このガイドを読む前に、以下の知識があると理解が深まります:
-
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [Go言語概要 -- 設計哲学とエコシステム](./00-go-overview.md) の内容を理解していること
+> Go adopts static typing and structural subtyping, achieving flexible yet safe data modeling through structs, interfaces, and type assertions.
 
 ---
 
-## 1. 基本型
+## What You Will Learn in This Chapter
 
-### 1.1 数値型の詳細
+1. **Basic and composite types** -- From int/string/slice to struct
+2. **Interfaces and structural subtyping** -- Implicit interface satisfaction
+3. **Type assertion and type switch** -- Safe ways to perform dynamic type checks
+4. **Generics and type constraints** -- Type parameters in Go 1.18+
+5. **Practical data modeling** -- Techniques for designing domain models
 
-Go は整数型と浮動小数点型に明確なビット幅を持たせている。これにより、プラットフォーム間での動作が予測可能になる。
 
-| 型 | サイズ | 範囲 | 用途 |
+## Prerequisites
+
+Before reading this guide, the following knowledge will help deepen your understanding:
+
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding of [Go Language Overview -- Design Philosophy and Ecosystem](./00-go-overview.md)
+
+---
+
+## 1. Basic Types
+
+### 1.1 Details of Numeric Types
+
+Go gives its integer and floating-point types explicit bit widths. This makes behavior predictable across platforms.
+
+| Type | Size | Range | Use Case |
 |----|--------|------|------|
-| `int8` | 1 byte | -128 ~ 127 | 省メモリが必要な場合 |
-| `int16` | 2 bytes | -32768 ~ 32767 | 省メモリが必要な場合 |
-| `int32` | 4 bytes | -2^31 ~ 2^31-1 | rune のエイリアス |
-| `int64` | 8 bytes | -2^63 ~ 2^63-1 | タイムスタンプ、大きな整数 |
-| `int` | 4 or 8 bytes | プラットフォーム依存 | 一般的な整数（デフォルト） |
-| `uint8` | 1 byte | 0 ~ 255 | byte のエイリアス |
-| `uint16` | 2 bytes | 0 ~ 65535 | ポート番号等 |
-| `uint32` | 4 bytes | 0 ~ 2^32-1 | IPv4アドレス等 |
-| `uint64` | 8 bytes | 0 ~ 2^64-1 | ハッシュ値等 |
-| `float32` | 4 bytes | IEEE 754 単精度 | GPU演算、省メモリ |
-| `float64` | 8 bytes | IEEE 754 倍精度 | 一般的な浮動小数点（デフォルト） |
-| `complex64` | 8 bytes | float32 実部+虚部 | 信号処理等 |
-| `complex128` | 16 bytes | float64 実部+虚部 | 科学計算等 |
+| `int8` | 1 byte | -128 to 127 | When memory conservation is needed |
+| `int16` | 2 bytes | -32768 to 32767 | When memory conservation is needed |
+| `int32` | 4 bytes | -2^31 to 2^31-1 | Alias for rune |
+| `int64` | 8 bytes | -2^63 to 2^63-1 | Timestamps, large integers |
+| `int` | 4 or 8 bytes | Platform-dependent | General-purpose integer (default) |
+| `uint8` | 1 byte | 0 to 255 | Alias for byte |
+| `uint16` | 2 bytes | 0 to 65535 | Port numbers, etc. |
+| `uint32` | 4 bytes | 0 to 2^32-1 | IPv4 addresses, etc. |
+| `uint64` | 8 bytes | 0 to 2^64-1 | Hash values, etc. |
+| `float32` | 4 bytes | IEEE 754 single precision | GPU computation, memory saving |
+| `float64` | 8 bytes | IEEE 754 double precision | General-purpose floating-point (default) |
+| `complex64` | 8 bytes | float32 real+imaginary | Signal processing, etc. |
+| `complex128` | 16 bytes | float64 real+imaginary | Scientific computing, etc. |
 
-### コード例 1: 基本型の宣言と操作
+### Code Example 1: Declaring and Manipulating Basic Types
 
 ```go
 package main
@@ -57,43 +57,43 @@ import (
 )
 
 func main() {
-    // 基本型の宣言
+    // Declaring basic types
     var (
         i    int     = 42
         f    float64 = 3.14
         s    string  = "hello"
         b    bool    = true
-        r    rune    = '日'    // int32のエイリアス
-        by   byte    = 0xFF   // uint8のエイリアス
+        r    rune    = '日'    // alias for int32
+        by   byte    = 0xFF   // alias for uint8
     )
 
-    // 短縮宣言（型推論）
+    // Short declaration (type inference)
     x := 100           // int
     pi := 3.14159      // float64
     msg := "Go言語"     // string
     flag := true        // bool
 
-    // 型変換（暗黙の変換は不可、明示的な変換が必要）
+    // Type conversion (implicit conversion is not allowed; explicit conversion is required)
     var n int = 42
-    var f64 float64 = float64(n)       // int → float64
-    var n32 int32 = int32(n)           // int → int32
-    var u uint = uint(n)               // int → uint（負の値に注意）
+    var f64 float64 = float64(n)       // int -> float64
+    var n32 int32 = int32(n)           // int -> int32
+    var u uint = uint(n)               // int -> uint (beware of negative values)
 
-    // 文字列とバイト列の関係
+    // Relationship between strings and byte sequences
     str := "Hello, 世界"
-    bytes := []byte(str)               // 文字列 → バイトスライス
-    runes := []rune(str)               // 文字列 → ルーンスライス
+    bytes := []byte(str)               // string -> byte slice
+    runes := []rune(str)               // string -> rune slice
 
     fmt.Printf("len(str)=%d bytes\n", len(str))           // 13 bytes (UTF-8)
-    fmt.Printf("rune count=%d\n", utf8.RuneCountInString(str)) // 9 文字
-    fmt.Printf("runes=%v\n", runes)                       // Unicode コードポイント
+    fmt.Printf("rune count=%d\n", utf8.RuneCountInString(str)) // 9 characters
+    fmt.Printf("runes=%v\n", runes)                       // Unicode code points
 
-    // 数値の限界値
+    // Numeric limits
     fmt.Printf("int8 max: %d\n", math.MaxInt8)
     fmt.Printf("int64 max: %d\n", math.MaxInt64)
     fmt.Printf("float64 max: %e\n", math.MaxFloat64)
 
-    // ビット演算
+    // Bitwise operations
     a := 0b1010  // 10
     b2 := 0b1100 // 12
     fmt.Printf("AND: %04b\n", a&b2)   // 1000
@@ -107,24 +107,24 @@ func main() {
 }
 ```
 
-### 1.2 文字列の内部構造
+### 1.2 Internal Structure of Strings
 
-Go の文字列は不変（immutable）なバイト列である。内部的には `string` は以下の構造を持つ:
+Strings in Go are immutable byte sequences. Internally, `string` has the following structure:
 
 ```go
-// runtime/string.go (概念的な構造)
+// runtime/string.go (conceptual structure)
 type stringHeader struct {
-    Data unsafe.Pointer  // バイト列へのポインタ
-    Len  int             // バイト長
+    Data unsafe.Pointer  // pointer to the byte sequence
+    Len  int             // byte length
 }
 ```
 
-文字列の重要な特性:
-- イミュータブル（一度作成したら変更不可）
-- UTF-8 エンコーディング
-- `len()` はバイト数を返す（文字数ではない）
-- インデックスアクセスはバイト単位
-- `range` ループはルーン（Unicodeコードポイント）単位
+Important characteristics of strings:
+- Immutable (cannot be changed once created)
+- UTF-8 encoding
+- `len()` returns the number of bytes (not characters)
+- Index access is byte-based
+- `range` loops iterate by rune (Unicode code points)
 
 ```go
 package main
@@ -138,19 +138,19 @@ import (
 func main() {
     s := "Go言語プログラミング"
 
-    // バイト単位の操作
-    fmt.Printf("len=%d bytes\n", len(s))  // バイト数
+    // Byte-level operations
+    fmt.Printf("len=%d bytes\n", len(s))  // number of bytes
 
-    // ルーン単位のイテレーション
+    // Rune-level iteration
     for i, r := range s {
         fmt.Printf("byte_offset=%d, rune=%c, unicode=%U\n", i, r, r)
     }
 
-    // 文字列の連結
-    // 少数の連結なら + 演算子で十分
+    // String concatenation
+    // For a small number of concatenations, the + operator is sufficient
     greeting := "Hello" + ", " + "World"
 
-    // 大量の連結は strings.Builder を使う（効率的）
+    // For many concatenations, use strings.Builder (efficient)
     var builder strings.Builder
     for i := 0; i < 1000; i++ {
         fmt.Fprintf(&builder, "item %d, ", i)
@@ -158,23 +158,23 @@ func main() {
     result := builder.String()
     _ = result
 
-    // 文字列のスライス（バイト単位）
-    sub := s[:2]  // "Go" (ASCII文字なのでバイトとルーンが一致)
+    // String slicing (byte-based)
+    sub := s[:2]  // "Go" (ASCII characters, so bytes and runes match)
     fmt.Println(sub)
 
-    // マルチバイト文字を安全に扱う
+    // Safely handling multi-byte characters
     runes := []rune(s)
     first3 := string(runes[:3])  // "Go言"
     fmt.Println(first3)
 
-    // 文字数のカウント
+    // Character count
     fmt.Printf("rune count=%d\n", utf8.RuneCountInString(s))
 
     _ = greeting
 }
 ```
 
-### コード例 2: struct定義とメソッド
+### Code Example 2: Struct Definition and Methods
 
 ```go
 package main
@@ -185,18 +185,18 @@ import (
     "time"
 )
 
-// User はユーザー情報を表す構造体
+// User is a struct representing user information
 type User struct {
     ID        int       `json:"id"`
     Name      string    `json:"name"`
     Email     string    `json:"email"`
-    Age       int       `json:"age,omitempty"`       // 0のとき省略
+    Age       int       `json:"age,omitempty"`       // omit when 0
     IsAdmin   bool      `json:"is_admin"`
     CreatedAt time.Time `json:"created_at"`
-    password  string    // 非公開フィールド（小文字始まり）
+    password  string    // private field (starts with lowercase)
 }
 
-// NewUser はUserのファクトリ関数（コンストラクタ相当）
+// NewUser is a factory function for User (equivalent to a constructor)
 func NewUser(name, email string) *User {
     return &User{
         Name:      name,
@@ -205,22 +205,22 @@ func NewUser(name, email string) *User {
     }
 }
 
-// DisplayName は表示名を返す（値レシーバ -- 構造体を変更しない）
+// DisplayName returns the display name (value receiver -- does not modify the struct)
 func (u User) DisplayName() string {
     return fmt.Sprintf("%s (%d)", u.Name, u.ID)
 }
 
-// UpdateEmail はメールアドレスを更新する（ポインタレシーバ -- 構造体を変更する）
+// UpdateEmail updates the email address (pointer receiver -- modifies the struct)
 func (u *User) UpdateEmail(email string) {
     u.Email = email
 }
 
-// SetPassword はパスワードを設定する
+// SetPassword sets the password
 func (u *User) SetPassword(password string) {
-    u.password = password // 非公開フィールドへのアクセス
+    u.password = password // access to a private field
 }
 
-// Validate はバリデーションを実行する
+// Validate performs validation
 func (u User) Validate() error {
     if u.Name == "" {
         return fmt.Errorf("name is required")
@@ -234,14 +234,14 @@ func (u User) Validate() error {
     return nil
 }
 
-// String は fmt.Stringer インターフェースを実装
+// String implements the fmt.Stringer interface
 func (u User) String() string {
     return fmt.Sprintf("User{id=%d, name=%q, email=%q}", u.ID, u.Name, u.Email)
 }
 
-// MarshalJSON はカスタム JSON シリアライゼーション
+// MarshalJSON provides custom JSON serialization
 func (u User) MarshalJSON() ([]byte, error) {
-    type Alias User // 無限再帰を避ける
+    type Alias User // avoid infinite recursion
     return json.Marshal(&struct {
         Alias
         CreatedAtStr string `json:"created_at_formatted"`
@@ -264,11 +264,11 @@ func main() {
         fmt.Printf("Validation error: %v\n", err)
     }
 
-    // JSON シリアライゼーション
+    // JSON serialization
     data, _ := json.MarshalIndent(user, "", "  ")
     fmt.Println(string(data))
 
-    // JSON デシリアライゼーション
+    // JSON deserialization
     jsonStr := `{"id":2,"name":"Bob","email":"bob@example.com","age":25}`
     var user2 User
     json.Unmarshal([]byte(jsonStr), &user2)
@@ -276,7 +276,7 @@ func main() {
 }
 ```
 
-### コード例 3: struct埋め込み (Embedding) と委譲
+### Code Example 3: Struct Embedding and Delegation
 
 ```go
 package main
@@ -286,14 +286,14 @@ import (
     "time"
 )
 
-// BaseModel は共通フィールドを提供する
+// BaseModel provides common fields
 type BaseModel struct {
     ID        int
     CreatedAt time.Time
     UpdatedAt time.Time
 }
 
-// BeforeSave は保存前にタイムスタンプを更新する
+// BeforeSave updates timestamps before saving
 func (b *BaseModel) BeforeSave() {
     now := time.Now()
     if b.CreatedAt.IsZero() {
@@ -302,7 +302,7 @@ func (b *BaseModel) BeforeSave() {
     b.UpdatedAt = now
 }
 
-// Animal は動物の基本情報
+// Animal holds basic animal information
 type Animal struct {
     Name string
     Age  int
@@ -316,18 +316,18 @@ func (a Animal) Move() string {
     return "moving..."
 }
 
-// Dog はAnimalを埋め込む（継承ではなくコンポジション）
+// Dog embeds Animal (composition, not inheritance)
 type Dog struct {
-    Animal        // 埋め込み
+    Animal        // embedding
     Breed  string
 }
 
-// Speak はAnimalのSpeakをオーバーライド（メソッドの隠蔽）
+// Speak overrides Animal's Speak (method shadowing)
 func (d Dog) Speak() string {
     return fmt.Sprintf("Woof! I am %s the %s", d.Name, d.Breed)
 }
 
-// Cat もAnimalを埋め込む
+// Cat also embeds Animal
 type Cat struct {
     Animal
     Indoor bool
@@ -337,7 +337,7 @@ func (c Cat) Speak() string {
     return fmt.Sprintf("Meow! I am %s", c.Name)
 }
 
-// Product はBaseModelを埋め込む実践的な例
+// Product is a practical example that embeds BaseModel
 type Product struct {
     BaseModel
     Name     string
@@ -347,12 +347,12 @@ type Product struct {
 }
 
 func (p *Product) Save() {
-    p.BeforeSave() // BaseModelのメソッドが昇格して使える
+    p.BeforeSave() // BaseModel's method is promoted and usable
     fmt.Printf("Saving product: %s (created=%v, updated=%v)\n",
         p.Name, p.CreatedAt.Format("15:04:05"), p.UpdatedAt.Format("15:04:05"))
 }
 
-// 複数の埋め込み
+// Multiple embedding
 type Logger struct{}
 func (l Logger) Log(msg string) { fmt.Printf("[LOG] %s\n", msg) }
 
@@ -362,8 +362,8 @@ func (m Metrics) Record(name string, value float64) {
 }
 
 type Service struct {
-    Logger  // ロギング機能
-    Metrics // メトリクス機能
+    Logger  // logging capability
+    Metrics // metrics capability
     Name string
 }
 
@@ -372,10 +372,10 @@ func main() {
         Animal: Animal{Name: "Pochi", Age: 3},
         Breed:  "Shiba",
     }
-    fmt.Println(d.Speak())  // Dog.Speak() が呼ばれる
-    fmt.Println(d.Move())   // Animal.Move() が昇格して呼ばれる
-    fmt.Println(d.Name)     // d.Animal.Name の省略形
-    fmt.Println(d.Animal.Speak()) // 元のAnimal.Speak()を明示的に呼ぶ
+    fmt.Println(d.Speak())  // Dog.Speak() is called
+    fmt.Println(d.Move())   // Animal.Move() is promoted and called
+    fmt.Println(d.Name)     // shorthand for d.Animal.Name
+    fmt.Println(d.Animal.Speak()) // explicitly call the original Animal.Speak()
 
     p := &Product{
         Name:     "Go Book",
@@ -386,12 +386,12 @@ func main() {
     p.Save()
 
     svc := Service{Name: "UserService"}
-    svc.Log("service started")        // Logger.Log が昇格
-    svc.Record("requests", 42.0)      // Metrics.Record が昇格
+    svc.Log("service started")        // Logger.Log is promoted
+    svc.Record("requests", 42.0)      // Metrics.Record is promoted
 }
 ```
 
-### コード例 4: interface と構造的部分型
+### Code Example 4: Interfaces and Structural Subtyping
 
 ```go
 package main
@@ -403,7 +403,7 @@ import (
     "strings"
 )
 
-// 小さなインターフェース（Go の推奨パターン）
+// Small interfaces (the recommended pattern in Go)
 type Stringer interface {
     String() string
 }
@@ -416,14 +416,14 @@ type Perimeter interface {
     Perimeter() float64
 }
 
-// インターフェースの合成
+// Composing interfaces
 type Shape interface {
     Area
     Perimeter
     Stringer
 }
 
-// 具象型: Circle
+// Concrete type: Circle
 type Circle struct {
     Radius float64
 }
@@ -440,7 +440,7 @@ func (c Circle) String() string {
     return fmt.Sprintf("Circle{radius=%.2f}", c.Radius)
 }
 
-// 具象型: Rectangle
+// Concrete type: Rectangle
 type Rectangle struct {
     Width, Height float64
 }
@@ -457,9 +457,9 @@ func (r Rectangle) String() string {
     return fmt.Sprintf("Rectangle{%.2f x %.2f}", r.Width, r.Height)
 }
 
-// 具象型: Triangle
+// Concrete type: Triangle
 type Triangle struct {
-    A, B, C float64 // 3辺の長さ
+    A, B, C float64 // lengths of the three sides
 }
 
 func (t Triangle) Area() float64 {
@@ -475,12 +475,12 @@ func (t Triangle) String() string {
     return fmt.Sprintf("Triangle{a=%.2f, b=%.2f, c=%.2f}", t.A, t.B, t.C)
 }
 
-// Shape を受け取る関数（多態性）
+// Function that takes a Shape (polymorphism)
 func printShapeInfo(s Shape) {
     fmt.Printf("%s: area=%.2f, perimeter=%.2f\n", s, s.Area(), s.Perimeter())
 }
 
-// Area だけを要求する関数（最小限のインターフェース）
+// Function that requires only Area (minimal interface)
 func totalArea(shapes []Area) float64 {
     var total float64
     for _, s := range shapes {
@@ -489,7 +489,7 @@ func totalArea(shapes []Area) float64 {
     return total
 }
 
-// io.Reader を活用した例
+// Example using io.Reader
 func countLines(r io.Reader) (int, error) {
     buf := make([]byte, 32*1024)
     count := 0
@@ -520,14 +520,14 @@ func main() {
         printShapeInfo(s)
     }
 
-    // Area インターフェースとして使う
+    // Use as Area interface
     areas := make([]Area, len(shapes))
     for i, s := range shapes {
         areas[i] = s
     }
     fmt.Printf("Total area: %.2f\n", totalArea(areas))
 
-    // io.Reader の活用
+    // Using io.Reader
     text := "line 1\nline 2\nline 3\n"
     reader := strings.NewReader(text)
     lines, _ := countLines(reader)
@@ -535,7 +535,7 @@ func main() {
 }
 ```
 
-### コード例 5: type assertion と type switch
+### Code Example 5: Type Assertion and Type Switch
 
 ```go
 package main
@@ -547,7 +547,7 @@ import (
     "strings"
 )
 
-// 実践的な type switch の活用
+// Practical use of type switch
 type Result struct {
     Value interface{}
     Err   error
@@ -584,13 +584,13 @@ func describe(i interface{}) string {
     }
 }
 
-// 安全な type assertion（カンマOKイディオム）
+// Safe type assertion (comma-ok idiom)
 func toInt(i interface{}) (int, bool) {
     v, ok := i.(int)
     return v, ok
 }
 
-// インターフェースの型アサーションを使った機能拡張
+// Extending functionality via interface type assertion
 type Closer interface {
     Close() error
 }
@@ -600,14 +600,14 @@ type Flusher interface {
 }
 
 func cleanup(w io.Writer) error {
-    // ライターがFlusherインターフェースも持っていたらFlushを呼ぶ
+    // If the writer also implements the Flusher interface, call Flush
     if f, ok := w.(Flusher); ok {
         if err := f.Flush(); err != nil {
             return fmt.Errorf("flush: %w", err)
         }
     }
 
-    // ライターがCloserインターフェースも持っていたらCloseを呼ぶ
+    // If the writer also implements the Closer interface, call Close
     if c, ok := w.(Closer); ok {
         if err := c.Close(); err != nil {
             return fmt.Errorf("close: %w", err)
@@ -617,20 +617,20 @@ func cleanup(w io.Writer) error {
     return nil
 }
 
-// 複数のインターフェースを要求する型制約
+// Type constraint that requires multiple interfaces
 type ReadWriteCloser interface {
     io.Reader
     io.Writer
     io.Closer
 }
 
-// JSONのデコード結果を型安全に処理
+// Type-safe handling of JSON decoded results
 func processJSON(data map[string]interface{}) {
     for key, val := range data {
         switch v := val.(type) {
         case string:
             fmt.Printf("  %s: string = %q\n", key, v)
-        case float64: // JSONの数値はfloat64になる
+        case float64: // JSON numbers become float64
             if v == float64(int(v)) {
                 fmt.Printf("  %s: int = %d\n", key, int(v))
             } else {
@@ -649,7 +649,7 @@ func processJSON(data map[string]interface{}) {
 }
 
 func main() {
-    // describe の使用例
+    // Usage example for describe
     values := []interface{}{
         42, 3.14, "hello", true, nil,
         []byte{0xDE, 0xAD},
@@ -661,7 +661,7 @@ func main() {
         fmt.Println(describe(v))
     }
 
-    // 安全な型アサーション
+    // Safe type assertion
     var i interface{} = 42
     if n, ok := toInt(i); ok {
         fmt.Printf("Got int: %d\n", n)
@@ -672,11 +672,11 @@ func main() {
         fmt.Println("Not an int")
     }
 
-    // cleanup の使用例
+    // Usage example for cleanup
     reader := strings.NewReader("test")
-    cleanup(reader) // Close/Flushを持たない → 何もしない
+    cleanup(reader) // Does not have Close/Flush -> does nothing
 
-    // JSON結果の処理
+    // Processing JSON results
     data := map[string]interface{}{
         "name":   "Alice",
         "age":    30.0,
@@ -689,7 +689,7 @@ func main() {
 }
 ```
 
-### コード例 6: カスタム型と型変換
+### Code Example 6: Custom Types and Type Conversion
 
 ```go
 package main
@@ -700,15 +700,15 @@ import (
     "time"
 )
 
-// カスタム型で型安全性を高める
+// Increase type safety with custom types
 type UserID int64
 type OrderID int64
 type ProductID int64
 
-// 異なるID型の混同を防ぐ
-// var uid UserID = OrderID(1) // コンパイルエラー: cannot use OrderID(1) as type UserID
+// Prevent mixing different ID types
+// var uid UserID = OrderID(1) // compile error: cannot use OrderID(1) as type UserID
 
-// 温度型の例
+// Temperature type example
 type Celsius float64
 type Fahrenheit float64
 type Kelvin float64
@@ -737,7 +737,7 @@ func (k Kelvin) String() string {
     return fmt.Sprintf("%.1fK", float64(k))
 }
 
-// カスタム文字列型
+// Custom string type
 type Email string
 
 func (e Email) Validate() error {
@@ -767,7 +767,7 @@ func (e Email) String() string {
     return string(e)
 }
 
-// カスタム Duration ラッパー
+// Custom Duration wrapper
 type Timeout time.Duration
 
 func (t Timeout) Duration() time.Duration {
@@ -778,7 +778,7 @@ func (t Timeout) String() string {
     return time.Duration(t).String()
 }
 
-// 列挙型の模倣（iota を使用）
+// Emulating an enum (using iota)
 type Status int
 
 const (
@@ -800,7 +800,7 @@ func (s Status) IsValid() bool {
     return s >= StatusPending && s <= StatusDeleted
 }
 
-// ビットフラグの列挙型
+// Bit-flag enum
 type Permission uint8
 
 const (
@@ -835,11 +835,11 @@ func (p Permission) String() string {
 }
 
 func main() {
-    // 温度変換
+    // Temperature conversion
     temp := Celsius(100)
     fmt.Printf("%s = %s = %s\n", temp, temp.ToFahrenheit(), temp.ToKelvin())
 
-    // Email バリデーション
+    // Email validation
     emails := []Email{
         "alice@example.com",
         "invalid-email",
@@ -853,11 +853,11 @@ func main() {
         }
     }
 
-    // ステータス
+    // Status
     status := StatusActive
     fmt.Printf("Status: %s (valid=%t)\n", status, status.IsValid())
 
-    // パーミッション（ビットフラグ）
+    // Permissions (bit flags)
     perm := PermRead | PermWrite
     fmt.Printf("Permissions: %s\n", perm)
     fmt.Printf("Has read: %t\n", perm.Has(PermRead))
@@ -868,7 +868,7 @@ func main() {
 }
 ```
 
-### コード例 7: スライスの内部構造と操作
+### Code Example 7: Internal Structure and Operations of Slices
 
 ```go
 package main
@@ -879,16 +879,16 @@ import (
     "sort"
 )
 
-// スライスの内部構造（概念的）
+// Internal structure of a slice (conceptual)
 // type slice struct {
-//     array unsafe.Pointer  // 基底配列へのポインタ
-//     len   int             // 長さ
-//     cap   int             // 容量
+//     array unsafe.Pointer  // pointer to the underlying array
+//     len   int             // length
+//     cap   int             // capacity
 // }
 
 func main() {
-    // スライスの作成方法
-    s1 := []int{1, 2, 3, 4, 5}       // リテラル
+    // Ways to create slices
+    s1 := []int{1, 2, 3, 4, 5}       // literal
     s2 := make([]int, 5)              // make (length=5, capacity=5)
     s3 := make([]int, 0, 10)          // make (length=0, capacity=10)
 
@@ -896,32 +896,32 @@ func main() {
     fmt.Printf("s2: len=%d, cap=%d, %v\n", len(s2), cap(s2), s2)
     fmt.Printf("s3: len=%d, cap=%d, %v\n", len(s3), cap(s3), s3)
 
-    // append と容量の成長
+    // append and capacity growth
     var growing []int
     prevCap := cap(growing)
     for i := 0; i < 20; i++ {
         growing = append(growing, i)
         if cap(growing) != prevCap {
-            fmt.Printf("len=%2d, cap changed: %d → %d\n",
+            fmt.Printf("len=%2d, cap changed: %d -> %d\n",
                 len(growing), prevCap, cap(growing))
             prevCap = cap(growing)
         }
     }
 
-    // スライスは基底配列を共有する（注意が必要）
+    // Slices share the underlying array (be careful)
     original := []int{1, 2, 3, 4, 5}
     sub := original[1:3]         // [2, 3]
-    sub[0] = 99                  // original も変更される！
+    sub[0] = 99                  // original is modified too!
     fmt.Println("original:", original) // [1, 99, 3, 4, 5]
 
-    // コピーで独立したスライスを作る
+    // Create an independent slice by copying
     independent := make([]int, len(original))
     copy(independent, original)
     independent[0] = 777
-    fmt.Println("original:", original)    // 変わらない
+    fmt.Println("original:", original)    // unchanged
     fmt.Println("independent:", independent) // [777, 99, 3, 4, 5]
 
-    // slicesパッケージ（Go 1.21+）の活用
+    // Using the slices package (Go 1.21+)
     nums := []int{3, 1, 4, 1, 5, 9, 2, 6}
     slices.Sort(nums)
     fmt.Println("sorted:", nums)
@@ -933,7 +933,7 @@ func main() {
     fmt.Printf("Contains(9): %t\n", slices.Contains(nums, 9))
     fmt.Printf("Contains(7): %t\n", slices.Contains(nums, 7))
 
-    // フィルタリング（手動）
+    // Filtering (manually)
     evens := make([]int, 0)
     for _, n := range nums {
         if n%2 == 0 {
@@ -942,7 +942,7 @@ func main() {
     }
     fmt.Println("evens:", evens)
 
-    // カスタムソート
+    // Custom sort
     type Person struct {
         Name string
         Age  int
@@ -959,7 +959,7 @@ func main() {
 }
 ```
 
-### コード例 8: マップの詳細
+### Code Example 8: Maps in Detail
 
 ```go
 package main
@@ -972,34 +972,34 @@ import (
 )
 
 func main() {
-    // マップの作成
+    // Creating a map
     m1 := map[string]int{
         "alice": 95,
         "bob":   87,
         "carol": 92,
     }
 
-    // make で空マップを作成
+    // Create an empty map with make
     m2 := make(map[string]int)
     m2["dave"] = 88
 
-    // 要素の取得（カンマOKイディオム）
+    // Retrieving elements (comma-ok idiom)
     score, ok := m1["alice"]
     fmt.Printf("alice: score=%d, exists=%t\n", score, ok)
 
     score, ok = m1["eve"]
     fmt.Printf("eve: score=%d, exists=%t\n", score, ok) // 0, false
 
-    // 削除
+    // Deletion
     delete(m1, "bob")
     fmt.Printf("After delete: %v\n", m1)
 
-    // マップの走査（順序は非決定的）
+    // Iterating the map (order is non-deterministic)
     for key, val := range m1 {
         fmt.Printf("  %s: %d\n", key, val)
     }
 
-    // ソートされたキーで走査
+    // Iterating with sorted keys
     keys := make([]string, 0, len(m1))
     for k := range m1 {
         keys = append(keys, k)
@@ -1016,23 +1016,23 @@ func main() {
     fmt.Printf("nil map == nil: %t\n", nilMap == nil)     // true
     fmt.Printf("empty map == nil: %t\n", emptyMap == nil)  // false
     // nilMap["key"] = 1  // panic: assignment to entry in nil map
-    _ = nilMap["key"]    // 読み取りはOK（ゼロ値が返る）
+    _ = nilMap["key"]    // reads are OK (zero value is returned)
 
-    // マップのマップ（ネスト）
+    // Nested maps (map of maps)
     graph := map[string]map[string]int{
         "A": {"B": 1, "C": 4},
         "B": {"C": 2, "D": 5},
         "C": {"D": 1},
     }
 
-    // ネストマップの安全なアクセス
+    // Safe access to nested maps
     if neighbors, ok := graph["A"]; ok {
         for node, weight := range neighbors {
             fmt.Printf("A -> %s: weight=%d\n", node, weight)
         }
     }
 
-    // マップをセットとして使う
+    // Using a map as a set
     set := make(map[string]struct{})
     set["apple"] = struct{}{}
     set["banana"] = struct{}{}
@@ -1042,11 +1042,11 @@ func main() {
         fmt.Println("apple is in the set")
     }
 
-    // mapsパッケージ（Go 1.21+）
+    // maps package (Go 1.21+)
     clone := maps.Clone(m1)
     fmt.Printf("clone: %v\n", clone)
 
-    // 単語カウント（実践的な例）
+    // Word count (practical example)
     text := "the quick brown fox jumps over the lazy dog the fox"
     wordCount := make(map[string]int)
     for _, word := range splitWords(text) {
@@ -1054,7 +1054,7 @@ func main() {
     }
     fmt.Println("Word counts:", wordCount)
 
-    // 並行安全なマップ操作（sync.Map は別セクション参照）
+    // Concurrency-safe map operations (see the separate section on sync.Map)
     _ = sync.Map{}
 }
 
@@ -1078,7 +1078,7 @@ func splitWords(s string) []string {
 }
 ```
 
-### コード例 9: ジェネリクスと型制約 (Go 1.18+)
+### Code Example 9: Generics and Type Constraints (Go 1.18+)
 
 ```go
 package main
@@ -1089,7 +1089,7 @@ import (
     "slices"
 )
 
-// 型制約: Ordered は比較可能な型を制約する
+// Type constraint: Ordered constrains types that are comparable
 type Ordered interface {
     ~int | ~int8 | ~int16 | ~int32 | ~int64 |
         ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr |
@@ -1097,7 +1097,7 @@ type Ordered interface {
         ~string
 }
 
-// ジェネリックな Pair 型
+// Generic Pair type
 type Pair[T, U any] struct {
     First  T
     Second U
@@ -1111,7 +1111,7 @@ func (p Pair[T, U]) String() string {
     return fmt.Sprintf("(%v, %v)", p.First, p.Second)
 }
 
-// ジェネリックな Optional 型（Rust の Option に相当）
+// Generic Optional type (equivalent to Rust's Option)
 type Optional[T any] struct {
     value   T
     present bool
@@ -1143,7 +1143,7 @@ func (o Optional[T]) Map(f func(T) T) Optional[T] {
     return None[T]()
 }
 
-// ジェネリックな Set
+// Generic Set
 type Set[T comparable] struct {
     items map[T]struct{}
 }
@@ -1194,7 +1194,7 @@ func (s *Set[T]) Intersection(other *Set[T]) *Set[T] {
     return result
 }
 
-// cmp.Ordered を使ったジェネリック関数（Go 1.21+）
+// Generic function using cmp.Ordered (Go 1.21+)
 func ClampT cmp.Ordered T {
     if value < min {
         return min
@@ -1205,7 +1205,7 @@ func ClampT cmp.Ordered T {
     return value
 }
 
-// ジェネリックな LinkedList
+// Generic LinkedList
 type Node[T any] struct {
     Value T
     Next  *Node[T]
@@ -1283,7 +1283,7 @@ func main() {
     })
     fmt.Println("nil")
 
-    // slicesパッケージとジェネリクス
+    // The slices package with generics
     nums := []int{5, 3, 8, 1, 9}
     slices.Sort(nums)
     fmt.Println("sorted:", nums)
@@ -1292,9 +1292,9 @@ func main() {
 
 ---
 
-## 2. ASCII図解
+## 2. ASCII Diagrams
 
-### 図1: Goの型ヒエラルキー
+### Diagram 1: Go's Type Hierarchy
 
 ```
                      ┌──────────┐
@@ -1304,29 +1304,29 @@ func main() {
                      └────┬─────┘
            ┌──────────────┼──────────────┐
      ┌─────▼─────┐  ┌─────▼─────┐  ┌────▼──────┐
-     │  基本型    │  │  複合型    │  │ 参照型     │
-     │ int,float │  │ struct   │  │ slice,map │
-     │ string    │  │ array    │  │ channel   │
-     │ bool,rune │  │          │  │ pointer   │
-     │ complex   │  │          │  │ function  │
+     │ Basic     │  │ Composite │  │ Reference │
+     │ int,float │  │ struct    │  │ slice,map │
+     │ string    │  │ array     │  │ channel   │
+     │ bool,rune │  │           │  │ pointer   │
+     │ complex   │  │           │  │ function  │
      └───────────┘  └──────────┘  └───────────┘
 
-整数型の詳細:
+Details of integer types:
   ┌─────────────────────────────────────────┐
-  │ 符号あり                                 │
-  │  int8 ─ int16 ─ int32 ─ int64 ─ int    │
+  │ Signed                                   │
+  │  int8 - int16 - int32 - int64 - int      │
   │  (rune = int32)                          │
   │                                          │
-  │ 符号なし                                 │
-  │  uint8 ─ uint16 ─ uint32 ─ uint64 ─ uint│
+  │ Unsigned                                 │
+  │  uint8 - uint16 - uint32 - uint64 - uint │
   │  (byte = uint8)                          │
   │                                          │
-  │ 特殊                                     │
-  │  uintptr (ポインタサイズの符号なし整数)    │
+  │ Special                                  │
+  │  uintptr (pointer-sized unsigned int)    │
   └─────────────────────────────────────────┘
 ```
 
-### 図2: struct埋め込みのメモリレイアウト
+### Diagram 2: Memory Layout of Struct Embedding
 
 ```
 Dog struct:
@@ -1339,12 +1339,12 @@ Dog struct:
 │  Breed string                    │
 └──────────────────────────────────┘
 
-アクセス:
-  d.Name   →  d.Animal.Name  (省略形)
-  d.Age    →  d.Animal.Age   (省略形)
-  d.Speak() → d.Animal.Speak() (メソッド昇格)
+Access:
+  d.Name   ->  d.Animal.Name  (shorthand)
+  d.Age    ->  d.Animal.Age   (shorthand)
+  d.Speak() -> d.Animal.Speak() (method promotion)
 
-複数埋め込み時の名前衝突:
+Name collision with multiple embeddings:
 ┌──────────────────────────────────┐
 │  Service                         │
 │  ┌─────────────┐ ┌────────────┐ │
@@ -1352,32 +1352,33 @@ Dog struct:
 │  │  Log()      │ │  Record()  │ │
 │  └─────────────┘ └────────────┘ │
 │  Name string                     │
-│  ※ LoggerとMetricsに同名メソッド │
-│    があればコンパイルエラー        │
-│    (明示的にアクセスが必要)        │
+│  * If Logger and Metrics have    │
+│    methods with the same name,   │
+│    it's a compile error          │
+│    (explicit access required)    │
 └──────────────────────────────────┘
 ```
 
-### 図3: interface満足の仕組み
+### Diagram 3: How Interface Satisfaction Works
 
 ```
 ┌────────────────┐          ┌────────────────┐
 │  io.Reader     │          │  *os.File      │
 │  ┌────────────┐│          │  ┌────────────┐│
-│  │ Read([]byte)│├─ 満たす ─┤  │ Read([]byte)││
-│  │ (int, error)││  (暗黙)  │  │ (int, error)││
+│  │ Read([]byte)│├satisfies┤  │ Read([]byte)││
+│  │ (int, error)││(implicit)│  │ (int, error)││
 │  └────────────┘│          │  │ Write(...)  ││
 └────────────────┘          │  │ Close()     ││
                             │  │ Stat()      ││
 ┌────────────────┐          │  └────────────┘│
 │  io.ReadCloser │          └────────────────┘
 │  ┌────────────┐│               ▲
-│  │ Read(...)   ││    こちらも    │
-│  │ Close()     ││── 満たす ─────┘
+│  │ Read(...)   ││   also        │
+│  │ Close()     ││── satisfies ──┘
 │  └────────────┘│
 └────────────────┘
 
-インターフェースの内部表現 (iface):
+Internal representation of an interface (iface):
 ┌──────────────────────────┐
 │  interface value          │
 │  ┌──────────┐ ┌────────┐│
@@ -1386,24 +1387,24 @@ Dog struct:
 │  └──────────┘ └────────┘│
 └──────────────────────────┘
 
-itab = interface table (メソッドテーブルのキャッシュ)
-data = 実際の値へのポインタ
+itab = interface table (cache for the method table)
+data = pointer to the actual value
 
 nil interface vs nil pointer:
-  var w io.Writer         // type=nil, data=nil → w == nil (true)
+  var w io.Writer         // type=nil, data=nil -> w == nil (true)
   var f *os.File = nil
-  w = f                   // type=*os.File, data=nil → w == nil (false!)
+  w = f                   // type=*os.File, data=nil -> w == nil (false!)
 ```
 
-### 図4: スライスの内部構造
+### Diagram 4: Internal Structure of a Slice
 
 ```
 s := []int{1, 2, 3, 4, 5}
 
-スライスヘッダ:
+Slice header:
 ┌─────────┐
 │ ptr  ────┼──> ┌───┬───┬───┬───┬───┐
-│ len = 5  │    │ 1 │ 2 │ 3 │ 4 │ 5 │  基底配列
+│ len = 5  │    │ 1 │ 2 │ 3 │ 4 │ 5 │  underlying array
 │ cap = 5  │    └───┴───┴───┴───┴───┘
 └─────────┘
 
@@ -1416,26 +1417,26 @@ sub := s[1:3]
 └─────────┘          ↑       ↑
                      s[0]    sub[0] = s[1]
 
-append による再割当:
+Reallocation due to append:
 s2 := append(s, 6)
 
-cap が不足 → 新しい配列を確保（約2倍の容量）
+cap is insufficient -> allocate a new array (roughly double the capacity)
 ┌─────────┐
 │ ptr  ────┼──> ┌───┬───┬───┬───┬───┬───┬───┬───┬───┬───┐
 │ len = 6  │    │ 1 │ 2 │ 3 │ 4 │ 5 │ 6 │   │   │   │   │
 │ cap = 10 │    └───┴───┴───┴───┴───┴───┴───┴───┴───┴───┘
 └─────────┘
-※ 元のスライスとは基底配列が異なる（独立）
+* The underlying array is different from the original slice (independent)
 ```
 
-### 図5: マップの概念的な内部構造
+### Diagram 5: Conceptual Internal Structure of a Map
 
 ```
 map[string]int:
 ┌──────────────────────────────────────┐
-│ ハッシュテーブル                       │
+│ Hash table                           │
 │                                      │
-│  バケット配列:                         │
+│  Bucket array:                        │
 │  ┌─────────┐                          │
 │  │bucket[0]│──> [key1:val1, key2:val2]│
 │  ├─────────┤                          │
@@ -1446,77 +1447,77 @@ map[string]int:
 │  │bucket[3]│──> [key4:val4, ...]      │
 │  └─────────┘                          │
 │                                      │
-│  各バケットは最大8エントリを保持        │
-│  オーバーフロー時は overflow bucket    │
-│  にチェーンする                        │
+│  Each bucket holds up to 8 entries    │
+│  On overflow, it chains to            │
+│  an overflow bucket                   │
 │                                      │
-│  成長: 要素数/バケット数 > 6.5 で      │
-│  バケット配列を2倍に拡張               │
+│  Growth: when items/buckets > 6.5,    │
+│  the bucket array doubles             │
 └──────────────────────────────────────┘
 ```
 
 ---
 
-## 3. 比較表
+## 3. Comparison Tables
 
-### 表1: 値レシーバ vs ポインタレシーバ
+### Table 1: Value Receiver vs Pointer Receiver
 
-| 項目 | 値レシーバ `(t T)` | ポインタレシーバ `(t *T)` |
+| Item | Value receiver `(t T)` | Pointer receiver `(t *T)` |
 |------|-------------------|------------------------|
-| コピー | 呼び出し毎にコピー | ポインタのみコピー |
-| 元の値の変更 | 不可 | 可能 |
-| nil呼び出し | 不可 | 可能（要nilチェック） |
-| interface満足 | T, *T 両方 | *T のみ |
-| 推奨場面 | 小さいstruct、イミュータブル | 大きいstruct、ミュータブル |
-| sync.Mutex含む | 不可（コピーされる） | 必須（コピーは禁止） |
-| スライスへの格納 | 値がコピーされる | ポインタが格納される |
+| Copy | Copied on every call | Only the pointer is copied |
+| Modification of original | Not possible | Possible |
+| Call on nil | Not possible | Possible (requires nil check) |
+| Interface satisfaction | Both T and *T | Only *T |
+| Recommended use | Small structs, immutable | Large structs, mutable |
+| Contains sync.Mutex | Not allowed (gets copied) | Required (copying is forbidden) |
+| Storage in slices | The value is copied | The pointer is stored |
 
-### 表2: Goの型ゼロ値一覧
+### Table 2: Zero Values for Go Types
 
-| 型 | ゼロ値 | 備考 |
+| Type | Zero value | Notes |
 |-----|-------|------|
-| int, float64 | `0`, `0.0` | 数値型は全て0 |
-| string | `""` | 空文字列 |
+| int, float64 | `0`, `0.0` | All numeric types are 0 |
+| string | `""` | Empty string |
 | bool | `false` | |
 | pointer | `nil` | |
-| slice | `nil` | `len()=0`, `cap()=0`。appendは可能 |
-| map | `nil` | 読み取り可、代入前にmake必要 |
-| channel | `nil` | 送受信で永久ブロック |
-| struct | 各フィールドのゼロ値 | |
-| interface | `nil` | type, value 両方 nil |
+| slice | `nil` | `len()=0`, `cap()=0`. append is allowed |
+| map | `nil` | Readable; make is required before assignment |
+| channel | `nil` | Send/receive blocks forever |
+| struct | Zero value of each field | |
+| interface | `nil` | Both type and value are nil |
 | function | `nil` | |
-| array | 各要素のゼロ値 | 固定長 |
+| array | Zero value of each element | Fixed length |
 
-### 表3: コレクション型の比較
+### Table 3: Comparison of Collection Types
 
-| 特性 | Array | Slice | Map | sync.Map |
+| Characteristic | Array | Slice | Map | sync.Map |
 |------|-------|-------|-----|----------|
-| サイズ | 固定 | 動的 | 動的 | 動的 |
-| メモリ | スタック可 | ヒープ | ヒープ | ヒープ |
-| キーの型 | int (インデックス) | int (インデックス) | comparable | any |
-| 順序保証 | あり | あり | なし | なし |
-| 並行安全 | なし | なし | なし | あり |
-| ゼロ値 | 使用可 | nil (appendは可) | nil (代入不可) | 使用可 |
-| 等価比較 | `==` 可 | 不可 (reflect) | 不可 | 不可 |
+| Size | Fixed | Dynamic | Dynamic | Dynamic |
+| Memory | Can be on stack | Heap | Heap | Heap |
+| Key type | int (index) | int (index) | comparable | any |
+| Order guarantee | Yes | Yes | No | No |
+| Concurrency safe | No | No | No | Yes |
+| Zero value | Usable | nil (append OK) | nil (assignment not allowed) | Usable |
+| Equality comparison | `==` allowed | Not allowed (reflect) | Not allowed | Not allowed |
 
-### 表4: interface の設計指針
+### Table 4: Interface Design Guidelines
 
-| 原則 | 説明 | 例 |
+| Principle | Description | Example |
 |------|------|-----|
-| 小さく保つ | 1-3メソッドが理想 | io.Reader (1), io.ReadWriter (2) |
-| consumer側で定義 | 使う側がインターフェースを宣言 | handler.Getter |
-| 動詞 + "er" で命名 | アクション名から命名 | Reader, Writer, Closer |
-| 必要になってから抽象化 | 事前定義を避ける | テスト時にmockが必要になったら |
-| 合成で拡張 | 既存インターフェースを埋め込む | io.ReadWriteCloser |
+| Keep them small | 1-3 methods is ideal | io.Reader (1), io.ReadWriter (2) |
+| Define on consumer side | The consumer declares the interface | handler.Getter |
+| Name as verb + "er" | Name based on the action | Reader, Writer, Closer |
+| Abstract only when needed | Avoid pre-defining | When a mock becomes necessary in tests |
+| Extend via composition | Embed existing interfaces | io.ReadWriteCloser |
 
 ---
 
-## 4. アンチパターン
+## 4. Anti-Patterns
 
-### アンチパターン 1: 巨大インターフェース
+### Anti-Pattern 1: The Giant Interface
 
 ```go
-// BAD: 巨大なインターフェース（God Interface）
+// BAD: A giant interface (God Interface)
 type Repository interface {
     FindUser(id int) (*User, error)
     CreateUser(u *User) error
@@ -1527,15 +1528,15 @@ type Repository interface {
     UpdateOrder(o *Order) error
     DeleteOrder(id int) error
     FindProduct(id int) (*Product, error)
-    // ... 20個以上のメソッド
+    // ... more than 20 methods
 }
 
-// 問題点:
-// 1. テスト時のmock作成が大変
-// 2. 実装に不必要なメソッドが強制される
-// 3. 変更の影響範囲が広い
+// Problems:
+// 1. Creating mocks for tests is tedious
+// 2. Implementations are forced to implement methods they don't need
+// 3. The blast radius of changes is large
 
-// GOOD: ロールベースの小さなインターフェースに分割
+// GOOD: Split into small, role-based interfaces
 type UserReader interface {
     FindUser(id int) (*User, error)
 }
@@ -1546,13 +1547,13 @@ type UserWriter interface {
     DeleteUser(id int) error
 }
 
-// 必要に応じて合成
+// Compose as needed
 type UserRepository interface {
     UserReader
     UserWriter
 }
 
-// テスト時は必要なインターフェースだけmock
+// In tests, only mock the interfaces you need
 type mockUserReader struct {
     users map[int]*User
 }
@@ -1566,10 +1567,10 @@ func (m *mockUserReader) FindUser(id int) (*User, error) {
 }
 ```
 
-### アンチパターン 2: nilインターフェースの罠
+### Anti-Pattern 2: The nil Interface Trap
 
 ```go
-// BAD: nil ポインタを interface に入れると nil 判定が壊れる
+// BAD: Storing a nil pointer in an interface breaks the nil check
 type Logger interface {
     Log(msg string)
 }
@@ -1583,29 +1584,29 @@ func (f *FileLogger) Log(msg string) {
 }
 
 func getLogger() *FileLogger {
-    // 条件によりnilを返す
+    // returns nil depending on conditions
     return nil
 }
 
 func processWithLogger() {
-    var logger Logger = getLogger()  // *FileLogger(nil) を代入
+    var logger Logger = getLogger()  // Assigns *FileLogger(nil)
     if logger != nil {
-        // ここに到達してしまう！
-        // interface{type:*FileLogger, value:nil} は nil ではない
-        logger.Log("hello") // nil pointer dereference → PANIC
+        // Execution reaches here!
+        // interface{type:*FileLogger, value:nil} is not nil
+        logger.Log("hello") // nil pointer dereference -> PANIC
     }
 }
 
-// GOOD: 明示的に nil interface を返す
+// GOOD: Explicitly return a nil interface
 func getLoggerSafe() Logger {
     f := findLogger()
     if f == nil {
-        return nil  // interface 自体が nil になる
+        return nil  // the interface itself becomes nil
     }
     return f
 }
 
-// GOOD: reflect を使ったnil チェック（高コスト、非推奨）
+// GOOD: nil check using reflect (expensive, not recommended)
 import "reflect"
 
 func isNil(v interface{}) bool {
@@ -1621,24 +1622,24 @@ func isNil(v interface{}) bool {
 }
 ```
 
-### アンチパターン 3: 構造体のフィールドタグの間違い
+### Anti-Pattern 3: Mistakes in Struct Field Tags
 
 ```go
-// BAD: JSON タグのスペースミス
+// BAD: Whitespace mistakes in JSON tags
 type Config struct {
-    Host string `json: "host"` // スペースが入っている → タグが無視される
-    Port int    `json:"port" `  // 末尾にスペース → 正常に動かない
+    Host string `json: "host"` // Contains a space -> tag is ignored
+    Port int    `json:"port" `  // Trailing whitespace -> doesn't work properly
 }
 
-// BAD: バリデーションタグの不整合
+// BAD: Inconsistencies in validation tags
 type Request struct {
     Name  string `json:"name" validate:"required"`
     Email string `json:"email" validate:"required,email"`
     Age   int    `json:"age" validate:"min=0,max=200"`  // OK
-    // Age   int    `json:"age" validate:"min=0, max=200"` // BAD: スペースが入る
+    // Age   int    `json:"age" validate:"min=0, max=200"` // BAD: contains a space
 }
 
-// GOOD: go vet で検出できるが、手動確認も必要
+// GOOD: go vet can detect some of these, but manual checking is also needed
 type Config struct {
     Host     string        `json:"host" yaml:"host" env:"APP_HOST"`
     Port     int           `json:"port" yaml:"port" env:"APP_PORT"`
@@ -1647,64 +1648,64 @@ type Config struct {
 }
 ```
 
-### アンチパターン 4: スライスの容量漏洩
+### Anti-Pattern 4: Slice Capacity Leaks
 
 ```go
-// BAD: 大きなスライスの一部だけを保持 → 基底配列がGCされない
+// BAD: Holding only a part of a large slice -> the underlying array is not GC'd
 func getFirstThree(data []byte) []byte {
-    return data[:3]  // 元のdata全体がメモリに残る
+    return data[:3]  // the entire original data remains in memory
 }
 
-// GOOD: コピーして基底配列への参照を切る
+// GOOD: Copy to cut off the reference to the underlying array
 func getFirstThreeSafe(data []byte) []byte {
     result := make([]byte, 3)
     copy(result, data[:3])
     return result
 }
 
-// BAD: append が意図せず元のスライスを変更
+// BAD: append unintentionally modifies the original slice
 func appendToSlice(s []int) []int {
-    return append(s, 999)  // cap に余裕があると元の基底配列を変更
+    return append(s, 999)  // if there is spare cap, it mutates the original underlying array
 }
 
-// GOOD: フルスライス式で容量を制限
+// GOOD: Use the full slice expression to cap the capacity
 func safeSubslice(s []int) []int {
-    sub := s[1:3:3]  // s[low:high:max] → cap = max - low
-    return append(sub, 999)  // 必ず新しい配列が確保される
+    sub := s[1:3:3]  // s[low:high:max] -> cap = max - low
+    return append(sub, 999)  // a new array is guaranteed to be allocated
 }
 ```
 
-### アンチパターン 5: ゼロ値の活用を忘れる
+### Anti-Pattern 5: Forgetting to Leverage Zero Values
 
 ```go
-// BAD: 不必要な初期化
-var mu = &sync.Mutex{}     // ポインタにする必要なし
-var buf = bytes.Buffer{}   // 明示的な初期化は不要
-var wg = &sync.WaitGroup{} // ゼロ値で十分
+// BAD: Unnecessary initialization
+var mu = &sync.Mutex{}     // no need to make this a pointer
+var buf = bytes.Buffer{}   // explicit initialization is unnecessary
+var wg = &sync.WaitGroup{} // the zero value is sufficient
 
-// GOOD: ゼロ値を活用
-var mu sync.Mutex           // ゼロ値で使用可能
-var buf bytes.Buffer         // ゼロ値で使用可能
-var wg sync.WaitGroup        // ゼロ値で使用可能
-var once sync.Once           // ゼロ値で使用可能
+// GOOD: Leverage the zero value
+var mu sync.Mutex           // usable from its zero value
+var buf bytes.Buffer         // usable from its zero value
+var wg sync.WaitGroup        // usable from its zero value
+var once sync.Once           // usable from its zero value
 
-// ゼロ値が有用な型の例:
-// sync.Mutex     → ロックされていない状態
-// sync.WaitGroup → カウンタ0
-// bytes.Buffer   → 空のバッファ
-// strings.Builder → 空のビルダー
+// Examples of types with useful zero values:
+// sync.Mutex      -> an unlocked state
+// sync.WaitGroup  -> counter of 0
+// bytes.Buffer    -> an empty buffer
+// strings.Builder -> an empty builder
 ```
 
 ---
 
 ## 5. FAQ
 
-### Q1: structに「コンストラクタ」はあるか？
+### Q1: Do structs have "constructors"?
 
-Goにはコンストラクタ構文がないが、慣例として `New関数名` を使う。例: `func NewUser(name string) *User`。これはファクトリ関数パターンであり、バリデーションやデフォルト値の設定に適している。
+Go has no constructor syntax, but by convention you use `New<TypeName>`. Example: `func NewUser(name string) *User`. This is the factory function pattern and is well suited for validation and setting default values.
 
 ```go
-// 基本的なファクトリ関数
+// Basic factory function
 func NewUser(name, email string) *User {
     return &User{
         Name:      name,
@@ -1713,7 +1714,7 @@ func NewUser(name, email string) *User {
     }
 }
 
-// Functional Options パターン（複雑な初期化向け）
+// Functional Options pattern (for complex initialization)
 type ServerOption func(*Server)
 
 func WithPort(port int) ServerOption {
@@ -1731,7 +1732,7 @@ func WithTLS(cert, key string) ServerOption {
 func NewServer(host string, opts ...ServerOption) *Server {
     s := &Server{
         Host: host,
-        Port: 8080, // デフォルト値
+        Port: 8080, // default value
     }
     for _, opt := range opts {
         opt(s)
@@ -1739,110 +1740,110 @@ func NewServer(host string, opts ...ServerOption) *Server {
     return s
 }
 
-// 使用例
+// Usage example
 srv := NewServer("localhost",
     WithPort(9090),
     WithTLS("cert.pem", "key.pem"),
 )
 ```
 
-### Q2: いつ値レシーバ、いつポインタレシーバを使うべきか？
+### Q2: When should I use value receivers vs pointer receivers?
 
-原則: (1) structを変更するならポインタレシーバ、(2) structが大きい（フィールドが多い）ならポインタレシーバ、(3) 一貫性のため同一型のレシーバは統一する。迷ったらポインタレシーバを選ぶ。
+Rules of thumb: (1) if you mutate the struct, use a pointer receiver; (2) if the struct is large (many fields), use a pointer receiver; (3) for consistency, keep receivers of the same type uniform. When in doubt, prefer a pointer receiver.
 
-具体的な判断基準:
-- **ポインタレシーバが必要**: `sync.Mutex` を含む、フィールドを変更する、大きな構造体（目安: 3フィールド超）
-- **値レシーバが適切**: 小さい構造体（`time.Time`など）、イミュータブルなメソッド、基本型のカスタム型
-- **混在禁止**: 同一型で値レシーバとポインタレシーバを混在させない（interface 満足の問題）
+Specific criteria:
+- **Pointer receiver required**: contains a `sync.Mutex`, mutates fields, large struct (rule of thumb: more than 3 fields)
+- **Value receiver appropriate**: small struct (like `time.Time`), immutable methods, custom types over basic types
+- **Mixing forbidden**: do not mix value and pointer receivers on the same type (causes issues with interface satisfaction)
 
-### Q3: any型(interface{})を多用してよいか？
+### Q3: Is it OK to use the any type (interface{}) a lot?
 
-避けるべき。Go 1.18以降はジェネリクスが使えるため、`any` の利用は本当に任意の型を受け取る必要がある場面（JSONパース等）に限定する。型安全性を損なうため、可能な限り具体的な型やインターフェースを使う。
+Avoid it. Since Go 1.18, you can use generics, so limit `any` to situations where you genuinely need to accept arbitrary types (JSON parsing, etc.). It harms type safety, so use concrete types or interfaces whenever possible.
 
-`any` の許容される用途:
-- `encoding/json` のMarshal/Unmarshal
-- ロギングライブラリの引数
-- リフレクションが必要な場面
-- テストヘルパー
+Acceptable uses of `any`:
+- Marshal/Unmarshal in `encoding/json`
+- Arguments to logging libraries
+- Situations that require reflection
+- Test helpers
 
-### Q4: struct のフィールド順序はメモリに影響するか？
+### Q4: Does the field order of a struct affect memory usage?
 
-はい。Go のコンパイラは構造体フィールドをメモリアラインメントに合わせてパディングを挿入する。フィールドの順序を工夫することで、パディングを減らしメモリ効率を改善できる。
+Yes. The Go compiler inserts padding to align struct fields on memory boundaries. By adjusting the field order, you can reduce padding and improve memory efficiency.
 
 ```go
-// BAD: パディングが多い（24 bytes）
+// BAD: Lots of padding (24 bytes)
 type BadLayout struct {
     A bool    // 1 byte + 7 bytes padding
     B int64   // 8 bytes
     C bool    // 1 byte + 7 bytes padding
 }
 
-// GOOD: パディングが少ない（16 bytes）
+// GOOD: Less padding (16 bytes)
 type GoodLayout struct {
     B int64   // 8 bytes
     A bool    // 1 byte
     C bool    // 1 byte + 6 bytes padding
 }
 
-// fieldalignment ツールで確認可能
+// You can verify this with the fieldalignment tool
 // go install golang.org/x/tools/go/analysis/passes/fieldalignment/cmd/fieldalignment@latest
 // fieldalignment -fix ./...
 ```
 
-### Q5: comparable 制約とは何か？
+### Q5: What is the comparable constraint?
 
-`comparable` は Go 1.18 で導入された組み込み型制約で、`==` と `!=` 演算子が使える型を制約する。`map` のキー型や、ジェネリックな Set の要素型に使う。
+`comparable` is a built-in type constraint introduced in Go 1.18 that constrains types on which the `==` and `!=` operators can be used. It is used for `map` key types and for the element type of generic sets.
 
-`comparable` に含まれる型: bool, 整数型, 浮動小数点型, complex, string, pointer, channel, array (要素がcomparable), struct (全フィールドがcomparable)
+Types included in `comparable`: bool, integer types, floating-point types, complex, string, pointer, channel, array (if elements are comparable), struct (if all fields are comparable)
 
-`comparable` に含まれない型: slice, map, function
+Types not included in `comparable`: slice, map, function
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory but by actually writing and running code to see how things work.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the basics and jumping to advanced topics. We recommend solidly understanding the fundamental concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this applied in real-world development?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+The knowledge from this topic is frequently applied in day-to-day development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 6. まとめ
+## 6. Summary
 
-| 概念 | 要点 |
+| Concept | Key Points |
 |------|------|
-| 基本型 | int, float64, string, bool, rune, byte。ビット幅の明示が推奨される場面もある |
-| struct | フィールドの集合。メソッドを持てる。JSONタグでシリアライゼーション制御 |
-| 埋め込み | 継承ではなくコンポジション。メソッドとフィールドが昇格される |
-| interface | メソッドセット。暗黙的に満たされる。consumer側で定義するのが推奨 |
-| type assertion | `v, ok := i.(Type)` で安全に判定 |
-| type switch | `switch v := i.(type)` で分岐 |
-| ゼロ値 | 全ての型にゼロ値がある。有用なゼロ値を設計する |
-| カスタム型 | `type X underlying` で型安全性向上。iota で列挙型を模倣 |
-| ジェネリクス | Go 1.18+ の型パラメータ。`comparable`, `any` 等の型制約 |
-| スライス | 動的配列。基底配列の共有に注意。append は再割当の可能性あり |
-| マップ | ハッシュテーブル。nil map への代入は panic。順序は非決定的 |
+| Basic types | int, float64, string, bool, rune, byte. Explicit bit widths are recommended in some situations |
+| struct | A collection of fields. Can have methods. JSON tags control serialization |
+| Embedding | Composition, not inheritance. Methods and fields are promoted |
+| interface | A method set. Satisfied implicitly. Defining on the consumer side is recommended |
+| type assertion | Safely check with `v, ok := i.(Type)` |
+| type switch | Branch with `switch v := i.(type)` |
+| Zero value | Every type has a zero value. Design for useful zero values |
+| Custom types | `type X underlying` improves type safety. Emulate enums with iota |
+| Generics | Type parameters in Go 1.18+. Type constraints like `comparable`, `any` |
+| Slice | Dynamic array. Be careful about sharing the underlying array. append may reallocate |
+| Map | Hash table. Assignment to a nil map panics. Order is non-deterministic |
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Reads
 
-- [02-error-handling.md](./02-error-handling.md) -- エラーハンドリング
-- [03-packages-modules.md](./03-packages-modules.md) -- パッケージとモジュール
-- [../03-tools/01-generics.md](../03-tools/01-generics.md) -- ジェネリクス
+- [02-error-handling.md](./02-error-handling.md) -- Error handling
+- [03-packages-modules.md](./03-packages-modules.md) -- Packages and modules
+- [../03-tools/01-generics.md](../03-tools/01-generics.md) -- Generics
 
 ---
 
-## 参考文献
+## References
 
 1. **The Go Programming Language Specification -- Types** -- https://go.dev/ref/spec#Types
 2. **Effective Go -- Interfaces** -- https://go.dev/doc/effective_go#interfaces
