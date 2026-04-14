@@ -1,32 +1,32 @@
-# データベース -- database/sql, sqlx, GORM
+# Database -- database/sql, sqlx, GORM
 
-> Goはdatabase/sqlで標準的なDB接続を提供し、sqlx・GORMで生産性を向上させ、マイグレーション・接続プールで本番運用を支える。
-
----
-
-## この章で学ぶこと
-
-1. **database/sql** -- 標準ライブラリのDB操作と接続プール管理
-2. **sqlx / GORM** -- 高レベルライブラリの使い分けと実践テクニック
-3. **接続プールとマイグレーション** -- 本番運用のベストプラクティス
-4. **トランザクション設計** -- ACID特性の活用とデッドロック回避
-5. **パフォーマンス最適化** -- クエリ最適化、N+1問題の検出と対策
-6. **テスト戦略** -- DBテストの手法とテストコンテナ
-
-
-## 前提知識
-
-このガイドを読む前に、以下の知識があると理解が深まります:
-
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [Gin / Echo -- Go Webフレームワーク](./01-gin-echo.md) の内容を理解していること
+> Go provides standard DB connectivity via database/sql, enhances productivity with sqlx and GORM, and supports production operations through migrations and connection pooling.
 
 ---
 
-## 1. database/sql 基本
+## What You Will Learn in This Chapter
 
-### コード例 1: database/sql 接続とプール設定
+1. **database/sql** -- DB operations and connection pool management with the standard library
+2. **sqlx / GORM** -- Choosing between higher-level libraries and practical techniques
+3. **Connection Pooling and Migrations** -- Best practices for production operations
+4. **Transaction Design** -- Leveraging ACID properties and avoiding deadlocks
+5. **Performance Optimization** -- Query optimization, detecting and addressing the N+1 problem
+6. **Test Strategies** -- DB testing approaches and test containers
+
+
+## Prerequisites
+
+Before reading this guide, having the following knowledge will deepen your understanding:
+
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Familiarity with the content in [Gin / Echo -- Go Web Frameworks](./01-gin-echo.md)
+
+---
+
+## 1. database/sql Basics
+
+### Code Example 1: database/sql Connection and Pool Configuration
 
 ```go
 package main
@@ -42,32 +42,32 @@ import (
 )
 
 func main() {
-    // sql.Open はコネクションプールを初期化するが、実際の接続は行わない
+    // sql.Open initializes the connection pool but does not establish an actual connection
     db, err := sql.Open("postgres", "postgres://user:pass@localhost/mydb?sslmode=disable")
     if err != nil {
         log.Fatal(err)
     }
     defer db.Close()
 
-    // 接続プール設定（本番環境では必ず設定する）
-    db.SetMaxOpenConns(25)              // 最大同時接続数
-    db.SetMaxIdleConns(5)               // アイドル接続の最大数
-    db.SetConnMaxLifetime(5 * time.Minute) // 接続の最大生存時間
-    db.SetConnMaxIdleTime(1 * time.Minute) // アイドル接続の最大生存時間
+    // Connection pool settings (must be configured in production environments)
+    db.SetMaxOpenConns(25)              // Maximum number of concurrent connections
+    db.SetMaxIdleConns(5)               // Maximum number of idle connections
+    db.SetConnMaxLifetime(5 * time.Minute) // Maximum lifetime of a connection
+    db.SetConnMaxIdleTime(1 * time.Minute) // Maximum idle time for a connection
 
-    // Ping で実際の接続を確認
+    // Verify the actual connection with Ping
     ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
     defer cancel()
 
     if err := db.PingContext(ctx); err != nil {
-        log.Fatal("DB接続失敗:", err)
+        log.Fatal("DB connection failed:", err)
     }
 
-    fmt.Println("DB接続成功")
+    fmt.Println("DB connection successful")
 }
 ```
 
-### コード例 2: ドライバ登録とDSN構築
+### Code Example 2: Driver Registration and DSN Construction
 
 ```go
 package database
@@ -80,10 +80,10 @@ import (
     _ "github.com/go-sql-driver/mysql" // MySQL
     _ "github.com/lib/pq"              // PostgreSQL
     _ "github.com/mattn/go-sqlite3"    // SQLite
-    _ "modernc.org/sqlite"             // SQLite (CGO不要)
+    _ "modernc.org/sqlite"             // SQLite (no CGO required)
 )
 
-// Config はDB接続設定を表す
+// Config represents DB connection settings
 type Config struct {
     Driver   string
     Host     string
@@ -95,7 +95,7 @@ type Config struct {
     Params   map[string]string
 }
 
-// DSN はドライバごとのDSN文字列を生成する
+// DSN generates a DSN string for each driver
 func (c *Config) DSN() string {
     switch c.Driver {
     case "postgres":
@@ -112,27 +112,27 @@ func (c *Config) DSN() string {
             c.User, c.Password, c.Host, c.Port, c.DBName,
         )
     case "sqlite3", "sqlite":
-        return c.DBName // ファイルパスまたは ":memory:"
+        return c.DBName // File path or ":memory:"
     default:
         panic("unsupported driver: " + c.Driver)
     }
 }
 
-// Open はDB接続プールを初期化する
+// Open initializes the DB connection pool
 func Open(cfg Config) (*sql.DB, error) {
     db, err := sql.Open(cfg.Driver, cfg.DSN())
     if err != nil {
         return nil, fmt.Errorf("sql.Open: %w", err)
     }
 
-    // ドライバに応じたプール設定
+    // Pool settings based on the driver
     switch cfg.Driver {
     case "postgres", "mysql":
         db.SetMaxOpenConns(25)
         db.SetMaxIdleConns(5)
         db.SetConnMaxLifetime(5 * time.Minute)
     case "sqlite3", "sqlite":
-        // SQLiteは単一接続推奨
+        // Single connection is recommended for SQLite
         db.SetMaxOpenConns(1)
     }
 
@@ -140,7 +140,7 @@ func Open(cfg Config) (*sql.DB, error) {
 }
 ```
 
-### コード例 3: CRUD操作 (database/sql)
+### Code Example 3: CRUD Operations (database/sql)
 
 ```go
 package repository
@@ -153,7 +153,7 @@ import (
     "time"
 )
 
-// User はユーザーエンティティを表す
+// User represents a user entity
 type User struct {
     ID        int64
     Name      string
@@ -162,20 +162,20 @@ type User struct {
     UpdatedAt time.Time
 }
 
-// ErrNotFound はリソースが見つからない場合のエラー
+// ErrNotFound is the error returned when a resource is not found
 var ErrNotFound = errors.New("resource not found")
 
-// UserRepository はユーザーデータへのアクセスを提供する
+// UserRepository provides access to user data
 type UserRepository struct {
     db *sql.DB
 }
 
-// NewUserRepository は新しいUserRepositoryを作成する
+// NewUserRepository creates a new UserRepository
 func NewUserRepository(db *sql.DB) *UserRepository {
     return &UserRepository{db: db}
 }
 
-// GetByID は指定IDのユーザーを取得する
+// GetByID retrieves a user by the specified ID
 func (r *UserRepository) GetByID(ctx context.Context, id int64) (*User, error) {
     var u User
     err := r.db.QueryRowContext(ctx,
@@ -192,7 +192,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id int64) (*User, error) {
     return &u, nil
 }
 
-// GetByEmail はメールアドレスでユーザーを検索する
+// GetByEmail searches for a user by email address
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*User, error) {
     var u User
     err := r.db.QueryRowContext(ctx,
@@ -209,7 +209,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*User, e
     return &u, nil
 }
 
-// List は全ユーザーを取得する（ページネーション付き）
+// List retrieves all users (with pagination)
 func (r *UserRepository) List(ctx context.Context, limit, offset int) ([]User, error) {
     rows, err := r.db.QueryContext(ctx,
         `SELECT id, name, email, created_at, updated_at
@@ -230,16 +230,16 @@ func (r *UserRepository) List(ctx context.Context, limit, offset int) ([]User, e
         }
         users = append(users, u)
     }
-    // rows.Err() で反復中のエラーを確認する（重要）
+    // Check for errors during iteration with rows.Err() (important)
     if err := rows.Err(); err != nil {
         return nil, fmt.Errorf("List rows: %w", err)
     }
     return users, nil
 }
 
-// Search はキーワードでユーザーを検索する
+// Search searches for users by keyword
 func (r *UserRepository) Search(ctx context.Context, keyword string) ([]User, error) {
-    // LIKE検索のワイルドカードをエスケープ
+    // Escape wildcards for LIKE search
     escapedKeyword := "%" + keyword + "%"
 
     rows, err := r.db.QueryContext(ctx,
@@ -264,7 +264,7 @@ func (r *UserRepository) Search(ctx context.Context, keyword string) ([]User, er
     return users, rows.Err()
 }
 
-// Create は新しいユーザーを作成する
+// Create creates a new user
 func (r *UserRepository) Create(ctx context.Context, u *User) error {
     err := r.db.QueryRowContext(ctx,
         `INSERT INTO users (name, email, created_at, updated_at)
@@ -279,7 +279,7 @@ func (r *UserRepository) Create(ctx context.Context, u *User) error {
     return nil
 }
 
-// Update は既存ユーザーを更新する
+// Update updates an existing user
 func (r *UserRepository) Update(ctx context.Context, u *User) error {
     result, err := r.db.ExecContext(ctx,
         `UPDATE users SET name = $1, email = $2, updated_at = NOW()
@@ -300,7 +300,7 @@ func (r *UserRepository) Update(ctx context.Context, u *User) error {
     return nil
 }
 
-// Delete はユーザーを削除する
+// Delete deletes a user
 func (r *UserRepository) Delete(ctx context.Context, id int64) error {
     result, err := r.db.ExecContext(ctx,
         `DELETE FROM users WHERE id = $1`, id,
@@ -319,10 +319,10 @@ func (r *UserRepository) Delete(ctx context.Context, id int64) error {
     return nil
 }
 
-// BulkCreate は複数ユーザーを一括作成する
+// BulkCreate creates multiple users in bulk
 func (r *UserRepository) BulkCreate(ctx context.Context, users []User) error {
-    // 大量データの場合は COPY プロトコルが高速だが、
-    // ここでは INSERT ... VALUES の複数行挿入を使う
+    // For large volumes, the COPY protocol is faster,
+    // but here we use multi-row INSERT ... VALUES
     tx, err := r.db.BeginTx(ctx, nil)
     if err != nil {
         return fmt.Errorf("BulkCreate begin: %w", err)
@@ -349,7 +349,7 @@ func (r *UserRepository) BulkCreate(ctx context.Context, users []User) error {
 }
 ```
 
-### コード例 4: Prepared Statement の活用
+### Code Example 4: Using Prepared Statements
 
 ```go
 package repository
@@ -360,7 +360,7 @@ import (
     "fmt"
 )
 
-// PreparedUserRepository はPrepared Statementを使ったリポジトリ
+// PreparedUserRepository is a repository that uses Prepared Statements
 type PreparedUserRepository struct {
     db         *sql.DB
     stmtGetByID *sql.Stmt
@@ -370,7 +370,7 @@ type PreparedUserRepository struct {
     stmtDelete  *sql.Stmt
 }
 
-// NewPreparedUserRepository は事前にステートメントを準備する
+// NewPreparedUserRepository prepares statements in advance
 func NewPreparedUserRepository(ctx context.Context, db *sql.DB) (*PreparedUserRepository, error) {
     r := &PreparedUserRepository{db: db}
     var err error
@@ -409,7 +409,7 @@ func NewPreparedUserRepository(ctx context.Context, db *sql.DB) (*PreparedUserRe
     return r, nil
 }
 
-// Close はすべてのPrepared Statementを閉じる
+// Close closes all Prepared Statements
 func (r *PreparedUserRepository) Close() error {
     stmts := []*sql.Stmt{r.stmtGetByID, r.stmtList, r.stmtCreate, r.stmtUpdate, r.stmtDelete}
     for _, stmt := range stmts {
@@ -420,7 +420,7 @@ func (r *PreparedUserRepository) Close() error {
     return nil
 }
 
-// GetByID はPrepared Statementを使って高速にユーザーを取得する
+// GetByID retrieves a user efficiently using a Prepared Statement
 func (r *PreparedUserRepository) GetByID(ctx context.Context, id int64) (*User, error) {
     var u User
     err := r.stmtGetByID.QueryRowContext(ctx, id).
@@ -432,7 +432,7 @@ func (r *PreparedUserRepository) GetByID(ctx context.Context, id int64) (*User, 
 }
 ```
 
-### コード例 5: トランザクション管理
+### Code Example 5: Transaction Management
 
 ```go
 package service
@@ -443,11 +443,11 @@ import (
     "fmt"
 )
 
-// TxFunc はトランザクション内で実行する関数の型
+// TxFunc is the function type executed within a transaction
 type TxFunc func(tx *sql.Tx) error
 
-// WithTransaction はトランザクション管理のヘルパー関数
-// パニックからの回復、ロールバック、コミットを自動処理する
+// WithTransaction is a helper function for transaction management
+// It automatically handles panic recovery, rollback, and commit
 func WithTransaction(ctx context.Context, db *sql.DB, opts *sql.TxOptions, fn TxFunc) error {
     tx, err := db.BeginTx(ctx, opts)
     if err != nil {
@@ -456,9 +456,9 @@ func WithTransaction(ctx context.Context, db *sql.DB, opts *sql.TxOptions, fn Tx
 
     defer func() {
         if p := recover(); p != nil {
-            // パニック時もロールバック
+            // Rollback on panic
             _ = tx.Rollback()
-            panic(p) // リパニック
+            panic(p) // Re-panic
         }
     }()
 
@@ -475,12 +475,12 @@ func WithTransaction(ctx context.Context, db *sql.DB, opts *sql.TxOptions, fn Tx
     return nil
 }
 
-// 使用例: 送金処理
+// Usage example: Money transfer
 func (s *AccountService) Transfer(ctx context.Context, fromID, toID int64, amount float64) error {
     return WithTransaction(ctx, s.db, &sql.TxOptions{
         Isolation: sql.LevelSerializable,
     }, func(tx *sql.Tx) error {
-        // 送金元の残高確認
+        // Check sender's balance
         var balance float64
         err := tx.QueryRowContext(ctx,
             "SELECT balance FROM accounts WHERE id = $1 FOR UPDATE", fromID,
@@ -493,7 +493,7 @@ func (s *AccountService) Transfer(ctx context.Context, fromID, toID int64, amoun
             return fmt.Errorf("insufficient funds: balance=%.2f, amount=%.2f", balance, amount)
         }
 
-        // 送金元の引き落とし
+        // Debit from sender
         _, err = tx.ExecContext(ctx,
             "UPDATE accounts SET balance = balance - $1, updated_at = NOW() WHERE id = $2",
             amount, fromID)
@@ -501,7 +501,7 @@ func (s *AccountService) Transfer(ctx context.Context, fromID, toID int64, amoun
             return fmt.Errorf("debit: %w", err)
         }
 
-        // 送金先への入金
+        // Credit to recipient
         _, err = tx.ExecContext(ctx,
             "UPDATE accounts SET balance = balance + $1, updated_at = NOW() WHERE id = $2",
             amount, toID)
@@ -509,7 +509,7 @@ func (s *AccountService) Transfer(ctx context.Context, fromID, toID int64, amoun
             return fmt.Errorf("credit: %w", err)
         }
 
-        // 取引履歴の記録
+        // Record transaction history
         _, err = tx.ExecContext(ctx,
             `INSERT INTO transactions (from_account_id, to_account_id, amount, created_at)
              VALUES ($1, $2, $3, NOW())`, fromID, toID, amount)
@@ -521,22 +521,22 @@ func (s *AccountService) Transfer(ctx context.Context, fromID, toID int64, amoun
     })
 }
 
-// ReadOnlyTransaction は読み取り専用トランザクション
+// ReadOnlyTransaction is a read-only transaction
 func ReadOnlyTransaction(ctx context.Context, db *sql.DB, fn TxFunc) error {
     return WithTransaction(ctx, db, &sql.TxOptions{
         ReadOnly: true,
     }, fn)
 }
 
-// トランザクション分離レベルの使い分け
-// sql.LevelDefault          - ドライバのデフォルト（PostgreSQLはReadCommitted）
-// sql.LevelReadUncommitted  - ダーティリード可能（ほぼ使わない）
-// sql.LevelReadCommitted    - コミット済みデータのみ読取り
-// sql.LevelRepeatableRead   - トランザクション内で同じ結果を保証
-// sql.LevelSerializable     - 最も厳格（デッドロックリスクあり）
+// Transaction isolation level usage guide
+// sql.LevelDefault          - Driver default (PostgreSQL uses ReadCommitted)
+// sql.LevelReadUncommitted  - Allows dirty reads (rarely used)
+// sql.LevelReadCommitted    - Only reads committed data
+// sql.LevelRepeatableRead   - Guarantees same results within a transaction
+// sql.LevelSerializable     - Most strict (risk of deadlocks)
 ```
 
-### コード例 6: Null値の取り扱い
+### Code Example 6: Handling Null Values
 
 ```go
 package model
@@ -547,19 +547,19 @@ import (
     "time"
 )
 
-// NullableUser はNULL可能なフィールドを持つユーザー
+// NullableUser is a user with nullable fields
 type NullableUser struct {
     ID        int64
     Name      string
-    Email     sql.NullString  // NULL可能
-    Phone     sql.NullString  // NULL可能
-    Age       sql.NullInt64   // NULL可能
-    Score     sql.NullFloat64 // NULL可能
-    IsActive  sql.NullBool    // NULL可能
-    DeletedAt sql.NullTime    // NULL可能（ソフトデリート）
+    Email     sql.NullString  // Nullable
+    Phone     sql.NullString  // Nullable
+    Age       sql.NullInt64   // Nullable
+    Score     sql.NullFloat64 // Nullable
+    IsActive  sql.NullBool    // Nullable
+    DeletedAt sql.NullTime    // Nullable (soft delete)
 }
 
-// UserJSON はJSONレスポンス用の構造体
+// UserJSON is a struct for JSON responses
 type UserJSON struct {
     ID        int64   `json:"id"`
     Name      string  `json:"name"`
@@ -571,7 +571,7 @@ type UserJSON struct {
     DeletedAt *time.Time `json:"deleted_at,omitempty"`
 }
 
-// ToJSON はNullableUserをJSONフレンドリーな構造体に変換する
+// ToJSON converts NullableUser to a JSON-friendly struct
 func (u *NullableUser) ToJSON() UserJSON {
     j := UserJSON{
         ID:   u.ID,
@@ -598,8 +598,8 @@ func (u *NullableUser) ToJSON() UserJSON {
     return j
 }
 
-// カスタムNull型（よりGoらしいアプローチ）
-// ジェネリクスを使ったNull表現（Go 1.18+）
+// Custom Null type (a more idiomatic Go approach)
+// Null representation using generics (Go 1.18+)
 type Nullable[T any] struct {
     Value T
     Valid bool
@@ -623,9 +623,9 @@ func (n Nullable[T]) MarshalJSON() ([]byte, error) {
 
 ---
 
-## 2. sqlx の活用
+## 2. Using sqlx
 
-### コード例 7: sqlx 基本操作
+### Code Example 7: sqlx Basic Operations
 
 ```go
 package repository
@@ -639,7 +639,7 @@ import (
     _ "github.com/lib/pq"
 )
 
-// User はsqlxのdbタグを使った構造体
+// User is a struct using sqlx's db tags
 type User struct {
     ID        int64     `db:"id" json:"id"`
     Name      string    `db:"name" json:"name"`
@@ -649,14 +649,14 @@ type User struct {
     UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
-// SqlxUserRepository はsqlxを使ったリポジトリ
+// SqlxUserRepository is a repository using sqlx
 type SqlxUserRepository struct {
     db *sqlx.DB
 }
 
-// NewSqlxUserRepository はsqlx接続を初期化する
+// NewSqlxUserRepository initializes a sqlx connection
 func NewSqlxUserRepository(dsn string) (*SqlxUserRepository, error) {
-    // sqlx.Connect は Open + Ping を行う
+    // sqlx.Connect performs Open + Ping
     db, err := sqlx.Connect("postgres", dsn)
     if err != nil {
         return nil, fmt.Errorf("sqlx.Connect: %w", err)
@@ -669,7 +669,7 @@ func NewSqlxUserRepository(dsn string) (*SqlxUserRepository, error) {
     return &SqlxUserRepository{db: db}, nil
 }
 
-// GetByID はsqlx.GetContextで単一行を取得する
+// GetByID retrieves a single row using sqlx.GetContext
 func (r *SqlxUserRepository) GetByID(ctx context.Context, id int64) (*User, error) {
     var u User
     err := r.db.GetContext(ctx, &u,
@@ -681,7 +681,7 @@ func (r *SqlxUserRepository) GetByID(ctx context.Context, id int64) (*User, erro
     return &u, nil
 }
 
-// List はsqlx.SelectContextで複数行を取得する
+// List retrieves multiple rows using sqlx.SelectContext
 func (r *SqlxUserRepository) List(ctx context.Context, limit, offset int) ([]User, error) {
     var users []User
     err := r.db.SelectContext(ctx, &users,
@@ -693,7 +693,7 @@ func (r *SqlxUserRepository) List(ctx context.Context, limit, offset int) ([]Use
     return users, nil
 }
 
-// Create はNamedExecContextで名前付きパラメータを使って挿入する
+// Create inserts using NamedExecContext with named parameters
 func (r *SqlxUserRepository) Create(ctx context.Context, u *User) error {
     query := `INSERT INTO users (name, email, role, created_at, updated_at)
               VALUES (:name, :email, :role, NOW(), NOW())
@@ -711,7 +711,7 @@ func (r *SqlxUserRepository) Create(ctx context.Context, u *User) error {
     return nil
 }
 
-// Update はNamedExecContextで名前付きパラメータを使って更新する
+// Update updates using NamedExecContext with named parameters
 func (r *SqlxUserRepository) Update(ctx context.Context, u *User) error {
     result, err := r.db.NamedExecContext(ctx,
         `UPDATE users SET name = :name, email = :email, role = :role, updated_at = NOW()
@@ -726,7 +726,7 @@ func (r *SqlxUserRepository) Update(ctx context.Context, u *User) error {
     return nil
 }
 
-// ListByRole は特定ロールのユーザーリストを取得する
+// ListByRole retrieves a list of users with a specific role
 func (r *SqlxUserRepository) ListByRole(ctx context.Context, role string) ([]User, error) {
     var users []User
     err := r.db.SelectContext(ctx, &users,
@@ -735,9 +735,9 @@ func (r *SqlxUserRepository) ListByRole(ctx context.Context, role string) ([]Use
     return users, err
 }
 
-// SearchByNames はIN句を使った複数検索（sqlxのIn関数を使用）
+// SearchByNames performs a multi-value search using an IN clause (using sqlx's In function)
 func (r *SqlxUserRepository) SearchByNames(ctx context.Context, names []string) ([]User, error) {
-    // sqlx.In はスライスをプレースホルダに展開する
+    // sqlx.In expands a slice into placeholders
     query, args, err := sqlx.In(
         `SELECT id, name, email, role, created_at, updated_at
          FROM users WHERE name IN (?) ORDER BY name`, names)
@@ -745,7 +745,7 @@ func (r *SqlxUserRepository) SearchByNames(ctx context.Context, names []string) 
         return nil, fmt.Errorf("sqlx.In: %w", err)
     }
 
-    // PostgreSQLの場合は$1形式にリバインド
+    // Rebind to $1-style placeholders for PostgreSQL
     query = r.db.Rebind(query)
 
     var users []User
@@ -754,7 +754,7 @@ func (r *SqlxUserRepository) SearchByNames(ctx context.Context, names []string) 
 }
 ```
 
-### コード例 8: sqlx の高度な機能
+### Code Example 8: Advanced sqlx Features
 
 ```go
 package repository
@@ -767,7 +767,7 @@ import (
     "github.com/jmoiron/sqlx"
 )
 
-// 動的クエリビルダ
+// Dynamic query builder
 type UserFilter struct {
     Name     *string
     Email    *string
@@ -780,7 +780,7 @@ type UserFilter struct {
     Offset   int
 }
 
-// BuildQuery はフィルター条件に応じた動的クエリを構築する
+// BuildQuery constructs a dynamic query based on filter conditions
 func (f *UserFilter) BuildQuery() (string, map[string]interface{}) {
     query := `SELECT id, name, email, role, created_at, updated_at FROM users WHERE 1=1`
     args := make(map[string]interface{})
@@ -812,7 +812,7 @@ func (f *UserFilter) BuildQuery() (string, map[string]interface{}) {
 
     // ORDER BY
     if f.OrderBy != "" {
-        // SQLインジェクション防止: ホワイトリスト
+        // SQL injection prevention: whitelist
         allowed := map[string]bool{
             "name": true, "email": true, "created_at": true, "id": true,
         }
@@ -836,11 +836,11 @@ func (f *UserFilter) BuildQuery() (string, map[string]interface{}) {
     return query, args
 }
 
-// SearchWithFilter は動的フィルターでユーザーを検索する
+// SearchWithFilter searches for users with a dynamic filter
 func (r *SqlxUserRepository) SearchWithFilter(ctx context.Context, filter UserFilter) ([]User, error) {
     query, args := filter.BuildQuery()
 
-    // sqlx.Named はnamed queryをプレースホルダ付きクエリに変換する
+    // sqlx.Named converts a named query into a query with placeholders
     rows, err := r.db.NamedQueryContext(ctx, query, args)
     if err != nil {
         return nil, fmt.Errorf("SearchWithFilter: %w", err)
@@ -858,26 +858,26 @@ func (r *SqlxUserRepository) SearchWithFilter(ctx context.Context, filter UserFi
     return users, rows.Err()
 }
 
-// StructScan vs Scan の比較
+// StructScan vs Scan comparison
 func demonstrateScanDifference(db *sqlx.DB) {
-    // database/sql: 手動で各カラムをScan
+    // database/sql: Manual Scan for each column
     row := db.QueryRow("SELECT id, name, email FROM users WHERE id = $1", 1)
     var id int64
     var name, email string
-    row.Scan(&id, &name, &email) // カラム順に注意が必要
+    row.Scan(&id, &name, &email) // Must match column order
 
-    // sqlx: 構造体に自動マッピング
+    // sqlx: Automatic mapping to a struct
     var user User
     db.Get(&user, "SELECT id, name, email FROM users WHERE id = $1", 1)
-    // db タグに基づいて自動的にマッピング
+    // Automatically mapped based on db tags
 }
 ```
 
 ---
 
-## 3. GORM の活用
+## 3. Using GORM
 
-### コード例 9: GORM 基本操作
+### Code Example 9: GORM Basic Operations
 
 ```go
 package repository
@@ -894,7 +894,7 @@ import (
     "gorm.io/gorm/logger"
 )
 
-// GormUser はGORMモデル
+// GormUser is a GORM model
 type GormUser struct {
     ID        uint           `gorm:"primarykey" json:"id"`
     Name      string         `gorm:"size:100;not null;index" json:"name"`
@@ -905,15 +905,15 @@ type GormUser struct {
     Orders    []GormOrder    `gorm:"foreignKey:UserID" json:"orders,omitempty"`  // has many
     CreatedAt time.Time      `json:"created_at"`
     UpdatedAt time.Time      `json:"updated_at"`
-    DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"` // ソフトデリート
+    DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"` // Soft delete
 }
 
-// TableName はテーブル名をカスタマイズする
+// TableName customizes the table name
 func (GormUser) TableName() string {
     return "users"
 }
 
-// GormProfile はユーザープロフィール
+// GormProfile is a user profile
 type GormProfile struct {
     ID     uint   `gorm:"primarykey"`
     UserID uint   `gorm:"uniqueIndex;not null"`
@@ -921,7 +921,7 @@ type GormProfile struct {
     Avatar string `gorm:"size:500"`
 }
 
-// GormOrder は注文
+// GormOrder is an order
 type GormOrder struct {
     ID        uint      `gorm:"primarykey"`
     UserID    uint      `gorm:"index;not null"`
@@ -932,23 +932,23 @@ type GormOrder struct {
     CreatedAt time.Time
 }
 
-// InitGorm はGORM接続を初期化する
+// InitGorm initializes a GORM connection
 func InitGorm(dsn string) (*gorm.DB, error) {
     db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-        Logger: logger.Default.LogMode(logger.Info), // SQLログを出力
+        Logger: logger.Default.LogMode(logger.Info), // Output SQL logs
         NowFunc: func() time.Time {
             return time.Now().UTC()
         },
-        // SQL実行前のDry Run モードを無効化
+        // Disable Dry Run mode before SQL execution
         DryRun: false,
-        // PrepareStmt: trueにするとPrepared Statementをキャッシュ
+        // PrepareStmt: true caches Prepared Statements
         PrepareStmt: true,
     })
     if err != nil {
         return nil, fmt.Errorf("gorm.Open: %w", err)
     }
 
-    // 接続プール設定
+    // Connection pool settings
     sqlDB, err := db.DB()
     if err != nil {
         return nil, fmt.Errorf("get sql.DB: %w", err)
@@ -960,12 +960,12 @@ func InitGorm(dsn string) (*gorm.DB, error) {
     return db, nil
 }
 
-// GormUserRepository はGORMを使ったリポジトリ
+// GormUserRepository is a repository using GORM
 type GormUserRepository struct {
     db *gorm.DB
 }
 
-// Create はユーザーを作成する
+// Create creates a user
 func (r *GormUserRepository) Create(ctx context.Context, user *GormUser) error {
     result := r.db.WithContext(ctx).Create(user)
     if result.Error != nil {
@@ -974,12 +974,12 @@ func (r *GormUserRepository) Create(ctx context.Context, user *GormUser) error {
     return nil
 }
 
-// GetByID はIDでユーザーを取得する（関連データも含む）
+// GetByID retrieves a user by ID (including related data)
 func (r *GormUserRepository) GetByID(ctx context.Context, id uint) (*GormUser, error) {
     var user GormUser
     result := r.db.WithContext(ctx).
-        Preload("Profile").                           // プロフィールもロード
-        Preload("Orders", "status = ?", "completed"). // 完了済み注文のみ
+        Preload("Profile").                           // Also load profile
+        Preload("Orders", "status = ?", "completed"). // Only completed orders
         First(&user, id)
 
     if errors.Is(result.Error, gorm.ErrRecordNotFound) {
@@ -991,15 +991,15 @@ func (r *GormUserRepository) GetByID(ctx context.Context, id uint) (*GormUser, e
     return &user, nil
 }
 
-// List はページネーション付きでユーザーリストを取得する
+// List retrieves a paginated list of users
 func (r *GormUserRepository) List(ctx context.Context, page, pageSize int) ([]GormUser, int64, error) {
     var users []GormUser
     var total int64
 
-    // カウントクエリ
+    // Count query
     r.db.WithContext(ctx).Model(&GormUser{}).Count(&total)
 
-    // データ取得
+    // Data retrieval
     result := r.db.WithContext(ctx).
         Order("id ASC").
         Limit(pageSize).
@@ -1009,7 +1009,7 @@ func (r *GormUserRepository) List(ctx context.Context, page, pageSize int) ([]Go
     return users, total, result.Error
 }
 
-// Search は条件検索する
+// Search performs a conditional search
 func (r *GormUserRepository) Search(ctx context.Context, filter map[string]interface{}) ([]GormUser, error) {
     var users []GormUser
     query := r.db.WithContext(ctx)
@@ -1028,14 +1028,14 @@ func (r *GormUserRepository) Search(ctx context.Context, filter map[string]inter
     return users, result.Error
 }
 
-// Update はユーザーを更新する
+// Update updates a user
 func (r *GormUserRepository) Update(ctx context.Context, user *GormUser) error {
-    // Save は全フィールドを更新する
+    // Save updates all fields
     result := r.db.WithContext(ctx).Save(user)
     return result.Error
 }
 
-// UpdatePartial は指定フィールドのみ更新する
+// UpdatePartial updates only the specified fields
 func (r *GormUserRepository) UpdatePartial(ctx context.Context, id uint, updates map[string]interface{}) error {
     result := r.db.WithContext(ctx).
         Model(&GormUser{}).
@@ -1048,7 +1048,7 @@ func (r *GormUserRepository) UpdatePartial(ctx context.Context, id uint, updates
     return result.Error
 }
 
-// Delete はソフトデリートする
+// Delete performs a soft delete
 func (r *GormUserRepository) Delete(ctx context.Context, id uint) error {
     result := r.db.WithContext(ctx).Delete(&GormUser{}, id)
     if result.RowsAffected == 0 {
@@ -1057,13 +1057,13 @@ func (r *GormUserRepository) Delete(ctx context.Context, id uint) error {
     return result.Error
 }
 
-// HardDelete は物理削除する
+// HardDelete performs a permanent (hard) delete
 func (r *GormUserRepository) HardDelete(ctx context.Context, id uint) error {
     result := r.db.WithContext(ctx).Unscoped().Delete(&GormUser{}, id)
     return result.Error
 }
 
-// Upsert は存在すれば更新、なければ挿入する
+// Upsert updates if exists, inserts if not
 func (r *GormUserRepository) Upsert(ctx context.Context, user *GormUser) error {
     result := r.db.WithContext(ctx).
         Clauses(clause.OnConflict{
@@ -1075,7 +1075,7 @@ func (r *GormUserRepository) Upsert(ctx context.Context, user *GormUser) error {
 }
 ```
 
-### コード例 10: GORM トランザクションとフック
+### Code Example 10: GORM Transactions and Hooks
 
 ```go
 package service
@@ -1087,15 +1087,15 @@ import (
     "gorm.io/gorm"
 )
 
-// GormOrderService は注文サービス
+// GormOrderService is the order service
 type GormOrderService struct {
     db *gorm.DB
 }
 
-// CreateOrder はトランザクション内で注文を作成する
+// CreateOrder creates an order within a transaction
 func (s *GormOrderService) CreateOrder(ctx context.Context, order *GormOrder) error {
     return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-        // 在庫確認
+        // Check inventory
         var product Product
         if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
             First(&product, order.ProductID).Error; err != nil {
@@ -1107,13 +1107,13 @@ func (s *GormOrderService) CreateOrder(ctx context.Context, order *GormOrder) er
                 product.Stock, order.Quantity)
         }
 
-        // 在庫を減らす
+        // Reduce inventory
         if err := tx.Model(&product).
             Update("stock", gorm.Expr("stock - ?", order.Quantity)).Error; err != nil {
             return fmt.Errorf("update stock: %w", err)
         }
 
-        // 注文を作成
+        // Create the order
         order.Amount = product.Price * float64(order.Quantity)
         if err := tx.Create(order).Error; err != nil {
             return fmt.Errorf("create order: %w", err)
@@ -1123,27 +1123,27 @@ func (s *GormOrderService) CreateOrder(ctx context.Context, order *GormOrder) er
     })
 }
 
-// GORMフック（ライフサイクルコールバック）
+// GORM Hooks (lifecycle callbacks)
 func (u *GormUser) BeforeCreate(tx *gorm.DB) error {
-    // バリデーション
+    // Validation
     if u.Name == "" {
         return fmt.Errorf("name is required")
     }
     if u.Role == "" {
-        u.Role = "user" // デフォルト値
+        u.Role = "user" // Default value
     }
     return nil
 }
 
 func (u *GormUser) AfterCreate(tx *gorm.DB) error {
-    // 監査ログの記録など
+    // Record audit log, etc.
     tx.Exec("INSERT INTO audit_logs (action, entity, entity_id) VALUES (?, ?, ?)",
         "CREATE", "users", u.ID)
     return nil
 }
 
 func (u *GormUser) BeforeUpdate(tx *gorm.DB) error {
-    // 更新時のバリデーション
+    // Validation on update
     if u.Email != "" && !isValidEmail(u.Email) {
         return fmt.Errorf("invalid email format")
     }
@@ -1153,9 +1153,9 @@ func (u *GormUser) BeforeUpdate(tx *gorm.DB) error {
 
 ---
 
-## 4. マイグレーション
+## 4. Migrations
 
-### コード例 11: golang-migrate の使用
+### Code Example 11: Using golang-migrate
 
 ```go
 package migrations
@@ -1170,7 +1170,7 @@ import (
     _ "github.com/golang-migrate/migrate/v4/source/file"
 )
 
-// RunMigrations はマイグレーションを実行する
+// RunMigrations executes migrations
 func RunMigrations(db *sql.DB, migrationsPath string) error {
     driver, err := postgres.WithInstance(db, &postgres.Config{})
     if err != nil {
@@ -1186,7 +1186,7 @@ func RunMigrations(db *sql.DB, migrationsPath string) error {
         return fmt.Errorf("create migrate: %w", err)
     }
 
-    // マイグレーション実行
+    // Execute migration
     if err := m.Up(); err != nil && err != migrate.ErrNoChange {
         return fmt.Errorf("migrate up: %w", err)
     }
@@ -1200,7 +1200,7 @@ func RunMigrations(db *sql.DB, migrationsPath string) error {
     return nil
 }
 
-// RollbackMigration は1つ前のバージョンに戻す
+// RollbackMigration rolls back to the previous version
 func RollbackMigration(db *sql.DB, migrationsPath string) error {
     driver, err := postgres.WithInstance(db, &postgres.Config{})
     if err != nil {
@@ -1220,7 +1220,7 @@ func RollbackMigration(db *sql.DB, migrationsPath string) error {
 }
 ```
 
-マイグレーションファイルの例:
+Migration file examples:
 
 ```sql
 -- migrations/000001_create_users.up.sql
@@ -1269,7 +1269,7 @@ DROP INDEX IF EXISTS idx_users_phone;
 ALTER TABLE users DROP COLUMN IF EXISTS phone;
 ```
 
-### コード例 12: goose の使用
+### Code Example 12: Using goose
 
 ```go
 package migrations
@@ -1281,7 +1281,7 @@ import (
     "github.com/pressly/goose/v3"
 )
 
-// GooseMigrate はgooseを使ったマイグレーション
+// GooseMigrate performs migration using goose
 func GooseMigrate(db *sql.DB, dir string) error {
     goose.SetDialect("postgres")
 
@@ -1291,19 +1291,19 @@ func GooseMigrate(db *sql.DB, dir string) error {
     return nil
 }
 
-// GooseStatus は現在のマイグレーション状態を表示する
+// GooseStatus displays the current migration status
 func GooseStatus(db *sql.DB, dir string) error {
     goose.SetDialect("postgres")
     return goose.Status(db, dir)
 }
 
-// GooseRollback は1つ前に戻す
+// GooseRollback rolls back one step
 func GooseRollback(db *sql.DB, dir string) error {
     goose.SetDialect("postgres")
     return goose.Down(db, dir)
 }
 
-// Go関数マイグレーション（goose独自機能）
+// Go function migration (goose-specific feature)
 func init() {
     goose.AddMigration(upSeedData, downSeedData)
 }
@@ -1326,9 +1326,9 @@ func downSeedData(tx *sql.Tx) error {
 
 ---
 
-## 5. テスト戦略
+## 5. Test Strategies
 
-### コード例 13: testcontainers-go を使ったDBテスト
+### Code Example 13: DB Testing with testcontainers-go
 
 ```go
 package repository_test
@@ -1345,12 +1345,12 @@ import (
     "github.com/testcontainers/testcontainers-go/wait"
 )
 
-// setupTestDB はテスト用のPostgreSQLコンテナを起動する
+// setupTestDB starts a PostgreSQL container for testing
 func setupTestDB(t *testing.T) (*sql.DB, func()) {
     t.Helper()
     ctx := context.Background()
 
-    // PostgreSQLコンテナの起動
+    // Start the PostgreSQL container
     container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
         ContainerRequest: testcontainers.ContainerRequest{
             Image:        "postgres:16-alpine",
@@ -1366,21 +1366,21 @@ func setupTestDB(t *testing.T) (*sql.DB, func()) {
         Started: true,
     })
     if err != nil {
-        t.Fatalf("コンテナ起動失敗: %v", err)
+        t.Fatalf("Failed to start container: %v", err)
     }
 
-    // DSN構築
+    // Build DSN
     host, _ := container.Host(ctx)
     port, _ := container.MappedPort(ctx, "5432")
     dsn := fmt.Sprintf("postgres://test:test@%s:%s/testdb?sslmode=disable", host, port.Port())
 
-    // DB接続
+    // Connect to DB
     db, err := sql.Open("postgres", dsn)
     if err != nil {
-        t.Fatalf("DB接続失敗: %v", err)
+        t.Fatalf("Failed to connect to DB: %v", err)
     }
 
-    // テーブル作成
+    // Create tables
     _, err = db.ExecContext(ctx, `
         CREATE TABLE IF NOT EXISTS users (
             id BIGSERIAL PRIMARY KEY,
@@ -1391,10 +1391,10 @@ func setupTestDB(t *testing.T) (*sql.DB, func()) {
         )
     `)
     if err != nil {
-        t.Fatalf("テーブル作成失敗: %v", err)
+        t.Fatalf("Failed to create table: %v", err)
     }
 
-    // クリーンアップ関数
+    // Cleanup function
     cleanup := func() {
         db.Close()
         container.Terminate(ctx)
@@ -1413,17 +1413,17 @@ func TestUserRepository_Create(t *testing.T) {
     user := &User{Name: "Test User", Email: "test@example.com"}
     err := repo.Create(ctx, user)
     if err != nil {
-        t.Fatalf("Create失敗: %v", err)
+        t.Fatalf("Create failed: %v", err)
     }
 
     if user.ID == 0 {
-        t.Error("IDが設定されていない")
+        t.Error("ID was not set")
     }
 
-    // 取得して確認
+    // Retrieve and verify
     got, err := repo.GetByID(ctx, user.ID)
     if err != nil {
-        t.Fatalf("GetByID失敗: %v", err)
+        t.Fatalf("GetByID failed: %v", err)
     }
 
     if got.Name != "Test User" {
@@ -1441,22 +1441,22 @@ func TestUserRepository_Update(t *testing.T) {
     repo := NewUserRepository(db)
     ctx := context.Background()
 
-    // セットアップ
+    // Setup
     user := &User{Name: "Original", Email: "original@example.com"}
     if err := repo.Create(ctx, user); err != nil {
-        t.Fatalf("Create失敗: %v", err)
+        t.Fatalf("Create failed: %v", err)
     }
 
-    // 更新
+    // Update
     user.Name = "Updated"
     if err := repo.Update(ctx, user); err != nil {
-        t.Fatalf("Update失敗: %v", err)
+        t.Fatalf("Update failed: %v", err)
     }
 
-    // 確認
+    // Verify
     got, err := repo.GetByID(ctx, user.ID)
     if err != nil {
-        t.Fatalf("GetByID失敗: %v", err)
+        t.Fatalf("GetByID failed: %v", err)
     }
     if got.Name != "Updated" {
         t.Errorf("Name = %q, want %q", got.Name, "Updated")
@@ -1464,7 +1464,7 @@ func TestUserRepository_Update(t *testing.T) {
 }
 ```
 
-### コード例 14: インターフェースを使ったモック
+### Code Example 14: Mocking with Interfaces
 
 ```go
 package service
@@ -1473,7 +1473,7 @@ import (
     "context"
 )
 
-// UserRepository はリポジトリのインターフェース
+// UserRepository is the repository interface
 type UserRepository interface {
     GetByID(ctx context.Context, id int64) (*User, error)
     List(ctx context.Context, limit, offset int) ([]User, error)
@@ -1482,7 +1482,7 @@ type UserRepository interface {
     Delete(ctx context.Context, id int64) error
 }
 
-// UserService はビジネスロジック層
+// UserService is the business logic layer
 type UserService struct {
     repo UserRepository
 }
@@ -1495,9 +1495,9 @@ func (s *UserService) GetUser(ctx context.Context, id int64) (*User, error) {
     return s.repo.GetByID(ctx, id)
 }
 
-// --- テスト側 ---
+// --- Test side ---
 
-// mockUserRepository はテスト用のモック
+// mockUserRepository is a mock for testing
 type mockUserRepository struct {
     users map[int64]*User
 }
@@ -1547,89 +1547,89 @@ func (m *mockUserRepository) Delete(ctx context.Context, id int64) error {
 
 ---
 
-## 6. ASCII図解
+## 6. ASCII Diagrams
 
-### 図1: database/sql 接続プールアーキテクチャ
-
-```
-アプリケーション
-  │
-  ▼
-┌──────────────────────────────────────────────────────┐
-│                   database/sql                        │
-│                                                      │
-│  ┌──────────────────────────────────────────────┐   │
-│  │              Connection Pool                  │   │
-│  │                                              │   │
-│  │  ┌──────┐ ┌──────┐ ┌──────┐     ┌──────┐   │   │
-│  │  │Active│ │Active│ │Active│ ... │Active│   │   │
-│  │  │Conn 1│ │Conn 2│ │Conn 3│     │Conn N│   │   │
-│  │  └──────┘ └──────┘ └──────┘     └──────┘   │   │
-│  │                                              │   │
-│  │  MaxOpenConns = 25                           │   │
-│  │                                              │   │
-│  │  ┌──────┐ ┌──────┐ ┌──────┐                │   │
-│  │  │ Idle │ │ Idle │ │ Idle │                │   │
-│  │  │Conn 1│ │Conn 2│ │Conn 3│                │   │
-│  │  └──────┘ └──────┘ └──────┘                │   │
-│  │                                              │   │
-│  │  MaxIdleConns = 5                            │   │
-│  │  ConnMaxLifetime = 5m                        │   │
-│  │  ConnMaxIdleTime = 1m                        │   │
-│  └──────────────────────────────────────────────┘   │
-│                                                      │
-│  ┌──────────────────────────────────────────────┐   │
-│  │           Driver Interface                    │   │
-│  │  driver.Driver / driver.Connector             │   │
-│  │  ┌─────────┐  ┌─────────┐  ┌──────────┐    │   │
-│  │  │ lib/pq  │  │go-mysql │  │go-sqlite3│    │   │
-│  │  │(Postgres)│  │(MySQL)  │  │(SQLite)  │    │   │
-│  │  └─────────┘  └─────────┘  └──────────┘    │   │
-│  └──────────────────────────────────────────────┘   │
-└──────────────────┬───────────────────────────────────┘
-                   │ TCP / Unix Socket
-              ┌────▼──────┐
-              │ Database   │
-              │ Server     │
-              └───────────┘
-```
-
-### 図2: ORM vs 生SQL の選択ガイド
+### Figure 1: database/sql Connection Pool Architecture
 
 ```
-        クエリの複雑度
-          ▲
-          │
-     高   │   ┌─────────────────┐
-          │   │  生SQL +          │  レポート/分析クエリ
-          │   │  database/sql    │  複雑なJOIN (5テーブル以上)
-          │   │  → 完全な制御     │  Window関数
-          │   └─────────────────┘  CTE (WITH句)
-          │                         再帰クエリ
-          │
-     中   │   ┌─────────────────┐
-          │   │   sqlx            │  型安全な生SQL
-          │   │  → 構造体マッピング│  中程度のJOIN
-          │   │  → Named Query   │  動的フィルター
-          │   └─────────────────┘
-          │
-     低   │   ┌─────────────────┐
-          │   │   GORM            │  CRUD中心のアプリ
-          │   │  → 高速開発       │  基本的なリレーション
-          │   │  → マイグレーション│  プロトタイプ
-          │   └─────────────────┘
-          │
-          └──────────────────────────> 開発速度
-              低                  高
-
-推奨:
-  新規プロジェクト → sqlx（バランスが最も良い）
-  CRUD中心        → GORM（開発速度重視）
-  高負荷/分析     → database/sql（完全制御）
-  ハイブリッド    → GORMのDB().Raw()で生SQLも併用可
+Application
+  |
+  v
++------------------------------------------------------+
+|                   database/sql                        |
+|                                                      |
+|  +----------------------------------------------+   |
+|  |              Connection Pool                  |   |
+|  |                                              |   |
+|  |  +------+ +------+ +------+     +------+   |   |
+|  |  |Active| |Active| |Active| ... |Active|   |   |
+|  |  |Conn 1| |Conn 2| |Conn 3|     |Conn N|   |   |
+|  |  +------+ +------+ +------+     +------+   |   |
+|  |                                              |   |
+|  |  MaxOpenConns = 25                           |   |
+|  |                                              |   |
+|  |  +------+ +------+ +------+                |   |
+|  |  | Idle | | Idle | | Idle |                |   |
+|  |  |Conn 1| |Conn 2| |Conn 3|                |   |
+|  |  +------+ +------+ +------+                |   |
+|  |                                              |   |
+|  |  MaxIdleConns = 5                            |   |
+|  |  ConnMaxLifetime = 5m                        |   |
+|  |  ConnMaxIdleTime = 1m                        |   |
+|  +----------------------------------------------+   |
+|                                                      |
+|  +----------------------------------------------+   |
+|  |           Driver Interface                    |   |
+|  |  driver.Driver / driver.Connector             |   |
+|  |  +---------+  +---------+  +----------+    |   |
+|  |  | lib/pq  |  |go-mysql |  |go-sqlite3|    |   |
+|  |  |(Postgres)|  |(MySQL)  |  |(SQLite)  |    |   |
+|  |  +---------+  +---------+  +----------+    |   |
+|  +----------------------------------------------+   |
++------------------+-----------------------------------+
+                   | TCP / Unix Socket
+              +----v------+
+              | Database   |
+              | Server     |
+              +-----------+
 ```
 
-### 図3: マイグレーションフロー
+### Figure 2: ORM vs Raw SQL Selection Guide
+
+```
+        Query Complexity
+          ^
+          |
+     High |   +-----------------+
+          |   |  Raw SQL +        |  Report/analytics queries
+          |   |  database/sql    |  Complex JOINs (5+ tables)
+          |   |  -> Full control  |  Window functions
+          |   +-----------------+  CTEs (WITH clause)
+          |                         Recursive queries
+          |
+     Mid  |   +-----------------+
+          |   |   sqlx            |  Type-safe raw SQL
+          |   |  -> Struct mapping|  Moderate JOINs
+          |   |  -> Named Query   |  Dynamic filters
+          |   +-----------------+
+          |
+     Low  |   +-----------------+
+          |   |   GORM            |  CRUD-centric apps
+          |   |  -> Rapid dev     |  Basic relations
+          |   |  -> Migration     |  Prototypes
+          |   +-----------------+
+          |
+          +-----------------------------> Development Speed
+              Low                  High
+
+Recommendations:
+  New projects     -> sqlx (best balance)
+  CRUD-centric     -> GORM (prioritize development speed)
+  High-load/analytics -> database/sql (full control)
+  Hybrid           -> Use raw SQL via GORM's DB().Raw() as needed
+```
+
+### Figure 3: Migration Flow
 
 ```
 migrations/
@@ -1641,132 +1641,132 @@ migrations/
 └── 000003_add_users_phone.down.sql
 
 migrate up                     migrate down
-──────────>                    <──────────
-V1 → V2 → V3                  V3 → V2 → V1
+---------->                    <----------
+V1 -> V2 -> V3                V3 -> V2 -> V1
 
-┌──────────────────────────────────────┐
-│ schema_migrations テーブル             │
-│                                      │
-│ version │ dirty  │ applied_at        │
-│ --------│--------│------------------ │
-│ 1       │ false  │ 2024-01-01 00:00  │
-│ 2       │ false  │ 2024-01-15 00:00  │
-│ 3       │ false  │ 2024-02-01 00:00  │
-└──────────────────────────────────────┘
++--------------------------------------+
+| schema_migrations table              |
+|                                      |
+| version | dirty  | applied_at        |
+| --------|--------|------------------ |
+| 1       | false  | 2024-01-01 00:00  |
+| 2       | false  | 2024-01-15 00:00  |
+| 3       | false  | 2024-02-01 00:00  |
++--------------------------------------+
 
-dirty = true の場合:
-  マイグレーションが途中で失敗した状態
-  → migrate force <version> で状態をリセット
-  → 失敗したSQLを修正して再実行
+When dirty = true:
+  Migration failed partway through
+  -> Reset the state with migrate force <version>
+  -> Fix the failed SQL and re-run
 ```
 
-### 図4: リポジトリパターン
+### Figure 4: Repository Pattern
 
 ```
-┌──────────────────────────────────────────────────┐
-│                  HTTP Handler                     │
-│  (net/http, gin, echo)                           │
-└──────────────────┬───────────────────────────────┘
-                   │
-                   ▼
-┌──────────────────────────────────────────────────┐
-│                  Service Layer                    │
-│  ビジネスロジック、トランザクション管理             │
-│  → UserService, OrderService                     │
-└──────────────────┬───────────────────────────────┘
-                   │ interface
-                   ▼
-┌──────────────────────────────────────────────────┐
-│              Repository Interface                 │
-│  type UserRepository interface {                 │
-│      GetByID(ctx, id) (*User, error)             │
-│      List(ctx, limit, offset) ([]User, error)    │
-│      Create(ctx, *User) error                    │
-│      Update(ctx, *User) error                    │
-│      Delete(ctx, id) error                       │
-│  }                                               │
-└──────────────────┬───────────────────────────────┘
-         ┌─────────┼─────────┐
-         ▼         ▼         ▼
-┌────────────┐ ┌────────┐ ┌──────────┐
-│ PostgreSQL │ │ MySQL  │ │  Mock    │
-│ Repository │ │ Repo   │ │ (Test)   │
-└──────┬─────┘ └───┬────┘ └──────────┘
-       │           │
-       ▼           ▼
++--------------------------------------------------+
+|                  HTTP Handler                     |
+|  (net/http, gin, echo)                           |
++------------------+-------------------------------+
+                   |
+                   v
++--------------------------------------------------+
+|                  Service Layer                    |
+|  Business logic, transaction management           |
+|  -> UserService, OrderService                     |
++------------------+-------------------------------+
+                   | interface
+                   v
++--------------------------------------------------+
+|              Repository Interface                 |
+|  type UserRepository interface {                 |
+|      GetByID(ctx, id) (*User, error)             |
+|      List(ctx, limit, offset) ([]User, error)    |
+|      Create(ctx, *User) error                    |
+|      Update(ctx, *User) error                    |
+|      Delete(ctx, id) error                       |
+|  }                                               |
++------------------+-------------------------------+
+         +---------+---------+
+         v         v         v
++------------+ +--------+ +----------+
+| PostgreSQL | | MySQL  | |  Mock    |
+| Repository | | Repo   | | (Test)   |
++------+-----+ +---+----+ +----------+
+       |           |
+       v           v
    PostgreSQL    MySQL
 ```
 
 ---
 
-## 7. 比較表
+## 7. Comparison Tables
 
-### 表1: Go DB ライブラリ詳細比較
+### Table 1: Detailed Comparison of Go DB Libraries
 
-| 項目 | database/sql | sqlx | GORM | ent |
+| Item | database/sql | sqlx | GORM | ent |
 |------|-------------|------|------|-----|
-| 型安全性 | 手動Scan | structタグ | 完全ORM | コード生成 |
-| SQL記述 | 生SQL | 生SQL | メソッドチェーン | DSL/生SQL |
-| 学習コスト | 低 | 低 | 中 | 高 |
-| パフォーマンス | 最高 | 高 | 中 | 高 |
-| マイグレーション | なし | なし | AutoMigrate | atlas統合 |
-| N+1検出 | なし | なし | なし (plugin) | 組み込み |
-| トランザクション | 手動 | 手動 | 自動/手動 | 自動/手動 |
-| リレーション | 手動JOIN | 手動JOIN | Preload/Joins | Edge |
-| Prepared Stmt | 手動 | 手動 | PrepareStmt設定 | 自動 |
-| NULL処理 | sql.Null* | sql.Null* | ポインタ型 | Optional field |
-| バッチ処理 | 手動 | 手動 | CreateInBatches | Bulk操作 |
-| 推奨場面 | 小規模/高性能 | 中規模 | CRUD中心 | 大規模/型安全 |
+| Type safety | Manual Scan | struct tags | Full ORM | Code generation |
+| SQL writing | Raw SQL | Raw SQL | Method chaining | DSL/Raw SQL |
+| Learning cost | Low | Low | Medium | High |
+| Performance | Highest | High | Medium | High |
+| Migration | None | None | AutoMigrate | atlas integration |
+| N+1 detection | None | None | None (plugin) | Built-in |
+| Transactions | Manual | Manual | Auto/Manual | Auto/Manual |
+| Relations | Manual JOIN | Manual JOIN | Preload/Joins | Edge |
+| Prepared Stmt | Manual | Manual | PrepareStmt config | Automatic |
+| NULL handling | sql.Null* | sql.Null* | Pointer types | Optional field |
+| Batch processing | Manual | Manual | CreateInBatches | Bulk operations |
+| Recommended for | Small-scale/high-perf | Medium-scale | CRUD-centric | Large-scale/type-safe |
 
-### 表2: マイグレーションツール詳細比較
+### Table 2: Detailed Comparison of Migration Tools
 
-| ツール | 言語 | アプローチ | 特徴 | CLI | Go API |
-|--------|------|-----------|------|-----|--------|
-| golang-migrate | Go | ファイルベース | 軽量、SQL/Go両対応 | あり | あり |
-| goose | Go | ファイルベース | シンプル、Go関数対応 | あり | あり |
-| atlas | Go | 宣言的 + バージョン | HCL定義、差分検出 | あり | あり |
-| GORM AutoMigrate | Go | 自動 | 構造体から推論 | なし | あり |
-| Flyway | Java | ファイルベース | 企業向け、多DB対応 | あり | なし |
-| dbmate | Go | ファイルベース | Docker対応、軽量 | あり | なし |
+| Tool | Language | Approach | Features | CLI | Go API |
+|------|----------|----------|----------|-----|--------|
+| golang-migrate | Go | File-based | Lightweight, SQL/Go support | Yes | Yes |
+| goose | Go | File-based | Simple, Go function support | Yes | Yes |
+| atlas | Go | Declarative + versioned | HCL definitions, diff detection | Yes | Yes |
+| GORM AutoMigrate | Go | Automatic | Inferred from structs | No | Yes |
+| Flyway | Java | File-based | Enterprise, multi-DB support | Yes | No |
+| dbmate | Go | File-based | Docker support, lightweight | Yes | No |
 
-### 表3: 接続プールパラメータ設定ガイド
+### Table 3: Connection Pool Parameter Configuration Guide
 
-| パラメータ | 小規模 | 中規模 | 大規模 | 説明 |
-|-----------|--------|--------|--------|------|
-| MaxOpenConns | 5-10 | 15-30 | 50-100 | 同時最大接続数 |
-| MaxIdleConns | 2-3 | 5-10 | 10-25 | アイドル接続保持数 |
-| ConnMaxLifetime | 10m | 5m | 3m | 接続の最大生存時間 |
-| ConnMaxIdleTime | 5m | 2m | 1m | アイドル接続のタイムアウト |
+| Parameter | Small-scale | Medium-scale | Large-scale | Description |
+|-----------|------------|--------------|-------------|-------------|
+| MaxOpenConns | 5-10 | 15-30 | 50-100 | Maximum concurrent connections |
+| MaxIdleConns | 2-3 | 5-10 | 10-25 | Number of idle connections to keep |
+| ConnMaxLifetime | 10m | 5m | 3m | Maximum lifetime of a connection |
+| ConnMaxIdleTime | 5m | 2m | 1m | Timeout for idle connections |
 
-### 表4: トランザクション分離レベル
+### Table 4: Transaction Isolation Levels
 
-| 分離レベル | ダーティリード | ノンリピータブルリード | ファントムリード | 用途 |
-|-----------|--------------|---------------------|----------------|------|
-| Read Uncommitted | あり | あり | あり | ほぼ使用しない |
-| Read Committed | なし | あり | あり | PostgreSQL デフォルト |
-| Repeatable Read | なし | なし | あり(※) | MySQL InnoDB デフォルト |
-| Serializable | なし | なし | なし | 送金、在庫管理 |
+| Isolation Level | Dirty Read | Non-repeatable Read | Phantom Read | Use Case |
+|----------------|------------|---------------------|--------------|----------|
+| Read Uncommitted | Yes | Yes | Yes | Rarely used |
+| Read Committed | No | Yes | Yes | PostgreSQL default |
+| Repeatable Read | No | No | Yes(*) | MySQL InnoDB default |
+| Serializable | No | No | No | Money transfers, inventory management |
 
-※ PostgreSQLのRepeatable Readではファントムリードも防止される
+(*) PostgreSQL's Repeatable Read also prevents phantom reads
 
 ---
 
-## 8. パフォーマンス最適化
+## 8. Performance Optimization
 
-### N+1問題の検出と対策
+### Detecting and Addressing the N+1 Problem
 
 ```go
-// N+1問題の例
-// NG: ユーザーごとに注文を個別クエリ（N+1）
+// N+1 problem example
+// BAD: Individual query per user for orders (N+1)
 func (r *UserRepository) ListWithOrders_Bad(ctx context.Context) ([]UserWithOrders, error) {
-    users, err := r.ListUsers(ctx) // 1回のクエリ
+    users, err := r.ListUsers(ctx) // 1 query
     if err != nil {
         return nil, err
     }
 
     var result []UserWithOrders
     for _, u := range users {
-        // N回のクエリ（ユーザー数分）
+        // N queries (one per user)
         orders, err := r.GetOrdersByUserID(ctx, u.ID)
         if err != nil {
             return nil, err
@@ -1776,7 +1776,7 @@ func (r *UserRepository) ListWithOrders_Bad(ctx context.Context) ([]UserWithOrde
     return result, nil
 }
 
-// GOOD: JOINで1回のクエリにまとめる
+// GOOD: Consolidate into a single query with JOIN
 func (r *UserRepository) ListWithOrders_Good(ctx context.Context) ([]UserWithOrders, error) {
     rows, err := r.db.QueryContext(ctx, `
         SELECT u.id, u.name, u.email,
@@ -1790,7 +1790,7 @@ func (r *UserRepository) ListWithOrders_Good(ctx context.Context) ([]UserWithOrd
     }
     defer rows.Close()
 
-    // 結果をグループ化
+    // Group the results
     userMap := make(map[int64]*UserWithOrders)
     var orderedIDs []int64
 
@@ -1833,27 +1833,27 @@ func (r *UserRepository) ListWithOrders_Good(ctx context.Context) ([]UserWithOrd
     return result, rows.Err()
 }
 
-// GOOD: IN句で2回のクエリに最適化
+// GOOD: Optimize to 2 queries using an IN clause
 func (r *UserRepository) ListWithOrders_Optimized(ctx context.Context) ([]UserWithOrders, error) {
-    // クエリ1: ユーザー一覧取得
+    // Query 1: Retrieve user list
     users, err := r.ListUsers(ctx)
     if err != nil {
         return nil, err
     }
 
-    // ユーザーIDを収集
+    // Collect user IDs
     userIDs := make([]int64, len(users))
     for i, u := range users {
         userIDs[i] = u.ID
     }
 
-    // クエリ2: 全注文を一括取得
+    // Query 2: Bulk retrieve all orders
     orders, err := r.GetOrdersByUserIDs(ctx, userIDs)
     if err != nil {
         return nil, err
     }
 
-    // マッピング
+    // Mapping
     orderMap := make(map[int64][]Order)
     for _, o := range orders {
         orderMap[o.UserID] = append(orderMap[o.UserID], o)
@@ -1870,7 +1870,7 @@ func (r *UserRepository) ListWithOrders_Optimized(ctx context.Context) ([]UserWi
 }
 ```
 
-### クエリパフォーマンスの計測
+### Measuring Query Performance
 
 ```go
 package middleware
@@ -1882,10 +1882,10 @@ import (
     "time"
 )
 
-// QueryLogger はクエリの実行時間を計測するラッパー
+// QueryLogger is a wrapper that measures query execution time
 type QueryLogger struct {
     db        *sql.DB
-    threshold time.Duration // この時間を超えたクエリをログに記録
+    threshold time.Duration // Log queries exceeding this duration
 }
 
 func NewQueryLogger(db *sql.DB, threshold time.Duration) *QueryLogger {
@@ -1904,7 +1904,7 @@ func (ql *QueryLogger) QueryContext(ctx context.Context, query string, args ...i
     return rows, err
 }
 
-// 接続プールの監視
+// Connection pool monitoring
 func MonitorPool(db *sql.DB) {
     ticker := time.NewTicker(30 * time.Second)
     defer ticker.Stop()
@@ -1930,18 +1930,18 @@ func MonitorPool(db *sql.DB) {
 
 ---
 
-## 9. アンチパターン
+## 9. Anti-patterns
 
-### アンチパターン 1: rows.Close()忘れ
+### Anti-pattern 1: Forgetting rows.Close()
 
 ```go
-// BAD: rowsを閉じ忘れると接続リーク
+// BAD: Forgetting to close rows causes connection leaks
 func listUsers(db *sql.DB) ([]User, error) {
     rows, err := db.Query("SELECT * FROM users")
     if err != nil {
         return nil, err
     }
-    // rows.Close() がない → 接続プール枯渇
+    // Missing rows.Close() -> Connection pool exhaustion
 
     var users []User
     for rows.Next() {
@@ -1968,74 +1968,74 @@ func listUsers(db *sql.DB) ([]User, error) {
         }
         users = append(users, u)
     }
-    return users, rows.Err() // rows.Err() の確認も忘れずに
+    return users, rows.Err() // Don't forget to check rows.Err()
 }
 ```
 
-### アンチパターン 2: GORM AutoMigrate を本番で使う
+### Anti-pattern 2: Using GORM AutoMigrate in Production
 
 ```go
-// BAD: 本番でAutoMigrateは危険
+// BAD: AutoMigrate in production is dangerous
 func main() {
     db.AutoMigrate(&User{}, &Order{}, &Product{})
-    // 問題点:
-    // - カラム削除されない（構造体からフィールド削除しても）
-    // - データ損失のリスク
-    // - ロールバック不可
-    // - チーム開発でスキーマ管理が困難
-    // - 本番のテーブルロックによるダウンタイム
+    // Problems:
+    // - Columns are not dropped (even if fields are removed from the struct)
+    // - Risk of data loss
+    // - Cannot rollback
+    // - Schema management becomes difficult in team development
+    // - Table locks in production cause downtime
 }
 
-// GOOD: マイグレーションツールを使う
-// 開発時: AutoMigrate OK
-// ステージング/本番: golang-migrate, goose, atlas で明示的に管理
+// GOOD: Use migration tools
+// Development: AutoMigrate is OK
+// Staging/Production: Manage explicitly with golang-migrate, goose, atlas
 // migrate -path ./migrations -database $DB_URL up
 ```
 
-### アンチパターン 3: SQLインジェクション
+### Anti-pattern 3: SQL Injection
 
 ```go
-// BAD: 文字列連結でSQLを構築
+// BAD: Building SQL with string concatenation
 func searchUsers(db *sql.DB, name string) ([]User, error) {
     query := fmt.Sprintf("SELECT * FROM users WHERE name = '%s'", name)
-    // name = "'; DROP TABLE users; --" で攻撃可能
+    // Exploitable with name = "'; DROP TABLE users; --"
     rows, err := db.Query(query)
     // ...
 }
 
-// GOOD: プレースホルダを使用
+// GOOD: Use placeholders
 func searchUsers(db *sql.DB, name string) ([]User, error) {
     rows, err := db.Query("SELECT * FROM users WHERE name = $1", name)
-    // プレースホルダが自動的にエスケープする
+    // Placeholders automatically escape the input
     // ...
 }
 ```
 
-### アンチパターン 4: Context を渡さない
+### Anti-pattern 4: Not Passing Context
 
 ```go
-// BAD: Context なしのクエリ
+// BAD: Query without Context
 func getUser(db *sql.DB, id int) (*User, error) {
     var u User
-    // Query はキャンセル不可 → リクエスト切断時もクエリが実行され続ける
+    // Query cannot be cancelled -> Continues executing even after request disconnect
     err := db.QueryRow("SELECT * FROM users WHERE id = $1", id).Scan(&u.ID, &u.Name)
     return &u, err
 }
 
-// GOOD: Context 付きのクエリ
+// GOOD: Query with Context
 func getUser(ctx context.Context, db *sql.DB, id int) (*User, error) {
     var u User
-    // QueryRowContext はcontext.Done()でクエリをキャンセルできる
+    // QueryRowContext can cancel the query via context.Done()
     err := db.QueryRowContext(ctx,
         "SELECT id, name FROM users WHERE id = $1", id).Scan(&u.ID, &u.Name)
     return &u, err
 }
 ```
 
-### アンチパターン 5: グローバル変数にDBを保持
+### Anti-pattern 5: Holding DB in a Global Variable
 
 ```go
-// BAD: グローバル変数
+// BAD: Global variable
 var globalDB *sql.DB
 
 func init() {
@@ -2047,10 +2047,10 @@ func init() {
 }
 
 func GetUser(id int) (*User, error) {
-    return globalDB.QueryRow(...) // テスト時にDB差し替えが困難
+    return globalDB.QueryRow(...) // Difficult to swap DB for testing
 }
 
-// GOOD: 依存注入
+// GOOD: Dependency injection
 type UserRepository struct {
     db *sql.DB
 }
@@ -2060,23 +2060,23 @@ func NewUserRepository(db *sql.DB) *UserRepository {
 }
 
 func (r *UserRepository) GetUser(ctx context.Context, id int) (*User, error) {
-    return r.db.QueryRowContext(ctx, ...) // テスト時にモック差し替え可能
+    return r.db.QueryRowContext(ctx, ...) // Can swap with a mock for testing
 }
 ```
 
-### アンチパターン 6: Scan のカラム順依存
+### Anti-pattern 6: Relying on Scan Column Order
 
 ```go
-// BAD: SELECT * を使い、Scan の順序にカラム名を暗黙的に依存
+// BAD: Using SELECT * and implicitly relying on column order for Scan
 func getUser(db *sql.DB, id int) (*User, error) {
     var u User
-    // テーブルにカラムが追加されるとScanが壊れる
+    // Scan breaks when columns are added to the table
     err := db.QueryRow("SELECT * FROM users WHERE id = $1", id).
         Scan(&u.ID, &u.Name, &u.Email)
     return &u, err
 }
 
-// GOOD: カラムを明示的に指定
+// GOOD: Explicitly specify columns
 func getUser(ctx context.Context, db *sql.DB, id int) (*User, error) {
     var u User
     err := db.QueryRowContext(ctx,
@@ -2085,7 +2085,7 @@ func getUser(ctx context.Context, db *sql.DB, id int) (*User, error) {
     return &u, err
 }
 
-// BETTER: sqlx を使って構造体タグでマッピング
+// BETTER: Use sqlx to map with struct tags
 func getUser(ctx context.Context, db *sqlx.DB, id int) (*User, error) {
     var u User
     err := db.GetContext(ctx, &u,
@@ -2098,84 +2098,84 @@ func getUser(ctx context.Context, db *sqlx.DB, id int) (*User, error) {
 
 ## 10. FAQ
 
-### Q1: 接続プールのサイズはどう決めるか？
+### Q1: How should I determine the connection pool size?
 
-目安は `MaxOpenConns = DB最大接続数 / アプリインスタンス数`。PostgreSQLデフォルトは100接続。3インスタンスなら各30程度。`MaxIdleConns`は`MaxOpenConns`の1/5〜1/3程度。
+A rule of thumb is `MaxOpenConns = DB max connections / number of app instances`. PostgreSQL defaults to 100 connections. With 3 instances, approximately 30 each. `MaxIdleConns` should be about 1/5 to 1/3 of `MaxOpenConns`.
 
-考慮事項:
-- **WaitCount** が増加していたら `MaxOpenConns` を増やす
-- **MaxIdleClosed** が多い場合は `MaxIdleConns` を増やす
-- **MaxLifetimeClosed** が多すぎる場合は `ConnMaxLifetime` を延ばす
-- PgBouncer 等のコネクションプーラーを使う場合は、アプリ側の設定を控えめにする
-- ベンチマーク（`wrk`, `vegeta`等）で最適値を測定する
+Considerations:
+- Increase `MaxOpenConns` if **WaitCount** is increasing
+- Increase `MaxIdleConns` if **MaxIdleClosed** is high
+- Extend `ConnMaxLifetime` if **MaxLifetimeClosed** is too high
+- Use conservative app-side settings when using a connection pooler like PgBouncer
+- Measure optimal values with benchmarks (`wrk`, `vegeta`, etc.)
 
-### Q2: database/sql と sqlx のどちらを選ぶべきか？
+### Q2: Should I choose database/sql or sqlx?
 
-sqlxはdatabase/sqlの上位互換で、構造体への自動マッピングを提供する。デメリットはほぼないため、新規プロジェクトではsqlxを推奨する。GORMはCRUD中心のアプリに適するが、複雑なクエリでは生SQLに戻ることが多い。
+sqlx is a superset of database/sql that provides automatic struct mapping. Since there are virtually no downsides, sqlx is recommended for new projects. GORM is suitable for CRUD-centric apps, but for complex queries, you often end up writing raw SQL anyway.
 
-選択基準:
-- **database/sql**: 依存を最小にしたい場合、学習用
-- **sqlx**: ほぼ全てのプロジェクトで推奨（標準との互換性 + 便利機能）
-- **GORM**: プロトタイプ、CRUD中心、マイグレーション統合が欲しい場合
-- **ent**: 大規模プロジェクト、型安全性を最重視する場合
+Selection criteria:
+- **database/sql**: When you want to minimize dependencies, for learning purposes
+- **sqlx**: Recommended for almost all projects (standard compatibility + convenience features)
+- **GORM**: Prototypes, CRUD-centric apps, when you want integrated migration
+- **ent**: Large-scale projects, when type safety is the top priority
 
-### Q3: SQLインジェクションはGoではどう防ぐか？
+### Q3: How do you prevent SQL injection in Go?
 
-プレースホルダ（`$1`, `?`）を必ず使う。文字列連結でSQLを組み立てない。sqlxのNamedQuery、GORMのWhereも内部でプレースホルダを使う。`database/sql`の標準メソッドを使えば安全。
+Always use placeholders (`$1`, `?`). Never build SQL through string concatenation. sqlx's NamedQuery and GORM's Where also use placeholders internally. Using the standard methods of `database/sql` is safe.
 
-追加対策:
-- `ORDER BY` などの動的SQL部分はホワイトリストで検証
-- `LIMIT`, `OFFSET` も必ずプレースホルダを使用
-- SQLクエリビルダー（squirrel, goqu）を使う
-- 入力のバリデーションを多層で行う
+Additional measures:
+- Validate dynamic SQL parts like `ORDER BY` with a whitelist
+- Always use placeholders for `LIMIT` and `OFFSET` as well
+- Use SQL query builders (squirrel, goqu)
+- Perform input validation at multiple layers
 
-### Q4: GORMのN+1問題はどう対処するか？
+### Q4: How do you address the N+1 problem in GORM?
 
-GORMの`Preload`を使えばEagerローディングで解決できる。ただし`Preload`は内部的にIN句クエリを発行するため、データ量が多い場合は`Joins`の方が効率的な場合がある。
+GORM's `Preload` can solve it with eager loading. However, since `Preload` internally issues IN clause queries, `Joins` may be more efficient when dealing with large volumes of data.
 
 ```go
-// Preload: 2クエリ（ユーザー + IN句で注文）
+// Preload: 2 queries (users + orders via IN clause)
 db.Preload("Orders").Find(&users)
 
-// Joins: 1クエリ（LEFT JOIN）
+// Joins: 1 query (LEFT JOIN)
 db.Joins("Profile").Find(&users)
 
-// 条件付きPreload
+// Conditional Preload
 db.Preload("Orders", "status = ?", "completed").Find(&users)
 
-// ネストしたPreload
+// Nested Preload
 db.Preload("Orders.OrderItems.Product").Find(&users)
 ```
 
-### Q5: マイグレーションのベストプラクティスは？
+### Q5: What are the best practices for migrations?
 
-1. **バージョン管理**: マイグレーションファイルをGitで管理
-2. **ロールバック対応**: 必ずdownファイルも作成
-3. **冪等性**: `IF NOT EXISTS`, `IF EXISTS` を活用
-4. **小さな変更**: 1ファイル1変更で管理しやすく
-5. **データマイグレーション分離**: スキーマ変更とデータ変更は別ファイル
-6. **レビュー**: マイグレーションファイルもコードレビュー対象に
-7. **テスト**: CI/CDでマイグレーションのup/downをテスト
+1. **Version control**: Manage migration files in Git
+2. **Rollback support**: Always create down files
+3. **Idempotency**: Use `IF NOT EXISTS`, `IF EXISTS`
+4. **Small changes**: One change per file for easier management
+5. **Separate data migrations**: Keep schema changes and data changes in separate files
+6. **Review**: Migration files should also be subject to code review
+7. **Testing**: Test migration up/down in CI/CD
 
-### Q6: デッドロックを回避するには？
+### Q6: How do you avoid deadlocks?
 
-1. **ロック順序の統一**: 常に同じ順序でテーブル/行をロック
-2. **トランザクション時間の最小化**: 不要な処理をトランザクション外に
-3. **適切な分離レベル**: 必要以上に高い分離レベルを使わない
-4. **FOR UPDATE**: 必要な行だけをロック
-5. **リトライ**: デッドロック検出時は再試行ロジックを実装
+1. **Consistent lock ordering**: Always lock tables/rows in the same order
+2. **Minimize transaction duration**: Move unnecessary processing outside the transaction
+3. **Appropriate isolation level**: Don't use a higher isolation level than necessary
+4. **FOR UPDATE**: Lock only the required rows
+5. **Retry**: Implement retry logic when deadlocks are detected
 
 ```go
-// デッドロック時のリトライパターン
+// Retry pattern for deadlocks
 func WithRetry(ctx context.Context, maxRetries int, fn func() error) error {
     for i := 0; i < maxRetries; i++ {
         err := fn()
         if err == nil {
             return nil
         }
-        // PostgreSQLのデッドロックエラーコード: 40P01
+        // PostgreSQL deadlock error code: 40P01
         if isDeadlockError(err) && i < maxRetries-1 {
-            time.Sleep(time.Duration(i+1) * 100 * time.Millisecond) // バックオフ
+            time.Sleep(time.Duration(i+1) * 100 * time.Millisecond) // Backoff
             continue
         }
         return err
@@ -2189,46 +2189,46 @@ func WithRetry(ctx context.Context, maxRetries int, fn func() error) error {
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point to keep in mind when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not just through theory but by actually writing and running code.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping ahead to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this knowledge applied in real-world work?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-| 概念 | 要点 |
-|------|------|
-| database/sql | 標準ライブラリ。ドライバ交換可能。最も軽量 |
-| 接続プール | MaxOpenConns/MaxIdleConns/ConnMaxLifetime を本番では必ず設定 |
-| sqlx | struct自動マッピング。生SQL。新規プロジェクトの第一選択 |
-| GORM | フルORM。CRUD高速開発。Preload/Joinsでリレーション |
-| トランザクション | BeginTx + defer Rollback + Commit。ヘルパー関数で管理 |
-| マイグレーション | golang-migrate / goose / atlas。本番ではAutoMigrate禁止 |
-| Context | 全DB操作にcontextを渡す。キャンセル・タイムアウトの伝搬 |
-| N+1問題 | JOIN / IN句 / Preload で解決。モニタリングで検出 |
-| SQLインジェクション | プレースホルダ必須。文字列連結禁止 |
-| テスト | testcontainers-go / インターフェースモック |
+The knowledge from this topic is frequently used in day-to-day development. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Concept | Key Points |
+|---------|------------|
+| database/sql | Standard library. Swappable drivers. Most lightweight |
+| Connection Pool | Must configure MaxOpenConns/MaxIdleConns/ConnMaxLifetime in production |
+| sqlx | Automatic struct mapping. Raw SQL. First choice for new projects |
+| GORM | Full ORM. Rapid CRUD development. Relations via Preload/Joins |
+| Transactions | BeginTx + defer Rollback + Commit. Manage with helper functions |
+| Migrations | golang-migrate / goose / atlas. AutoMigrate is prohibited in production |
+| Context | Pass context to all DB operations. Propagates cancellation and timeouts |
+| N+1 Problem | Solve with JOIN / IN clause / Preload. Detect with monitoring |
+| SQL Injection | Placeholders are mandatory. String concatenation is prohibited |
+| Testing | testcontainers-go / interface mocking |
+
+---
+
+## Recommended Next Guides
 
 - [03-grpc.md](./03-grpc.md) -- gRPC
-- [04-testing.md](./04-testing.md) -- DBテスト
-- [../03-tools/03-deployment.md](../03-tools/03-deployment.md) -- デプロイ
+- [04-testing.md](./04-testing.md) -- DB Testing
+- [../03-tools/03-deployment.md](../03-tools/03-deployment.md) -- Deployment
 
 ---
 
-## 参考文献
+## References
 
 1. **Go Standard Library: database/sql** -- https://pkg.go.dev/database/sql
 2. **jmoiron/sqlx** -- https://github.com/jmoiron/sqlx
