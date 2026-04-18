@@ -58,6 +58,24 @@ yarn-error.log*
 *.env
 !.env.example
 
+# Secrets & credentials (絶対にコミットしない)
+secrets/
+credentials/
+keys/
+.secrets/
+.credentials/
+*.pem
+*.key
+*.p12
+*.pfx
+*.cert
+*.cer
+*.crt
+id_rsa
+id_ed25519
+id_dsa
+*.ppk
+
 # Coverage
 coverage/
 *.lcov
