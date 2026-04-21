@@ -1,70 +1,70 @@
-# Go テスト完全ガイド
+# Complete Guide to Go Testing
 
-> table-driven tests、testify、httptestを駆使してGoコードの品質を保証する実践的テスト手法
+> Practical testing techniques that guarantee Go code quality through table-driven tests, testify, and httptest
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-1. **table-driven tests** のパターンを使い、網羅的かつ保守しやすいテストを書く方法
-2. **testify** ライブラリによるアサーション・モック・スイートの活用法
-3. **httptest** パッケージでHTTPハンドラとクライアントをテストする技法
-4. **統合テスト** とテストヘルパーの設計パターン
-5. **テストカバレッジ** とベンチマークの実践的活用
+1. How to write comprehensive and maintainable tests using the **table-driven tests** pattern
+2. How to leverage the **testify** library for assertions, mocks, and suites
+3. Techniques for testing HTTP handlers and clients with the **httptest** package
+4. Design patterns for **integration tests** and test helpers
+5. Practical use of **test coverage** and benchmarks
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [gRPC -- Protocol Buffers, サービス定義, ストリーミング](./03-grpc.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related fundamental concepts
+- Familiarity with the content of [gRPC -- Protocol Buffers, Service Definitions, Streaming](./03-grpc.md)
 
 ---
 
-## 1. Goテストの基本構造
+## 1. Basic Structure of Go Tests
 
-### 1-1. テストファイルの命名規則
+### 1-1. Naming Conventions for Test Files
 
 ```
 project/
 ├── handler.go
-├── handler_test.go      ← 同一パッケージ
+├── handler_test.go      ← Same package
 ├── service.go
 ├── service_test.go
-├── handler_integration_test.go  ← 統合テスト
-└── testdata/                    ← テストデータ用ディレクトリ
+├── handler_integration_test.go  ← Integration test
+└── testdata/                    ← Directory for test data
     ├── golden_response.json
     └── fixtures/
         ├── users.json
         └── config.yaml
 ```
 
-Goのテストは `_test.go` サフィックスを持つファイルに記述する。テスト関数は `Test` プレフィックスで始まり、`*testing.T` を引数に取る。`testdata` ディレクトリはGoのビルドシステムから無視されるため、テスト用のフィクスチャやゴールデンファイルを格納するのに最適である。
+Go tests are written in files with the `_test.go` suffix. Test functions start with the `Test` prefix and take `*testing.T` as an argument. The `testdata` directory is ignored by the Go build system, making it ideal for storing test fixtures and golden files.
 
-### 1-2. テストパッケージの選択
+### 1-2. Choosing a Test Package
 
-テストファイルのパッケージ名には2つの方式がある。
+There are two approaches to naming the package in a test file.
 
 ```go
-// 方式1: 同一パッケージテスト（ホワイトボックステスト）
+// Approach 1: Same-package test (white-box testing)
 // handler_test.go
 package myapp
 
-// プライベートな関数やフィールドにアクセスできる
+// Can access private functions and fields
 func TestInternalLogic(t *testing.T) {
-    result := internalHelper("input")  // 非公開関数を直接テスト
+    result := internalHelper("input")  // Directly tests unexported functions
     if result != "expected" {
         t.Errorf("internalHelper() = %q, want %q", result, "expected")
     }
 }
 
-// 方式2: 外部パッケージテスト（ブラックボックステスト）
+// Approach 2: External-package test (black-box testing)
 // handler_test.go
 package myapp_test
 
 import "myproject/myapp"
 
-// 公開APIのみをテスト（ユーザー視点の検証）
+// Tests only the public API (user-perspective verification)
 func TestPublicAPI(t *testing.T) {
     result := myapp.Process("input")
     if result != "expected" {
@@ -73,7 +73,7 @@ func TestPublicAPI(t *testing.T) {
 }
 ```
 
-### コード例1: 最小のテスト
+### Code Example 1: Minimal Test
 
 ```go
 package calc
@@ -93,54 +93,56 @@ func TestAdd(t *testing.T) {
 }
 ```
 
-### テスト実行フロー
+### Test Execution Flow
 
 ```
 +------------------+     +------------------+     +------------------+
-|  go test ./...   | --> | コンパイル        | --> | テストバイナリ    |
-|  コマンド実行     |     | *_test.go を含む  |     | 実行・結果表示    |
+|  go test ./...   | --> | Compile          | --> | Test binary      |
+|  command         |     | including        |     | execution &      |
+|                  |     | *_test.go files  |     | result display   |
 +------------------+     +------------------+     +------------------+
         |                        |                        |
         v                        v                        v
-  フラグ解析              テスト関数発見            PASS / FAIL 判定
-  -v, -run, -cover       Test*, Benchmark*        exit code 0 or 1
+  Flag parsing             Discover test          PASS / FAIL decision
+  -v, -run, -cover         functions              exit code 0 or 1
+                           Test*, Benchmark*
 ```
 
-### 1-3. テスト実行の主要フラグ
+### 1-3. Main Flags for Test Execution
 
 ```bash
-# 基本実行
-go test ./...                       # 全パッケージのテスト実行
-go test -v ./...                    # 詳細出力
-go test -run TestAdd ./...          # 特定テストのみ実行
-go test -run TestDivide/ゼロ除算    # サブテスト指定
+# Basic execution
+go test ./...                       # Run tests in all packages
+go test -v ./...                    # Verbose output
+go test -run TestAdd ./...          # Run only a specific test
+go test -run TestDivide/ZeroDivision # Specify a subtest
 
-# 並列・タイムアウト制御
-go test -parallel 4 ./...           # 並列実行数を指定
-go test -timeout 60s ./...          # テスト全体のタイムアウト
-go test -count=5 ./...              # 繰り返し実行（キャッシュ無効化）
+# Parallel / timeout control
+go test -parallel 4 ./...           # Specify number of parallel executions
+go test -timeout 60s ./...          # Overall test timeout
+go test -count=5 ./...              # Run repeatedly (invalidate cache)
 
-# カバレッジ
-go test -cover ./...                # カバレッジ付き実行
-go test -coverprofile=coverage.out  # プロファイル出力
-go test -covermode=atomic ./...     # 並行テスト対応のカバレッジ
+# Coverage
+go test -cover ./...                # Run with coverage
+go test -coverprofile=coverage.out  # Output profile
+go test -covermode=atomic ./...     # Concurrency-safe coverage
 
-# レース検出
-go test -race ./...                 # データレース検出
-go test -race -count=10 ./...       # 繰り返しでレース検出精度向上
+# Race detection
+go test -race ./...                 # Detect data races
+go test -race -count=10 ./...       # Improve race detection accuracy by repeating
 
-# ビルドタグ
-go test -tags=integration ./...     # タグ指定テスト
-go test -short ./...                # 短縮テストモード
+# Build tags
+go test -tags=integration ./...     # Run tests with specified tag
+go test -short ./...                # Short-test mode
 ```
 
 ---
 
 ## 2. Table-Driven Tests
 
-Go で最も推奨されるテストパターン。テストケースをスライスで定義し、ループで実行する。
+The most recommended testing pattern in Go. Test cases are defined as a slice and executed in a loop.
 
-### コード例2: 基本的なtable-driven test
+### Code Example 2: Basic Table-Driven Test
 
 ```go
 func TestDivide(t *testing.T) {
@@ -150,13 +152,13 @@ func TestDivide(t *testing.T) {
         want      float64
         wantError bool
     }{
-        {name: "正常な除算", a: 10, b: 2, want: 5, wantError: false},
-        {name: "小数結果", a: 7, b: 3, want: 2.3333, wantError: false},
-        {name: "ゼロ除算", a: 5, b: 0, want: 0, wantError: true},
-        {name: "負の数", a: -10, b: 2, want: -5, wantError: false},
-        {name: "両方負", a: -10, b: -2, want: 5, wantError: false},
-        {name: "非常に小さい数", a: 1, b: 1000000, want: 0.000001, wantError: false},
-        {name: "非常に大きい数", a: 1e18, b: 1e9, want: 1e9, wantError: false},
+        {name: "normal division", a: 10, b: 2, want: 5, wantError: false},
+        {name: "fractional result", a: 7, b: 3, want: 2.3333, wantError: false},
+        {name: "division by zero", a: 5, b: 0, want: 0, wantError: true},
+        {name: "negative number", a: -10, b: 2, want: -5, wantError: false},
+        {name: "both negative", a: -10, b: -2, want: 5, wantError: false},
+        {name: "very small number", a: 1, b: 1000000, want: 0.000001, wantError: false},
+        {name: "very large number", a: 1e18, b: 1e9, want: 1e9, wantError: false},
     }
 
     for _, tt := range tests {
@@ -175,33 +177,33 @@ func TestDivide(t *testing.T) {
 }
 ```
 
-### Table-Driven Test の構造
+### Structure of a Table-Driven Test
 
 ```
 +------------------------------------------+
 |  tests := []struct{ ... }{               |
 |    +------------------------------------+|
-|    | ケース1: name, input, expected     ||
+|    | Case 1: name, input, expected      ||
 |    +------------------------------------+|
-|    | ケース2: name, input, expected     ||
+|    | Case 2: name, input, expected      ||
 |    +------------------------------------+|
-|    | ケース3: name, input, expected     ||
+|    | Case 3: name, input, expected      ||
 |    +------------------------------------+|
 |  }                                       |
 |                                          |
 |  for _, tt := range tests {              |
 |    t.Run(tt.name, func(t *testing.T){    |
-|      // テストロジック                    |
+|      // Test logic                       |
 |    })                                    |
 |  }                                       |
 +------------------------------------------+
          |
          v
-  $ go test -run TestDivide/ゼロ除算
-  --- 個別ケースの実行も可能
+  $ go test -run TestDivide/ZeroDivision
+  --- Individual cases can also be executed
 ```
 
-### コード例3: 並列実行のtable-driven test
+### Code Example 3: Parallel Table-Driven Test
 
 ```go
 func TestSlowOperation(t *testing.T) {
@@ -210,15 +212,15 @@ func TestSlowOperation(t *testing.T) {
         input string
         want  string
     }{
-        {"ケースA", "hello", "HELLO"},
-        {"ケースB", "world", "WORLD"},
-        {"ケースC", "go", "GO"},
+        {"case A", "hello", "HELLO"},
+        {"case B", "world", "WORLD"},
+        {"case C", "go", "GO"},
     }
 
     for _, tt := range tests {
-        tt := tt // ループ変数のキャプチャ（Go 1.22未満で必要）
+        tt := tt // Capture loop variable (required before Go 1.22)
         t.Run(tt.name, func(t *testing.T) {
-            t.Parallel() // 並列実行を有効化
+            t.Parallel() // Enable parallel execution
             got := strings.ToUpper(tt.input)
             if got != tt.want {
                 t.Errorf("ToUpper(%q) = %q, want %q", tt.input, got, tt.want)
@@ -228,19 +230,19 @@ func TestSlowOperation(t *testing.T) {
 }
 ```
 
-### コード例4: セットアップ/ティアダウン付きtable-driven test
+### Code Example 4: Table-Driven Test with Setup/Teardown
 
 ```go
 func TestDatabaseOperations(t *testing.T) {
     tests := []struct {
         name    string
-        setup   func(db *sql.DB)    // テスト前のセットアップ
+        setup   func(db *sql.DB)    // Setup before the test
         action  func(db *sql.DB) error
         verify  func(t *testing.T, db *sql.DB)
-        cleanup func(db *sql.DB)    // テスト後のクリーンアップ
+        cleanup func(db *sql.DB)    // Cleanup after the test
     }{
         {
-            name: "ユーザー作成",
+            name: "create user",
             setup: func(db *sql.DB) {
                 db.Exec("DELETE FROM users")
             },
@@ -253,7 +255,7 @@ func TestDatabaseOperations(t *testing.T) {
                 var count int
                 db.QueryRow("SELECT COUNT(*) FROM users").Scan(&count)
                 if count != 1 {
-                    t.Errorf("ユーザー数 = %d, want 1", count)
+                    t.Errorf("user count = %d, want 1", count)
                 }
             },
             cleanup: func(db *sql.DB) {
@@ -261,7 +263,7 @@ func TestDatabaseOperations(t *testing.T) {
             },
         },
         {
-            name: "重複メール拒否",
+            name: "reject duplicate email",
             setup: func(db *sql.DB) {
                 db.Exec("DELETE FROM users")
                 db.Exec("INSERT INTO users (name, email) VALUES (?, ?)",
@@ -273,7 +275,7 @@ func TestDatabaseOperations(t *testing.T) {
                 return err
             },
             verify: func(t *testing.T, db *sql.DB) {
-                // エラーが発生することを検証（action の戻り値で確認）
+                // Verify that an error occurred (check via the action's return value)
             },
             cleanup: func(db *sql.DB) {
                 db.Exec("DELETE FROM users")
@@ -281,7 +283,7 @@ func TestDatabaseOperations(t *testing.T) {
         },
     }
 
-    db := setupTestDB(t) // テスト用DB接続
+    db := setupTestDB(t) // Test DB connection
     defer db.Close()
 
     for _, tt := range tests {
@@ -297,23 +299,23 @@ func TestDatabaseOperations(t *testing.T) {
             if tt.verify != nil {
                 tt.verify(t, db)
             }
-            _ = err // 必要に応じてエラー検証
+            _ = err // Verify error as needed
         })
     }
 }
 ```
 
-### コード例5: カスタムマッチャー付きtable-driven test
+### Code Example 5: Table-Driven Test with Custom Matcher
 
 ```go
 func TestParseConfig(t *testing.T) {
     tests := []struct {
         name    string
         input   string
-        check   func(t *testing.T, cfg *Config, err error) // カスタム検証関数
+        check   func(t *testing.T, cfg *Config, err error) // Custom verification function
     }{
         {
-            name:  "完全な設定",
+            name:  "complete config",
             input: `{"host": "localhost", "port": 8080, "debug": true}`,
             check: func(t *testing.T, cfg *Config, err error) {
                 t.Helper()
@@ -324,18 +326,18 @@ func TestParseConfig(t *testing.T) {
             },
         },
         {
-            name:  "デフォルト値適用",
+            name:  "apply default values",
             input: `{}`,
             check: func(t *testing.T, cfg *Config, err error) {
                 t.Helper()
                 require.NoError(t, err)
-                assert.Equal(t, "0.0.0.0", cfg.Host, "デフォルトホスト")
-                assert.Equal(t, 3000, cfg.Port, "デフォルトポート")
-                assert.False(t, cfg.Debug, "デフォルトはdebug無効")
+                assert.Equal(t, "0.0.0.0", cfg.Host, "default host")
+                assert.Equal(t, 3000, cfg.Port, "default port")
+                assert.False(t, cfg.Debug, "debug disabled by default")
             },
         },
         {
-            name:  "不正なJSON",
+            name:  "invalid JSON",
             input: `{invalid`,
             check: func(t *testing.T, cfg *Config, err error) {
                 t.Helper()
@@ -357,15 +359,15 @@ func TestParseConfig(t *testing.T) {
 
 ---
 
-## 3. testify ライブラリ
+## 3. The testify Library
 
-### インストール
+### Installation
 
 ```bash
 go get github.com/stretchr/testify
 ```
 
-### コード例6: testify/assert と testify/require
+### Code Example 6: testify/assert and testify/require
 
 ```go
 package user_test
@@ -378,89 +380,89 @@ import (
 )
 
 func TestCreateUser(t *testing.T) {
-    // assert: 失敗してもテスト続行
+    // assert: continues the test even on failure
     user, err := CreateUser("Alice", "alice@example.com")
-    assert.NoError(t, err, "ユーザー作成でエラーが発生した")
+    assert.NoError(t, err, "an error occurred while creating the user")
     assert.Equal(t, "Alice", user.Name)
     assert.NotEmpty(t, user.ID)
 
-    // require: 失敗したらテスト即中断
+    // require: immediately aborts the test on failure
     token, err := user.GenerateToken()
-    require.NoError(t, err, "トークン生成は必須")
+    require.NoError(t, err, "token generation is required")
     require.NotEmpty(t, token)
 
-    // さらにトークンを使ったテスト
+    // Further test using the token
     claims, err := ParseToken(token)
     assert.NoError(t, err)
     assert.Equal(t, user.ID, claims.UserID)
 }
 ```
 
-### assert vs require 比較表
+### assert vs. require Comparison Table
 
-| 項目 | `assert` | `require` |
+| Item | `assert` | `require` |
 |------|----------|-----------|
-| 失敗時の動作 | テスト続行（`t.Errorf`相当） | テスト即中断（`t.Fatalf`相当） |
-| 用途 | 複数の検証を一度に実行 | 後続テストの前提条件を検証 |
-| 戻り値 | `bool`（成功/失敗） | なし（失敗時にt.FailNow） |
-| 推奨場面 | 値の比較、属性チェック | nilチェック、エラーチェック |
-| 出力 | 全ての失敗を一括表示 | 最初の失敗のみ表示 |
+| Behavior on failure | Continue test (equivalent to `t.Errorf`) | Abort test immediately (equivalent to `t.Fatalf`) |
+| Use case | Run multiple verifications at once | Verify prerequisites for subsequent tests |
+| Return value | `bool` (success/failure) | None (calls t.FailNow on failure) |
+| Recommended for | Value comparisons, attribute checks | Nil checks, error checks |
+| Output | Shows all failures together | Shows only the first failure |
 
-### testify の主要アサーション一覧
+### Main testify Assertions
 
 ```go
-// 等値比較
-assert.Equal(t, expected, actual)           // DeepEqual比較
+// Equality comparison
+assert.Equal(t, expected, actual)           // DeepEqual comparison
 assert.NotEqual(t, unexpected, actual)
-assert.EqualValues(t, expected, actual)     // 型変換込みの比較
+assert.EqualValues(t, expected, actual)     // Comparison including type conversion
 
-// nil / empty チェック
+// nil / empty checks
 assert.Nil(t, obj)
 assert.NotNil(t, obj)
 assert.Empty(t, collection)                // len == 0
 assert.NotEmpty(t, collection)
 
-// 真偽
+// Boolean
 assert.True(t, condition)
 assert.False(t, condition)
 
-// エラー
+// Error
 assert.NoError(t, err)
 assert.Error(t, err)
-assert.ErrorIs(t, err, ErrNotFound)        // errors.Is 相当
-assert.ErrorAs(t, err, &target)            // errors.As 相当
+assert.ErrorIs(t, err, ErrNotFound)        // Equivalent to errors.Is
+assert.ErrorAs(t, err, &target)            // Equivalent to errors.As
 assert.ErrorContains(t, err, "not found")
 
-// コレクション
+// Collection
 assert.Contains(t, list, element)
 assert.NotContains(t, list, element)
 assert.Len(t, list, expectedLen)
-assert.ElementsMatch(t, expected, actual)  // 順序無視の比較
+assert.ElementsMatch(t, expected, actual)  // Order-independent comparison
 
-// 文字列
+// String
 assert.Contains(t, str, substring)
 assert.Regexp(t, regexp, str)
 
-// 数値
+// Numeric
 assert.Greater(t, a, b)
 assert.GreaterOrEqual(t, a, b)
-assert.InDelta(t, expected, actual, delta)  // 浮動小数点の近似比較
+assert.InDelta(t, expected, actual, delta)  // Approximate floating-point comparison
 
-// パニック
+// Panic
 assert.Panics(t, func() { panicFunc() })
 assert.NotPanics(t, func() { safeFunc() })
 
 // JSON
-assert.JSONEq(t, expectedJSON, actualJSON)  // JSON文字列の意味的比較
+assert.JSONEq(t, expectedJSON, actualJSON)  // Semantic comparison of JSON strings
 
-// 時間
+// Time
 assert.WithinDuration(t, expected, actual, delta)
 ```
 
-### コード例7: testify/mock
+### Code Example 7: testify/mock
 
 ```go
-// インターフェース定義
+// Interface definition
 type UserRepository interface {
     FindByID(id string) (*User, error)
     FindByEmail(email string) (*User, error)
@@ -469,7 +471,7 @@ type UserRepository interface {
     List(offset, limit int) ([]*User, error)
 }
 
-// モック生成
+// Mock generation
 type MockUserRepo struct {
     mock.Mock
 }
@@ -508,7 +510,7 @@ func (m *MockUserRepo) List(offset, limit int) ([]*User, error) {
     return args.Get(0).([]*User), args.Error(1)
 }
 
-// テストでの使用
+// Usage in tests
 func TestUpdateUserName(t *testing.T) {
     mockRepo := new(MockUserRepo)
 
@@ -526,9 +528,9 @@ func TestUpdateUserName(t *testing.T) {
     }))
 }
 
-// より高度なモックパターン
+// More advanced mock patterns
 func TestUserServiceEdgeCases(t *testing.T) {
-    t.Run("ユーザーが見つからない場合", func(t *testing.T) {
+    t.Run("when user is not found", func(t *testing.T) {
         mockRepo := new(MockUserRepo)
         mockRepo.On("FindByID", "999").Return(nil, ErrNotFound)
 
@@ -539,7 +541,7 @@ func TestUserServiceEdgeCases(t *testing.T) {
         mockRepo.AssertNotCalled(t, "Save")
     })
 
-    t.Run("保存失敗時のロールバック", func(t *testing.T) {
+    t.Run("rollback on save failure", func(t *testing.T) {
         mockRepo := new(MockUserRepo)
         existingUser := &User{ID: "123", Name: "Alice"}
         mockRepo.On("FindByID", "123").Return(existingUser, nil)
@@ -552,7 +554,7 @@ func TestUserServiceEdgeCases(t *testing.T) {
         assert.Contains(t, err.Error(), "db error")
     })
 
-    t.Run("呼び出し回数の検証", func(t *testing.T) {
+    t.Run("verify call count", func(t *testing.T) {
         mockRepo := new(MockUserRepo)
         users := []*User{
             {ID: "1", Name: "Alice"},
@@ -569,7 +571,7 @@ func TestUserServiceEdgeCases(t *testing.T) {
 }
 ```
 
-### コード例8: testify/suite
+### Code Example 8: testify/suite
 
 ```go
 package user_test
@@ -582,7 +584,7 @@ import (
     "github.com/stretchr/testify/suite"
 )
 
-// テストスイートの定義
+// Test suite definition
 type UserServiceSuite struct {
     suite.Suite
     db      *sql.DB
@@ -590,13 +592,13 @@ type UserServiceSuite struct {
     repo    *UserRepo
 }
 
-// スイート開始前に一度だけ実行
+// Run once before the suite starts
 func (s *UserServiceSuite) SetupSuite() {
     db, err := sql.Open("sqlite3", ":memory:")
     s.Require().NoError(err)
     s.db = db
 
-    // テーブル作成
+    // Create table
     _, err = db.Exec(`
         CREATE TABLE users (
             id TEXT PRIMARY KEY,
@@ -611,22 +613,22 @@ func (s *UserServiceSuite) SetupSuite() {
     s.service = NewUserService(s.repo)
 }
 
-// 各テスト前に実行
+// Run before each test
 func (s *UserServiceSuite) SetupTest() {
     s.db.Exec("DELETE FROM users")
 }
 
-// 各テスト後に実行
+// Run after each test
 func (s *UserServiceSuite) TearDownTest() {
-    // 必要に応じてクリーンアップ
+    // Cleanup as needed
 }
 
-// スイート終了時に一度だけ実行
+// Run once when the suite ends
 func (s *UserServiceSuite) TearDownSuite() {
     s.db.Close()
 }
 
-// テストケース
+// Test cases
 func (s *UserServiceSuite) TestCreateUser() {
     user, err := s.service.Create("Alice", "alice@example.com")
     s.NoError(err)
@@ -662,7 +664,7 @@ func (s *UserServiceSuite) TestDeleteUser() {
     s.ErrorIs(err, ErrNotFound)
 }
 
-// スイート実行のエントリポイント
+// Entry point for running the suite
 func TestUserServiceSuite(t *testing.T) {
     suite.Run(t, new(UserServiceSuite))
 }
@@ -670,50 +672,50 @@ func TestUserServiceSuite(t *testing.T) {
 
 ---
 
-## 4. httptest パッケージ
+## 4. The httptest Package
 
-### HTTPテストの全体像
+### Overview of HTTP Testing
 
 ```
 +----------------------------+
-|  テスト対象の選択           |
+|  Choosing the test target  |
 +----------------------------+
         |             |
         v             v
 +-------------+ +----------------+
-| サーバー側   | | クライアント側  |
-| ハンドラを   | | 外部API呼出を  |
-| テスト       | | テスト          |
+| Server-side | | Client-side    |
+| Test        | | Test external  |
+| handlers    | | API calls      |
 +-------------+ +----------------+
         |             |
         v             v
 +-------------+ +----------------+
 | httptest.   | | httptest.      |
 | NewRecorder | | NewServer      |
-| リクエスト→  | | モックサーバー  |
-| レスポンス   | | を立てて検証    |
+| Request →   | | Spin up a mock |
+| Response    | | server to verify|
 +-------------+ +----------------+
 ```
 
-### コード例9: httptest.NewRecorder でハンドラテスト
+### Code Example 9: Handler Testing with httptest.NewRecorder
 
 ```go
 func TestHealthHandler(t *testing.T) {
-    // ハンドラ定義
+    // Handler definition
     handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
         w.Header().Set("Content-Type", "application/json")
         w.WriteHeader(http.StatusOK)
         json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
     })
 
-    // リクエスト作成
+    // Create request
     req := httptest.NewRequest("GET", "/health", nil)
     rec := httptest.NewRecorder()
 
-    // ハンドラ実行
+    // Execute handler
     handler.ServeHTTP(rec, req)
 
-    // 検証
+    // Verify
     assert.Equal(t, http.StatusOK, rec.Code)
     assert.Contains(t, rec.Header().Get("Content-Type"), "application/json")
 
@@ -724,7 +726,7 @@ func TestHealthHandler(t *testing.T) {
 }
 ```
 
-### コード例10: JSONリクエスト・レスポンスの完全テスト
+### Code Example 10: Full Test for JSON Requests and Responses
 
 ```go
 func TestCreateUserHandler(t *testing.T) {
@@ -735,25 +737,25 @@ func TestCreateUserHandler(t *testing.T) {
         wantBody   map[string]interface{}
     }{
         {
-            name:       "正常作成",
+            name:       "successful creation",
             body:       map[string]string{"name": "Alice", "email": "alice@example.com"},
             wantStatus: http.StatusCreated,
             wantBody:   map[string]interface{}{"name": "Alice", "email": "alice@example.com"},
         },
         {
-            name:       "名前が空",
+            name:       "empty name",
             body:       map[string]string{"name": "", "email": "alice@example.com"},
             wantStatus: http.StatusBadRequest,
             wantBody:   map[string]interface{}{"error": "name is required"},
         },
         {
-            name:       "メールが不正",
+            name:       "invalid email",
             body:       map[string]string{"name": "Alice", "email": "invalid"},
             wantStatus: http.StatusBadRequest,
             wantBody:   map[string]interface{}{"error": "invalid email format"},
         },
         {
-            name:       "不正なJSON",
+            name:       "invalid JSON",
             body:       "invalid json",
             wantStatus: http.StatusBadRequest,
         },
@@ -774,7 +776,7 @@ func TestCreateUserHandler(t *testing.T) {
             req.Header.Set("Content-Type", "application/json")
             rec := httptest.NewRecorder()
 
-            handler := NewRouter() // テスト対象のルーター
+            handler := NewRouter() // Router under test
             handler.ServeHTTP(rec, req)
 
             assert.Equal(t, tt.wantStatus, rec.Code)
@@ -784,7 +786,7 @@ func TestCreateUserHandler(t *testing.T) {
                 err := json.Unmarshal(rec.Body.Bytes(), &got)
                 require.NoError(t, err)
                 for key, want := range tt.wantBody {
-                    assert.Equal(t, want, got[key], "フィールド %s が一致しない", key)
+                    assert.Equal(t, want, got[key], "field %s does not match", key)
                 }
             }
         })
@@ -792,11 +794,11 @@ func TestCreateUserHandler(t *testing.T) {
 }
 ```
 
-### コード例11: httptest.NewServer で外部APIモック
+### Code Example 11: Mocking an External API with httptest.NewServer
 
 ```go
 func TestFetchUserFromAPI(t *testing.T) {
-    // モックサーバー作成
+    // Create a mock server
     mockServer := httptest.NewServer(http.HandlerFunc(
         func(w http.ResponseWriter, r *http.Request) {
             assert.Equal(t, "/api/users/42", r.URL.Path)
@@ -811,7 +813,7 @@ func TestFetchUserFromAPI(t *testing.T) {
     ))
     defer mockServer.Close()
 
-    // テスト対象のクライアントにモックURLを注入
+    // Inject the mock URL into the client under test
     client := NewAPIClient(mockServer.URL, "test-token")
     user, err := client.FetchUser(42)
 
@@ -821,16 +823,16 @@ func TestFetchUserFromAPI(t *testing.T) {
 }
 ```
 
-### コード例12: 複数エンドポイントのモックサーバー
+### Code Example 12: Mock Server with Multiple Endpoints
 
 ```go
 func TestExternalAPIClient(t *testing.T) {
-    // 複数エンドポイントに対応するモックサーバー
+    // Mock server that handles multiple endpoints
     mockServer := httptest.NewServer(http.HandlerFunc(
         func(w http.ResponseWriter, r *http.Request) {
             switch {
             case r.Method == "GET" && r.URL.Path == "/api/users":
-                // ユーザー一覧
+                // User list
                 w.Header().Set("Content-Type", "application/json")
                 json.NewEncoder(w).Encode([]map[string]interface{}{
                     {"id": 1, "name": "Alice"},
@@ -838,7 +840,7 @@ func TestExternalAPIClient(t *testing.T) {
                 })
 
             case r.Method == "GET" && strings.HasPrefix(r.URL.Path, "/api/users/"):
-                // 個別ユーザー取得
+                // Get individual user
                 id := strings.TrimPrefix(r.URL.Path, "/api/users/")
                 if id == "999" {
                     w.WriteHeader(http.StatusNotFound)
@@ -852,7 +854,7 @@ func TestExternalAPIClient(t *testing.T) {
                 })
 
             case r.Method == "POST" && r.URL.Path == "/api/users":
-                // ユーザー作成
+                // Create user
                 var body map[string]string
                 json.NewDecoder(r.Body).Decode(&body)
                 w.WriteHeader(http.StatusCreated)
@@ -870,18 +872,18 @@ func TestExternalAPIClient(t *testing.T) {
 
     client := NewAPIClient(mockServer.URL, "test-token")
 
-    t.Run("ユーザー一覧取得", func(t *testing.T) {
+    t.Run("fetch user list", func(t *testing.T) {
         users, err := client.ListUsers()
         require.NoError(t, err)
         assert.Len(t, users, 2)
     })
 
-    t.Run("存在しないユーザー", func(t *testing.T) {
+    t.Run("non-existent user", func(t *testing.T) {
         _, err := client.FetchUser(999)
         assert.ErrorIs(t, err, ErrNotFound)
     })
 
-    t.Run("ユーザー作成", func(t *testing.T) {
+    t.Run("create user", func(t *testing.T) {
         user, err := client.CreateUser("Charlie")
         require.NoError(t, err)
         assert.Equal(t, "Charlie", user.Name)
@@ -889,7 +891,7 @@ func TestExternalAPIClient(t *testing.T) {
 }
 ```
 
-### コード例13: ミドルウェアのテスト
+### Code Example 13: Testing Middleware
 
 ```go
 func TestAuthMiddleware(t *testing.T) {
@@ -898,10 +900,10 @@ func TestAuthMiddleware(t *testing.T) {
         token      string
         wantStatus int
     }{
-        {"有効なトークン", "valid-token", http.StatusOK},
-        {"無効なトークン", "bad-token", http.StatusUnauthorized},
-        {"トークンなし", "", http.StatusUnauthorized},
-        {"期限切れトークン", "expired-token", http.StatusUnauthorized},
+        {"valid token", "valid-token", http.StatusOK},
+        {"invalid token", "bad-token", http.StatusUnauthorized},
+        {"no token", "", http.StatusUnauthorized},
+        {"expired token", "expired-token", http.StatusUnauthorized},
     }
 
     for _, tt := range tests {
@@ -923,25 +925,25 @@ func TestAuthMiddleware(t *testing.T) {
     }
 }
 
-// レート制限ミドルウェアのテスト
+// Rate-limit middleware test
 func TestRateLimitMiddleware(t *testing.T) {
     inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
         w.WriteHeader(http.StatusOK)
     })
 
-    // 1秒間に3回までのレート制限
+    // Rate limit of up to 3 requests per second
     handler := RateLimitMiddleware(3, time.Second)(inner)
 
-    // 3回は成功する
+    // The first 3 requests succeed
     for i := 0; i < 3; i++ {
         req := httptest.NewRequest("GET", "/api/data", nil)
         req.RemoteAddr = "192.168.1.1:12345"
         rec := httptest.NewRecorder()
         handler.ServeHTTP(rec, req)
-        assert.Equal(t, http.StatusOK, rec.Code, "リクエスト %d", i+1)
+        assert.Equal(t, http.StatusOK, rec.Code, "request %d", i+1)
     }
 
-    // 4回目は制限にかかる
+    // The 4th request is throttled
     req := httptest.NewRequest("GET", "/api/data", nil)
     req.RemoteAddr = "192.168.1.1:12345"
     rec := httptest.NewRecorder()
@@ -949,7 +951,7 @@ func TestRateLimitMiddleware(t *testing.T) {
     assert.Equal(t, http.StatusTooManyRequests, rec.Code)
 }
 
-// CORSミドルウェアのテスト
+// CORS middleware test
 func TestCORSMiddleware(t *testing.T) {
     inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
         w.WriteHeader(http.StatusOK)
@@ -961,7 +963,7 @@ func TestCORSMiddleware(t *testing.T) {
         AllowHeaders: []string{"Content-Type", "Authorization"},
     })(inner)
 
-    t.Run("プリフライトリクエスト", func(t *testing.T) {
+    t.Run("preflight request", func(t *testing.T) {
         req := httptest.NewRequest("OPTIONS", "/api/data", nil)
         req.Header.Set("Origin", "https://example.com")
         req.Header.Set("Access-Control-Request-Method", "POST")
@@ -974,7 +976,7 @@ func TestCORSMiddleware(t *testing.T) {
             rec.Header().Get("Access-Control-Allow-Origin"))
     })
 
-    t.Run("許可されていないオリジン", func(t *testing.T) {
+    t.Run("disallowed origin", func(t *testing.T) {
         req := httptest.NewRequest("GET", "/api/data", nil)
         req.Header.Set("Origin", "https://evil.com")
         rec := httptest.NewRecorder()
@@ -986,11 +988,11 @@ func TestCORSMiddleware(t *testing.T) {
 }
 ```
 
-### コード例14: TLSサーバーのテスト
+### Code Example 14: Testing a TLS Server
 
 ```go
 func TestHTTPSClient(t *testing.T) {
-    // TLS付きのテストサーバー
+    // Test server with TLS
     tlsServer := httptest.NewTLSServer(http.HandlerFunc(
         func(w http.ResponseWriter, r *http.Request) {
             w.WriteHeader(http.StatusOK)
@@ -999,7 +1001,7 @@ func TestHTTPSClient(t *testing.T) {
     ))
     defer tlsServer.Close()
 
-    // TLSサーバーのクライアントを取得
+    // Get the client for the TLS server
     client := tlsServer.Client()
 
     resp, err := client.Get(tlsServer.URL + "/secure")
@@ -1013,22 +1015,22 @@ func TestHTTPSClient(t *testing.T) {
 
 ---
 
-## 5. テストヘルパーとユーティリティ
+## 5. Test Helpers and Utilities
 
-### コード例15: テストヘルパー関数
+### Code Example 15: Test Helper Functions
 
 ```go
-// testhelper.go (テストパッケージ内)
+// testhelper.go (inside the test package)
 
-// t.Helper() で呼び出し元の行番号を表示
+// Use t.Helper() to display the caller's line number
 func assertJSON(t *testing.T, body []byte, key, want string) {
-    t.Helper() // これがないとこの関数の行番号が表示される
+    t.Helper() // Without this, this function's line number is displayed
     var m map[string]string
     require.NoError(t, json.Unmarshal(body, &m))
     assert.Equal(t, want, m[key])
 }
 
-// テスト用HTTPリクエストビルダー
+// HTTP request builder for tests
 func newJSONRequest(t *testing.T, method, url string, body interface{}) *http.Request {
     t.Helper()
     var reader io.Reader
@@ -1042,17 +1044,17 @@ func newJSONRequest(t *testing.T, method, url string, body interface{}) *http.Re
     return req
 }
 
-// テスト用DBセットアップ
+// Test DB setup
 func setupTestDB(t *testing.T) *sql.DB {
     t.Helper()
     db, err := sql.Open("sqlite3", ":memory:")
     require.NoError(t, err)
 
-    // マイグレーション実行
+    // Run migrations
     _, err = db.Exec(testSchema)
     require.NoError(t, err)
 
-    // t.Cleanup で自動クリーンアップ（Go 1.14+）
+    // Automatic cleanup via t.Cleanup (Go 1.14+)
     t.Cleanup(func() {
         db.Close()
     })
@@ -1060,7 +1062,7 @@ func setupTestDB(t *testing.T) *sql.DB {
     return db
 }
 
-// テスト用一時ファイル
+// Temporary file for tests
 func createTempFile(t *testing.T, content string) string {
     t.Helper()
     f, err := os.CreateTemp("", "test-*")
@@ -1077,7 +1079,7 @@ func createTempFile(t *testing.T, content string) string {
     return f.Name()
 }
 
-// テスト用環境変数設定
+// Environment variable setup for tests
 func setEnv(t *testing.T, key, value string) {
     t.Helper()
     original := os.Getenv(key)
@@ -1092,20 +1094,20 @@ func setEnv(t *testing.T, key, value string) {
 }
 ```
 
-### コード例16: ゴールデンファイルテスト
+### Code Example 16: Golden File Testing
 
 ```go
-// ゴールデンファイルパターン: 期待出力をファイルに保存
-var update = flag.Bool("update", false, "ゴールデンファイルを更新する")
+// Golden file pattern: save expected output to a file
+var update = flag.Bool("update", false, "update golden files")
 
 func TestRenderTemplate(t *testing.T) {
     tests := []struct {
         name string
         data interface{}
     }{
-        {"ユーザープロフィール", User{Name: "Alice", Age: 30}},
-        {"空データ", User{}},
-        {"日本語名", User{Name: "太郎", Age: 25}},
+        {"user profile", User{Name: "Alice", Age: 30}},
+        {"empty data", User{}},
+        {"Japanese name", User{Name: "Taro", Age: 25}},
     }
 
     for _, tt := range tests {
@@ -1115,41 +1117,41 @@ func TestRenderTemplate(t *testing.T) {
             goldenFile := filepath.Join("testdata", t.Name()+".golden")
 
             if *update {
-                // ゴールデンファイルを更新
+                // Update the golden file
                 os.MkdirAll(filepath.Dir(goldenFile), 0755)
                 os.WriteFile(goldenFile, []byte(got), 0644)
                 return
             }
 
-            // ゴールデンファイルと比較
+            // Compare against the golden file
             want, err := os.ReadFile(goldenFile)
-            require.NoError(t, err, "ゴールデンファイルが見つかりません。-update フラグで生成してください")
+            require.NoError(t, err, "golden file not found. Generate it with the -update flag")
             assert.Equal(t, string(want), got)
         })
     }
 }
 ```
 
-### コード例17: テスト用のタイムコントロール
+### Code Example 17: Time Control for Tests
 
 ```go
-// インターフェースで時刻を抽象化
+// Abstract time via an interface
 type Clock interface {
     Now() time.Time
 }
 
-// 本番用
+// Production implementation
 type RealClock struct{}
 func (RealClock) Now() time.Time { return time.Now() }
 
-// テスト用
+// Test implementation
 type FakeClock struct {
     current time.Time
 }
 func (c *FakeClock) Now() time.Time { return c.current }
 func (c *FakeClock) Advance(d time.Duration) { c.current = c.current.Add(d) }
 
-// 使用例
+// Example usage
 type TokenService struct {
     clock     Clock
     ttl       time.Duration
@@ -1159,7 +1161,7 @@ func (s *TokenService) IsExpired(token *Token) bool {
     return s.clock.Now().After(token.ExpiresAt)
 }
 
-// テスト
+// Test
 func TestTokenExpiry(t *testing.T) {
     fakeClock := &FakeClock{current: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)}
     service := &TokenService{clock: fakeClock, ttl: time.Hour}
@@ -1168,22 +1170,22 @@ func TestTokenExpiry(t *testing.T) {
         ExpiresAt: time.Date(2024, 1, 1, 1, 0, 0, 0, time.UTC),
     }
 
-    // 有効期限内
+    // Within the validity period
     assert.False(t, service.IsExpired(token))
 
-    // 時間を進める
+    // Advance time
     fakeClock.Advance(2 * time.Hour)
 
-    // 有効期限切れ
+    // Expired
     assert.True(t, service.IsExpired(token))
 }
 ```
 
 ---
 
-## 6. 統合テストとビルドタグ
+## 6. Integration Tests and Build Tags
 
-### コード例18: ビルドタグによるテスト分離
+### Code Example 18: Test Separation via Build Tags
 
 ```go
 //go:build integration
@@ -1201,7 +1203,7 @@ import (
 func TestPostgresUserStore(t *testing.T) {
     dsn := os.Getenv("TEST_DATABASE_URL")
     if dsn == "" {
-        t.Skip("TEST_DATABASE_URL が設定されていません")
+        t.Skip("TEST_DATABASE_URL is not set")
     }
 
     db, err := sql.Open("postgres", dsn)
@@ -1210,7 +1212,7 @@ func TestPostgresUserStore(t *testing.T) {
 
     store := NewUserStore(db)
 
-    t.Run("CRUD操作", func(t *testing.T) {
+    t.Run("CRUD operations", func(t *testing.T) {
         // Create
         user, err := store.Create(&User{Name: "Alice", Email: "alice@test.com"})
         require.NoError(t, err)
@@ -1237,39 +1239,39 @@ func TestPostgresUserStore(t *testing.T) {
 ```
 
 ```bash
-# 通常テスト（統合テスト除外）
+# Normal tests (integration tests excluded)
 go test ./...
 
-# 統合テスト込み
+# Including integration tests
 go test -tags=integration ./...
 
-# 統合テストのみ
+# Only integration tests
 go test -tags=integration -run TestPostgres ./...
 ```
 
-### コード例19: testing.Short() による短縮テスト
+### Code Example 19: Short Tests via testing.Short()
 
 ```go
 func TestHeavyComputation(t *testing.T) {
     if testing.Short() {
-        t.Skip("短縮モードでは重い計算テストをスキップ")
+        t.Skip("skipping heavy computation test in short mode")
     }
 
-    // 時間のかかるテスト
+    // Time-consuming test
     result := HeavyComputation(largeDataset)
     assert.Equal(t, expectedResult, result)
 }
 ```
 
 ```bash
-# 短縮モード（CIの高速フィードバック用）
+# Short mode (for fast CI feedback)
 go test -short ./...
 
-# 完全テスト
+# Full tests
 go test ./...
 ```
 
-### コード例20: testcontainers によるDockerベーステスト
+### Code Example 20: Docker-based Testing with testcontainers
 
 ```go
 package store_test
@@ -1285,12 +1287,12 @@ import (
 
 func TestWithPostgresContainer(t *testing.T) {
     if testing.Short() {
-        t.Skip("短縮モードではコンテナテストをスキップ")
+        t.Skip("skipping container test in short mode")
     }
 
     ctx := context.Background()
 
-    // PostgreSQLコンテナ起動
+    // Start a PostgreSQL container
     container, err := postgres.RunContainer(ctx,
         testcontainers.WithImage("postgres:16-alpine"),
         postgres.WithDatabase("testdb"),
@@ -1304,19 +1306,19 @@ func TestWithPostgresContainer(t *testing.T) {
     require.NoError(t, err)
     defer container.Terminate(ctx)
 
-    // 接続文字列取得
+    // Get the connection string
     connStr, err := container.ConnectionString(ctx, "sslmode=disable")
     require.NoError(t, err)
 
-    // DBに接続してテスト実行
+    // Connect to DB and run tests
     db, err := sql.Open("postgres", connStr)
     require.NoError(t, err)
     defer db.Close()
 
-    // マイグレーション実行
+    // Run migrations
     runMigrations(t, db)
 
-    // テスト実行
+    // Run tests
     store := NewUserStore(db)
     user, err := store.Create(&User{Name: "Alice", Email: "alice@test.com"})
     require.NoError(t, err)
@@ -1326,33 +1328,33 @@ func TestWithPostgresContainer(t *testing.T) {
 
 ---
 
-## 7. テストカバレッジとベンチマーク
+## 7. Test Coverage and Benchmarks
 
-### カバレッジ
+### Coverage
 
 ```bash
-# カバレッジ付きテスト実行
+# Run tests with coverage
 go test -cover ./...
 
-# HTMLレポート生成
+# Generate HTML report
 go test -coverprofile=coverage.out ./...
 go tool cover -html=coverage.out -o coverage.html
 
-# 関数ごとのカバレッジ
+# Per-function coverage
 go tool cover -func=coverage.out
 
-# 特定パッケージのカバレッジ
+# Coverage for specific packages
 go test -coverprofile=coverage.out -coverpkg=./internal/... ./...
 
-# カバレッジ閾値チェック（CIで使用）
+# Coverage threshold check (used in CI)
 COVERAGE=$(go test -cover ./... | grep -oP '\d+\.\d+%' | head -1 | tr -d '%')
 if (( $(echo "$COVERAGE < 70" | bc -l) )); then
-    echo "カバレッジが70%未満: $COVERAGE%"
+    echo "coverage below 70%: $COVERAGE%"
     exit 1
 fi
 ```
 
-### コード例21: ベンチマークテスト
+### Code Example 21: Benchmark Tests
 
 ```go
 func BenchmarkJSONMarshal(b *testing.B) {
@@ -1374,9 +1376,9 @@ func BenchmarkJSONMarshalParallel(b *testing.B) {
     })
 }
 
-// メモリアロケーション計測
+// Measure memory allocations
 func BenchmarkStringConcat(b *testing.B) {
-    b.Run("Plus演算子", func(b *testing.B) {
+    b.Run("Plus operator", func(b *testing.B) {
         b.ReportAllocs()
         for i := 0; i < b.N; i++ {
             s := ""
@@ -1411,21 +1413,21 @@ func BenchmarkStringConcat(b *testing.B) {
 ```
 
 ```bash
-# ベンチマーク実行
+# Run benchmarks
 go test -bench=BenchmarkJSON -benchmem ./...
 
-# 出力例:
+# Example output:
 # BenchmarkJSONMarshal-8       5000000    320 ns/op    128 B/op    2 allocs/op
 # BenchmarkJSONMarshalParallel-8  20000000  85 ns/op   128 B/op    2 allocs/op
 
-# ベンチマーク比較（benchstat）
+# Benchmark comparison (benchstat)
 go test -bench=. -count=10 > old.txt
-# コード変更後
+# After code changes
 go test -bench=. -count=10 > new.txt
 benchstat old.txt new.txt
 ```
 
-### コード例22: サブベンチマークで入力サイズを変化させる
+### Code Example 22: Varying Input Size with Sub-Benchmarks
 
 ```go
 func BenchmarkSort(b *testing.B) {
@@ -1433,7 +1435,7 @@ func BenchmarkSort(b *testing.B) {
 
     for _, size := range sizes {
         b.Run(fmt.Sprintf("size=%d", size), func(b *testing.B) {
-            // テストデータの準備（計測外）
+            // Prepare test data (outside measurement)
             data := make([]int, size)
             for i := range data {
                 data[i] = rand.Intn(size * 10)
@@ -1441,7 +1443,7 @@ func BenchmarkSort(b *testing.B) {
 
             b.ResetTimer()
             for i := 0; i < b.N; i++ {
-                // データをコピーしてソート
+                // Copy data and sort
                 cp := make([]int, len(data))
                 copy(cp, data)
                 sort.Ints(cp)
@@ -1453,57 +1455,58 @@ func BenchmarkSort(b *testing.B) {
 
 ---
 
-## 8. テスト手法の比較
+## 8. Comparison of Testing Techniques
 
-| テスト手法 | 速度 | 外部依存 | 信頼性 | 保守コスト | 適用場面 |
-|-----------|------|---------|--------|-----------|---------|
-| 単体テスト（table-driven） | 非常に速い | なし | 高 | 低 | 関数・メソッド単位 |
-| httptest.Recorder | 速い | なし | 高 | 低 | HTTPハンドラ |
-| httptest.Server | 速い | なし | 中〜高 | 中 | HTTP クライアント |
-| testify/mock | 速い | なし | 中 | 中 | 依存の多いコンポーネント |
-| testify/suite | 速い | 任意 | 高 | 中 | 共通セットアップが必要な一連のテスト |
-| ゴールデンファイル | 速い | なし | 高 | 低 | テンプレート出力、シリアライズ |
-| 統合テスト（DB込み） | 遅い | あり | 非常に高 | 高 | エンドツーエンド検証 |
-| testcontainers | 遅い | Docker | 非常に高 | 高 | 本番に近い環境で検証 |
+| Technique | Speed | External dependencies | Reliability | Maintenance cost | Applicable scenarios |
+|-----------|-------|----------------------|-------------|------------------|----------------------|
+| Unit test (table-driven) | Very fast | None | High | Low | Functions/methods |
+| httptest.Recorder | Fast | None | High | Low | HTTP handlers |
+| httptest.Server | Fast | None | Medium-High | Medium | HTTP clients |
+| testify/mock | Fast | None | Medium | Medium | Components with many dependencies |
+| testify/suite | Fast | Optional | High | Medium | Test series needing common setup |
+| Golden file | Fast | None | High | Low | Template output, serialization |
+| Integration test (with DB) | Slow | Yes | Very high | High | End-to-end verification |
+| testcontainers | Slow | Docker | Very high | High | Verification in near-production environments |
 
 ---
 
-## 9. テストダブルの比較
+## 9. Comparison of Test Doubles
 
 ```
 +--------------------------------------------------------------+
-|                    テストダブルの種類                           |
+|                    Types of test doubles                       |
 +--------------------------------------------------------------+
 |                                                              |
 |  +----------+   +--------+   +------+   +------+   +------+ |
 |  | Dummy    |   | Stub   |   | Spy  |   | Mock |   | Fake | |
-|  | 使わない  |   | 固定値  |   | 記録  |   | 検証  |   | 簡易  | |
-|  | 引数埋め  |   | を返す  |   | する  |   | する  |   | 実装  | |
+|  | Not used |   | Returns|   | Record|  | Verify|  | Simple| |
+|  | Fills    |   | fixed  |   | calls |  | calls |  | impl. | |
+|  | args     |   | values |   |       |  |       |  |       | |
 |  +----------+   +--------+   +------+   +------+   +------+ |
 |                                                              |
-|  複雑さ:  低 ←←←←←←←←←←←←←←←←←←←→→→→→→→→→→→→→→→→→ 高     |
+|  Complexity:  Low ←←←←←←←←←←←←←←←←←←←→→→→→→→→→→→→→→→→→ High|
 +--------------------------------------------------------------+
 ```
 
-### コード例23: 各テストダブルの実装例
+### Code Example 23: Implementation of Each Test Double
 
 ```go
-// テスト対象のインターフェース
+// Interface under test
 type EmailSender interface {
     Send(to, subject, body string) error
 }
 
-// Dummy: 引数を埋めるためだけに使う
+// Dummy: used solely to fill arguments
 type DummyEmailSender struct{}
 func (d DummyEmailSender) Send(to, subject, body string) error { return nil }
 
-// Stub: 固定値を返す
+// Stub: returns a fixed value
 type StubEmailSender struct {
-    Err error // 返すエラーを設定
+    Err error // set the error to return
 }
 func (s StubEmailSender) Send(to, subject, body string) error { return s.Err }
 
-// Spy: 呼び出しを記録する
+// Spy: records calls
 type SpyEmailSender struct {
     Calls []struct {
         To, Subject, Body string
@@ -1514,7 +1517,7 @@ func (s *SpyEmailSender) Send(to, subject, body string) error {
     return nil
 }
 
-// Fake: 簡易実装（実際にメール送信する代わりにメモリに保存）
+// Fake: simple implementation (stores in memory instead of actually sending email)
 type FakeEmailSender struct {
     mu     sync.Mutex
     Inbox  map[string][]Message
@@ -1536,9 +1539,9 @@ func (f *FakeEmailSender) Send(to, subject, body string) error {
     return nil
 }
 
-// テストでの使い分け
+// Choosing among them in tests
 func TestNotificationService(t *testing.T) {
-    t.Run("Spy で送信内容を検証", func(t *testing.T) {
+    t.Run("verify send content with Spy", func(t *testing.T) {
         spy := &SpyEmailSender{}
         service := NewNotificationService(spy)
 
@@ -1549,7 +1552,7 @@ func TestNotificationService(t *testing.T) {
         assert.Contains(t, spy.Calls[0].Subject, "Welcome")
     })
 
-    t.Run("Stub でエラーケースを検証", func(t *testing.T) {
+    t.Run("verify error case with Stub", func(t *testing.T) {
         stub := StubEmailSender{Err: errors.New("SMTP error")}
         service := NewNotificationService(stub)
 
@@ -1557,7 +1560,7 @@ func TestNotificationService(t *testing.T) {
         assert.Error(t, err)
     })
 
-    t.Run("Fake で複数メール送信を検証", func(t *testing.T) {
+    t.Run("verify multiple email sends with Fake", func(t *testing.T) {
         fake := NewFakeEmailSender()
         service := NewNotificationService(fake)
 
@@ -1571,37 +1574,37 @@ func TestNotificationService(t *testing.T) {
 
 ---
 
-## 10. テスト実行の最適化
+## 10. Optimizing Test Execution
 
-### テスト実行速度の改善
+### Improving Test Execution Speed
 
 ```go
-// TestMain でパッケージレベルのセットアップ/ティアダウン
+// Package-level setup/teardown with TestMain
 func TestMain(m *testing.M) {
-    // 全テスト前のセットアップ
+    // Setup before all tests
     db := setupDatabase()
     seedTestData(db)
 
-    // テスト実行
+    // Run tests
     code := m.Run()
 
-    // 全テスト後のクリーンアップ
+    // Cleanup after all tests
     db.Close()
     os.Exit(code)
 }
 
-// t.Parallel() による並列化
+// Parallelization via t.Parallel()
 func TestParallelOperations(t *testing.T) {
-    // 並列テストではt.Setenv()を使えない（Go 1.17+）
-    // 代わりに共有リソースを避ける設計にする
+    // t.Setenv() cannot be used in parallel tests (Go 1.17+)
+    // Instead, design to avoid shared resources
 
     tests := []struct {
         name string
         fn   func(t *testing.T)
     }{
-        {"テスト1", func(t *testing.T) { /* ... */ }},
-        {"テスト2", func(t *testing.T) { /* ... */ }},
-        {"テスト3", func(t *testing.T) { /* ... */ }},
+        {"test 1", func(t *testing.T) { /* ... */ }},
+        {"test 2", func(t *testing.T) { /* ... */ }},
+        {"test 3", func(t *testing.T) { /* ... */ }},
     }
 
     for _, tt := range tests {
@@ -1614,7 +1617,7 @@ func TestParallelOperations(t *testing.T) {
 }
 ```
 
-### CI環境でのテスト設定
+### Test Configuration in a CI Environment
 
 ```yaml
 # .github/workflows/test.yml
@@ -1646,15 +1649,15 @@ jobs:
         with:
           go-version: '1.22'
 
-      - name: 単体テスト
+      - name: Unit tests
         run: go test -race -cover -short ./...
 
-      - name: 統合テスト
+      - name: Integration tests
         env:
           TEST_DATABASE_URL: postgres://test:test@localhost:5432/testdb?sslmode=disable
         run: go test -race -tags=integration ./...
 
-      - name: カバレッジレポート
+      - name: Coverage report
         run: |
           go test -coverprofile=coverage.out ./...
           go tool cover -func=coverage.out
@@ -1662,12 +1665,12 @@ jobs:
 
 ---
 
-## 11. アンチパターン
+## 11. Anti-Patterns
 
-### アンチパターン1: テストケース名の省略
+### Anti-Pattern 1: Omitting Test Case Names
 
 ```go
-// NG: 失敗時にどのケースか分からない
+// BAD: cannot tell which case failed
 func TestParse(t *testing.T) {
     tests := []struct {
         input string
@@ -1677,7 +1680,7 @@ func TestParse(t *testing.T) {
         {"abc", 0},
     }
     for _, tt := range tests {
-        // t.Run がない → 失敗時にケース特定が困難
+        // No t.Run → hard to identify which case failed
         got, _ := Parse(tt.input)
         if got != tt.want {
             t.Errorf("Parse(%q) = %d, want %d", tt.input, got, tt.want)
@@ -1685,15 +1688,15 @@ func TestParse(t *testing.T) {
     }
 }
 
-// OK: t.Run で各ケースに名前をつける
+// GOOD: name each case with t.Run
 func TestParse(t *testing.T) {
     tests := []struct {
         name  string
         input string
         want  int
     }{
-        {"数値文字列", "42", 42},
-        {"非数値", "abc", 0},
+        {"numeric string", "42", 42},
+        {"non-numeric", "abc", 0},
     }
     for _, tt := range tests {
         t.Run(tt.name, func(t *testing.T) {
@@ -1704,17 +1707,17 @@ func TestParse(t *testing.T) {
 }
 ```
 
-### アンチパターン2: テスト内でのsleep依存
+### Anti-Pattern 2: Relying on sleep in Tests
 
 ```go
-// NG: 時間依存でフレーキーテストになる
+// BAD: time-dependent, leading to flaky tests
 func TestAsyncProcess(t *testing.T) {
     go StartProcess()
-    time.Sleep(2 * time.Second) // 環境によって不安定
+    time.Sleep(2 * time.Second) // unstable depending on the environment
     assert.True(t, IsProcessDone())
 }
 
-// OK: チャネルやコンテキストで同期を取る
+// GOOD: synchronize with channels or contexts
 func TestAsyncProcess(t *testing.T) {
     done := make(chan struct{})
     go func() {
@@ -1726,15 +1729,15 @@ func TestAsyncProcess(t *testing.T) {
     case <-done:
         assert.True(t, IsProcessDone())
     case <-time.After(5 * time.Second):
-        t.Fatal("タイムアウト: プロセスが完了しなかった")
+        t.Fatal("timeout: process did not complete")
     }
 }
 ```
 
-### アンチパターン3: テスト間の依存関係
+### Anti-Pattern 3: Dependencies Between Tests
 
 ```go
-// NG: テストの実行順序に依存
+// BAD: depends on test execution order
 var sharedState string
 
 func TestStep1(t *testing.T) {
@@ -1743,43 +1746,43 @@ func TestStep1(t *testing.T) {
 }
 
 func TestStep2(t *testing.T) {
-    // sharedState が "initialized" であることを前提にしている
-    // TestStep1 が先に実行されないと失敗する
+    // Assumes sharedState is "initialized"
+    // Fails unless TestStep1 runs first
     require.Equal(t, "initialized", sharedState)
 }
 
-// OK: 各テストは独立して実行可能
+// GOOD: each test can run independently
 func TestStep1(t *testing.T) {
     state := setup()
     // ...
 }
 
 func TestStep2(t *testing.T) {
-    state := setup() // 各テストで独立にセットアップ
+    state := setup() // Set up independently for each test
     require.Equal(t, "initialized", state)
 }
 ```
 
-### アンチパターン4: 実装詳細のテスト
+### Anti-Pattern 4: Testing Implementation Details
 
 ```go
-// NG: 内部実装に密結合したテスト
+// BAD: test tightly coupled to internal implementation
 func TestUserService_Create(t *testing.T) {
     service := NewUserService(repo)
     service.Create("Alice", "alice@example.com")
 
-    // 内部キャッシュの状態を直接検証
-    assert.Len(t, service.cache, 1)                    // 内部フィールドへのアクセス
-    assert.Equal(t, "Alice", service.cache["alice"].Name) // 実装詳細に依存
+    // Directly inspect internal cache state
+    assert.Len(t, service.cache, 1)                    // accessing internal fields
+    assert.Equal(t, "Alice", service.cache["alice"].Name) // depends on implementation details
 }
 
-// OK: 公開APIの振る舞いをテスト
+// GOOD: test the behavior of the public API
 func TestUserService_Create(t *testing.T) {
     service := NewUserService(repo)
     user, err := service.Create("Alice", "alice@example.com")
     require.NoError(t, err)
 
-    // 公開APIで検証
+    // Verify via the public API
     found, err := service.FindByEmail("alice@example.com")
     require.NoError(t, err)
     assert.Equal(t, user.ID, found.ID)
@@ -1790,110 +1793,110 @@ func TestUserService_Create(t *testing.T) {
 
 ## FAQ
 
-### Q1. `testing.T` の `Error` と `Fatal` の違いは？
+### Q1. What is the difference between `testing.T`'s `Error` and `Fatal`?
 
-`t.Error` / `t.Errorf` はテストを失敗としてマークするが処理は続行する。`t.Fatal` / `t.Fatalf` はテストを即座に中断する。後続の検証が前提条件に依存する場合は `Fatal` を使い、独立した検証には `Error` を使う。testify では `assert` が `Error` 相当、`require` が `Fatal` 相当。
+`t.Error` / `t.Errorf` marks the test as failed but continues execution. `t.Fatal` / `t.Fatalf` aborts the test immediately. Use `Fatal` when subsequent assertions depend on a prerequisite, and `Error` for independent checks. In testify, `assert` corresponds to `Error` and `require` corresponds to `Fatal`.
 
-### Q2. テストヘルパー関数に `t.Helper()` は必要？
+### Q2. Do test helper functions need `t.Helper()`?
 
-必要。`t.Helper()` を呼ぶと、テスト失敗時のエラー出力でヘルパー関数ではなく呼び出し元の行番号が表示される。デバッグ効率が大幅に上がるため、テストユーティリティ関数には必ず付ける。
+Yes. Calling `t.Helper()` causes the error output on test failure to display the caller's line number rather than the helper function's. It dramatically improves debugging efficiency, so always add it to test utility functions.
 
 ```go
 func assertJSON(t *testing.T, body []byte, key, want string) {
-    t.Helper() // これがないとこの関数の行番号が表示される
+    t.Helper() // Without this, this function's line number is displayed
     var m map[string]string
     require.NoError(t, json.Unmarshal(body, &m))
     assert.Equal(t, want, m[key])
 }
 ```
 
-### Q3. テストのカバレッジは何%を目指すべき？
+### Q3. What percentage of test coverage should you aim for?
 
-一般に70〜80%が現実的な目標。100%を目指すとテストの保守コストが跳ね上がり、些末なコードにまでテストを書くことになる。重要なのはクリティカルパス（ビジネスロジック、エラーハンドリング）のカバレッジを高くすること。
+In general, 70-80% is a realistic target. Aiming for 100% skyrockets maintenance costs and leads to writing tests even for trivial code. What matters is achieving high coverage on critical paths (business logic, error handling).
 
-### Q4. t.Cleanup() と defer の違いは？
+### Q4. What is the difference between t.Cleanup() and defer?
 
-`t.Cleanup()` はGo 1.14で追加され、テスト関数の終了時（サブテストの終了時も含む）にクリーンアップ関数を登録する。`defer` との違いは、テストヘルパー関数内でリソースのクリーンアップを登録できる点。ヘルパー関数内の `defer` はヘルパー関数の終了時に実行されるが、`t.Cleanup()` はテスト全体の終了時に実行される。
+`t.Cleanup()` was added in Go 1.14 and registers a cleanup function to run at the end of the test function (including at the end of subtests). The difference from `defer` is that it can register resource cleanup from within test helper functions. A `defer` inside a helper function executes when the helper returns, whereas `t.Cleanup()` executes when the entire test ends.
 
 ```go
-// defer はヘルパー関数終了時に実行される（意図と異なる）
+// defer executes when the helper function returns (not the intent)
 func setupDB(t *testing.T) *sql.DB {
     db, _ := sql.Open("sqlite3", ":memory:")
-    defer db.Close() // NG: この関数を抜けた時点でDBが閉じる
+    defer db.Close() // BAD: DB closes when this function exits
     return db
 }
 
-// t.Cleanup はテスト終了時に実行される（正しい）
+// t.Cleanup executes at the end of the test (correct)
 func setupDB(t *testing.T) *sql.DB {
     t.Helper()
     db, _ := sql.Open("sqlite3", ":memory:")
-    t.Cleanup(func() { db.Close() }) // OK: テスト終了時に閉じる
+    t.Cleanup(func() { db.Close() }) // GOOD: close at test end
     return db
 }
 ```
 
-### Q5. フレーキーテスト（不安定なテスト）の対処法は？
+### Q5. How do you handle flaky tests (unstable tests)?
 
-フレーキーテストの主な原因と対策:
-1. **時間依存** → `FakeClock` パターンで時刻を制御する
-2. **並行処理の競合** → `-race` フラグで検出、同期プリミティブを使用
-3. **外部サービス依存** → モック/テストコンテナで分離
-4. **テスト間の共有状態** → 各テストを独立させる（`t.Parallel()` で発見しやすい）
-5. **ランダム入力** → シード値を固定してログ出力（再現可能にする）
+Main causes of flaky tests and their mitigations:
+1. **Time dependence** → Control time with the `FakeClock` pattern
+2. **Concurrency races** → Detect with the `-race` flag; use synchronization primitives
+3. **Dependency on external services** → Isolate with mocks/test containers
+4. **Shared state between tests** → Make each test independent (easier to spot with `t.Parallel()`)
+5. **Random inputs** → Fix the seed value and log output (make it reproducible)
 
-### Q6. go test のキャッシュを無効化するには？
+### Q6. How do you disable the go test cache?
 
-`go test` はテスト結果をキャッシュする。キャッシュを無効化するには以下の方法がある。
+`go test` caches test results. To disable the cache, use one of the following:
 
 ```bash
-# -count=1 でキャッシュ無効化（最も一般的）
+# -count=1 disables the cache (the most common approach)
 go test -count=1 ./...
 
-# キャッシュ全体をクリア
+# Clear the entire cache
 go clean -testcache
 
-# 環境変数でも制御可能
+# Can also be controlled via an environment variable
 GOFLAGS="-count=1" go test ./...
 ```
 
 ---
 
-## まとめ
+## Summary
 
-| 概念 | 要点 |
-|------|------|
-| table-driven tests | テストケースをスライスで定義し `t.Run` でループ実行 |
-| t.Parallel() | サブテストの並列実行で高速化 |
-| testify/assert | 失敗しても続行する柔軟なアサーション |
-| testify/require | 前提条件の検証に使う即中断アサーション |
-| testify/mock | インターフェースベースのモック生成 |
-| testify/suite | セットアップ/ティアダウンの共有 |
-| httptest.NewRecorder | ハンドラのユニットテスト |
-| httptest.NewServer | 外部API呼び出しのモック |
-| httptest.NewTLSServer | TLS通信のテスト |
-| ゴールデンファイル | 期待出力をファイルで管理 |
-| ビルドタグ | integration タグで統合テストを分離 |
-| testcontainers | Dockerコンテナによる本番環境テスト |
-| t.Cleanup() | テスト終了時のリソース解放を登録 |
-| t.Helper() | ヘルパー関数でのエラー行番号を正しく表示 |
-| カバレッジ | `go test -cover` で測定、70-80%が現実的目標 |
-| ベンチマーク | `Benchmark` プレフィックスで性能測定 |
-
----
-
-## 次に読むべきガイド
-
-- **03-tools/00-cli-development.md** — CLI開発：cobra、flag、promptui
-- **03-tools/02-profiling.md** — プロファイリング：pprof、trace
-- **03-tools/04-best-practices.md** — ベストプラクティス：Effective Go
+| Concept | Key point |
+|---------|-----------|
+| table-driven tests | Define test cases as a slice and loop them with `t.Run` |
+| t.Parallel() | Speed up with parallel execution of subtests |
+| testify/assert | Flexible assertions that continue on failure |
+| testify/require | Immediately-aborting assertions for verifying prerequisites |
+| testify/mock | Interface-based mock generation |
+| testify/suite | Share setup/teardown |
+| httptest.NewRecorder | Unit testing handlers |
+| httptest.NewServer | Mocking external API calls |
+| httptest.NewTLSServer | Testing TLS communication |
+| Golden files | Manage expected output as files |
+| Build tags | Separate integration tests with the integration tag |
+| testcontainers | Production-like environment testing via Docker containers |
+| t.Cleanup() | Register resource cleanup at test end |
+| t.Helper() | Correctly display the error line number for helper functions |
+| Coverage | Measure with `go test -cover`; 70-80% is a realistic target |
+| Benchmarks | Measure performance with the `Benchmark` prefix |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
 
-1. **Go公式 — Testing パッケージ** https://pkg.go.dev/testing
+- **03-tools/00-cli-development.md** — CLI development: cobra, flag, promptui
+- **03-tools/02-profiling.md** — Profiling: pprof, trace
+- **03-tools/04-best-practices.md** — Best practices: Effective Go
+
+---
+
+## References
+
+1. **Go official — Testing package** https://pkg.go.dev/testing
 2. **stretchr/testify GitHub** https://github.com/stretchr/testify
 3. **Go Blog — Using Subtests and Sub-benchmarks** https://go.dev/blog/subtests
 4. **Dave Cheney — Writing Table Driven Tests in Go** https://dave.cheney.net/2019/05/07/prefer-table-driven-tests
 5. **testcontainers-go GitHub** https://github.com/testcontainers/testcontainers-go
-6. **Go公式 — Code Coverage for Go Integration Tests** https://go.dev/blog/integration-test-coverage
+6. **Go official — Code Coverage for Go Integration Tests** https://go.dev/blog/integration-test-coverage
