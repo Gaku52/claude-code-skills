@@ -1,52 +1,52 @@
-# Go デプロイガイド
+# Go Deployment Guide
 
-> Docker、クロスコンパイルを駆使してGoアプリケーションを効率的にビルド・デプロイする
+> Build and deploy Go applications efficiently using Docker and cross-compilation
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-1. **Docker マルチステージビルド** で最小のコンテナイメージを構築する方法
-2. **クロスコンパイル** によるマルチプラットフォーム対応バイナリの生成
-3. **CI/CDパイプライン** でのビルド・テスト・デプロイ自動化
-4. **Kubernetes デプロイ** -- マニフェスト設計、ヘルスチェック、リソース管理
-5. **サーバーレスデプロイ** -- AWS Lambda、Google Cloud Run
-6. **Graceful Shutdown** -- 安全なプロセス停止と接続管理
-7. **設定管理** -- 環境変数、設定ファイル、シークレット管理
+1. How to build minimal container images with **Docker multi-stage builds**
+2. Generating multi-platform binaries via **cross-compilation**
+3. Automating build, test, and deploy in **CI/CD pipelines**
+4. **Kubernetes deployment** -- manifest design, health checks, resource management
+5. **Serverless deployment** -- AWS Lambda, Google Cloud Run
+6. **Graceful Shutdown** -- safe process termination and connection management
+7. **Configuration management** -- environment variables, config files, secret management
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Reading this guide will be more effective if you have the following knowledge:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [Go プロファイリングガイド](./02-profiling.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related fundamental concepts
+- Understanding the contents of the [Go Profiling Guide](./02-profiling.md)
 
 ---
 
-## 1. Goバイナリの特性とデプロイ戦略
+## 1. Characteristics of Go Binaries and Deployment Strategies
 
-### デプロイ方式の選択
+### Choosing a Deployment Method
 
 ```
-Go アプリをデプロイしたい
+Want to deploy a Go app
         |
-        +-- シングルバイナリ配布
+        +-- Single binary distribution
         |       |
-        |       +-- クロスコンパイル → GitHub Releases
-        |       +-- GoReleaser で自動化
-        |       +-- Homebrew tap で配布
+        |       +-- Cross-compile → GitHub Releases
+        |       +-- Automate with GoReleaser
+        |       +-- Distribute via Homebrew tap
         |
-        +-- コンテナデプロイ
+        +-- Container deployment
         |       |
-        |       +-- Docker マルチステージビルド
-        |       +-- distroless / scratch ベース
+        |       +-- Docker multi-stage build
+        |       +-- distroless / scratch base
         |       +-- Kubernetes / ECS / Cloud Run
         |
-        +-- サーバーレス
+        +-- Serverless
         |       |
         |       +-- AWS Lambda (provided.al2023)
         |       +-- Google Cloud Functions (Go 1.22+)
-        |       +-- Google Cloud Run (コンテナ)
+        |       +-- Google Cloud Run (container)
         |       +-- Azure Functions
         |
         +-- PaaS
@@ -57,72 +57,72 @@ Go アプリをデプロイしたい
                 +-- Railway
 ```
 
-### Goバイナリの特徴
+### Characteristics of Go Binaries
 
 ```
 +------------------------------------------+
-|  Go バイナリ (静的リンク)                  |
+|  Go binary (statically linked)           |
 +------------------------------------------+
 |                                          |
 |  +----------------+  +-----------------+ |
-|  | アプリコード    |  | Go ランタイム    | |
-|  | ビジネスロジック|  | GC, scheduler  | |
+|  | App code       |  | Go runtime      | |
+|  | Business logic |  | GC, scheduler   | |
 |  +----------------+  +-----------------+ |
 |                                          |
 |  +----------------+  +-----------------+ |
-|  | 標準ライブラリ  |  | 依存ライブラリ   | |
-|  | net/http, etc  |  | 全て埋め込み     | |
+|  | Standard lib   |  | Dependencies    | |
+|  | net/http, etc  |  | All embedded    | |
 |  +----------------+  +-----------------+ |
 |                                          |
-|  → 外部依存なし、単体で実行可能           |
-|  → CGO_ENABLED=0 で完全静的リンク        |
-|  → 起動時間: 数ミリ秒                    |
-|  → 典型的なサイズ: 10-30 MB              |
+|  → No external dependencies, runs standalone |
+|  → CGO_ENABLED=0 for fully static linking |
+|  → Startup time: a few milliseconds      |
+|  → Typical size: 10-30 MB                |
 +------------------------------------------+
 
-CGO_ENABLED=0 の場合:
+With CGO_ENABLED=0:
   ┌─────────────────────────────────────┐
   │ Go Runtime + App Code               │
-  │ すべてGoで実装（C依存なし）           │
-  │ → scratch/distroless で実行可能      │
+  │ Everything implemented in Go (no C) │
+  │ → Runnable on scratch/distroless    │
   └─────────────────────────────────────┘
 
-CGO_ENABLED=1 の場合:
+With CGO_ENABLED=1:
   ┌─────────────────────────────────────┐
   │ Go Runtime + App Code               │
   │ + libc (glibc/musl)                 │
-  │ → alpine (musl) or debian (glibc)   │
-  │   のベースイメージが必要              │
+  │ → Requires alpine (musl) or         │
+  │   debian (glibc) base image         │
   └─────────────────────────────────────┘
 ```
 
 ---
 
-## 2. Docker マルチステージビルド
+## 2. Docker Multi-Stage Builds
 
-### コード例1: 本番用 Dockerfile
+### Code Example 1: Production Dockerfile
 
 ```dockerfile
 # ============================================
-# Stage 1: ビルドステージ
+# Stage 1: Build stage
 # ============================================
 FROM golang:1.22-alpine AS builder
 
-# セキュリティアップデートとビルドツール
+# Security updates and build tools
 RUN apk add --no-cache git ca-certificates tzdata
 
-# 非rootユーザーでビルド（セキュリティ向上）
+# Build as non-root user (improved security)
 RUN adduser -D -g '' appuser
 
-# 依存のキャッシュ層
+# Dependency cache layer
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download && go mod verify
 
-# ソースコードのコピーとビルド
+# Copy source and build
 COPY . .
 
-# ビルド引数
+# Build arguments
 ARG VERSION=dev
 ARG BUILD_TIME=unknown
 ARG GIT_COMMIT=unknown
@@ -137,37 +137,37 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     -o /app/server ./cmd/server
 
 # ============================================
-# Stage 2: 実行ステージ（最小イメージ）
+# Stage 2: Runtime stage (minimal image)
 # ============================================
 FROM gcr.io/distroless/static-debian12
 
-# タイムゾーンデータと証明書をコピー
+# Copy timezone data and certificates
 COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
-# 非rootユーザー情報をコピー
+# Copy non-root user info
 COPY --from=builder /etc/passwd /etc/passwd
 
-# 非rootユーザーで実行
+# Run as non-root user
 USER appuser
 
-# バイナリをコピー
+# Copy binary
 COPY --from=builder /app/server /server
 
-# 設定ファイルやマイグレーションも必要に応じてコピー
+# Copy config files or migrations as needed
 # COPY --from=builder /app/migrations /migrations
 # COPY --from=builder /app/configs /configs
 
 EXPOSE 8080
 
-# ヘルスチェック用エンドポイント
+# Health check endpoint
 # HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
 #   CMD ["/server", "healthcheck"] || exit 1
 
 ENTRYPOINT ["/server"]
 ```
 
-### コード例2: Docker Compose（開発環境）
+### Code Example 2: Docker Compose (development environment)
 
 ```yaml
 # docker-compose.yml
@@ -218,7 +218,7 @@ services:
     volumes:
       - redis_data:/data
 
-  # 開発用: ホットリロード
+  # For development: hot reload
   app-dev:
     build:
       context: .
@@ -240,7 +240,7 @@ volumes:
 ```
 
 ```dockerfile
-# Dockerfile.dev -- 開発用（ホットリロード対応）
+# Dockerfile.dev -- for development (hot reload enabled)
 FROM golang:1.22-alpine
 
 RUN go install github.com/air-verse/air@latest
@@ -277,11 +277,11 @@ tmp_dir = "tmp"
   runner = "green"
 ```
 
-### Dockerイメージサイズ比較
+### Docker Image Size Comparison
 
 ```
 +----------------------------------------------+
-| ベースイメージ別サイズ比較                     |
+| Size comparison by base image                |
 +----------------------------------------------+
 |                                              |
 | golang:1.22          |████████████| 850 MB   |
@@ -290,20 +290,20 @@ tmp_dir = "tmp"
 | distroless/static    |░|            2 MB    |
 | scratch              |░|            0 MB    |
 |                                              |
-| 最終イメージ (distroless + Go binary)         |
+| Final image (distroless + Go binary)         |
 |                      |██|          15-20 MB  |
 |                                              |
-| 最終イメージ (scratch + Go binary)            |
+| Final image (scratch + Go binary)            |
 |                      |█|           10-15 MB  |
 +----------------------------------------------+
 ```
 
-### コード例3: scratch ベースの最小イメージ
+### Code Example 3: Minimal image based on scratch
 
 ```dockerfile
 FROM golang:1.22-alpine AS builder
 
-# TLS用の証明書を取得
+# Obtain certificates for TLS
 RUN apk add --no-cache ca-certificates tzdata
 
 WORKDIR /app
@@ -313,63 +313,63 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     go build -trimpath -ldflags="-w -s" -o /app/server ./cmd/server
 
-# scratch: 完全に空のイメージ
+# scratch: completely empty image
 FROM scratch
 
-# TLS通信に必要
+# Required for TLS communication
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
-# タイムゾーン情報
+# Timezone information
 COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 
-# バイナリ
+# Binary
 COPY --from=builder /app/server /server
 
 EXPOSE 8080
 ENTRYPOINT ["/server"]
 ```
 
-### ベースイメージ比較表
+### Base Image Comparison Table
 
-| ベースイメージ | サイズ | シェル | パッケージマネージャ | デバッグ | セキュリティ | 用途 |
+| Base image | Size | Shell | Package manager | Debugging | Security | Use case |
 |--------------|--------|--------|-------------------|---------|------------|------|
-| golang:1.22 | 850MB | bash | apt | 容易 | 攻撃対象面大 | 開発のみ |
-| golang:1.22-alpine | 350MB | ash | apk | 可能 | 良好 | ビルドステージ |
-| alpine:3.19 | 7MB | ash | apk | 可能 | 良好 | CGO必要時 |
-| distroless/static | 2MB | なし | なし | 困難 | 非常に良好 | 本番推奨 |
-| scratch | 0MB | なし | なし | 非常に困難 | 最高 | 最小構成 |
+| golang:1.22 | 850MB | bash | apt | Easy | Large attack surface | Development only |
+| golang:1.22-alpine | 350MB | ash | apk | Possible | Good | Build stage |
+| alpine:3.19 | 7MB | ash | apk | Possible | Good | When CGO is needed |
+| distroless/static | 2MB | None | None | Difficult | Very good | Recommended for production |
+| scratch | 0MB | None | None | Very difficult | Highest | Minimal configuration |
 
-### コード例4: デバッグ可能なイメージ
+### Code Example 4: Debuggable image
 
 ```dockerfile
-# 本番イメージにデバッグツールを追加したバリエーション
+# Variant adding debug tools to the production image
 FROM gcr.io/distroless/static-debian12:debug AS debug
 
 COPY --from=builder /app/server /server
 
-# debug タグにはbusyboxシェルが含まれる
+# The debug tag includes a busybox shell
 # kubectl exec -it <pod> -- /busybox/sh
 ENTRYPOINT ["/server"]
 
-# 使い分け:
-# 本番: gcr.io/distroless/static-debian12 (シェルなし、最小攻撃面)
-# デバッグ: gcr.io/distroless/static-debian12:debug (busybox付き)
+# Usage:
+# Production: gcr.io/distroless/static-debian12 (no shell, minimal attack surface)
+# Debug: gcr.io/distroless/static-debian12:debug (with busybox)
 ```
 
 ---
 
-## 3. クロスコンパイル
+## 3. Cross-Compilation
 
-### コード例5: マルチプラットフォームビルド
+### Code Example 5: Multi-platform builds
 
 ```bash
-# Linux AMD64 (サーバー、CI/CD)
+# Linux AMD64 (servers, CI/CD)
 GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o myapp-linux-amd64 ./cmd/myapp
 
 # Linux ARM64 (AWS Graviton, Raspberry Pi 4)
 GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o myapp-linux-arm64 ./cmd/myapp
 
-# Linux ARM v7 (Raspberry Pi 3, 古いARM)
+# Linux ARM v7 (Raspberry Pi 3, older ARM)
 GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=0 go build -o myapp-linux-armv7 ./cmd/myapp
 
 # macOS Intel
@@ -381,11 +381,11 @@ GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o myapp-darwin-arm64 ./cmd/myap
 # Windows
 GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o myapp-windows-amd64.exe ./cmd/myapp
 
-# サポートされるOS/ARCH一覧
+# List of supported OS/ARCH combinations
 go tool dist list
 ```
 
-### コード例6: Makefile でのビルド管理
+### Code Example 6: Managing builds with a Makefile
 
 ```makefile
 APP_NAME := myapp
@@ -397,21 +397,21 @@ LDFLAGS := -ldflags "-w -s \
     -X main.buildTime=$(BUILD_TIME) \
     -X main.gitCommit=$(GIT_COMMIT)"
 
-# Go のビルドフラグ
+# Go build flags
 GO_BUILD := CGO_ENABLED=0 go build -trimpath $(LDFLAGS)
 
-# ターゲット
+# Targets
 .PHONY: build build-all test lint clean docker docker-push help
 
-## help: ヘルプを表示
+## help: Display help
 help:
 	@grep -E '^## ' $(MAKEFILE_LIST) | sed 's/## //'
 
-## build: ローカルビルド
+## build: Local build
 build:
 	$(GO_BUILD) -o bin/$(APP_NAME) ./cmd/$(APP_NAME)
 
-## build-all: 全プラットフォーム向けビルド
+## build-all: Build for all platforms
 build-all:
 	GOOS=linux   GOARCH=amd64 $(GO_BUILD) -o bin/$(APP_NAME)-linux-amd64 ./cmd/$(APP_NAME)
 	GOOS=linux   GOARCH=arm64 $(GO_BUILD) -o bin/$(APP_NAME)-linux-arm64 ./cmd/$(APP_NAME)
@@ -419,28 +419,28 @@ build-all:
 	GOOS=darwin  GOARCH=arm64 $(GO_BUILD) -o bin/$(APP_NAME)-darwin-arm64 ./cmd/$(APP_NAME)
 	GOOS=windows GOARCH=amd64 $(GO_BUILD) -o bin/$(APP_NAME)-windows-amd64.exe ./cmd/$(APP_NAME)
 
-## test: テスト実行
+## test: Run tests
 test:
 	go test -race -cover -coverprofile=coverage.out ./...
 
-## test-integration: インテグレーションテスト
+## test-integration: Integration tests
 test-integration:
 	go test -race -tags=integration -cover ./...
 
-## lint: リンターチェック
+## lint: Linter check
 lint:
 	golangci-lint run ./...
 
-## fmt: コードフォーマット
+## fmt: Code formatting
 fmt:
 	gofmt -w .
 	goimports -w .
 
-## vet: 静的解析
+## vet: Static analysis
 vet:
 	go vet ./...
 
-## docker: Dockerイメージビルド
+## docker: Build Docker image
 docker:
 	docker build \
 		--build-arg VERSION=$(VERSION) \
@@ -449,12 +449,12 @@ docker:
 		-t $(APP_NAME):$(VERSION) \
 		-t $(APP_NAME):latest .
 
-## docker-push: Dockerイメージプッシュ
+## docker-push: Push Docker image
 docker-push: docker
 	docker tag $(APP_NAME):$(VERSION) ghcr.io/myorg/$(APP_NAME):$(VERSION)
 	docker push ghcr.io/myorg/$(APP_NAME):$(VERSION)
 
-## docker-multi: マルチアーキテクチャビルド
+## docker-multi: Multi-architecture build
 docker-multi:
 	docker buildx build \
 		--platform linux/amd64,linux/arm64 \
@@ -462,30 +462,30 @@ docker-multi:
 		-t ghcr.io/myorg/$(APP_NAME):$(VERSION) \
 		--push .
 
-## migrate-up: マイグレーション実行
+## migrate-up: Run migrations
 migrate-up:
 	migrate -path ./migrations -database $(DATABASE_URL) up
 
-## migrate-down: マイグレーションロールバック
+## migrate-down: Rollback migration
 migrate-down:
 	migrate -path ./migrations -database $(DATABASE_URL) down 1
 
-## migrate-create: マイグレーションファイル作成
+## migrate-create: Create a migration file
 migrate-create:
 	@read -p "Migration name: " name; \
 	migrate create -ext sql -dir ./migrations -seq $$name
 
-## clean: ビルド成果物削除
+## clean: Remove build artifacts
 clean:
 	rm -rf bin/ tmp/ coverage.out
 
-## coverage: カバレッジレポート表示
+## coverage: Display coverage report
 coverage: test
 	go tool cover -html=coverage.out -o coverage.html
 	open coverage.html
 ```
 
-### コード例7: ビルド時の変数埋め込み
+### Code Example 7: Embedding variables at build time
 
 ```go
 package main
@@ -499,14 +499,14 @@ import (
     "runtime/debug"
 )
 
-// ビルド時に -ldflags で注入
+// Injected at build time via -ldflags
 var (
     version   = "dev"
     buildTime = "unknown"
     gitCommit = "unknown"
 )
 
-// BuildInfo はビルド情報を表す
+// BuildInfo represents build information
 type BuildInfo struct {
     Version   string `json:"version"`
     BuildTime string `json:"build_time"`
@@ -517,7 +517,7 @@ type BuildInfo struct {
     Compiler  string `json:"compiler"`
 }
 
-// GetBuildInfo はビルド情報を取得する
+// GetBuildInfo retrieves build information
 func GetBuildInfo() BuildInfo {
     info := BuildInfo{
         Version:   version,
@@ -529,7 +529,7 @@ func GetBuildInfo() BuildInfo {
         Compiler:  runtime.Compiler,
     }
 
-    // debug.ReadBuildInfo() でモジュール情報も取得可能
+    // Module info can also be obtained via debug.ReadBuildInfo()
     if bi, ok := debug.ReadBuildInfo(); ok {
         for _, s := range bi.Settings {
             switch s.Key {
@@ -544,13 +544,13 @@ func GetBuildInfo() BuildInfo {
     return info
 }
 
-// HandleVersion はバージョン情報をJSONで返すHTTPハンドラ
+// HandleVersion is an HTTP handler that returns version info as JSON
 func HandleVersion(w http.ResponseWriter, r *http.Request) {
     w.Header().Set("Content-Type", "application/json")
     json.NewEncoder(w).Encode(GetBuildInfo())
 }
 
-// PrintVersion はバージョン情報を標準出力に表示する
+// PrintVersion prints version information to standard output
 func PrintVersion() {
     info := GetBuildInfo()
     fmt.Printf("%s version %s\n", os.Args[0], info.Version)
@@ -561,13 +561,13 @@ func PrintVersion() {
 }
 
 func main() {
-    // --version フラグ対応
+    // Handle --version flag
     if len(os.Args) > 1 && (os.Args[1] == "--version" || os.Args[1] == "-v") {
         PrintVersion()
         return
     }
 
-    // サーバー起動
+    // Start server
     http.HandleFunc("/version", HandleVersion)
     http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
         w.WriteHeader(http.StatusOK)
@@ -586,7 +586,7 @@ func main() {
 
 ## 4. Graceful Shutdown
 
-### コード例8: 本番対応の Graceful Shutdown
+### Code Example 8: Production-ready Graceful Shutdown
 
 ```go
 package main
@@ -604,14 +604,14 @@ import (
     "time"
 )
 
-// App はアプリケーション全体を管理する
+// App manages the entire application
 type App struct {
     httpServer *http.Server
     db         *sql.DB
     wg         sync.WaitGroup
 }
 
-// NewApp はアプリケーションを初期化する
+// NewApp initializes the application
 func NewApp(db *sql.DB) *App {
     mux := http.NewServeMux()
 
@@ -633,9 +633,9 @@ func NewApp(db *sql.DB) *App {
     return app
 }
 
-// Run はサーバーを起動し、シグナルを待ってGraceful Shutdownする
+// Run starts the server and performs Graceful Shutdown on signal
 func (app *App) Run() error {
-    // サーバー起動
+    // Start server
     errCh := make(chan error, 1)
     go func() {
         log.Printf("Server starting on %s", app.httpServer.Addr)
@@ -644,7 +644,7 @@ func (app *App) Run() error {
         }
     }()
 
-    // シグナル待ち
+    // Wait for signal
     quit := make(chan os.Signal, 1)
     signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
@@ -659,20 +659,20 @@ func (app *App) Run() error {
     return app.Shutdown()
 }
 
-// Shutdown はアプリケーションを安全に停止する
+// Shutdown safely stops the application
 func (app *App) Shutdown() error {
     log.Println("Starting graceful shutdown...")
 
-    // Phase 1: 新しいリクエストの受付を停止
+    // Phase 1: Stop accepting new requests
     ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
     defer cancel()
 
-    // HTTPサーバーのシャットダウン（進行中のリクエスト完了を待つ）
+    // Shutdown HTTP server (wait for in-flight requests to complete)
     if err := app.httpServer.Shutdown(ctx); err != nil {
         log.Printf("HTTP server shutdown error: %v", err)
     }
 
-    // Phase 2: バックグラウンドタスクの完了を待つ
+    // Phase 2: Wait for background tasks to complete
     done := make(chan struct{})
     go func() {
         app.wg.Wait()
@@ -686,7 +686,7 @@ func (app *App) Shutdown() error {
         log.Println("Timeout waiting for background tasks")
     }
 
-    // Phase 3: リソースのクリーンアップ
+    // Phase 3: Clean up resources
     if app.db != nil {
         if err := app.db.Close(); err != nil {
             log.Printf("DB close error: %v", err)
@@ -697,13 +697,13 @@ func (app *App) Shutdown() error {
     return nil
 }
 
-// handleHealth はLiveness probe用
+// handleHealth is for the Liveness probe
 func (app *App) handleHealth(w http.ResponseWriter, r *http.Request) {
     w.WriteHeader(http.StatusOK)
     w.Write([]byte("ok"))
 }
 
-// handleReady はReadiness probe用
+// handleReady is for the Readiness probe
 func (app *App) handleReady(w http.ResponseWriter, r *http.Request) {
     if err := app.db.PingContext(r.Context()); err != nil {
         http.Error(w, "db not ready", http.StatusServiceUnavailable)
@@ -713,22 +713,22 @@ func (app *App) handleReady(w http.ResponseWriter, r *http.Request) {
     w.Write([]byte("ready"))
 }
 
-// handleAPI はビジネスロジックのハンドラ
+// handleAPI is a business logic handler
 func (app *App) handleAPI(w http.ResponseWriter, r *http.Request) {
-    // バックグラウンドタスクのトラッキング
+    // Track background tasks
     app.wg.Add(1)
     defer app.wg.Done()
 
-    // 処理...
+    // Processing...
     w.Write([]byte("ok"))
 }
 ```
 
 ---
 
-## 5. CI/CD パイプライン
+## 5. CI/CD Pipelines
 
-### コード例9: GitHub Actions ワークフロー（フル構成）
+### Code Example 9: GitHub Actions workflow (full configuration)
 
 ```yaml
 # .github/workflows/ci.yml
@@ -886,10 +886,10 @@ jobs:
           cache-to: type=gha,mode=max
 ```
 
-### CI/CDパイプラインフロー
+### CI/CD Pipeline Flow
 
 ```
-Pull Request → main へマージ
+Pull Request → merge to main
     │
     ▼
 ┌─────────────────────────────────────────────┐
@@ -940,9 +940,9 @@ git tag v1.2.3 && git push --tags
 
 ---
 
-## 6. GoReleaser 設定
+## 6. GoReleaser Configuration
 
-### コード例10: .goreleaser.yaml（フル構成）
+### Code Example 10: .goreleaser.yaml (full configuration)
 
 ```yaml
 # .goreleaser.yaml
@@ -1083,9 +1083,9 @@ changelog:
 
 ---
 
-## 7. Kubernetes デプロイ
+## 7. Kubernetes Deployment
 
-### コード例11: Kubernetes マニフェスト
+### Code Example 11: Kubernetes manifests
 
 ```yaml
 # k8s/deployment.yaml
@@ -1137,7 +1137,7 @@ spec:
             limits:
               cpu: 500m
               memory: 256Mi
-          # Liveness: プロセスが生存しているか
+          # Liveness: whether the process is alive
           livenessProbe:
             httpGet:
               path: /healthz
@@ -1146,7 +1146,7 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 3
             failureThreshold: 3
-          # Readiness: トラフィックを受け付けられるか
+          # Readiness: whether it can accept traffic
           readinessProbe:
             httpGet:
               path: /readyz
@@ -1155,7 +1155,7 @@ spec:
             periodSeconds: 5
             timeoutSeconds: 3
             failureThreshold: 3
-          # Startup: 起動完了したか（遅い起動用）
+          # Startup: whether startup has completed (for slow starts)
           startupProbe:
             httpGet:
               path: /healthz
@@ -1216,9 +1216,9 @@ spec:
 
 ---
 
-## 8. サーバーレスデプロイ
+## 8. Serverless Deployment
 
-### コード例12: AWS Lambda
+### Code Example 12: AWS Lambda
 
 ```go
 package main
@@ -1231,9 +1231,9 @@ import (
     "github.com/aws/aws-lambda-go/lambda"
 )
 
-// Handler はLambdaのハンドラ
+// Handler is the Lambda handler
 func Handler(ctx context.Context, request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
-    // リクエスト処理
+    // Process the request
     body := map[string]interface{}{
         "message": "Hello from Lambda!",
         "path":    request.Path,
@@ -1257,7 +1257,7 @@ func main() {
 ```
 
 ```makefile
-# Lambda用ビルド
+# Lambda build
 lambda-build:
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 \
 		go build -trimpath -ldflags="-w -s" \
@@ -1271,10 +1271,10 @@ lambda-deploy: lambda-build
 		--architectures arm64
 ```
 
-### コード例13: Google Cloud Run
+### Code Example 13: Google Cloud Run
 
 ```dockerfile
-# Cloud Run 用 Dockerfile
+# Dockerfile for Cloud Run
 FROM golang:1.22-alpine AS builder
 WORKDIR /app
 COPY go.mod go.sum ./
@@ -1284,14 +1284,14 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o server ./cmd
 
 FROM gcr.io/distroless/static-debian12
 COPY --from=builder /app/server /server
-# Cloud Run は PORT 環境変数でポートを指定する
+# Cloud Run specifies the port via the PORT environment variable
 ENV PORT=8080
 EXPOSE 8080
 ENTRYPOINT ["/server"]
 ```
 
 ```go
-// Cloud Run用のサーバー
+// Server for Cloud Run
 func main() {
     port := os.Getenv("PORT")
     if port == "" {
@@ -1309,7 +1309,7 @@ func main() {
 ```
 
 ```bash
-# Cloud Run デプロイ
+# Cloud Run deployment
 gcloud run deploy myapp \
     --source . \
     --region asia-northeast1 \
@@ -1322,9 +1322,9 @@ gcloud run deploy myapp \
 
 ---
 
-## 9. 設定管理
+## 9. Configuration Management
 
-### コード例14: 環境変数ベースの設定管理
+### Code Example 14: Environment-variable-based configuration management
 
 ```go
 package config
@@ -1336,7 +1336,7 @@ import (
     "time"
 )
 
-// Config はアプリケーション設定
+// Config represents application configuration
 type Config struct {
     Server   ServerConfig
     Database DatabaseConfig
@@ -1367,7 +1367,7 @@ type LogConfig struct {
     Format string
 }
 
-// Load は環境変数から設定を読み込む
+// Load reads configuration from environment variables
 func Load() (*Config, error) {
     cfg := &Config{
         Server: ServerConfig{
@@ -1444,32 +1444,32 @@ func getEnvDuration(key string, defaultVal time.Duration) time.Duration {
 
 ---
 
-## 10. ldflags オプション比較表
+## 10. ldflags Option Comparison Table
 
-| フラグ | 効果 | サイズ削減 | 用途 |
+| Flag | Effect | Size reduction | Use case |
 |--------|------|-----------|------|
-| `-w` | DWARFデバッグ情報を削除 | 約20-30% | 本番ビルド |
-| `-s` | シンボルテーブルを削除 | 約10-20% | 本番ビルド |
-| `-X pkg.var=val` | ビルド時に変数値を注入 | なし | バージョン情報埋め込み |
-| `-extldflags "-static"` | 外部リンカで静的リンク | なし | CGO使用時の静的ビルド |
-| `-trimpath` | ビルドパスを削除 | わずか | セキュリティ向上 |
+| `-w` | Remove DWARF debug info | About 20-30% | Production builds |
+| `-s` | Remove symbol table | About 10-20% | Production builds |
+| `-X pkg.var=val` | Inject variable value at build time | None | Embedding version info |
+| `-extldflags "-static"` | Static linking via external linker | None | Static build when using CGO |
+| `-trimpath` | Remove build path | Minor | Improved security |
 
 ---
 
-## 11. アンチパターン
+## 11. Anti-Patterns
 
-### アンチパターン1: ビルドステージをそのままデプロイ
+### Anti-Pattern 1: Deploying the build stage as-is
 
 ```dockerfile
-# NG: ビルド環境ごとデプロイ（850MB+）
+# BAD: Deploy the entire build environment (850MB+)
 FROM golang:1.22
 WORKDIR /app
 COPY . .
 RUN go build -o server .
 CMD ["./server"]
-# 問題: イメージサイズ巨大、ビルドツールが含まれる（攻撃対象面大）
+# Problems: huge image size, build tools included (large attack surface)
 
-# OK: マルチステージビルド（15-20MB）
+# GOOD: Multi-stage build (15-20MB)
 FROM golang:1.22-alpine AS builder
 WORKDIR /app
 COPY go.mod go.sum ./
@@ -1482,34 +1482,34 @@ COPY --from=builder /app/server /server
 ENTRYPOINT ["/server"]
 ```
 
-### アンチパターン2: go mod download をキャッシュしない
+### Anti-Pattern 2: Not caching go mod download
 
 ```dockerfile
-# NG: ソース変更のたびに依存を再ダウンロード
+# BAD: Re-download dependencies every time source changes
 FROM golang:1.22-alpine AS builder
 COPY . .
 RUN go build -o server .
-# ソース1行変更 → go mod download からやり直し（数分のロス）
+# Changing one line of source → redo go mod download (several minutes lost)
 
-# OK: go.mod/go.sum を先にコピーしてキャッシュ活用
+# GOOD: Copy go.mod/go.sum first to leverage the cache
 FROM golang:1.22-alpine AS builder
 WORKDIR /app
-COPY go.mod go.sum ./        # 依存定義のみ先にコピー
-RUN go mod download          # この層がキャッシュされる
-COPY . .                     # ソース変更時もdownloadはスキップ
+COPY go.mod go.sum ./        # Copy only dependency definitions first
+RUN go mod download          # This layer is cached
+COPY . .                     # Download is skipped even when source changes
 RUN go build -o server .
 ```
 
-### アンチパターン3: rootユーザーでの実行
+### Anti-Pattern 3: Running as the root user
 
 ```dockerfile
-# NG: root で実行（セキュリティリスク）
+# BAD: Run as root (security risk)
 FROM alpine:3.19
 COPY --from=builder /app/server /server
 CMD ["/server"]
-# コンテナ内で root 権限 → 脆弱性があるとホストに影響
+# Root privileges inside the container → a vulnerability could affect the host
 
-# OK: 非rootユーザーで実行
+# GOOD: Run as a non-root user
 FROM alpine:3.19
 RUN adduser -D -g '' appuser
 COPY --from=builder /app/server /server
@@ -1517,16 +1517,16 @@ USER appuser
 CMD ["/server"]
 ```
 
-### アンチパターン4: Graceful Shutdown なし
+### Anti-Pattern 4: No Graceful Shutdown
 
 ```go
-// NG: シグナルを無視してすぐ終了
+// BAD: Ignore signals and exit immediately
 func main() {
     http.ListenAndServe(":8080", handler)
 }
-// SIGTERM → 処理中のリクエストが切断される
+// SIGTERM → in-flight requests are cut off
 
-// OK: Graceful Shutdown
+// GOOD: Graceful Shutdown
 func main() {
     srv := &http.Server{Addr: ":8080", Handler: handler}
 
@@ -1546,33 +1546,33 @@ func main() {
 }
 ```
 
-### アンチパターン5: シークレットのハードコード
+### Anti-Pattern 5: Hardcoding secrets
 
 ```go
-// NG: コード内にシークレットを記述
+// BAD: Secrets written in code
 db, _ := sql.Open("postgres", "postgres://admin:P@ssw0rd@prod-db:5432/mydb")
 
-// OK: 環境変数から読み取り
+// GOOD: Read from environment variables
 db, _ := sql.Open("postgres", os.Getenv("DATABASE_URL"))
 
-// BETTER: シークレット管理サービスを使用
+// BETTER: Use a secret management service
 // AWS Secrets Manager, GCP Secret Manager, HashiCorp Vault
 ```
 
-### アンチパターン6: ヘルスチェックの未実装
+### Anti-Pattern 6: No health check implementation
 
 ```go
-// NG: ヘルスチェックエンドポイントがない
-// → Kubernetes がPodの状態を判断できず、障害時に自動復旧しない
+// BAD: No health check endpoint
+// → Kubernetes cannot determine Pod state; no automatic recovery on failure
 
-// OK: Liveness/Readiness/Startup の3つを実装
+// GOOD: Implement all three: Liveness/Readiness/Startup
 http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-    w.WriteHeader(http.StatusOK) // プロセスが動いていればOK
+    w.WriteHeader(http.StatusOK) // OK as long as the process is running
 })
 
 http.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
     if err := db.PingContext(r.Context()); err != nil {
-        w.WriteHeader(http.StatusServiceUnavailable) // DBに繋がらなければNG
+        w.WriteHeader(http.StatusServiceUnavailable) // NG if DB is unreachable
         return
     }
     w.WriteHeader(http.StatusOK)
@@ -1582,45 +1582,45 @@ http.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
 
 ---
 
-## 実践演習
+## Practical Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that satisfies the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate input data
+- Implement proper error handling
+- Also write test code
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Template for basic implementation
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Practice for basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate the input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main data processing logic"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Get the processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1629,26 +1629,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "An exception should have been raised"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation by adding the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Advanced patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Practice for advanced patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1656,7 +1656,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1667,14 +1667,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Remove by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1682,7 +1682,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1690,44 +1690,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # Size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1736,7 +1736,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1751,104 +1751,104 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient version: {slow_time:.4f} sec")
+    print(f"Efficient version:   {fast_time:.6f} sec")
+    print(f"Speedup ratio:       {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Points:**
+- Be mindful of algorithmic complexity
+- Choose appropriate data structures
+- Measure the effect with benchmarks
 ---
 
 ## FAQ
 
-### Q1. CGO_ENABLED=0 にする必要がある場面は？
+### Q1. When do I need to set CGO_ENABLED=0?
 
-scratch や distroless など glibc を含まないイメージで実行する場合は `CGO_ENABLED=0` が必須。標準ライブラリの `net` パッケージや `os/user` パッケージはデフォルトでCGOを使うが、`CGO_ENABLED=0` で純Go実装にフォールバックする。
+When running on images that do not include glibc, such as scratch or distroless, `CGO_ENABLED=0` is required. The standard library's `net` package and `os/user` package use CGO by default, but with `CGO_ENABLED=0` they fall back to pure Go implementations.
 
-CGOが必要な場面:
-- SQLite（go-sqlite3）を使う場合 → 代替: `modernc.org/sqlite`（CGO不要）
-- 画像処理（libvips等）を使う場合
-- OS固有のライブラリ（macOS Security Framework等）
+Situations where CGO is required:
+- When using SQLite (go-sqlite3) → Alternative: `modernc.org/sqlite` (CGO not required)
+- When using image processing (libvips, etc.)
+- OS-specific libraries (e.g., macOS Security Framework)
 
-### Q2. Docker のマルチプラットフォームイメージの作り方は？
+### Q2. How do I create multi-platform Docker images?
 
-`docker buildx build --platform linux/amd64,linux/arm64` でマニフェストリストを作成できる。GoReleaserを使う場合は、各アーキテクチャのイメージを個別にビルドし、`docker manifest create` で統合する方法もある。
+You can create a manifest list with `docker buildx build --platform linux/amd64,linux/arm64`. When using GoReleaser, you can also build images for each architecture individually and combine them with `docker manifest create`.
 
 ```bash
-# buildx でマルチプラットフォームビルド
+# Multi-platform build with buildx
 docker buildx create --name mybuilder --use
 docker buildx build --platform linux/amd64,linux/arm64 \
     -t ghcr.io/myorg/myapp:v1.0.0 --push .
 ```
 
-### Q3. バイナリサイズをさらに小さくする方法は？
+### Q3. How can I make the binary even smaller?
 
-| 手法 | サイズ削減 | トレードオフ |
+| Technique | Size reduction | Trade-off |
 |------|-----------|------------|
-| `-ldflags="-w -s"` | 30-50% | デバッグ情報なし |
-| `-trimpath` | わずか | ビルドパスなし |
-| `upx` 圧縮 | 50-70% | 起動時解凍コスト |
-| 不要な依存の削除 | 可変 | なし |
-| Go 1.22+ の改善 | 自動 | なし |
+| `-ldflags="-w -s"` | 30-50% | No debug info |
+| `-trimpath` | Minor | No build path |
+| `upx` compression | 50-70% | Startup decompression cost |
+| Remove unused dependencies | Varies | None |
+| Go 1.22+ improvements | Automatic | None |
 
-### Q4. Kubernetes での推奨設定は？
+### Q4. What are the recommended settings for Kubernetes?
 
-- **リソース制限**: requests/limits を必ず設定
-- **ヘルスチェック**: liveness/readiness/startup の3つ
-- **PDB**: minAvailable で可用性を保証
-- **HPA**: CPU/メモリベースの自動スケーリング
-- **terminationGracePeriodSeconds**: Graceful Shutdown の猶予時間
+- **Resource limits**: Always set requests/limits
+- **Health checks**: All three -- liveness/readiness/startup
+- **PDB**: Guarantee availability via minAvailable
+- **HPA**: Auto-scaling based on CPU/memory
+- **terminationGracePeriodSeconds**: Grace period for Graceful Shutdown
 - **securityContext**: runAsNonRoot, readOnlyRootFilesystem
 
-### Q5. デプロイ時のダウンタイムを最小化するには？
+### Q5. How do I minimize downtime during deployment?
 
-1. **Rolling Update**: maxUnavailable=0 で常に全Podを維持
-2. **Readiness Probe**: 準備完了までトラフィック遮断
-3. **Graceful Shutdown**: 進行中のリクエスト完了を待つ
-4. **PreStop Hook**: `sleep 5` でLB反映を待つ
-5. **PDB**: minAvailable で同時停止数を制限
+1. **Rolling Update**: Keep all Pods up with maxUnavailable=0
+2. **Readiness Probe**: Block traffic until ready
+3. **Graceful Shutdown**: Wait for in-flight requests to finish
+4. **PreStop Hook**: `sleep 5` to wait for LB propagation
+5. **PDB**: Limit simultaneous shutdowns via minAvailable
 
 ---
 
-## まとめ
+## Summary
 
-| 概念 | 要点 |
+| Concept | Key points |
 |------|------|
-| マルチステージビルド | ビルド環境と実行環境を分離して最小イメージ |
-| distroless / scratch | 攻撃対象面を最小化する実行イメージ |
-| CGO_ENABLED=0 | 完全静的リンクで外部依存排除 |
-| -ldflags "-w -s" | デバッグ情報削除でバイナリサイズ削減 |
-| -trimpath | ビルドパス削除でセキュリティ向上 |
-| -X main.version=... | ビルド時のバージョン情報埋め込み |
-| GOOS/GOARCH | クロスコンパイルの環境変数 |
-| GoReleaser | マルチプラットフォームリリース自動化 |
-| GitHub Actions | CI/CDでテスト・ビルド・デプロイ自動化 |
-| Graceful Shutdown | SIGTERM受信→進行中リクエスト完了→リソース解放 |
-| Kubernetes | ヘルスチェック・HPA・PDB・リソース制限 |
-| サーバーレス | Lambda/Cloud Run で運用コスト最小化 |
-| 設定管理 | 環境変数・シークレット管理サービス |
+| Multi-stage builds | Separate build and runtime environments for minimal images |
+| distroless / scratch | Runtime images that minimize attack surface |
+| CGO_ENABLED=0 | Remove external dependencies via fully static linking |
+| -ldflags "-w -s" | Reduce binary size by removing debug info |
+| -trimpath | Improve security by removing build paths |
+| -X main.version=... | Embed version information at build time |
+| GOOS/GOARCH | Environment variables for cross-compilation |
+| GoReleaser | Automate multi-platform releases |
+| GitHub Actions | Automate test/build/deploy in CI/CD |
+| Graceful Shutdown | Receive SIGTERM → complete in-flight requests → release resources |
+| Kubernetes | Health checks, HPA, PDB, resource limits |
+| Serverless | Minimize operational cost with Lambda/Cloud Run |
+| Configuration management | Environment variables, secret management services |
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
-- **03-tools/04-best-practices.md** -- ベストプラクティス：Effective Go
-- **03-tools/02-profiling.md** -- プロファイリング：pprof、trace
-- **03-tools/00-cli-development.md** -- CLI開発：cobra、flag、promptui
+- **03-tools/04-best-practices.md** -- Best Practices: Effective Go
+- **03-tools/02-profiling.md** -- Profiling: pprof, trace
+- **03-tools/00-cli-development.md** -- CLI Development: cobra, flag, promptui
 
 ---
 
-## 参考文献
+## References
 
-1. **Docker公式 -- Multi-stage builds** https://docs.docker.com/build/building/multi-stage/
-2. **GoReleaser 公式ドキュメント** https://goreleaser.com/
-3. **Google -- distroless コンテナイメージ** https://github.com/GoogleContainerTools/distroless
-4. **Go公式 -- Build constraints** https://pkg.go.dev/cmd/go#hdr-Build_constraints
+1. **Docker Official -- Multi-stage builds** https://docs.docker.com/build/building/multi-stage/
+2. **GoReleaser Official Documentation** https://goreleaser.com/
+3. **Google -- distroless container images** https://github.com/GoogleContainerTools/distroless
+4. **Go Official -- Build constraints** https://pkg.go.dev/cmd/go#hdr-Build_constraints
 5. **Kubernetes -- Configure Liveness, Readiness and Startup Probes** https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
 6. **AWS Lambda Go** https://docs.aws.amazon.com/lambda/latest/dg/lambda-golang.html
 7. **Google Cloud Run** https://cloud.google.com/run/docs
