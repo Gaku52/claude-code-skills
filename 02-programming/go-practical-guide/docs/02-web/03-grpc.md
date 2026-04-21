@@ -1,33 +1,33 @@
-# gRPC -- Protocol Buffers, サービス定義, ストリーミング
+# gRPC -- Protocol Buffers, Service Definitions, Streaming
 
-> gRPCはProtocol Buffersベースの高性能RPCフレームワークであり、型安全なサービス定義・双方向ストリーミング・gRPC-Gatewayで柔軟なAPI設計を実現する。
-
----
-
-## この章で学ぶこと
-
-1. **Protocol Buffers** -- サービス定義とコード生成
-2. **4種類のRPCパターン** -- Unary/Server/Client/Bi-directional Streaming
-3. **gRPC-Gateway** -- REST APIとの統合
-4. **インターセプタ** -- 認証、ロギング、リカバリ等のミドルウェア
-5. **エラーハンドリング** -- ステータスコードとエラー詳細
-6. **テスト** -- bufconn、モック、インテグレーションテスト
-7. **パフォーマンス最適化** -- コネクション管理、ロードバランシング
-
-
-## 前提知識
-
-このガイドを読む前に、以下の知識があると理解が深まります:
-
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [データベース -- database/sql, sqlx, GORM](./02-database.md) の内容を理解していること
+> gRPC is a high-performance RPC framework based on Protocol Buffers, enabling flexible API design through type-safe service definitions, bidirectional streaming, and gRPC-Gateway.
 
 ---
 
-## 1. Protocol Buffers 基礎
+## What You Will Learn in This Chapter
 
-### コード例 1: Proto定義の設計
+1. **Protocol Buffers** -- Service definitions and code generation
+2. **Four RPC patterns** -- Unary / Server / Client / Bi-directional Streaming
+3. **gRPC-Gateway** -- Integration with REST APIs
+4. **Interceptors** -- Middleware for authentication, logging, recovery, and more
+5. **Error Handling** -- Status codes and error details
+6. **Testing** -- bufconn, mocks, and integration tests
+7. **Performance Optimization** -- Connection management, load balancing
+
+
+## Prerequisites
+
+Reading this guide will be easier if you have the following background knowledge:
+
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Familiarity with the content of [Databases -- database/sql, sqlx, GORM](./02-database.md)
+
+---
+
+## 1. Protocol Buffers Basics
+
+### Code Example 1: Designing a Proto Definition
 
 ```protobuf
 syntax = "proto3";
@@ -38,34 +38,34 @@ import "google/protobuf/timestamp.proto";
 import "google/protobuf/field_mask.proto";
 import "google/protobuf/empty.proto";
 
-// UserService はユーザー管理サービス
+// UserService is the user management service
 service UserService {
-  // Unary RPC: 単一ユーザー取得
+  // Unary RPC: retrieve a single user
   rpc GetUser(GetUserRequest) returns (GetUserResponse);
 
-  // Unary RPC: ユーザー一覧取得（ページネーション付き）
+  // Unary RPC: list users (with pagination)
   rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
 
-  // Unary RPC: ユーザー作成
+  // Unary RPC: create a user
   rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
 
-  // Unary RPC: ユーザー更新（部分更新対応）
+  // Unary RPC: update a user (supports partial updates)
   rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
 
-  // Unary RPC: ユーザー削除
+  // Unary RPC: delete a user
   rpc DeleteUser(DeleteUserRequest) returns (google.protobuf.Empty);
 
-  // Server Streaming: ユーザーの変更をリアルタイム配信
+  // Server Streaming: deliver user changes in real time
   rpc WatchUsers(WatchUsersRequest) returns (stream UserEvent);
 
-  // Client Streaming: バッチユーザー作成
+  // Client Streaming: batch user creation
   rpc BatchCreateUsers(stream CreateUserRequest) returns (BatchCreateUsersResponse);
 
-  // Bidirectional Streaming: チャット
+  // Bidirectional Streaming: chat
   rpc Chat(stream ChatMessage) returns (stream ChatMessage);
 }
 
-// User はユーザーメッセージ
+// User is the user message
 message User {
   int64 id = 1;
   string name = 2;
@@ -76,7 +76,7 @@ message User {
   google.protobuf.Timestamp updated_at = 7;
 }
 
-// UserRole はユーザーの役割
+// UserRole is the role of the user
 enum UserRole {
   USER_ROLE_UNSPECIFIED = 0;
   USER_ROLE_ADMIN = 1;
@@ -84,7 +84,7 @@ enum UserRole {
   USER_ROLE_VIEWER = 3;
 }
 
-// UserProfile はユーザーのプロフィール情報
+// UserProfile holds the user's profile information
 message UserProfile {
   string bio = 1;
   string avatar_url = 2;
@@ -92,32 +92,32 @@ message UserProfile {
   string website = 4;
 }
 
-// GetUserRequest はGetUserのリクエスト
+// GetUserRequest is the request for GetUser
 message GetUserRequest {
   int64 id = 1;
 }
 
-// GetUserResponse はGetUserのレスポンス
+// GetUserResponse is the response for GetUser
 message GetUserResponse {
   User user = 1;
 }
 
-// ListUsersRequest はListUsersのリクエスト（ページネーション付き）
+// ListUsersRequest is the request for ListUsers (with pagination)
 message ListUsersRequest {
-  int32 page_size = 1;    // 最大100
-  string page_token = 2;  // 次ページのトークン
-  string filter = 3;      // フィルター条件（例: "role=admin"）
-  string order_by = 4;    // ソート順（例: "name asc"）
+  int32 page_size = 1;    // max 100
+  string page_token = 2;  // token for the next page
+  string filter = 3;      // filter condition (e.g., "role=admin")
+  string order_by = 4;    // sort order (e.g., "name asc")
 }
 
-// ListUsersResponse はListUsersのレスポンス
+// ListUsersResponse is the response for ListUsers
 message ListUsersResponse {
   repeated User users = 1;
   string next_page_token = 2;
   int32 total_count = 3;
 }
 
-// CreateUserRequest はCreateUserのリクエスト
+// CreateUserRequest is the request for CreateUser
 message CreateUserRequest {
   string name = 1;
   string email = 2;
@@ -125,34 +125,34 @@ message CreateUserRequest {
   UserProfile profile = 4;
 }
 
-// CreateUserResponse はCreateUserのレスポンス
+// CreateUserResponse is the response for CreateUser
 message CreateUserResponse {
   User user = 1;
 }
 
-// UpdateUserRequest はUpdateUserのリクエスト（部分更新対応）
+// UpdateUserRequest is the request for UpdateUser (supports partial updates)
 message UpdateUserRequest {
   User user = 1;
-  // 更新するフィールドを指定（部分更新）
+  // Specify fields to update (partial update)
   google.protobuf.FieldMask update_mask = 2;
 }
 
-// UpdateUserResponse はUpdateUserのレスポンス
+// UpdateUserResponse is the response for UpdateUser
 message UpdateUserResponse {
   User user = 1;
 }
 
-// DeleteUserRequest はDeleteUserのリクエスト
+// DeleteUserRequest is the request for DeleteUser
 message DeleteUserRequest {
   int64 id = 1;
 }
 
-// WatchUsersRequest はWatchUsersのリクエスト
+// WatchUsersRequest is the request for WatchUsers
 message WatchUsersRequest {
-  repeated int64 user_ids = 1; // 監視対象のユーザーID（空なら全員）
+  repeated int64 user_ids = 1; // user IDs to watch (empty means all)
 }
 
-// UserEvent はユーザーの変更イベント
+// UserEvent is a user change event
 message UserEvent {
   EventType type = 1;
   User user = 2;
@@ -166,13 +166,13 @@ message UserEvent {
   }
 }
 
-// BatchCreateUsersResponse はバッチ作成のレスポンス
+// BatchCreateUsersResponse is the response for batch creation
 message BatchCreateUsersResponse {
   int32 created_count = 1;
   repeated User users = 2;
 }
 
-// ChatMessage はチャットメッセージ
+// ChatMessage is a chat message
 message ChatMessage {
   string sender_id = 1;
   string content = 2;
@@ -180,10 +180,10 @@ message ChatMessage {
 }
 ```
 
-### コード例 2: Proto ファイルの構成とBuf設定
+### Code Example 2: Proto File Layout and Buf Configuration
 
 ```yaml
-# buf.yaml -- Bufの設定ファイル
+# buf.yaml -- Buf configuration file
 version: v1
 name: buf.build/myorg/myapi
 breaking:
@@ -197,7 +197,7 @@ lint:
 ```
 
 ```yaml
-# buf.gen.yaml -- コード生成設定
+# buf.gen.yaml -- code generation configuration
 version: v1
 managed:
   enabled: true
@@ -223,7 +223,7 @@ plugins:
 ```
 
 ```bash
-# プロジェクト構成
+# Project layout
 proto/
 ├── buf.yaml
 ├── buf.gen.yaml
@@ -233,21 +233,21 @@ proto/
         ├── user.proto
         └── user_service.proto
 
-# コード生成コマンド
+# Code generation command
 buf generate
 
-# Lint チェック
+# Lint check
 buf lint
 
-# 破壊的変更の検出
+# Detect breaking changes
 buf breaking --against '.git#branch=main'
 ```
 
 ---
 
-## 2. gRPCサーバー実装
+## 2. gRPC Server Implementation
 
-### コード例 3: サーバー実装（Unary RPC）
+### Code Example 3: Server Implementation (Unary RPC)
 
 ```go
 package server
@@ -269,7 +269,7 @@ import (
     userv1 "github.com/myorg/myapp/gen/user/v1"
 )
 
-// userServer はUserServiceの実装
+// userServer is the implementation of UserService
 type userServer struct {
     userv1.UnimplementedUserServiceServer
     mu    sync.RWMutex
@@ -277,7 +277,7 @@ type userServer struct {
     nextID int64
 }
 
-// NewUserServer は新しいUserServerを作成する
+// NewUserServer creates a new UserServer
 func NewUserServer() *userServer {
     return &userServer{
         users:  make(map[int64]*userv1.User),
@@ -285,9 +285,9 @@ func NewUserServer() *userServer {
     }
 }
 
-// GetUser はユーザーを取得する（Unary RPC）
+// GetUser retrieves a user (Unary RPC)
 func (s *userServer) GetUser(ctx context.Context, req *userv1.GetUserRequest) (*userv1.GetUserResponse, error) {
-    // バリデーション
+    // Validation
     if req.Id <= 0 {
         return nil, status.Errorf(codes.InvalidArgument, "invalid user id: %d", req.Id)
     }
@@ -303,26 +303,26 @@ func (s *userServer) GetUser(ctx context.Context, req *userv1.GetUserRequest) (*
     return &userv1.GetUserResponse{User: user}, nil
 }
 
-// ListUsers はユーザー一覧を取得する（ページネーション付き）
+// ListUsers retrieves a list of users (with pagination)
 func (s *userServer) ListUsers(ctx context.Context, req *userv1.ListUsersRequest) (*userv1.ListUsersResponse, error) {
     s.mu.RLock()
     defer s.mu.RUnlock()
 
     pageSize := int(req.PageSize)
     if pageSize <= 0 || pageSize > 100 {
-        pageSize = 20 // デフォルト
+        pageSize = 20 // default
     }
 
-    // 全ユーザーをIDでソート
+    // Sort all users by ID
     var allUsers []*userv1.User
     for _, u := range s.users {
         allUsers = append(allUsers, u)
     }
 
-    // ページネーション処理（簡易版）
+    // Pagination (simplified)
     start := 0
     if req.PageToken != "" {
-        // トークンからオフセットを復元
+        // Restore offset from token
         fmt.Sscanf(req.PageToken, "%d", &start)
     }
 
@@ -343,9 +343,9 @@ func (s *userServer) ListUsers(ctx context.Context, req *userv1.ListUsersRequest
     }, nil
 }
 
-// CreateUser はユーザーを作成する
+// CreateUser creates a user
 func (s *userServer) CreateUser(ctx context.Context, req *userv1.CreateUserRequest) (*userv1.CreateUserResponse, error) {
-    // バリデーション
+    // Validation
     if req.Name == "" {
         return nil, status.Errorf(codes.InvalidArgument, "name is required")
     }
@@ -353,7 +353,7 @@ func (s *userServer) CreateUser(ctx context.Context, req *userv1.CreateUserReque
         return nil, status.Errorf(codes.InvalidArgument, "email is required")
     }
 
-    // メール重複チェック
+    // Check for duplicate email
     s.mu.Lock()
     defer s.mu.Unlock()
 
@@ -379,7 +379,7 @@ func (s *userServer) CreateUser(ctx context.Context, req *userv1.CreateUserReque
     return &userv1.CreateUserResponse{User: user}, nil
 }
 
-// UpdateUser はユーザーを更新する（FieldMask対応）
+// UpdateUser updates a user (supports FieldMask)
 func (s *userServer) UpdateUser(ctx context.Context, req *userv1.UpdateUserRequest) (*userv1.UpdateUserResponse, error) {
     if req.User == nil || req.User.Id <= 0 {
         return nil, status.Error(codes.InvalidArgument, "user with valid id is required")
@@ -393,7 +393,7 @@ func (s *userServer) UpdateUser(ctx context.Context, req *userv1.UpdateUserReque
         return nil, status.Errorf(codes.NotFound, "user %d not found", req.User.Id)
     }
 
-    // FieldMask による部分更新
+    // Partial update with FieldMask
     if req.UpdateMask != nil && len(req.UpdateMask.Paths) > 0 {
         for _, path := range req.UpdateMask.Paths {
             switch path {
@@ -418,7 +418,7 @@ func (s *userServer) UpdateUser(ctx context.Context, req *userv1.UpdateUserReque
             }
         }
     } else {
-        // FieldMask なしの場合は全フィールド更新
+        // Without FieldMask, update all fields
         existing.Name = req.User.Name
         existing.Email = req.User.Email
         existing.Role = req.User.Role
@@ -430,7 +430,7 @@ func (s *userServer) UpdateUser(ctx context.Context, req *userv1.UpdateUserReque
     return &userv1.UpdateUserResponse{User: existing}, nil
 }
 
-// DeleteUser はユーザーを削除する
+// DeleteUser deletes a user
 func (s *userServer) DeleteUser(ctx context.Context, req *userv1.DeleteUserRequest) (*emptypb.Empty, error) {
     if req.Id <= 0 {
         return nil, status.Errorf(codes.InvalidArgument, "invalid user id: %d", req.Id)
@@ -448,25 +448,25 @@ func (s *userServer) DeleteUser(ctx context.Context, req *userv1.DeleteUserReque
 }
 ```
 
-### コード例 4: サーバーストリーミングRPC
+### Code Example 4: Server Streaming RPC
 
 ```go
-// WatchUsers はユーザーの変更をリアルタイム配信する（Server Streaming）
+// WatchUsers streams user changes in real time (Server Streaming)
 func (s *userServer) WatchUsers(req *userv1.WatchUsersRequest, stream userv1.UserService_WatchUsersServer) error {
     log.Printf("WatchUsers started for user IDs: %v", req.UserIds)
 
-    // イベントチャネルを監視
+    // Watch event channel
     ticker := time.NewTicker(1 * time.Second)
     defer ticker.Stop()
 
     for {
         select {
         case <-stream.Context().Done():
-            // クライアントが切断した場合
+            // Client disconnected
             log.Printf("WatchUsers: client disconnected")
             return nil
         case <-ticker.C:
-            // 変更があればイベントを送信（実際にはイベントバスから取得）
+            // Send event if a change occurred (in practice, fetched from an event bus)
             event := s.checkForChanges(req.UserIds)
             if event != nil {
                 if err := stream.Send(event); err != nil {
@@ -478,15 +478,15 @@ func (s *userServer) WatchUsers(req *userv1.WatchUsersRequest, stream userv1.Use
 }
 
 func (s *userServer) checkForChanges(watchIDs []int64) *userv1.UserEvent {
-    // 実際の実装ではイベントバスやCDCを使う
+    // A real implementation would use an event bus or CDC
     return nil
 }
 ```
 
-### コード例 5: クライアントストリーミングRPC
+### Code Example 5: Client Streaming RPC
 
 ```go
-// BatchCreateUsers はバッチユーザー作成（Client Streaming）
+// BatchCreateUsers performs batch user creation (Client Streaming)
 func (s *userServer) BatchCreateUsers(stream userv1.UserService_BatchCreateUsersServer) error {
     var createdUsers []*userv1.User
     var count int32
@@ -495,7 +495,7 @@ func (s *userServer) BatchCreateUsers(stream userv1.UserService_BatchCreateUsers
         req, err := stream.Recv()
         if err != nil {
             if err.Error() == "EOF" {
-                // クライアントが送信完了
+                // Client finished sending
                 return stream.SendAndClose(&userv1.BatchCreateUsersResponse{
                     CreatedCount: count,
                     Users:        createdUsers,
@@ -504,11 +504,11 @@ func (s *userServer) BatchCreateUsers(stream userv1.UserService_BatchCreateUsers
             return status.Errorf(codes.Internal, "failed to receive: %v", err)
         }
 
-        // 個別にユーザーを作成
+        // Create each user individually
         resp, err := s.CreateUser(stream.Context(), req)
         if err != nil {
             log.Printf("BatchCreateUsers: skip user %s: %v", req.Name, err)
-            continue // エラーがあってもスキップして続行
+            continue // Skip on error and continue
         }
 
         createdUsers = append(createdUsers, resp.User)
@@ -517,10 +517,10 @@ func (s *userServer) BatchCreateUsers(stream userv1.UserService_BatchCreateUsers
 }
 ```
 
-### コード例 6: 双方向ストリーミングRPC
+### Code Example 6: Bidirectional Streaming RPC
 
 ```go
-// Chat は双方向ストリーミングチャット
+// Chat is a bidirectional streaming chat
 func (s *userServer) Chat(stream userv1.UserService_ChatServer) error {
     log.Println("Chat: new connection")
 
@@ -536,7 +536,7 @@ func (s *userServer) Chat(stream userv1.UserService_ChatServer) error {
 
         log.Printf("Chat: received from %s: %s", msg.SenderId, msg.Content)
 
-        // エコー応答（実際にはブロードキャストなど）
+        // Echo reply (in practice, broadcast or similar)
         reply := &userv1.ChatMessage{
             SenderId: "server",
             Content:  fmt.Sprintf("Echo: %s", msg.Content),
@@ -552,9 +552,9 @@ func (s *userServer) Chat(stream userv1.UserService_ChatServer) error {
 
 ---
 
-## 3. gRPCクライアント実装
+## 3. gRPC Client Implementation
 
-### コード例 7: クライアントの接続と呼び出し
+### Code Example 7: Client Connection and Invocation
 
 ```go
 package client
@@ -576,20 +576,20 @@ import (
     userv1 "github.com/myorg/myapp/gen/user/v1"
 )
 
-// UserClient はgRPCクライアントのラッパー
+// UserClient is a wrapper around the gRPC client
 type UserClient struct {
     conn   *grpc.ClientConn
     client userv1.UserServiceClient
 }
 
-// NewUserClient は新しいgRPCクライアントを作成する
+// NewUserClient creates a new gRPC client
 func NewUserClient(addr string, opts ...grpc.DialOption) (*UserClient, error) {
-    // デフォルトオプション
+    // Default options
     defaultOpts := []grpc.DialOption{
         grpc.WithKeepaliveParams(keepalive.ClientParameters{
-            Time:                10 * time.Second, // KeepAlive ping間隔
-            Timeout:             3 * time.Second,  // Ping応答のタイムアウト
-            PermitWithoutStream: false,             // ストリームがない場合pingしない
+            Time:                10 * time.Second, // KeepAlive ping interval
+            Timeout:             3 * time.Second,  // Ping response timeout
+            PermitWithoutStream: false,             // Do not ping when no stream is active
         }),
         grpc.WithDefaultCallOptions(
             grpc.MaxCallRecvMsgSize(10 * 1024 * 1024), // 10MB
@@ -610,14 +610,14 @@ func NewUserClient(addr string, opts ...grpc.DialOption) (*UserClient, error) {
     }, nil
 }
 
-// NewInsecureUserClient はTLSなしのクライアントを作成する（開発用）
+// NewInsecureUserClient creates a client without TLS (for development)
 func NewInsecureUserClient(addr string) (*UserClient, error) {
     return NewUserClient(addr,
         grpc.WithTransportCredentials(insecure.NewCredentials()),
     )
 }
 
-// NewSecureUserClient はTLS付きのクライアントを作成する（本番用）
+// NewSecureUserClient creates a client with TLS (for production)
 func NewSecureUserClient(addr string) (*UserClient, error) {
     tlsConfig := &tls.Config{
         MinVersion: tls.VersionTLS13,
@@ -627,14 +627,14 @@ func NewSecureUserClient(addr string) (*UserClient, error) {
     )
 }
 
-// Close は接続を閉じる
+// Close closes the connection
 func (c *UserClient) Close() error {
     return c.conn.Close()
 }
 
-// GetUser はUnary RPCでユーザーを取得する
+// GetUser retrieves a user via Unary RPC
 func (c *UserClient) GetUser(ctx context.Context, id int64) (*userv1.User, error) {
-    // タイムアウト設定
+    // Set timeout
     ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
     defer cancel()
 
@@ -645,7 +645,7 @@ func (c *UserClient) GetUser(ctx context.Context, id int64) (*userv1.User, error
     return resp.User, nil
 }
 
-// ListAllUsers はページネーションで全ユーザーを取得する
+// ListAllUsers retrieves all users using pagination
 func (c *UserClient) ListAllUsers(ctx context.Context) ([]*userv1.User, error) {
     var allUsers []*userv1.User
     pageToken := ""
@@ -670,7 +670,7 @@ func (c *UserClient) ListAllUsers(ctx context.Context) ([]*userv1.User, error) {
     return allUsers, nil
 }
 
-// WatchUsers はServer Streamingでユーザーイベントを受信する
+// WatchUsers receives user events via Server Streaming
 func (c *UserClient) WatchUsers(ctx context.Context, userIDs []int64, handler func(*userv1.UserEvent)) error {
     stream, err := c.client.WatchUsers(ctx, &userv1.WatchUsersRequest{
         UserIds: userIDs,
@@ -691,16 +691,16 @@ func (c *UserClient) WatchUsers(ctx context.Context, userIDs []int64, handler fu
     }
 }
 
-// CreateWithMetadata はメタデータ付きでユーザーを作成する
+// CreateWithMetadata creates a user with attached metadata
 func (c *UserClient) CreateWithMetadata(ctx context.Context, name, email, token string) (*userv1.User, error) {
-    // メタデータ（HTTPヘッダーに相当）を付与
+    // Attach metadata (equivalent to HTTP headers)
     md := metadata.Pairs(
         "authorization", "Bearer "+token,
         "x-request-id", generateRequestID(),
     )
     ctx = metadata.NewOutgoingContext(ctx, md)
 
-    // レスポンスヘッダーとトレーラーを受信
+    // Receive response header and trailer
     var header, trailer metadata.MD
 
     resp, err := c.client.CreateUser(ctx,
@@ -716,7 +716,7 @@ func (c *UserClient) CreateWithMetadata(ctx context.Context, name, email, token 
         return nil, err
     }
 
-    // レスポンスヘッダーからレート制限情報を取得
+    // Extract rate limit info from the response header
     if remaining := header.Get("x-ratelimit-remaining"); len(remaining) > 0 {
         log.Printf("Rate limit remaining: %s", remaining[0])
     }
@@ -731,9 +731,9 @@ func generateRequestID() string {
 
 ---
 
-## 4. インターセプタ（ミドルウェア）
+## 4. Interceptors (Middleware)
 
-### コード例 8: Unaryインターセプタ
+### Code Example 8: Unary Interceptors
 
 ```go
 package interceptor
@@ -749,7 +749,7 @@ import (
     "google.golang.org/grpc/status"
 )
 
-// LoggingUnaryInterceptor はリクエストのロギングを行う
+// LoggingUnaryInterceptor logs each request
 func LoggingUnaryInterceptor(
     ctx context.Context,
     req interface{},
@@ -758,7 +758,7 @@ func LoggingUnaryInterceptor(
 ) (interface{}, error) {
     start := time.Now()
 
-    // メタデータからリクエストIDを取得
+    // Retrieve request ID from metadata
     requestID := "unknown"
     if md, ok := metadata.FromIncomingContext(ctx); ok {
         if ids := md.Get("x-request-id"); len(ids) > 0 {
@@ -766,10 +766,10 @@ func LoggingUnaryInterceptor(
         }
     }
 
-    // ハンドラ実行
+    // Invoke the handler
     resp, err := handler(ctx, req)
 
-    // ログ出力
+    // Log output
     duration := time.Since(start)
     code := codes.OK
     if err != nil {
@@ -782,14 +782,14 @@ func LoggingUnaryInterceptor(
     return resp, err
 }
 
-// AuthUnaryInterceptor は認証を行う
+// AuthUnaryInterceptor performs authentication
 func AuthUnaryInterceptor(
     ctx context.Context,
     req interface{},
     info *grpc.UnaryServerInfo,
     handler grpc.UnaryHandler,
 ) (interface{}, error) {
-    // ヘルスチェックなど認証不要なメソッドをスキップ
+    // Skip methods that don't require authentication, such as health checks
     skipMethods := map[string]bool{
         "/grpc.health.v1.Health/Check": true,
         "/grpc.reflection.v1.ServerReflection/ServerReflectionInfo": true,
@@ -798,7 +798,7 @@ func AuthUnaryInterceptor(
         return handler(ctx, req)
     }
 
-    // メタデータからトークンを取得
+    // Retrieve token from metadata
     md, ok := metadata.FromIncomingContext(ctx)
     if !ok {
         return nil, status.Error(codes.Unauthenticated, "missing metadata")
@@ -809,13 +809,13 @@ func AuthUnaryInterceptor(
         return nil, status.Error(codes.Unauthenticated, "missing authorization token")
     }
 
-    // トークンの検証
+    // Validate token
     userID, err := validateToken(tokens[0])
     if err != nil {
         return nil, status.Errorf(codes.Unauthenticated, "invalid token: %v", err)
     }
 
-    // ユーザーIDをコンテキストに格納
+    // Store user ID in the context
     ctx = context.WithValue(ctx, userIDKey{}, userID)
 
     return handler(ctx, req)
@@ -829,14 +829,14 @@ func UserIDFromContext(ctx context.Context) (string, bool) {
 }
 
 func validateToken(token string) (string, error) {
-    // 実際にはJWT検証などを行う
+    // In practice, perform JWT validation, etc.
     if token == "" {
         return "", fmt.Errorf("empty token")
     }
     return "user-123", nil
 }
 
-// RecoveryUnaryInterceptor はパニックから回復する
+// RecoveryUnaryInterceptor recovers from panics
 func RecoveryUnaryInterceptor(
     ctx context.Context,
     req interface{},
@@ -852,7 +852,7 @@ func RecoveryUnaryInterceptor(
     return handler(ctx, req)
 }
 
-// RateLimitUnaryInterceptor はレート制限を行う
+// RateLimitUnaryInterceptor enforces rate limits
 func RateLimitUnaryInterceptor(limiter *RateLimiter) grpc.UnaryServerInterceptor {
     return func(
         ctx context.Context,
@@ -867,7 +867,7 @@ func RateLimitUnaryInterceptor(limiter *RateLimiter) grpc.UnaryServerInterceptor
     }
 }
 
-// ValidationUnaryInterceptor はリクエストのバリデーションを行う
+// ValidationUnaryInterceptor validates requests
 func ValidationUnaryInterceptor(
     ctx context.Context,
     req interface{},
@@ -882,7 +882,7 @@ func ValidationUnaryInterceptor(
     return handler(ctx, req)
 }
 
-// TimeoutUnaryInterceptor はデフォルトタイムアウトを設定する
+// TimeoutUnaryInterceptor sets a default timeout
 func TimeoutUnaryInterceptor(defaultTimeout time.Duration) grpc.UnaryServerInterceptor {
     return func(
         ctx context.Context,
@@ -900,7 +900,7 @@ func TimeoutUnaryInterceptor(defaultTimeout time.Duration) grpc.UnaryServerInter
 }
 ```
 
-### コード例 9: Stream インターセプタ
+### Code Example 9: Stream Interceptors
 
 ```go
 package interceptor
@@ -914,7 +914,7 @@ import (
     "google.golang.org/grpc/status"
 )
 
-// LoggingStreamInterceptor はストリームのロギングを行う
+// LoggingStreamInterceptor logs streaming calls
 func LoggingStreamInterceptor(
     srv interface{},
     ss grpc.ServerStream,
@@ -938,7 +938,7 @@ func LoggingStreamInterceptor(
     return err
 }
 
-// RecoveryStreamInterceptor はストリームのパニックから回復する
+// RecoveryStreamInterceptor recovers from panics in streams
 func RecoveryStreamInterceptor(
     srv interface{},
     ss grpc.ServerStream,
@@ -955,7 +955,7 @@ func RecoveryStreamInterceptor(
 }
 ```
 
-### コード例 10: サーバー起動（インターセプタ統合）
+### Code Example 10: Starting the Server (Integrating Interceptors)
 
 ```go
 package main
@@ -981,9 +981,9 @@ func main() {
         log.Fatalf("failed to listen: %v", err)
     }
 
-    // サーバーオプション
+    // Server options
     s := grpc.NewServer(
-        // Unary インターセプタチェーン（順番に実行）
+        // Unary interceptor chain (executed in order)
         grpc.ChainUnaryInterceptor(
             RecoveryUnaryInterceptor,
             LoggingUnaryInterceptor,
@@ -991,15 +991,15 @@ func main() {
             AuthUnaryInterceptor,
             ValidationUnaryInterceptor,
         ),
-        // Stream インターセプタチェーン
+        // Stream interceptor chain
         grpc.ChainStreamInterceptor(
             RecoveryStreamInterceptor,
             LoggingStreamInterceptor,
         ),
-        // メッセージサイズ制限
+        // Message size limits
         grpc.MaxRecvMsgSize(10 * 1024 * 1024), // 10MB
         grpc.MaxSendMsgSize(10 * 1024 * 1024), // 10MB
-        // KeepAlive設定
+        // KeepAlive configuration
         grpc.KeepaliveParams(keepalive.ServerParameters{
             MaxConnectionIdle:     15 * time.Minute,
             MaxConnectionAge:      30 * time.Minute,
@@ -1013,18 +1013,18 @@ func main() {
         }),
     )
 
-    // サービス登録
+    // Register service
     userv1.RegisterUserServiceServer(s, NewUserServer())
 
-    // ヘルスチェック
+    // Health check
     healthServer := health.NewServer()
     grpc_health_v1.RegisterHealthServer(s, healthServer)
     healthServer.SetServingStatus("user.v1.UserService", grpc_health_v1.HealthCheckResponse_SERVING)
 
-    // リフレクション（開発環境用、grpcurl等で使用）
+    // Reflection (for development, used by grpcurl, etc.)
     reflection.Register(s)
 
-    // Graceful Shutdown
+    // Graceful shutdown
     go func() {
         log.Printf("gRPC server listening on :50051")
         if err := s.Serve(lis); err != nil {
@@ -1032,7 +1032,7 @@ func main() {
         }
     }()
 
-    // シグナル待ち
+    // Wait for signal
     quit := make(chan os.Signal, 1)
     signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
     <-quit
@@ -1040,14 +1040,14 @@ func main() {
     log.Println("Shutting down gRPC server...")
     healthServer.SetServingStatus("user.v1.UserService", grpc_health_v1.HealthCheckResponse_NOT_SERVING)
 
-    // Graceful stop（進行中のRPCが完了するのを待つ）
+    // Graceful stop (wait for in-flight RPCs to complete)
     stopped := make(chan struct{})
     go func() {
         s.GracefulStop()
         close(stopped)
     }()
 
-    // タイムアウト付き待機
+    // Wait with timeout
     select {
     case <-stopped:
         log.Println("Server stopped gracefully")
@@ -1060,9 +1060,9 @@ func main() {
 
 ---
 
-## 5. gRPC-Gateway (REST変換)
+## 5. gRPC-Gateway (REST Translation)
 
-### コード例 11: gRPC-Gateway定義
+### Code Example 11: gRPC-Gateway Definition
 
 ```protobuf
 syntax = "proto3";
@@ -1128,7 +1128,7 @@ service UserService {
 }
 ```
 
-### コード例 12: gRPC-Gatewayサーバー
+### Code Example 12: gRPC-Gateway Server
 
 ```go
 package main
@@ -1152,24 +1152,24 @@ import (
 func main() {
     ctx := context.Background()
 
-    // gRPCサーバー起動
+    // Start the gRPC server
     go runGRPCServer()
 
-    // gRPC-Gatewayの設定
+    // Configure gRPC-Gateway
     mux := runtime.NewServeMux(
-        // JSON出力オプション
+        // JSON output options
         runtime.WithMarshalerOption(runtime.MIMEWildcard, &runtime.JSONPb{
             MarshalOptions: protojson.MarshalOptions{
-                UseProtoNames:   true,  // snake_case フィールド名
-                EmitUnpopulated: false, // ゼロ値のフィールドを省略
+                UseProtoNames:   true,  // snake_case field names
+                EmitUnpopulated: false, // omit zero-value fields
             },
             UnmarshalOptions: protojson.UnmarshalOptions{
-                DiscardUnknown: true, // 未知のフィールドを無視
+                DiscardUnknown: true, // ignore unknown fields
             },
         }),
-        // エラーハンドリングのカスタマイズ
+        // Customize error handling
         runtime.WithErrorHandler(customErrorHandler),
-        // メタデータの転送
+        // Forward metadata
         runtime.WithMetadata(func(ctx context.Context, r *http.Request) metadata.MD {
             md := metadata.MD{}
             if auth := r.Header.Get("Authorization"); auth != "" {
@@ -1182,7 +1182,7 @@ func main() {
         }),
     )
 
-    // gRPCバックエンドへの接続
+    // Connect to the gRPC backend
     opts := []grpc.DialOption{
         grpc.WithTransportCredentials(insecure.NewCredentials()),
     }
@@ -1191,7 +1191,7 @@ func main() {
         log.Fatalf("failed to register gateway: %v", err)
     }
 
-    // HTTPサーバー（CORS、ロギングミドルウェア付き）
+    // HTTP server (with CORS and logging middleware)
     handler := corsMiddleware(loggingMiddleware(mux))
 
     log.Printf("gRPC-Gateway listening on :8080")
@@ -1200,7 +1200,7 @@ func main() {
     }
 }
 
-// customErrorHandler はgRPCエラーをHTTPレスポンスに変換する
+// customErrorHandler converts gRPC errors to HTTP responses
 func customErrorHandler(
     ctx context.Context,
     mux *runtime.ServeMux,
@@ -1223,7 +1223,7 @@ func customErrorHandler(
         },
     }
 
-    // エラー詳細がある場合
+    // If error details are present
     for _, detail := range st.Details() {
         body["error"].(map[string]interface{})["details"] = detail
     }
@@ -1232,7 +1232,7 @@ func customErrorHandler(
     w.Write(data)
 }
 
-// corsMiddleware はCORSヘッダーを設定する
+// corsMiddleware sets CORS headers
 func corsMiddleware(next http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
         w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -1248,7 +1248,7 @@ func corsMiddleware(next http.Handler) http.Handler {
     })
 }
 
-// loggingMiddleware はHTTPリクエストをログに記録する
+// loggingMiddleware logs HTTP requests
 func loggingMiddleware(next http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
         start := time.Now()
@@ -1260,9 +1260,9 @@ func loggingMiddleware(next http.Handler) http.Handler {
 
 ---
 
-## 6. テスト
+## 6. Testing
 
-### コード例 13: bufconn を使ったテスト
+### Code Example 13: Testing with bufconn
 
 ```go
 package server_test
@@ -1284,7 +1284,7 @@ import (
 
 const bufSize = 1024 * 1024
 
-// setupTestServer はインメモリgRPCサーバーを起動する
+// setupTestServer starts an in-memory gRPC server
 func setupTestServer(t *testing.T) (userv1.UserServiceClient, func()) {
     t.Helper()
 
@@ -1298,7 +1298,7 @@ func setupTestServer(t *testing.T) (userv1.UserServiceClient, func()) {
         }
     }()
 
-    // bufconn用のダイアラー
+    // Dialer for bufconn
     dialer := func(context.Context, string) (net.Conn, error) {
         return lis.Dial()
     }
@@ -1371,7 +1371,7 @@ func TestCreateUser_DuplicateEmail(t *testing.T) {
 
     ctx := context.Background()
 
-    // 1回目: 成功
+    // First call: success
     _, err := client.CreateUser(ctx, &userv1.CreateUserRequest{
         Name:  "User 1",
         Email: "dup@example.com",
@@ -1380,7 +1380,7 @@ func TestCreateUser_DuplicateEmail(t *testing.T) {
         t.Fatalf("first CreateUser failed: %v", err)
     }
 
-    // 2回目: 重複エラー
+    // Second call: duplicate error
     _, err = client.CreateUser(ctx, &userv1.CreateUserRequest{
         Name:  "User 2",
         Email: "dup@example.com",
@@ -1401,7 +1401,7 @@ func TestListUsers_Pagination(t *testing.T) {
 
     ctx := context.Background()
 
-    // 5人のユーザーを作成
+    // Create 5 users
     for i := 0; i < 5; i++ {
         _, err := client.CreateUser(ctx, &userv1.CreateUserRequest{
             Name:  fmt.Sprintf("User %d", i),
@@ -1412,7 +1412,7 @@ func TestListUsers_Pagination(t *testing.T) {
         }
     }
 
-    // ページサイズ2で取得
+    // Fetch with page size 2
     resp, err := client.ListUsers(ctx, &userv1.ListUsersRequest{PageSize: 2})
     if err != nil {
         t.Fatalf("ListUsers failed: %v", err)
@@ -1432,9 +1432,9 @@ func TestListUsers_Pagination(t *testing.T) {
 
 ---
 
-## 7. エラーハンドリング
+## 7. Error Handling
 
-### コード例 14: 詳細なエラーレスポンス
+### Code Example 14: Detailed Error Responses
 
 ```go
 package server
@@ -1445,7 +1445,7 @@ import (
     "google.golang.org/grpc/status"
 )
 
-// バリデーションエラーを構築する
+// Build a validation error
 func validationError(violations map[string]string) error {
     st := status.New(codes.InvalidArgument, "validation failed")
 
@@ -1466,7 +1466,7 @@ func validationError(violations map[string]string) error {
     return detailed.Err()
 }
 
-// リソース不存在エラー
+// Resource not found error
 func notFoundError(resourceType, resourceID string) error {
     st := status.New(codes.NotFound, fmt.Sprintf("%s not found", resourceType))
     detailed, err := st.WithDetails(&errdetails.ResourceInfo{
@@ -1480,7 +1480,7 @@ func notFoundError(resourceType, resourceID string) error {
     return detailed.Err()
 }
 
-// レート制限エラー
+// Rate limit error
 func rateLimitError(retryAfter time.Duration) error {
     st := status.New(codes.ResourceExhausted, "rate limit exceeded")
     detailed, err := st.WithDetails(&errdetails.RetryInfo{
@@ -1492,7 +1492,7 @@ func rateLimitError(retryAfter time.Duration) error {
     return detailed.Err()
 }
 
-// クライアント側でのエラー詳細の取得
+// Extract error details on the client side
 func handleGRPCError(err error) {
     st := status.Convert(err)
 
@@ -1515,9 +1515,9 @@ func handleGRPCError(err error) {
 
 ---
 
-## 8. ASCII図解
+## 8. ASCII Diagrams
 
-### 図1: gRPC通信フロー
+### Figure 1: gRPC Communication Flow
 
 ```
 Client (Go)                    Server (Go)
@@ -1525,7 +1525,7 @@ Client (Go)                    Server (Go)
 │                  │    Protocol      │                  │
 │ Generated Stub   │    Buffers       │ Generated Service│
 │ (UserServiceClient)│ ──────────────>│(UserServiceServer)│
-│                  │    (バイナリ)     │                  │
+│                  │    (binary)      │                  │
 │ .proto → Go code │ <──────────────│ .proto → Go code │
 │                  │                  │                  │
 │ grpc.ClientConn  │    TLS +        │ grpc.Server      │
@@ -1533,22 +1533,22 @@ Client (Go)                    Server (Go)
 └──────────────────┘    Multiplexed  └──────────────────┘
                         Streams
 
-コード生成パイプライン:
+Code generation pipeline:
   .proto ──> protoc / buf generate
                 │
-                ├── *.pb.go        (メッセージ型)
-                ├── *_grpc.pb.go   (サービスインターフェース)
+                ├── *.pb.go        (message types)
+                ├── *_grpc.pb.go   (service interfaces)
                 ├── *.pb.gw.go     (gRPC-Gateway)
-                └── *.swagger.json (OpenAPI仕様)
+                └── *.swagger.json (OpenAPI spec)
 ```
 
-### 図2: 4種類のRPCパターン
+### Figure 2: The Four RPC Patterns
 
 ```
 1. Unary RPC (1:1) -- GetUser, CreateUser
    Client ──[Request]──> Server
    Client <──[Response]── Server
-   最も基本的。REST APIの代替。
+   The most basic pattern. A REST API alternative.
 
 2. Server Streaming (1:N) -- WatchUsers
    Client ──[Request]──────> Server
@@ -1556,7 +1556,7 @@ Client (Go)                    Server (Go)
    Client <──[Response 2]── Server
    Client <──[Response 3]── Server
    Client <──[EOF]────────── Server
-   リアルタイム通知、大量データの分割送信。
+   Real-time notifications, chunked delivery of large data.
 
 3. Client Streaming (N:1) -- BatchCreateUsers
    Client ──[Request 1]──> Server
@@ -1564,7 +1564,7 @@ Client (Go)                    Server (Go)
    Client ──[Request 3]──> Server
    Client ──[EOF]────────> Server
    Client <──[Response]──── Server
-   ファイルアップロード、バッチ処理。
+   File uploads, batch processing.
 
 4. Bidirectional Streaming (N:M) -- Chat
    Client ──[Request 1]──> Server
@@ -1573,10 +1573,10 @@ Client (Go)                    Server (Go)
    Client ──[Request 3]──> Server
    Client <──[Response 2]── Server
    Client <──[Response 3]── Server
-   チャット、ゲーム、リアルタイムコラボ。
+   Chat, games, real-time collaboration.
 ```
 
-### 図3: gRPC-Gateway アーキテクチャ
+### Figure 3: gRPC-Gateway Architecture
 
 ```
                     ┌─────────────────────────────────────────┐
@@ -1592,18 +1592,18 @@ REST Client         │            gRPC-Gateway                 │     gRPC Ser
                     └─────────────────────────────────────────┘
 
 gRPC Client ────────────────────────────────────────────> gRPC Server
-  (直接接続、最高性能)                                       :50051
+  (direct connection, highest performance)                 :50051
 
-RESTとgRPCの両方をサポート:
+Supports both REST and gRPC:
   /api/v1/users/{id}  →  UserService.GetUser()
   /api/v1/users       →  UserService.ListUsers()
   POST /api/v1/users  →  UserService.CreateUser()
 ```
 
-### 図4: インターセプタチェーン
+### Figure 4: Interceptor Chain
 
 ```
-リクエスト
+Request
   │
   ▼
 ┌────────────────────────────────────────────────┐
@@ -1611,13 +1611,13 @@ RESTとgRPCの両方をサポート:
 │                                                │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐    │
 │  │ Recovery │─>│ Logging  │─>│ Timeout  │    │
-│  │ panic回復│  │ ログ記録  │  │タイムアウト│    │
+│  │panic recv│  │   logs   │  │ timeout  │    │
 │  └──────────┘  └──────────┘  └──────────┘    │
 │       │                                  │     │
 │       ▼                                  ▼     │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐    │
 │  │   Auth   │─>│Validation│─>│ RateLimit│    │
-│  │ 認証     │  │入力検証   │  │レート制限 │    │
+│  │  authN   │  │input chk │  │rate limit│    │
 │  └──────────┘  └──────────┘  └──────────┘    │
 │                                    │           │
 └────────────────────────────────────┼───────────┘
@@ -1625,24 +1625,24 @@ RESTとgRPCの両方をサポート:
                                      ▼
                               ┌──────────┐
                               │  Handler │
-                              │ 本体処理  │
+                              │ business │
                               └──────────┘
 ```
 
-### 図5: gRPCヘルスチェックとロードバランシング
+### Figure 5: gRPC Health Checks and Load Balancing
 
 ```
 ┌────────────────────────────────────────────────────────┐
 │                  Load Balancer                          │
 │  (Envoy / Nginx / Kubernetes Service)                  │
 │                                                        │
-│  ヘルスチェック:                                         │
+│  Health check:                                         │
 │  grpc_health_v1.Health/Check → SERVING / NOT_SERVING   │
 │                                                        │
-│  ロードバランシング戦略:                                 │
+│  Load balancing strategies:                            │
 │  ┌────────────┐  ┌──────────────┐  ┌─────────────┐   │
 │  │ Round Robin│  │ Least Conn   │  │ Weighted     │   │
-│  │ 均等分散   │  │ 最小接続数    │  │ 重み付け      │   │
+│  │ even split │  │ fewest conns │  │  weighted    │   │
 │  └────────────┘  └──────────────┘  └─────────────┘   │
 └─────────┬──────────────┬──────────────┬───────────────┘
           │              │              │
@@ -1656,102 +1656,102 @@ RESTとgRPCの両方をサポート:
 
 ---
 
-## 9. 比較表
+## 9. Comparison Tables
 
-### 表1: gRPC vs REST 詳細比較
+### Table 1: Detailed Comparison of gRPC vs REST
 
-| 項目 | gRPC | REST (JSON) |
+| Item | gRPC | REST (JSON) |
 |------|------|-------------|
-| プロトコル | HTTP/2 | HTTP/1.1 or HTTP/2 |
-| シリアライズ | Protocol Buffers (バイナリ) | JSON (テキスト) |
-| パフォーマンス | 非常に高速（10-100倍） | 中程度 |
-| 型安全性 | 強い (.protoから生成) | 弱い (OpenAPIで補完) |
-| ストリーミング | 双方向対応 | SSE/WebSocket |
-| ブラウザ対応 | grpc-web/Connect必要 | ネイティブ |
-| デバッグ | grpcurl, grpcui | curl, Postman |
-| エコシステム | 中 | 非常に大きい |
-| コード生成 | 自動（proto） | 手動/OpenAPI |
-| バージョニング | パッケージバージョン | URL/ヘッダー |
-| エラー体系 | gRPC Status Code | HTTP Status Code |
-| 推奨場面 | マイクロサービス間通信 | 外部公開API |
+| Protocol | HTTP/2 | HTTP/1.1 or HTTP/2 |
+| Serialization | Protocol Buffers (binary) | JSON (text) |
+| Performance | Very fast (10-100x) | Moderate |
+| Type safety | Strong (generated from .proto) | Weak (supplemented by OpenAPI) |
+| Streaming | Bidirectional support | SSE/WebSocket |
+| Browser support | Requires grpc-web/Connect | Native |
+| Debugging | grpcurl, grpcui | curl, Postman |
+| Ecosystem | Medium | Very large |
+| Code generation | Automatic (proto) | Manual/OpenAPI |
+| Versioning | Package version | URL/header |
+| Error model | gRPC Status Code | HTTP Status Code |
+| Recommended use | Microservice-to-microservice communication | Public external APIs |
 
-### 表2: gRPCステータスコード詳細
+### Table 2: gRPC Status Codes in Detail
 
-| gRPC Code | HTTP相当 | 用途 | 例 |
-|-----------|---------|------|-----|
-| OK (0) | 200 | 成功 | 正常完了 |
-| Cancelled (1) | 499 | クライアントキャンセル | リクエスト中断 |
-| Unknown (2) | 500 | 不明なエラー | 予期しない例外 |
-| InvalidArgument (3) | 400 | バリデーションエラー | 不正なメール形式 |
-| DeadlineExceeded (4) | 504 | タイムアウト | 処理時間超過 |
-| NotFound (5) | 404 | リソース不在 | ユーザーが存在しない |
-| AlreadyExists (6) | 409 | リソース重複 | メールアドレス重複 |
-| PermissionDenied (7) | 403 | 権限エラー | 管理者権限が必要 |
-| ResourceExhausted (8) | 429 | リソース枯渇 | レート制限超過 |
-| FailedPrecondition (9) | 400 | 前提条件不一致 | ETAGミスマッチ |
-| Aborted (10) | 409 | 操作の中止 | トランザクション競合 |
-| OutOfRange (11) | 400 | 範囲外 | ページトークン無効 |
-| Unimplemented (12) | 501 | 未実装 | メソッド未サポート |
-| Internal (13) | 500 | サーバーエラー | 内部処理失敗 |
-| Unavailable (14) | 503 | サービス利用不可 | メンテナンス中 |
-| DataLoss (15) | 500 | データ損失 | データ破損検出 |
-| Unauthenticated (16) | 401 | 認証エラー | トークン無効 |
+| gRPC Code | HTTP equivalent | Use | Example |
+|-----------|-----------------|-----|---------|
+| OK (0) | 200 | Success | Normal completion |
+| Cancelled (1) | 499 | Client canceled | Request interrupted |
+| Unknown (2) | 500 | Unknown error | Unexpected exception |
+| InvalidArgument (3) | 400 | Validation error | Invalid email format |
+| DeadlineExceeded (4) | 504 | Timeout | Processing time exceeded |
+| NotFound (5) | 404 | Resource missing | User does not exist |
+| AlreadyExists (6) | 409 | Resource conflict | Email already exists |
+| PermissionDenied (7) | 403 | Permission error | Admin rights required |
+| ResourceExhausted (8) | 429 | Resource exhausted | Rate limit exceeded |
+| FailedPrecondition (9) | 400 | Precondition mismatch | ETag mismatch |
+| Aborted (10) | 409 | Operation aborted | Transaction conflict |
+| OutOfRange (11) | 400 | Out of range | Invalid page token |
+| Unimplemented (12) | 501 | Not implemented | Method not supported |
+| Internal (13) | 500 | Server error | Internal processing failure |
+| Unavailable (14) | 503 | Service unavailable | Under maintenance |
+| DataLoss (15) | 500 | Data loss | Data corruption detected |
+| Unauthenticated (16) | 401 | Authentication error | Invalid token |
 
-### 表3: RPCパターン選択ガイド
+### Table 3: RPC Pattern Selection Guide
 
-| パターン | 用途 | メッセージ数 | 例 |
-|---------|------|------------|-----|
-| Unary | 基本的なリクエスト/レスポンス | 1:1 | CRUD操作、認証 |
-| Server Streaming | サーバーから連続データ | 1:N | リアルタイム通知、大量データ取得 |
-| Client Streaming | クライアントから連続データ | N:1 | ファイルアップロード、バッチ処理 |
-| Bidirectional | 双方向のリアルタイム通信 | N:M | チャット、ゲーム、共同編集 |
+| Pattern | Use | Message count | Example |
+|---------|-----|---------------|---------|
+| Unary | Basic request/response | 1:1 | CRUD operations, authentication |
+| Server Streaming | Continuous data from server | 1:N | Real-time notifications, large data retrieval |
+| Client Streaming | Continuous data from client | N:1 | File uploads, batch processing |
+| Bidirectional | Bidirectional real-time communication | N:M | Chat, games, collaborative editing |
 
-### 表4: Protocol Buffers ベストプラクティス
+### Table 4: Protocol Buffers Best Practices
 
-| ルール | 説明 | 例 |
-|--------|------|-----|
-| フィールド番号の予約 | 削除したフィールドの番号をreserved | `reserved 3, 15;` |
-| enum のデフォルト値 | 0番目はUNSPECIFIED | `ROLE_UNSPECIFIED = 0;` |
-| パッケージバージョニング | パッケージ名にバージョン | `package user.v1;` |
-| FieldMask | 部分更新に使用 | `update_mask` フィールド |
-| ページネーション | page_size + page_token | `string next_page_token;` |
-| Timestamp | 日時はgoogle.protobuf.Timestamp | `import "google/protobuf/timestamp.proto";` |
+| Rule | Description | Example |
+|------|-------------|---------|
+| Reserve field numbers | Mark deleted field numbers as reserved | `reserved 3, 15;` |
+| Enum default value | The 0 value is UNSPECIFIED | `ROLE_UNSPECIFIED = 0;` |
+| Package versioning | Include version in package name | `package user.v1;` |
+| FieldMask | Use for partial updates | `update_mask` field |
+| Pagination | page_size + page_token | `string next_page_token;` |
+| Timestamp | Use google.protobuf.Timestamp for datetimes | `import "google/protobuf/timestamp.proto";` |
 
 ---
 
-## 10. アンチパターン
+## 10. Anti-Patterns
 
-### アンチパターン 1: 巨大なメッセージ
+### Anti-Pattern 1: Oversized Messages
 
 ```protobuf
-// BAD: 1つのレスポンスに大量データ
+// BAD: returning a huge amount of data in one response
 message ListUsersResponse {
-  repeated User users = 1;  // 100万件返す可能性 → メモリ不足
+  repeated User users = 1;  // could return 1M rows → out of memory
 }
 
-// GOOD: ページネーションまたはストリーミング
-// 方法1: ページネーション
+// GOOD: use pagination or streaming
+// Option 1: pagination
 message ListUsersRequest {
-  int32 page_size = 1;     // 最大100
-  string page_token = 2;   // カーソル
+  int32 page_size = 1;     // max 100
+  string page_token = 2;   // cursor
 }
 message ListUsersResponse {
   repeated User users = 1;
   string next_page_token = 2;
 }
 
-// 方法2: Server Streaming（大量データ向け）
+// Option 2: Server Streaming (for large volumes)
 rpc StreamUsers(StreamUsersRequest) returns (stream User);
 ```
 
-### アンチパターン 2: エラー詳細を返さない
+### Anti-Pattern 2: Not Returning Error Details
 
 ```go
-// BAD: 汎用的なエラーメッセージ
+// BAD: generic error message
 return nil, status.Error(codes.Internal, "error")
-// → クライアントは何が問題かわからない
+// → the client has no idea what went wrong
 
-// GOOD: 詳細なエラー情報を付与
+// GOOD: attach detailed error information
 st := status.New(codes.InvalidArgument, "validation failed")
 st, _ = st.WithDetails(&errdetails.BadRequest{
     FieldViolations: []*errdetails.BadRequest_FieldViolation{
@@ -1762,16 +1762,16 @@ st, _ = st.WithDetails(&errdetails.BadRequest{
 return nil, st.Err()
 ```
 
-### アンチパターン 3: Context を無視する
+### Anti-Pattern 3: Ignoring the Context
 
 ```go
-// BAD: context を無視して長時間処理
+// BAD: running a long operation while ignoring the context
 func (s *server) SlowRPC(ctx context.Context, req *pb.Request) (*pb.Response, error) {
-    result := heavyComputation() // ctx.Done() をチェックしない
+    result := heavyComputation() // does not check ctx.Done()
     return &pb.Response{Data: result}, nil
 }
 
-// GOOD: context のキャンセルを定期的にチェック
+// GOOD: periodically check the context for cancellation
 func (s *server) SlowRPC(ctx context.Context, req *pb.Request) (*pb.Response, error) {
     resultCh := make(chan string, 1)
     go func() {
@@ -1787,42 +1787,42 @@ func (s *server) SlowRPC(ctx context.Context, req *pb.Request) (*pb.Response, er
 }
 ```
 
-### アンチパターン 4: フィールド番号の変更
+### Anti-Pattern 4: Changing Field Numbers
 
 ```protobuf
-// BAD: 既存フィールドの番号を変更（後方互換性が壊れる）
+// BAD: changing the number of an existing field (breaks backward compatibility)
 // Before:
 message User {
   string name = 1;
   string email = 2;
 }
-// After (壊れる):
+// After (broken):
 message User {
-  string email = 1;  // 番号変更 → 既存クライアントが壊れる
+  string email = 1;  // number changed → existing clients break
   string name = 2;
 }
 
-// GOOD: 新フィールドは新番号で追加
+// GOOD: add new fields with new numbers
 message User {
   string name = 1;
   string email = 2;
-  string phone = 3;  // 新規フィールドは次の番号
-  reserved 4;        // 削除したフィールドの番号は予約
+  string phone = 3;  // new fields get the next available number
+  reserved 4;        // reserve the numbers of deleted fields
 }
 ```
 
-### アンチパターン 5: Unimplemented メソッドの放置
+### Anti-Pattern 5: Leaving Unimplemented Methods
 
 ```go
-// BAD: UnimplementedServerをそのまま埋め込むだけ
+// BAD: simply embedding UnimplementedServer and nothing more
 type myServer struct {
     pb.UnimplementedMyServiceServer
 }
-// 未実装のメソッドが呼ばれるとUnimplementedエラーが返る
-// → 本番で気づかない
+// Unimplemented methods return an Unimplemented error when called
+// → you may not notice in production
 
-// GOOD: mustEmbedUnimplemented で未実装を検出
-// もしくは全メソッドを明示的に実装し、未対応のものはエラーを返す
+// GOOD: use mustEmbedUnimplemented to detect unimplemented methods,
+// or explicitly implement every method and return an error for those not yet supported.
 func (s *myServer) NotYetImplemented(ctx context.Context, req *pb.Request) (*pb.Response, error) {
     return nil, status.Error(codes.Unimplemented,
         "NotYetImplemented is not yet available, planned for v2.0")
@@ -1833,64 +1833,64 @@ func (s *myServer) NotYetImplemented(ctx context.Context, req *pb.Request) (*pb.
 
 ## 11. FAQ
 
-### Q1: gRPCはいつ選ぶべきか？
+### Q1: When should I choose gRPC?
 
-マイクロサービス間通信、低レイテンシが必要な内部API、ストリーミングが必要な場面で選ぶ。外部公開APIにはREST（またはgRPC-Gateway併用）が適切。
+Choose gRPC for microservice-to-microservice communication, internal APIs that require low latency, and situations where streaming is needed. REST (or REST combined with gRPC-Gateway) is more appropriate for public, externally exposed APIs.
 
-判断基準:
-- **gRPC適**: マイクロサービス間、高スループット、型安全性重視、ストリーミング必要
-- **REST適**: 外部公開API、ブラウザ直接通信、シンプルなCRUD、既存システム統合
-- **両方**: gRPC-Gatewayで内部はgRPC、外部はRESTを提供
+Decision criteria:
+- **gRPC fits**: inter-microservice communication, high throughput, strong emphasis on type safety, streaming required
+- **REST fits**: public external APIs, direct browser communication, simple CRUD, integration with existing systems
+- **Both**: use gRPC-Gateway to provide gRPC internally and REST externally
 
-### Q2: Protocol Buffersのバージョン互換性は？
+### Q2: What about Protocol Buffers version compatibility?
 
-フィールド番号を変更しない限り後方互換。新フィールド追加は安全。フィールド削除は`reserved`で番号を予約する。これによりローリングアップデートが可能。
+Backward compatibility is preserved as long as you do not change existing field numbers. Adding new fields is safe. When deleting a field, reserve its number with `reserved` so it cannot be reused. This enables rolling updates.
 
-互換性ルール:
-- フィールド追加: 安全（旧クライアントはデフォルト値で受信）
-- フィールド削除: `reserved`で番号予約すれば安全
-- フィールド型変更: 非互換（新しい番号でフィールドを追加）
-- enum値追加: 安全（旧クライアントは未知値として扱う）
-- サービスメソッド追加: 安全
+Compatibility rules:
+- Adding a field: safe (old clients receive the default value)
+- Deleting a field: safe if the number is reserved with `reserved`
+- Changing a field's type: incompatible (add a new field with a new number instead)
+- Adding an enum value: safe (old clients treat it as unknown)
+- Adding a service method: safe
 
-### Q3: gRPCのテストはどう書くか？
+### Q3: How do I write gRPC tests?
 
-`bufconn`パッケージでインメモリ接続を作成し、実際のgRPCサーバーをテスト内で起動する。ネットワーク不要で高速にテスト可能。インターセプタのテストも含められる。
+Use the `bufconn` package to create an in-memory connection and start the actual gRPC server inside your tests. This allows fast testing without real network I/O and lets you test interceptors as well.
 
-テスト戦略:
-1. **単体テスト**: bufconnでサーバー+クライアントをテスト
-2. **インテグレーションテスト**: 実際のサーバーを起動してテスト
-3. **モック**: mockgenでクライアントインターフェースのモックを生成
-4. **E2Eテスト**: grpcurl等で手動テスト
+Testing strategy:
+1. **Unit tests**: test server and client together using bufconn
+2. **Integration tests**: start a real server and test against it
+3. **Mocks**: generate client interface mocks with mockgen
+4. **E2E tests**: manual testing with tools such as grpcurl
 
-### Q4: gRPC-Gatewayとgrpc-webとConnectの違いは？
+### Q4: What is the difference between gRPC-Gateway, grpc-web, and Connect?
 
-- **gRPC-Gateway**: gRPCをREST/JSONに変換するリバースプロキシ。別プロセスとして動作
-- **grpc-web**: ブラウザからgRPCを呼び出すためのプロトコル。Envoyプロキシが必要
-- **Connect**: Buf社のRPCフレームワーク。gRPC/gRPC-Web/Connectプロトコルを1つのハンドラで対応。プロキシ不要
+- **gRPC-Gateway**: a reverse proxy that converts gRPC into REST/JSON. Runs as a separate process.
+- **grpc-web**: a protocol for calling gRPC from browsers. Requires an Envoy proxy.
+- **Connect**: Buf's RPC framework. Supports the gRPC, gRPC-Web, and Connect protocols through a single handler. No proxy required.
 
-### Q5: gRPCのパフォーマンスチューニングは？
+### Q5: How do I tune gRPC performance?
 
-1. **KeepAlive設定**: 接続の再利用でレイテンシ削減
-2. **メッセージサイズ制限**: 適切なサイズ制限で安全性確保
-3. **コネクションプール**: 複数の接続を使って並列処理
-4. **圧縮**: gzip圧縮でネットワーク帯域削減
-5. **ストリーミング**: 大量データはストリーミングで分割送信
-6. **サーバーリフレクション**: 本番では無効にしてセキュリティ向上
+1. **KeepAlive settings**: reduce latency by reusing connections
+2. **Message size limits**: enforce sensible size limits for safety
+3. **Connection pooling**: use multiple connections to process in parallel
+4. **Compression**: use gzip compression to save bandwidth
+5. **Streaming**: split large data and send it via streaming
+6. **Server reflection**: disable it in production to improve security
 
-### Q6: grpcurl の使い方は？
+### Q6: How do I use grpcurl?
 
 ```bash
-# サービス一覧
+# List services
 grpcurl -plaintext localhost:50051 list
 
-# メソッド一覧
+# List methods
 grpcurl -plaintext localhost:50051 list user.v1.UserService
 
-# Unary RPC呼び出し
+# Call a Unary RPC
 grpcurl -plaintext -d '{"id": 1}' localhost:50051 user.v1.UserService/GetUser
 
-# メタデータ付き
+# With metadata
 grpcurl -plaintext \
   -H 'Authorization: Bearer token123' \
   -d '{"name": "Test", "email": "test@example.com"}' \
@@ -1906,48 +1906,48 @@ grpcurl -plaintext -d '{"user_ids": [1, 2, 3]}' \
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the single most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens when you go beyond theory and actually write code to verify how it behaves.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What mistakes do beginners commonly make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping into advanced topics. We recommend firmly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in real-world practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-| 概念 | 要点 |
-|------|------|
-| Protocol Buffers | .protoからGo/他言語のコードを自動生成 |
-| Unary RPC | 1リクエスト→1レスポンス。基本パターン |
-| Server Streaming | サーバーから連続レスポンス。リアルタイム通知 |
-| Client Streaming | クライアントから連続リクエスト。バッチ処理 |
-| Bidirectional | 双方向リアルタイム通信。チャット等 |
-| Interceptor | gRPC版ミドルウェア。認証、ロギング、リカバリ |
-| Status Code | 独自コード体系。エラー詳細はWithDetailsで付与 |
-| gRPC-Gateway | REST API自動変換。外部公開との共存 |
-| FieldMask | 部分更新パターン。帯域削減 |
-| bufconn | インメモリテスト。高速・ネットワーク不要 |
-| ヘルスチェック | grpc_health_v1。ロードバランサ連携 |
-| Graceful Shutdown | GracefulStop()で安全な停止 |
+The knowledge in this topic is frequently applied in day-to-day development work. It becomes especially important during code reviews and architectural design.
 
 ---
 
-## 次に読むべきガイド
+## Summary
 
-- [04-testing.md](./04-testing.md) -- テスト
-- [../03-tools/03-deployment.md](../03-tools/03-deployment.md) -- デプロイ
+| Concept | Key point |
+|---------|-----------|
+| Protocol Buffers | Automatically generate Go (and other languages) code from .proto |
+| Unary RPC | One request to one response. The basic pattern. |
+| Server Streaming | Continuous responses from the server. Real-time notifications. |
+| Client Streaming | Continuous requests from the client. Batch processing. |
+| Bidirectional | Bidirectional real-time communication. Chat and similar use cases. |
+| Interceptor | The gRPC equivalent of middleware. Authentication, logging, recovery. |
+| Status Code | Its own code system. Attach error details with WithDetails. |
+| gRPC-Gateway | Automatic REST API conversion. Coexistence with external-facing APIs. |
+| FieldMask | The partial update pattern. Reduces bandwidth. |
+| bufconn | In-memory testing. Fast and requires no network. |
+| Health check | grpc_health_v1. Integrates with load balancers. |
+| Graceful Shutdown | Safely stop the server with GracefulStop(). |
+
+---
+
+## Recommended Next Guides
+
+- [04-testing.md](./04-testing.md) -- Testing
+- [../03-tools/03-deployment.md](../03-tools/03-deployment.md) -- Deployment
 - [../01-concurrency/03-context.md](../01-concurrency/03-context.md) -- Context
 
 ---
 
-## 参考文献
+## References
 
 1. **gRPC Go** -- https://grpc.io/docs/languages/go/
 2. **Protocol Buffers Language Guide** -- https://protobuf.dev/programming-guides/proto3/
@@ -1957,4 +1957,3 @@ grpcurl -plaintext -d '{"user_ids": [1, 2, 3]}' \
 6. **Google API Design Guide** -- https://cloud.google.com/apis/design
 7. **gRPC Status Codes** -- https://grpc.github.io/grpc/core/md_doc_statuscodes.html
 8. **grpcurl** -- https://github.com/fullstorydev/grpcurl
-9. **go-grpc-middleware** -- https://github.com/grpc-ecosystem/go-grpc-middleware
