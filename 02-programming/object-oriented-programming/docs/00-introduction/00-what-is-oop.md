@@ -1,116 +1,116 @@
-# OOPとは何か
+# What is OOP?
 
-> オブジェクト指向プログラミング（OOP）は「データとそれを操作する手続きを一つの単位（オブジェクト）にまとめる」プログラミングパラダイム。現実世界のモデリングから大規模ソフトウェアの構造化まで、最も広く使われている設計手法。
+> Object-Oriented Programming (OOP) is a programming paradigm that "bundles data and the procedures that operate on it into a single unit (an object)." It is the most widely used design approach, ranging from modeling the real world to structuring large-scale software.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] OOPの本質的な考え方を理解する
-- [ ] オブジェクトとメッセージパッシングの関係を把握する
-- [ ] OOPが解決する問題と適用領域を理解する
-- [ ] OOPの基本原則が実際のコードにどう反映されるかを体験する
-- [ ] 複数言語でのOOP実装の違いを比較する
+- [ ] Understand the essential ideas behind OOP
+- [ ] Grasp the relationship between objects and message passing
+- [ ] Understand the problems OOP solves and where it applies
+- [ ] Experience how OOP's core principles are reflected in real code
+- [ ] Compare how OOP is implemented across multiple languages
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Reading this guide will be easier if you have the following background:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
+- Basic programming knowledge
+- Understanding of related foundational concepts
 
 ---
 
-## 1. OOPの本質
+## 1. The Essence of OOP
 
 ```
-プログラミングパラダイムの比較:
+Comparison of programming paradigms:
 
-  手続き型:    データ + 関数（別々に管理）
-  OOP:        データ + 関数 = オブジェクト（一体化）
-  関数型:     関数（データ変換のパイプライン）
+  Procedural:  data + functions (managed separately)
+  OOP:         data + functions = object (integrated)
+  Functional:  functions (pipelines that transform data)
 
-OOPの核心:
-  「世界をオブジェクトの集まりとして捉え、
-   オブジェクト間のメッセージのやり取りで処理を進める」
+The core of OOP:
+  "View the world as a collection of objects
+   and advance processing through messages exchanged between them."
 
-Alan Kayの定義（Smalltalk の設計者）:
-  1. Everything is an object（すべてはオブジェクト）
-  2. Objects communicate by sending messages（メッセージで通信）
-  3. Objects have their own memory（独自のメモリを持つ）
-  4. Every object is an instance of a class（クラスのインスタンス）
-  5. The class holds shared behavior（クラスが共通の振る舞いを保持）
+Alan Kay's definition (designer of Smalltalk):
+  1. Everything is an object
+  2. Objects communicate by sending messages
+  3. Objects have their own memory
+  4. Every object is an instance of a class
+  5. The class holds shared behavior
 ```
 
-### 1.1 OOPの定義を深掘りする
+### 1.1 A Deeper Look at the Definition of OOP
 
-OOPの定義は時代と論者によって異なる。大きく分けて2つの流派がある。
-
-```
-Scandinavian School（スカンジナビア学派）:
-  → Simula から派生
-  → クラス、継承、静的型付けを重視
-  → C++, Java, C# に受け継がれる
-  → 「OOP = クラスベースのプログラミング」
-
-American School（アメリカ学派）:
-  → Smalltalk から派生
-  → メッセージパッシング、動的型付けを重視
-  → Ruby, Python, Objective-C に受け継がれる
-  → 「OOP = オブジェクト間のメッセージング」
-
-現代の統合的理解:
-  → どちらか一方ではなく、両方の要素を組み合わせる
-  → TypeScript, Kotlin, Swift は両方の長所を取り入れている
-```
-
-### 1.2 OOPを支える4つの柱
-
-OOPには4つの基本原則がある。これらは後続の章で詳しく扱うが、ここで概要を押さえておく。
+The definition of OOP varies across eras and authors. There are two major schools of thought.
 
 ```
-4つの柱（Four Pillars of OOP）:
+Scandinavian School:
+  -> Derived from Simula
+  -> Emphasizes classes, inheritance, and static typing
+  -> Inherited by C++, Java, and C#
+  -> "OOP = class-based programming"
 
-  1. カプセル化（Encapsulation）
-     → データと振る舞いを1つの単位にまとめる
-     → 内部実装を隠蔽し、公開APIのみを提供する
-     → 変更の影響範囲を限定する
+American School:
+  -> Derived from Smalltalk
+  -> Emphasizes message passing and dynamic typing
+  -> Inherited by Ruby, Python, and Objective-C
+  -> "OOP = messaging between objects"
 
-  2. 継承（Inheritance）
-     → 既存クラスの機能を引き継いで新しいクラスを作る
-     → コードの再利用を促進する
-     → is-a 関係を表現する
+Modern integrated understanding:
+  -> Rather than choosing one, combine elements of both
+  -> TypeScript, Kotlin, and Swift incorporate the strengths of both
+```
 
-  3. ポリモーフィズム（Polymorphism）
-     → 同じインターフェースで異なる実装を呼び出す
-     → 実行時に適切なメソッドが選択される
-     → 柔軟で拡張可能なコードを実現する
+### 1.2 The Four Pillars That Support OOP
 
-  4. 抽象化（Abstraction）
-     → 複雑な詳細を隠し、本質的な特徴のみを表現する
-     → 抽象クラスやインターフェースで契約を定義する
-     → 利用者が知る必要のない複雑さを隠す
+OOP has four fundamental principles. They will be covered in detail in later chapters, but let's get an overview here.
+
+```
+Four Pillars of OOP:
+
+  1. Encapsulation
+     -> Bundle data and behavior into a single unit
+     -> Hide internal implementation and expose only a public API
+     -> Limit the scope of change impact
+
+  2. Inheritance
+     -> Build new classes by inheriting functionality from existing ones
+     -> Promote code reuse
+     -> Express is-a relationships
+
+  3. Polymorphism
+     -> Invoke different implementations through the same interface
+     -> The appropriate method is selected at runtime
+     -> Enables flexible and extensible code
+
+  4. Abstraction
+     -> Hide complex details and expose only essential characteristics
+     -> Define contracts with abstract classes or interfaces
+     -> Conceal complexity that users don't need to know about
 ```
 
 ```typescript
-// TypeScript: 4つの柱を1つの例で示す
+// TypeScript: demonstrating the four pillars in a single example
 
-// 抽象化: 共通のインターフェースを定義
+// Abstraction: define a shared interface
 interface Shape {
   area(): number;
   perimeter(): number;
   describe(): string;
 }
 
-// カプセル化: 内部データを隠蔽
+// Encapsulation: hide internal data
 class Circle implements Shape {
   private readonly _radius: number;
 
   constructor(radius: number) {
-    if (radius <= 0) throw new Error("半径は正の数である必要があります");
+    if (radius <= 0) throw new Error("Radius must be a positive number");
     this._radius = radius;
   }
 
-  // ポリモーフィズム: Shape インターフェースの実装
+  // Polymorphism: implementation of the Shape interface
   area(): number {
     return Math.PI * this._radius ** 2;
   }
@@ -120,7 +120,7 @@ class Circle implements Shape {
   }
 
   describe(): string {
-    return `円（半径: ${this._radius}）`;
+    return `Circle (radius: ${this._radius})`;
   }
 
   get radius(): number {
@@ -128,14 +128,14 @@ class Circle implements Shape {
   }
 }
 
-// 継承 + ポリモーフィズム
+// Inheritance + polymorphism
 class Rectangle implements Shape {
   constructor(
     private readonly width: number,
     private readonly height: number,
   ) {
     if (width <= 0 || height <= 0) {
-      throw new Error("幅と高さは正の数である必要があります");
+      throw new Error("Width and height must be positive numbers");
     }
   }
 
@@ -148,25 +148,25 @@ class Rectangle implements Shape {
   }
 
   describe(): string {
-    return `長方形（幅: ${this.width}, 高さ: ${this.height}）`;
+    return `Rectangle (width: ${this.width}, height: ${this.height})`;
   }
 }
 
-// 継承: Rectangle を拡張
+// Inheritance: extend Rectangle
 class Square extends Rectangle {
   constructor(side: number) {
     super(side, side);
   }
 
   describe(): string {
-    return `正方形（辺: ${this.perimeter() / 4}）`;
+    return `Square (side: ${this.perimeter() / 4})`;
   }
 }
 
-// ポリモーフィズム: 異なる型を同じインターフェースで扱う
+// Polymorphism: handle different types through the same interface
 function printShapeInfo(shapes: Shape[]): void {
   for (const shape of shapes) {
-    console.log(`${shape.describe()} - 面積: ${shape.area().toFixed(2)}`);
+    console.log(`${shape.describe()} - area: ${shape.area().toFixed(2)}`);
   }
 }
 
@@ -180,92 +180,92 @@ printShapeInfo(shapes);
 
 ---
 
-## 2. メンタルモデル
+## 2. Mental Model
 
 ```
-手続き型のメンタルモデル:
-  「手順書」— 上から順に実行する命令の列
+Procedural mental model:
+  "A procedure manual" — a sequence of instructions executed top-down
 
-  1. ユーザー情報を取得する
-  2. バリデーションする
-  3. データベースに保存する
-  4. メールを送信する
+  1. Retrieve user information
+  2. Validate it
+  3. Save it to the database
+  4. Send an email
 
-OOPのメンタルモデル:
-  「役割を持つ人々の組織」— 各人が責任を持って仕事する
+OOP mental model:
+  "An organization of people with roles" — each person executes their responsibility
 
   ┌─────────┐    ┌──────────┐    ┌──────────┐
-  │  User    │───→│ Validator│───→│ Database │
-  │ (データ) │    │ (検証)   │    │ (保存)   │
+  │  User    │───>│ Validator│───>│ Database │
+  │ (data)   │    │ (verify) │    │ (save)   │
   └─────────┘    └──────────┘    └──────────┘
        │                              │
        │         ┌──────────┐         │
-       └────────→│ Mailer   │←────────┘
-                 │ (通知)   │
+       └────────>│ Mailer   │<────────┘
+                 │ (notify) │
                  └──────────┘
 
-  各オブジェクトは:
-    - 自分のデータ（状態）を管理
-    - 自分の責任範囲の処理を実行
-    - 他のオブジェクトにメッセージ（メソッド呼び出し）を送る
+  Each object:
+    - Manages its own data (state)
+    - Executes operations within its scope of responsibility
+    - Sends messages (method calls) to other objects
 ```
 
-### 2.1 手続き型からOOPへの思考の転換
+### 2.1 Shifting Thinking from Procedural to OOP
 
-手続き型とOOPでは、問題に対するアプローチが根本的に異なる。以下に具体例で比較する。
+Procedural and OOP approaches differ fundamentally in how they tackle problems. Let's compare with a concrete example.
 
 ```python
-# === 手続き型アプローチ: ユーザー登録処理 ===
+# === Procedural approach: user registration ===
 
-# データは辞書で管理
+# Data managed as a dictionary
 users_db = []
 
 def validate_email(email: str) -> bool:
-    """メールアドレスの妥当性チェック"""
+    """Check email validity"""
     return "@" in email and "." in email.split("@")[1]
 
 def validate_password(password: str) -> bool:
-    """パスワードの妥当性チェック"""
+    """Check password validity"""
     return len(password) >= 8
 
 def hash_password(password: str) -> str:
-    """パスワードのハッシュ化"""
+    """Hash the password"""
     import hashlib
     return hashlib.sha256(password.encode()).hexdigest()
 
 def register_user(name: str, email: str, password: str) -> dict:
-    """ユーザー登録の手順を逐次実行"""
-    # 手順1: バリデーション
+    """Execute user registration steps sequentially"""
+    # Step 1: validation
     if not validate_email(email):
-        raise ValueError("無効なメールアドレス")
+        raise ValueError("Invalid email address")
     if not validate_password(password):
-        raise ValueError("パスワードは8文字以上")
+        raise ValueError("Password must be at least 8 characters")
 
-    # 手順2: 重複チェック
+    # Step 2: duplicate check
     for user in users_db:
         if user["email"] == email:
-            raise ValueError("既に登録済みのメールアドレス")
+            raise ValueError("Email is already registered")
 
-    # 手順3: ユーザー作成
+    # Step 3: create the user
     user = {
         "name": name,
         "email": email,
         "password_hash": hash_password(password),
     }
 
-    # 手順4: 保存
+    # Step 4: persist
     users_db.append(user)
     return user
 
-# 問題点:
-# - データ（users_db）と関数が分離している
-# - グローバル状態に依存
-# - テストが困難（users_db のリセットが必要）
-# - 機能追加時に関数がどんどん増える
+# Issues:
+# - Data (users_db) and functions are separated
+# - Depends on global state
+# - Hard to test (users_db has to be reset)
+# - The number of functions grows as features are added
 ```
 
 ```python
-# === OOPアプローチ: ユーザー登録処理 ===
+# === OOP approach: user registration ===
 
 import hashlib
 from dataclasses import dataclass, field
@@ -273,10 +273,10 @@ from typing import Optional
 
 
 class EmailAddress:
-    """メールアドレス値オブジェクト: バリデーションを内包"""
+    """Email address value object: validation is internalized"""
     def __init__(self, value: str):
         if "@" not in value or "." not in value.split("@")[1]:
-            raise ValueError(f"無効なメールアドレス: {value}")
+            raise ValueError(f"Invalid email address: {value}")
         self._value = value
 
     @property
@@ -296,10 +296,10 @@ class EmailAddress:
 
 
 class Password:
-    """パスワード値オブジェクト: ハッシュ化を内包"""
+    """Password value object: hashing is internalized"""
     def __init__(self, plain_text: str):
         if len(plain_text) < 8:
-            raise ValueError("パスワードは8文字以上必要です")
+            raise ValueError("Password must be at least 8 characters")
         self._hash = hashlib.sha256(plain_text.encode()).hexdigest()
 
     @property
@@ -311,7 +311,7 @@ class Password:
 
 
 class User:
-    """ユーザーエンティティ: データと振る舞いを統合"""
+    """User entity: integrates data and behavior"""
     def __init__(self, name: str, email: EmailAddress, password: Password):
         self._name = name
         self._email = email
@@ -326,12 +326,12 @@ class User:
         return self._email
 
     def authenticate(self, plain_password: str) -> bool:
-        """認証はユーザー自身の責任"""
+        """Authentication is the user's own responsibility"""
         return self._password.verify(plain_password)
 
 
 class UserRepository:
-    """ユーザーリポジトリ: データの永続化を担当"""
+    """User repository: handles persistence"""
     def __init__(self):
         self._users: list[User] = []
 
@@ -343,7 +343,7 @@ class UserRepository:
 
     def save(self, user: User) -> None:
         if self.find_by_email(user.email) is not None:
-            raise ValueError("既に登録済みのメールアドレス")
+            raise ValueError("Email is already registered")
         self._users.append(user)
 
     @property
@@ -352,67 +352,67 @@ class UserRepository:
 
 
 class UserRegistrationService:
-    """ユーザー登録サービス: ユースケースを調整"""
+    """User registration service: orchestrates the use case"""
     def __init__(self, repository: UserRepository):
         self._repository = repository
 
     def register(self, name: str, email_str: str, password_str: str) -> User:
-        # 各オブジェクトが自分の責任範囲のバリデーションを行う
-        email = EmailAddress(email_str)        # メール形式チェック
-        password = Password(password_str)      # パスワード強度チェック
-        user = User(name, email, password)     # ユーザー生成
-        self._repository.save(user)            # 永続化（重複チェック含む）
+        # Each object validates within its own area of responsibility
+        email = EmailAddress(email_str)        # check email format
+        password = Password(password_str)      # check password strength
+        user = User(name, email, password)     # create the user
+        self._repository.save(user)            # persist (includes duplicate check)
         return user
 
 
-# 利点:
-# - 各クラスが明確な責任を持つ
-# - バリデーションがデータと一体化
-# - テスト容易（リポジトリをモックに差し替え可能）
-# - 機能追加がクラス単位で管理できる
+# Benefits:
+# - Each class has a clear responsibility
+# - Validation is integrated with data
+# - Easy to test (the repository can be swapped with a mock)
+# - Features can be managed on a per-class basis
 ```
 
-### 2.2 現実世界のアナロジー
+### 2.2 Analogies from the Real World
 
-OOPの概念を理解する上で、現実世界のアナロジーが役立つ。
+Analogies to the real world are useful for understanding OOP concepts.
 
 ```
-レストランのアナロジー:
+Restaurant analogy:
 
-  手続き型的思考:
-    1. お客さんが来店する
-    2. メニューを見せる
-    3. 注文を取る
-    4. 注文をキッチンに伝える
-    5. 料理を作る
-    6. 料理を運ぶ
-    7. 会計する
-    → すべての手順を1つのスクリプトで管理
+  Procedural thinking:
+    1. A customer arrives
+    2. Show them the menu
+    3. Take the order
+    4. Pass the order to the kitchen
+    5. Cook the food
+    6. Deliver the food
+    7. Handle payment
+    -> Manage every step in a single script
 
-  OOP的思考:
+  OOP thinking:
     ┌──────────┐    ┌──────────┐    ┌──────────┐
-    │ Customer │───→│ Waiter   │───→│ Kitchen  │
-    │ 注文する │    │ 取り次ぐ │    │ 調理する │
+    │ Customer │───>│ Waiter   │───>│ Kitchen  │
+    │ orders   │    │ relays   │    │ cooks    │
     └──────────┘    └──────────┘    └──────────┘
          │                              │
          │         ┌──────────┐         │
-         └────────→│ Cashier  │←────────┘
-                   │ 会計する │
+         └────────>│ Cashier  │<────────┘
+                   │ charges  │
                    └──────────┘
 
-    各オブジェクト（人）が自分の責任を遂行する:
-    - Customer: メニューを選ぶ、食べる、支払う
-    - Waiter: 注文を取る、料理を運ぶ
-    - Kitchen: 注文に基づいて料理を作る
-    - Cashier: 合計を計算して会計する
+    Each object (person) carries out its own responsibilities:
+    - Customer: chooses from the menu, eats, pays
+    - Waiter: takes orders, delivers food
+    - Kitchen: cooks dishes based on orders
+    - Cashier: calculates totals and handles payment
 
-    → 新しいメニューが増えても Kitchen だけ変更
-    → 支払い方法が変わっても Cashier だけ変更
-    → 変更の影響範囲が限定される
+    -> Adding a new menu item only changes the Kitchen
+    -> Changing payment methods only changes the Cashier
+    -> The scope of change is limited
 ```
 
 ```typescript
-// TypeScript: レストランのアナロジーをコードで表現
+// TypeScript: expressing the restaurant analogy in code
 
 interface MenuItem {
   name: string;
@@ -426,7 +426,7 @@ class Order {
 
   addItem(item: MenuItem): void {
     if (this._status !== "pending") {
-      throw new Error("注文確定後は追加できません");
+      throw new Error("Cannot add items after the order is confirmed");
     }
     this._items.push(item);
   }
@@ -436,7 +436,7 @@ class Order {
   }
 
   get items(): ReadonlyArray<MenuItem> {
-    return [...this._items]; // 防衛的コピー
+    return [...this._items]; // defensive copy
   }
 
   get status(): string {
@@ -445,7 +445,7 @@ class Order {
 
   confirm(): void {
     if (this._items.length === 0) {
-      throw new Error("空の注文は確定できません");
+      throw new Error("Cannot confirm an empty order");
     }
     this._status = "preparing";
   }
@@ -480,14 +480,14 @@ class Kitchen {
   receiveOrder(order: Order): void {
     order.confirm();
     this._queue.push(order);
-    console.log(`キッチン: 注文を受け付けました（${order.items.length}品）`);
+    console.log(`Kitchen: order accepted (${order.items.length} items)`);
   }
 
   prepareNext(): Order | null {
     const order = this._queue.shift();
     if (order) {
       order.markReady();
-      console.log("キッチン: 料理が完成しました");
+      console.log("Kitchen: the dish is ready");
     }
     return order ?? null;
   }
@@ -509,12 +509,12 @@ class Waiter {
       order.addItem(item);
     }
     this.kitchen.receiveOrder(order);
-    console.log(`${this.name}: ${customer.name}様の注文を受け付けました`);
+    console.log(`${this.name}: received order from ${customer.name}`);
   }
 
   serveOrder(order: Order): void {
     order.markServed();
-    console.log(`${this.name}: 料理をお持ちしました`);
+    console.log(`${this.name}: here is your food`);
   }
 }
 
@@ -526,7 +526,7 @@ class Cashier {
     const tax = Math.floor(total * 0.1);
     const grandTotal = total + tax;
     this._totalRevenue += grandTotal;
-    console.log(`会計: 小計 ${total}円 + 税 ${tax}円 = ${grandTotal}円`);
+    console.log(`Checkout: subtotal ${total} yen + tax ${tax} yen = ${grandTotal} yen`);
     return grandTotal;
   }
 
@@ -538,36 +538,36 @@ class Cashier {
 
 ---
 
-## 3. オブジェクトの3要素
+## 3. The Three Elements of an Object
 
 ```
-オブジェクト = 状態（State）+ 振る舞い（Behavior）+ アイデンティティ（Identity）
+Object = State + Behavior + Identity
 
   ┌─────────────────────────────────┐
   │        BankAccount              │
   ├─────────────────────────────────┤
-  │ 状態（State）:                   │
-  │   - owner: "田中太郎"           │
+  │ State:                          │
+  │   - owner: "Taro Tanaka"        │
   │   - balance: 100000             │
   │   - accountNumber: "1234567"    │
   ├─────────────────────────────────┤
-  │ 振る舞い（Behavior）:            │
+  │ Behavior:                       │
   │   - deposit(amount)             │
   │   - withdraw(amount)            │
   │   - getBalance()                │
   ├─────────────────────────────────┤
-  │ アイデンティティ（Identity）:     │
-  │   - メモリアドレス: 0x7ff...     │
-  │   - 同じ状態でも別のオブジェクト  │
+  │ Identity:                       │
+  │   - Memory address: 0x7ff...    │
+  │   - Same state != same object   │
   └─────────────────────────────────┘
 ```
 
-### 3.1 状態（State）の管理
+### 3.1 Managing State
 
-状態はオブジェクトが持つデータであり、時間とともに変化し得る。状態管理はOOPの最も重要な関心事の1つである。
+State is the data held by an object and can change over time. State management is one of OOP's most important concerns.
 
 ```typescript
-// TypeScript: 状態管理の実践例 - ECサイトのショッピングカート
+// TypeScript: practical example of state management - e-commerce shopping cart
 
 interface Product {
   readonly id: string;
@@ -582,20 +582,20 @@ interface CartItem {
 }
 
 class ShoppingCart {
-  // 状態: カート内の商品リスト
+  // State: list of products in the cart
   private _items: Map<string, CartItem> = new Map();
-  // 状態: カートの作成日時
+  // State: cart creation timestamp
   private readonly _createdAt: Date = new Date();
-  // 状態: 最終更新日時
+  // State: last-updated timestamp
   private _updatedAt: Date = new Date();
 
   /**
-   * 商品をカートに追加する
-   * ビジネスルール: 在庫を超える数量は追加できない
+   * Add a product to the cart
+   * Business rule: cannot add more than the available stock
    */
   addItem(product: Product, quantity: number = 1): void {
     if (quantity <= 0) {
-      throw new Error("数量は1以上である必要があります");
+      throw new Error("Quantity must be 1 or greater");
     }
 
     const existing = this._items.get(product.id);
@@ -604,7 +604,7 @@ class ShoppingCart {
 
     if (newQty > product.stock) {
       throw new Error(
-        `在庫不足: ${product.name}の在庫は${product.stock}個です`
+        `Insufficient stock: only ${product.stock} of ${product.name} are available`
       );
     }
 
@@ -613,11 +613,11 @@ class ShoppingCart {
   }
 
   /**
-   * 商品の数量を変更する
+   * Change the quantity of a product
    */
   updateQuantity(productId: string, quantity: number): void {
     if (quantity < 0) {
-      throw new Error("数量は0以上である必要があります");
+      throw new Error("Quantity must be 0 or greater");
     }
 
     if (quantity === 0) {
@@ -625,10 +625,10 @@ class ShoppingCart {
     } else {
       const item = this._items.get(productId);
       if (!item) {
-        throw new Error("カートに存在しない商品です");
+        throw new Error("Product is not in the cart");
       }
       if (quantity > item.product.stock) {
-        throw new Error("在庫を超える数量は指定できません");
+        throw new Error("Quantity cannot exceed available stock");
       }
       item.quantity = quantity;
     }
@@ -636,18 +636,18 @@ class ShoppingCart {
   }
 
   /**
-   * カート内の商品を削除する
+   * Remove a product from the cart
    */
   removeItem(productId: string): void {
     if (!this._items.has(productId)) {
-      throw new Error("カートに存在しない商品です");
+      throw new Error("Product is not in the cart");
     }
     this._items.delete(productId);
     this._updatedAt = new Date();
   }
 
   /**
-   * 小計を計算する
+   * Calculate the subtotal
    */
   get subtotal(): number {
     let total = 0;
@@ -658,14 +658,14 @@ class ShoppingCart {
   }
 
   /**
-   * 税込合計を計算する
+   * Calculate the total including tax
    */
   get totalWithTax(): number {
     return Math.floor(this.subtotal * 1.1);
   }
 
   /**
-   * カート内の商品数を返す
+   * Return the number of items in the cart
    */
   get itemCount(): number {
     let count = 0;
@@ -676,19 +676,19 @@ class ShoppingCart {
   }
 
   /**
-   * カートが空かどうかを返す
+   * Return whether the cart is empty
    */
   get isEmpty(): boolean {
     return this._items.size === 0;
   }
 
   /**
-   * カートの内容を表示する
+   * Display the cart contents
    */
   display(): string {
-    if (this.isEmpty) return "カートは空です";
+    if (this.isEmpty) return "The cart is empty";
 
-    const lines: string[] = ["=== ショッピングカート ==="];
+    const lines: string[] = ["=== Shopping Cart ==="];
     for (const item of this._items.values()) {
       const lineTotal = item.product.price * item.quantity;
       lines.push(
@@ -696,19 +696,19 @@ class ShoppingCart {
       );
     }
     lines.push("─".repeat(30));
-    lines.push(`小計: ¥${this.subtotal.toLocaleString()}`);
-    lines.push(`合計（税込）: ¥${this.totalWithTax.toLocaleString()}`);
+    lines.push(`Subtotal: ¥${this.subtotal.toLocaleString()}`);
+    lines.push(`Total (incl. tax): ¥${this.totalWithTax.toLocaleString()}`);
     return lines.join("\n");
   }
 }
 ```
 
-### 3.2 振る舞い（Behavior）の設計
+### 3.2 Designing Behavior
 
-振る舞いはオブジェクトが外部に提供する操作であり、オブジェクトの状態を安全に変更するための手段である。
+Behavior is the set of operations an object exposes to the outside world, serving as a means to change the object's state safely.
 
 ```python
-# Python: 振る舞いの設計 - タスク管理システム
+# Python: designing behavior - a task management system
 
 from datetime import datetime, timedelta
 from enum import Enum
@@ -731,15 +731,15 @@ class TaskStatus(Enum):
 
 
 class Task:
-    """タスク: 状態遷移のルールを振る舞いとして内包"""
+    """Task: state-transition rules are embedded as behavior"""
 
-    # 許可される状態遷移を定義
+    # Allowed state transitions
     _VALID_TRANSITIONS = {
         TaskStatus.TODO: {TaskStatus.IN_PROGRESS, TaskStatus.CANCELLED},
         TaskStatus.IN_PROGRESS: {TaskStatus.IN_REVIEW, TaskStatus.TODO, TaskStatus.CANCELLED},
         TaskStatus.IN_REVIEW: {TaskStatus.DONE, TaskStatus.IN_PROGRESS},
-        TaskStatus.DONE: set(),       # 完了後は変更不可
-        TaskStatus.CANCELLED: set(),  # キャンセル後は変更不可
+        TaskStatus.DONE: set(),       # cannot change after completion
+        TaskStatus.CANCELLED: set(),  # cannot change after cancellation
     }
 
     def __init__(
@@ -750,7 +750,7 @@ class Task:
         due_date: Optional[datetime] = None,
     ):
         if not title.strip():
-            raise ValueError("タイトルは必須です")
+            raise ValueError("Title is required")
 
         self._title = title
         self._description = description
@@ -760,7 +760,7 @@ class Task:
         self._created_at = datetime.now()
         self._updated_at = datetime.now()
         self._history: list[tuple[datetime, str]] = []
-        self._history.append((self._created_at, f"タスク作成: {title}"))
+        self._history.append((self._created_at, f"Task created: {title}"))
 
     @property
     def title(self) -> str:
@@ -776,7 +776,7 @@ class Task:
 
     @property
     def is_overdue(self) -> bool:
-        """期限切れかどうかを判定"""
+        """Determine whether the task is overdue"""
         if self._due_date is None:
             return False
         if self._status in (TaskStatus.DONE, TaskStatus.CANCELLED):
@@ -784,80 +784,80 @@ class Task:
         return datetime.now() > self._due_date
 
     def start(self) -> None:
-        """タスクを開始する"""
-        self._transition_to(TaskStatus.IN_PROGRESS, "タスク開始")
+        """Start the task"""
+        self._transition_to(TaskStatus.IN_PROGRESS, "Task started")
 
     def submit_for_review(self) -> None:
-        """レビュー依頼する"""
-        self._transition_to(TaskStatus.IN_REVIEW, "レビュー依頼")
+        """Submit for review"""
+        self._transition_to(TaskStatus.IN_REVIEW, "Submitted for review")
 
     def complete(self) -> None:
-        """タスクを完了する"""
-        self._transition_to(TaskStatus.DONE, "タスク完了")
+        """Complete the task"""
+        self._transition_to(TaskStatus.DONE, "Task completed")
 
     def cancel(self, reason: str = "") -> None:
-        """タスクをキャンセルする"""
-        self._transition_to(TaskStatus.CANCELLED, f"キャンセル: {reason}")
+        """Cancel the task"""
+        self._transition_to(TaskStatus.CANCELLED, f"Cancelled: {reason}")
 
     def send_back(self, reason: str = "") -> None:
-        """差し戻す（レビュー → 作業中）"""
-        self._transition_to(TaskStatus.IN_PROGRESS, f"差し戻し: {reason}")
+        """Send back (review -> in progress)"""
+        self._transition_to(TaskStatus.IN_PROGRESS, f"Sent back: {reason}")
 
     def update_priority(self, new_priority: Priority) -> None:
-        """優先度を変更する"""
+        """Change the priority"""
         old = self._priority
         self._priority = new_priority
-        self._record_change(f"優先度変更: {old.name} → {new_priority.name}")
+        self._record_change(f"Priority changed: {old.name} -> {new_priority.name}")
 
     def _transition_to(self, new_status: TaskStatus, message: str) -> None:
-        """状態遷移のルールを強制する"""
+        """Enforce state-transition rules"""
         valid = self._VALID_TRANSITIONS.get(self._status, set())
         if new_status not in valid:
             raise ValueError(
-                f"無効な状態遷移: {self._status.value} → {new_status.value}"
+                f"Invalid state transition: {self._status.value} -> {new_status.value}"
             )
         old_status = self._status
         self._status = new_status
-        self._record_change(f"{message} ({old_status.value} → {new_status.value})")
+        self._record_change(f"{message} ({old_status.value} -> {new_status.value})")
 
     def _record_change(self, message: str) -> None:
-        """変更履歴を記録する"""
+        """Record the change history"""
         now = datetime.now()
         self._updated_at = now
         self._history.append((now, message))
 
     def get_history(self) -> list[tuple[datetime, str]]:
-        """変更履歴を返す（防衛的コピー）"""
+        """Return the change history (defensive copy)"""
         return list(self._history)
 
     def __str__(self) -> str:
-        overdue = " [期限切れ]" if self.is_overdue else ""
+        overdue = " [overdue]" if self.is_overdue else ""
         return f"[{self._priority.name}] {self._title} ({self._status.value}){overdue}"
 
 
-# 使用例
-task = Task("ログイン機能の実装", priority=Priority.HIGH,
+# Usage example
+task = Task("Implement login feature", priority=Priority.HIGH,
             due_date=datetime.now() + timedelta(days=7))
-print(task)                    # [HIGH] ログイン機能の実装 (todo)
+print(task)                    # [HIGH] Implement login feature (todo)
 
 task.start()
-print(task)                    # [HIGH] ログイン機能の実装 (in_progress)
+print(task)                    # [HIGH] Implement login feature (in_progress)
 
 task.submit_for_review()
-print(task)                    # [HIGH] ログイン機能の実装 (in_review)
+print(task)                    # [HIGH] Implement login feature (in_review)
 
 task.complete()
-print(task)                    # [HIGH] ログイン機能の実装 (done)
+print(task)                    # [HIGH] Implement login feature (done)
 
-# task.start()  # ValueError: 無効な状態遷移: done → in_progress
+# task.start()  # ValueError: Invalid state transition: done -> in_progress
 ```
 
-### 3.3 アイデンティティ（Identity）の重要性
+### 3.3 The Importance of Identity
 
-アイデンティティは、同じ状態を持つ2つのオブジェクトを区別するための概念である。
+Identity is the concept used to distinguish two objects that share the same state.
 
 ```java
-// Java: アイデンティティと等価性（equality）の違い
+// Java: the difference between identity and equality
 
 public class Money {
     private final int amount;
@@ -868,14 +868,14 @@ public class Money {
         this.currency = currency;
     }
 
-    // 値オブジェクト: 状態が同じなら等価
+    // Value object: equal when state matches
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) return true;                    // アイデンティティ一致
+        if (this == obj) return true;                    // identity match
         if (obj == null || getClass() != obj.getClass()) return false;
         Money money = (Money) obj;
         return amount == money.amount
-            && Objects.equals(currency, money.currency); // 状態で比較
+            && Objects.equals(currency, money.currency); // compare by state
     }
 
     @Override
@@ -890,7 +890,7 @@ public class Money {
 }
 
 public class Customer {
-    private final String id;   // アイデンティティ: IDで区別
+    private final String id;   // identity: distinguished by ID
     private String name;
     private String email;
 
@@ -900,13 +900,13 @@ public class Customer {
         this.email = email;
     }
 
-    // エンティティ: IDが同じなら同一
+    // Entity: identical when IDs match
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         Customer customer = (Customer) obj;
-        return Objects.equals(id, customer.id);  // IDのみで比較
+        return Objects.equals(id, customer.id);  // compare by ID only
     }
 
     @Override
@@ -915,24 +915,24 @@ public class Customer {
     }
 }
 
-// 使用例:
-// Money: 同じ金額・通貨なら「等価」
+// Usage examples:
+// Money: "equal" when amount and currency match
 Money m1 = new Money(1000, "JPY");
 Money m2 = new Money(1000, "JPY");
-System.out.println(m1.equals(m2));   // true（値が同じなら等価）
-System.out.println(m1 == m2);        // false（異なるオブジェクト）
+System.out.println(m1.equals(m2));   // true (equal values)
+System.out.println(m1 == m2);        // false (different objects)
 
-// Customer: 同じIDなら「同一人物」
-Customer c1 = new Customer("C001", "田中", "tanaka@example.com");
-Customer c2 = new Customer("C001", "田中太郎", "t.tanaka@example.com");
-System.out.println(c1.equals(c2));   // true（IDが同じなら同一）
-// → 名前やメールが変わっても同一人物
+// Customer: "same person" when IDs match
+Customer c1 = new Customer("C001", "Tanaka", "tanaka@example.com");
+Customer c2 = new Customer("C001", "Taro Tanaka", "t.tanaka@example.com");
+System.out.println(c1.equals(c2));   // true (same ID -> same person)
+// -> Still the same person even if name or email changes
 ```
 
 ```typescript
-// TypeScript: エンティティと値オブジェクトの区別
+// TypeScript: distinguishing entities from value objects
 
-// 値オブジェクト: 状態で等価性を判定
+// Value object: equality determined by state
 class Address {
   constructor(
     public readonly prefecture: string,
@@ -955,7 +955,7 @@ class Address {
   }
 }
 
-// エンティティ: IDで同一性を判定
+// Entity: identity determined by ID
 class Employee {
   private _name: string;
   private _address: Address;
@@ -985,18 +985,18 @@ class Employee {
   }
 
   equals(other: Employee): boolean {
-    // 社員番号が同じなら同一人物
+    // Same employee when employee IDs match
     return this.employeeId === other.employeeId;
   }
 }
 ```
 
-### コード例
+### Code Example
 
 ```typescript
-// TypeScript: 銀行口座オブジェクト
+// TypeScript: a bank account object
 class BankAccount {
-  // 状態（State）
+  // State
   private owner: string;
   private balance: number;
   private readonly accountNumber: string;
@@ -1007,14 +1007,14 @@ class BankAccount {
     this.balance = initialBalance;
   }
 
-  // 振る舞い（Behavior）
+  // Behavior
   deposit(amount: number): void {
-    if (amount <= 0) throw new Error("入金額は正の数である必要があります");
+    if (amount <= 0) throw new Error("Deposit amount must be a positive number");
     this.balance += amount;
   }
 
   withdraw(amount: number): void {
-    if (amount > this.balance) throw new Error("残高不足");
+    if (amount > this.balance) throw new Error("Insufficient balance");
     this.balance -= amount;
   }
 
@@ -1023,14 +1023,14 @@ class BankAccount {
   }
 }
 
-// アイデンティティ: 同じ状態でも別のオブジェクト
-const account1 = new BankAccount("田中", "001", 10000);
-const account2 = new BankAccount("田中", "001", 10000);
-console.log(account1 === account2); // false（別のオブジェクト）
+// Identity: same state, still different objects
+const account1 = new BankAccount("Tanaka", "001", 10000);
+const account2 = new BankAccount("Tanaka", "001", 10000);
+console.log(account1 === account2); // false (different objects)
 ```
 
 ```python
-# Python: 同じ概念
+# Python: same concept
 class BankAccount:
     def __init__(self, owner: str, account_number: str, initial_balance: float = 0):
         self._owner = owner
@@ -1039,12 +1039,12 @@ class BankAccount:
 
     def deposit(self, amount: float) -> None:
         if amount <= 0:
-            raise ValueError("入金額は正の数である必要があります")
+            raise ValueError("Deposit amount must be a positive number")
         self._balance += amount
 
     def withdraw(self, amount: float) -> None:
         if amount > self._balance:
-            raise ValueError("残高不足")
+            raise ValueError("Insufficient balance")
         self._balance -= amount
 
     @property
@@ -1053,7 +1053,7 @@ class BankAccount:
 ```
 
 ```java
-// Java: 同じ概念
+// Java: same concept
 public class BankAccount {
     private String owner;
     private double balance;
@@ -1066,12 +1066,12 @@ public class BankAccount {
     }
 
     public void deposit(double amount) {
-        if (amount <= 0) throw new IllegalArgumentException("入金額は正の数");
+        if (amount <= 0) throw new IllegalArgumentException("Deposit must be positive");
         this.balance += amount;
     }
 
     public void withdraw(double amount) {
-        if (amount > this.balance) throw new IllegalStateException("残高不足");
+        if (amount > this.balance) throw new IllegalStateException("Insufficient balance");
         this.balance -= amount;
     }
 
@@ -1081,76 +1081,76 @@ public class BankAccount {
 
 ---
 
-## 4. メッセージパッシング
+## 4. Message Passing
 
 ```
-OOPの本質はメッセージパッシング:
+The essence of OOP is message passing:
 
-  手続き型的な考え方:
-    result = validate(user_data)    ← 関数にデータを渡す
+  Procedural way of thinking:
+    result = validate(user_data)    <- pass data to a function
 
-  OOP的な考え方:
-    result = validator.validate(user_data)  ← オブジェクトにメッセージを送る
+  OOP way of thinking:
+    result = validator.validate(user_data)  <- send a message to an object
 
-  違い:
-    手続き型: 「誰が」処理するか不明
-    OOP:     「validator」が責任を持って処理する
+  Difference:
+    Procedural: it is unclear "who" performs the work
+    OOP:        the "validator" is responsible for it
 
-  メッセージパッシングの利点:
-    1. 責任の所在が明確
-    2. 実装を差し替え可能（ポリモーフィズム）
-    3. テスト時にモックに差し替え可能
+  Benefits of message passing:
+    1. Clear ownership of responsibility
+    2. Implementations can be swapped (polymorphism)
+    3. Can be substituted with mocks during tests
 ```
 
-### 4.1 メッセージパッシングの実践
+### 4.1 Practicing Message Passing
 
-メッセージパッシングは単なるメソッド呼び出しではない。「オブジェクトに仕事を依頼する」という考え方である。
+Message passing is more than a plain method call. It expresses the idea of "requesting work from an object."
 
 ```typescript
-// TypeScript: メッセージパッシングの実践例 - 通知システム
+// TypeScript: practical example of message passing - a notification system
 
-// 通知を送る「能力」を定義
+// Define the "ability" to send a notification
 interface NotificationSender {
   send(recipient: string, message: string): Promise<boolean>;
   readonly channelName: string;
 }
 
-// メール通知
+// Email notification
 class EmailSender implements NotificationSender {
   readonly channelName = "Email";
 
   async send(recipient: string, message: string): Promise<boolean> {
-    console.log(`メール送信: ${recipient} → ${message}`);
-    // 実際にはSMTPサーバーに接続して送信
+    console.log(`Send email: ${recipient} -> ${message}`);
+    // In reality, this would connect to an SMTP server
     return true;
   }
 }
 
-// Slack通知
+// Slack notification
 class SlackSender implements NotificationSender {
   readonly channelName = "Slack";
 
   constructor(private readonly webhookUrl: string) {}
 
   async send(recipient: string, message: string): Promise<boolean> {
-    console.log(`Slack送信: ${recipient} → ${message}`);
-    // 実際にはwebhook APIを呼び出して送信
+    console.log(`Send Slack: ${recipient} -> ${message}`);
+    // In reality, this would call a webhook API
     return true;
   }
 }
 
-// SMS通知
+// SMS notification
 class SmsSender implements NotificationSender {
   readonly channelName = "SMS";
 
   async send(recipient: string, message: string): Promise<boolean> {
-    console.log(`SMS送信: ${recipient} → ${message}`);
-    // 実際にはSMS APIを呼び出して送信
+    console.log(`Send SMS: ${recipient} -> ${message}`);
+    // In reality, this would call an SMS API
     return true;
   }
 }
 
-// 通知サービス: 送信者を差し替え可能
+// Notification service: senders can be swapped
 class NotificationService {
   private senders: NotificationSender[] = [];
 
@@ -1161,33 +1161,33 @@ class NotificationService {
   async notifyAll(recipient: string, message: string): Promise<void> {
     for (const sender of this.senders) {
       try {
-        // メッセージパッシング: 各 sender に「送って」とメッセージを送る
+        // Message passing: tell each sender to "send"
         const success = await sender.send(recipient, message);
         if (success) {
-          console.log(`${sender.channelName}: 送信成功`);
+          console.log(`${sender.channelName}: send succeeded`);
         }
       } catch (error) {
-        console.error(`${sender.channelName}: 送信失敗`);
+        console.error(`${sender.channelName}: send failed`);
       }
     }
   }
 }
 
-// 利用例
+// Usage
 const service = new NotificationService();
 service.addSender(new EmailSender());
 service.addSender(new SlackSender("https://hooks.slack.com/..."));
 service.addSender(new SmsSender());
 
-// 同じメッセージを全チャネルに送信
-// 各 sender が自分の方法で処理する（ポリモーフィズム）
-await service.notifyAll("user@example.com", "サーバーアラート発生");
+// Send the same message across all channels
+// Each sender handles it in its own way (polymorphism)
+await service.notifyAll("user@example.com", "Server alert triggered");
 ```
 
-### 4.2 メッセージパッシングとポリモーフィズムの関係
+### 4.2 The Relationship Between Message Passing and Polymorphism
 
 ```python
-# Python: メッセージパッシングがポリモーフィズムを実現する
+# Python: message passing enables polymorphism
 
 from abc import ABC, abstractmethod
 from typing import BinaryIO
@@ -1197,21 +1197,21 @@ import io
 
 
 class DataExporter(ABC):
-    """データエクスポーターの抽象基底クラス"""
+    """Abstract base class for data exporters"""
 
     @abstractmethod
     def export(self, data: list[dict]) -> str:
-        """データをエクスポートする"""
+        """Export data"""
         pass
 
     @abstractmethod
     def file_extension(self) -> str:
-        """ファイル拡張子を返す"""
+        """Return the file extension"""
         pass
 
 
 class JsonExporter(DataExporter):
-    """JSON形式でエクスポート"""
+    """Export as JSON"""
 
     def export(self, data: list[dict]) -> str:
         return json.dumps(data, ensure_ascii=False, indent=2)
@@ -1221,7 +1221,7 @@ class JsonExporter(DataExporter):
 
 
 class CsvExporter(DataExporter):
-    """CSV形式でエクスポート"""
+    """Export as CSV"""
 
     def export(self, data: list[dict]) -> str:
         if not data:
@@ -1237,7 +1237,7 @@ class CsvExporter(DataExporter):
 
 
 class MarkdownExporter(DataExporter):
-    """Markdown表形式でエクスポート"""
+    """Export as a Markdown table"""
 
     def export(self, data: list[dict]) -> str:
         if not data:
@@ -1257,14 +1257,14 @@ class MarkdownExporter(DataExporter):
 
 
 class ReportGenerator:
-    """レポート生成器: エクスポーターを差し替え可能"""
+    """Report generator: exporter can be swapped"""
 
     def __init__(self, exporter: DataExporter):
         self._exporter = exporter
 
     def generate(self, data: list[dict]) -> str:
-        # メッセージパッシング: exporter に「エクスポートして」と依頼
-        # どの形式で出力するかは exporter が決める
+        # Message passing: ask the exporter to "export"
+        # The exporter decides what format to produce
         return self._exporter.export(data)
 
     @property
@@ -1272,13 +1272,13 @@ class ReportGenerator:
         return self._exporter.file_extension()
 
 
-# 使用例
+# Usage example
 data = [
-    {"名前": "田中", "年齢": 25, "部署": "開発"},
-    {"名前": "山田", "年齢": 30, "部署": "営業"},
+    {"name": "Tanaka", "age": 25, "department": "Development"},
+    {"name": "Yamada", "age": 30, "department": "Sales"},
 ]
 
-# 同じデータ、異なるフォーマット
+# Same data, different formats
 for exporter in [JsonExporter(), CsvExporter(), MarkdownExporter()]:
     generator = ReportGenerator(exporter)
     print(f"--- {generator.output_extension} ---")
@@ -1286,34 +1286,34 @@ for exporter in [JsonExporter(), CsvExporter(), MarkdownExporter()]:
     print()
 ```
 
-### 4.3 Smalltalk スタイルのメッセージパッシング
+### 4.3 Smalltalk-Style Message Passing
 
-Alan Kay が提唱した本来のメッセージパッシングは、現代の多くの言語のメソッド呼び出しとは概念的に異なる。
+The original notion of message passing advocated by Alan Kay differs conceptually from the method calls of many modern languages.
 
 ```
-Smalltalk のメッセージパッシング:
-  → オブジェクトにメッセージを送る
-  → オブジェクトがメッセージを受け取り、どう処理するか自分で決める
-  → メッセージに対応するメソッドがなければ doesNotUnderstand: が呼ばれる
+Smalltalk message passing:
+  -> Send a message to an object
+  -> The object receives the message and decides how to handle it
+  -> If no matching method exists, doesNotUnderstand: is invoked
 
   3 + 4
-  → 3（Integerオブジェクト）に「+」というメッセージと「4」という引数を送る
-  → 3 が自分で加算の方法を決める
+  -> Sends the message "+" with argument "4" to 3 (an Integer object)
+  -> 3 itself decides how to perform the addition
 
-現代の言語のメソッド呼び出し:
-  → コンパイラ/インタプリタが呼び出すメソッドを解決する
-  → 存在しないメソッドはコンパイルエラー（静的型付けの場合）
+Modern-language method calls:
+  -> The compiler/interpreter resolves which method to invoke
+  -> Calling a nonexistent method causes a compile error (in statically typed languages)
 
-Ruby（Smalltalk の影響が強い）:
-  → method_missing によるメッセージハンドリング
-  → 動的なメソッド解決
+Ruby (heavily influenced by Smalltalk):
+  -> Handles messages via method_missing
+  -> Uses dynamic method resolution
 ```
 
 ```python
-# Python: __getattr__ を使ったメッセージパッシング的パターン
+# Python: a message-passing-like pattern using __getattr__
 
 class FluentQuery:
-    """流暢なAPIを持つクエリビルダー"""
+    """Query builder with a fluent API"""
 
     def __init__(self):
         self._conditions: list[str] = []
@@ -1348,7 +1348,7 @@ class FluentQuery:
         return query
 
 
-# メソッドチェーン = メッセージの連鎖
+# Method chaining = a chain of messages
 query = (
     FluentQuery()
     .from_table("users")
@@ -1364,40 +1364,40 @@ print(query)
 
 ---
 
-## 5. OOPが解決する問題
+## 5. Problems That OOP Solves
 
 ```
-OOPなし（手続き型）:
-  問題1: グローバル状態の管理困難
-    → 誰がどの変数を変更したか追跡不能
-    → OOP: カプセル化で状態をオブジェクト内に閉じ込める
+Without OOP (procedural):
+  Problem 1: hard to manage global state
+    -> Impossible to trace who changed which variable
+    -> OOP: encapsulation contains state inside the object
 
-  問題2: コードの重複
-    → 似た処理を何度も書く
-    → OOP: 継承・コンポジションで共通化
+  Problem 2: code duplication
+    -> The same logic gets written repeatedly
+    -> OOP: inheritance and composition enable reuse
 
-  問題3: 変更の影響範囲が不明
-    → 1箇所の変更が全体に波及
-    → OOP: インターフェースで依存を制御
+  Problem 3: unclear blast radius of changes
+    -> A single change ripples throughout the system
+    -> OOP: interfaces control dependencies
 
-  問題4: 大規模コードの構造化困難
-    → 1万行超えると手続き型は破綻
-    → OOP: クラス・パッケージで構造化
+  Problem 4: hard to structure large codebases
+    -> Procedural code collapses beyond ~10k lines
+    -> OOP: classes and packages provide structure
 ```
 
-### 5.1 問題と解決の具体例
+### 5.1 Concrete Examples of Problems and Solutions
 
 ```typescript
-// TypeScript: OOPが解決する問題の具体例
+// TypeScript: concrete examples of the problems OOP solves
 
-// === 問題1: グローバル状態の管理困難 ===
+// === Problem 1: hard-to-manage global state ===
 
-// 手続き型（問題あり）
+// Procedural (problematic)
 let globalUserCount = 0;
 let globalTotalRevenue = 0;
-// ... 100箇所から参照・変更される → カオス
+// ... referenced and modified from 100 places -> chaos
 
-// OOP（解決）
+// OOP (solution)
 class Analytics {
   private _userCount = 0;
   private _totalRevenue = 0;
@@ -1407,7 +1407,7 @@ class Analytics {
   }
 
   addRevenue(amount: number): void {
-    if (amount < 0) throw new Error("収益は正の数");
+    if (amount < 0) throw new Error("Revenue must be positive");
     this._totalRevenue += amount;
   }
 
@@ -1415,21 +1415,21 @@ class Analytics {
     return { users: this._userCount, revenue: this._totalRevenue };
   }
 }
-// → 状態の変更は Analytics オブジェクト経由のみ
-// → 不正な変更を防止できる
+// -> State changes can only happen through the Analytics object
+// -> Invalid changes can be prevented
 
 
-// === 問題2: コードの重複 ===
+// === Problem 2: code duplication ===
 
-// 手続き型（問題あり）
+// Procedural (problematic)
 function validateUserEmail(email: string): boolean {
   return /^[\w.-]+@[\w.-]+\.\w+$/.test(email);
 }
 function validateAdminEmail(email: string): boolean {
-  return /^[\w.-]+@[\w.-]+\.\w+$/.test(email); // 同じロジック！
+  return /^[\w.-]+@[\w.-]+\.\w+$/.test(email); // same logic!
 }
 
-// OOP（解決）
+// OOP (solution)
 class EmailValidator {
   private readonly pattern = /^[\w.-]+@[\w.-]+\.\w+$/;
 
@@ -1437,12 +1437,12 @@ class EmailValidator {
     return this.pattern.test(email);
   }
 }
-// → 1箇所にまとめ、再利用
+// -> Consolidated in one place and reused
 
 
-// === 問題3: 変更の影響範囲が不明 ===
+// === Problem 3: unclear blast radius of changes ===
 
-// インターフェースで契約を定義
+// Define the contract through an interface
 interface PaymentProcessor {
   charge(amount: number, currency: string): Promise<PaymentResult>;
   refund(transactionId: string): Promise<RefundResult>;
@@ -1458,10 +1458,10 @@ interface RefundResult {
   refundedAmount: number;
 }
 
-// 実装を差し替えても利用側に影響なし
+// Consumers are unaffected even if implementations are swapped
 class StripePaymentProcessor implements PaymentProcessor {
   async charge(amount: number, currency: string): Promise<PaymentResult> {
-    // Stripe API を使った実装
+    // Implementation using the Stripe API
     return { transactionId: "stripe_xxx", success: true };
   }
 
@@ -1472,7 +1472,7 @@ class StripePaymentProcessor implements PaymentProcessor {
 
 class PayPayPaymentProcessor implements PaymentProcessor {
   async charge(amount: number, currency: string): Promise<PaymentResult> {
-    // PayPay API を使った実装
+    // Implementation using the PayPay API
     return { transactionId: "paypay_xxx", success: true };
   }
 
@@ -1481,22 +1481,22 @@ class PayPayPaymentProcessor implements PaymentProcessor {
   }
 }
 
-// 利用側: PaymentProcessor だけに依存
+// Consumer: depends only on PaymentProcessor
 class CheckoutService {
   constructor(private processor: PaymentProcessor) {}
 
   async checkout(amount: number): Promise<string> {
     const result = await this.processor.charge(amount, "JPY");
-    if (!result.success) throw new Error("決済失敗");
+    if (!result.success) throw new Error("Payment failed");
     return result.transactionId;
   }
 }
-// → processor の実装を差し替えても CheckoutService は変更不要
+// -> Swapping the processor implementation does not require changes to CheckoutService
 
 
-// === 問題4: 大規模コードの構造化 ===
+// === Problem 4: structuring large-scale code ===
 
-// モジュール構造の例
+// Example module layout
 // src/
 //   domain/
 //     entities/User.ts, Order.ts, Product.ts
@@ -1510,73 +1510,73 @@ class CheckoutService {
 //   presentation/
 //     controllers/OrderController.ts
 
-// → クラスがファイルの構造化単位になる
-// → 依存関係がインターフェースで明確化される
+// -> Classes become units of file-level structure
+// -> Dependencies are made explicit by interfaces
 ```
 
-### 5.2 スケーラビリティの問題
+### 5.2 The Scalability Problem
 
-OOPは特にプロジェクトが成長するときにその価値を発揮する。
+OOP delivers its value most clearly as projects grow.
 
 ```
-プロジェクトの成長とパラダイムの適性:
+Project growth and paradigm fit:
 
-  100行: 手続き型で十分
-    → 関数をいくつか定義するだけ
-    → クラスは過剰設計
+  100 lines: procedural is enough
+    -> Just a handful of function definitions
+    -> Classes would be overkill
 
-  1,000行: OOPが有効になり始める
-    → 状態管理が複雑になる
-    → モジュール分割が必要
+  1,000 lines: OOP starts to pay off
+    -> State management becomes complex
+    -> Modular separation becomes necessary
 
-  10,000行: OOP無しでは管理困難
-    → グローバル状態の追跡が不可能に
-    → 変更の影響範囲が予測不能に
-    → テストが書けなくなる
+  10,000 lines: hard to manage without OOP
+    -> Tracking global state becomes impossible
+    -> Blast radius of changes becomes unpredictable
+    -> Writing tests becomes infeasible
 
-  100,000行以上: OOP + 設計パターンが必須
-    → レイヤードアーキテクチャ
-    → 依存性注入（DI）
-    → インターフェースによる疎結合
-    → テスト戦略の確立
+  100,000+ lines: OOP + design patterns are mandatory
+    -> Layered architecture
+    -> Dependency Injection (DI)
+    -> Loose coupling via interfaces
+    -> Established testing strategy
 
-  大規模プロジェクトでの OOP の価値:
-    1. コードの構造化 → クラス/パッケージ/モジュール
-    2. チーム分担 → クラスの責任境界 = チームの責任境界
-    3. テスト容易性 → モック/スタブによる単体テスト
-    4. 変更容易性 → インターフェースによる疎結合
-    5. 知識の組織化 → ドメインモデルがビジネス知識を表現
+  Value of OOP in large projects:
+    1. Code structuring -> classes / packages / modules
+    2. Team division -> class boundary = team boundary
+    3. Testability -> unit tests via mocks and stubs
+    4. Changeability -> loose coupling via interfaces
+    5. Knowledge organization -> domain model expresses business knowledge
 ```
 
 ---
 
-## 6. OOPの適用領域
+## 6. Where OOP Applies
 
 ```
-OOPが得意な領域:
-  ✓ GUIアプリケーション（ウィジェット階層）
-  ✓ ゲーム開発（エンティティ・コンポーネント）
-  ✓ エンタープライズアプリ（ビジネスロジック）
-  ✓ フレームワーク設計（拡張ポイントの提供）
-  ✓ シミュレーション（現実世界のモデリング）
+Areas where OOP shines:
+  ✓ GUI applications (widget hierarchies)
+  ✓ Game development (entities and components)
+  ✓ Enterprise applications (business logic)
+  ✓ Framework design (providing extension points)
+  ✓ Simulation (modeling the real world)
 
-OOPが不得意な領域:
-  ✗ データ変換パイプライン → 関数型が適切
-  ✗ 数値計算・科学計算 → 手続き型/配列指向が適切
-  ✗ スクリプト・グルーコード → シンプルな手続き型が適切
-  ✗ 並行処理 → アクターモデル/関数型が適切
+Areas where OOP is a poor fit:
+  ✗ Data transformation pipelines -> functional fits better
+  ✗ Numerical / scientific computing -> procedural/array-oriented fits better
+  ✗ Scripts / glue code -> simple procedural fits better
+  ✗ Concurrency -> actor model / functional fits better
 
-現実のプロジェクト:
-  → 複数のパラダイムを組み合わせるのが最適
-  → OOP + FP のマルチパラダイムが主流
+Real-world projects:
+  -> Combining multiple paradigms is optimal
+  -> The OOP + FP multi-paradigm approach is mainstream
 ```
 
-### 6.1 GUIアプリケーションでのOOP
+### 6.1 OOP in GUI Applications
 
-GUIフレームワークはOOPの代表的な適用例である。ウィジェットの階層構造と、イベント駆動の仕組みがOOPと自然に対応する。
+GUI frameworks are a classic use case for OOP. A hierarchy of widgets and an event-driven model map naturally onto OOP.
 
 ```typescript
-// TypeScript: GUIコンポーネントの階層（簡易例）
+// TypeScript: a simplified GUI component hierarchy
 
 abstract class Widget {
   protected _x: number;
@@ -1695,17 +1695,17 @@ class Button extends Widget {
 }
 ```
 
-### 6.2 ゲーム開発でのOOP
+### 6.2 OOP in Game Development
 
 ```python
-# Python: ゲームエンティティシステム（簡易例）
+# Python: a simple game entity system
 
 from abc import ABC, abstractmethod
 import math
 
 
 class Vector2D:
-    """2Dベクトル"""
+    """2D vector"""
     def __init__(self, x: float = 0, y: float = 0):
         self.x = x
         self.y = y
@@ -1730,7 +1730,7 @@ class Vector2D:
 
 
 class GameObject(ABC):
-    """ゲームオブジェクトの基底クラス"""
+    """Base class for game objects"""
     def __init__(self, position: Vector2D, name: str = ""):
         self.position = position
         self.name = name
@@ -1745,17 +1745,17 @@ class GameObject(ABC):
 
     @abstractmethod
     def update(self, delta_time: float) -> None:
-        """毎フレーム呼ばれる更新処理"""
+        """Update logic called every frame"""
         pass
 
     @abstractmethod
     def render(self) -> str:
-        """描画用の文字列を返す"""
+        """Return a string for rendering"""
         pass
 
 
 class Player(GameObject):
-    """プレイヤーキャラクター"""
+    """Player character"""
     def __init__(self, position: Vector2D, name: str = "Player"):
         super().__init__(position, name)
         self._hp = 100
@@ -1801,14 +1801,14 @@ class Player(GameObject):
         if not self.is_active:
             return
         self.position = self.position + self._velocity * delta_time
-        self._velocity = Vector2D(0, 0)  # 入力がなければ停止
+        self._velocity = Vector2D(0, 0)  # stop when there is no input
 
     def render(self) -> str:
         return f"[{self.name}] HP:{self._hp}/{self._max_hp} Lv:{self._level} Pos:({self.position.x:.1f},{self.position.y:.1f})"
 
 
 class Enemy(GameObject):
-    """敵キャラクター"""
+    """Enemy character"""
     def __init__(self, position: Vector2D, name: str, hp: int, attack: int, speed: float):
         super().__init__(position, name)
         self._hp = hp
@@ -1828,14 +1828,14 @@ class Enemy(GameObject):
         if not self.is_active or self._target is None:
             return
 
-        # プレイヤーに向かって移動
+        # Move toward the player
         direction = Vector2D(
             self._target.position.x - self.position.x,
             self._target.position.y - self.position.y,
         )
         self.position = self.position + direction.normalized() * self._speed * delta_time
 
-        # 攻撃範囲内ならダメージ
+        # Deal damage if within attack range
         if self.position.distance_to(self._target.position) < 1.0:
             self._target.take_damage(self._attack)
 
@@ -1844,7 +1844,7 @@ class Enemy(GameObject):
 
 
 class GameWorld:
-    """ゲームワールド: 全オブジェクトを管理"""
+    """Game world: manages all objects"""
     def __init__(self):
         self._objects: list[GameObject] = []
 
@@ -1855,19 +1855,19 @@ class GameWorld:
         for obj in self._objects:
             if obj.is_active:
                 obj.update(delta_time)
-        # 非アクティブオブジェクトを除去
+        # Remove inactive objects
         self._objects = [obj for obj in self._objects if obj.is_active]
 
     def render(self) -> str:
         return "\n".join(obj.render() for obj in self._objects if obj.is_active)
 ```
 
-### 6.3 エンタープライズアプリケーションでのOOP
+### 6.3 OOP in Enterprise Applications
 
 ```java
-// Java: エンタープライズアプリケーションの例（注文管理）
+// Java: an enterprise-application example (order management)
 
-// エンティティ
+// Entity
 public class Order {
     private final String orderId;
     private final String customerId;
@@ -1887,10 +1887,10 @@ public class Order {
 
     public void addLine(Product product, int quantity) {
         if (status != OrderStatus.DRAFT) {
-            throw new IllegalStateException("確定済みの注文には追加できません");
+            throw new IllegalStateException("Cannot add items to a confirmed order");
         }
         if (quantity <= 0) {
-            throw new IllegalArgumentException("数量は1以上");
+            throw new IllegalArgumentException("Quantity must be at least 1");
         }
         lines.add(new OrderLine(product, quantity));
         updatedAt = LocalDateTime.now();
@@ -1904,7 +1904,7 @@ public class Order {
 
     public void confirm() {
         if (lines.isEmpty()) {
-            throw new IllegalStateException("空の注文は確定できません");
+            throw new IllegalStateException("Cannot confirm an empty order");
         }
         this.status = OrderStatus.CONFIRMED;
         this.updatedAt = LocalDateTime.now();
@@ -1912,16 +1912,16 @@ public class Order {
 
     public void cancel() {
         if (status == OrderStatus.SHIPPED || status == OrderStatus.DELIVERED) {
-            throw new IllegalStateException("出荷済みの注文はキャンセルできません");
+            throw new IllegalStateException("Cannot cancel a shipped order");
         }
         this.status = OrderStatus.CANCELLED;
         this.updatedAt = LocalDateTime.now();
     }
 
-    // getter省略
+    // getters omitted
 }
 
-// 値オブジェクト
+// Value object
 public class OrderLine {
     private final Product product;
     private final int quantity;
@@ -1936,12 +1936,12 @@ public class OrderLine {
     }
 }
 
-// 列挙型
+// Enum
 public enum OrderStatus {
     DRAFT, CONFIRMED, SHIPPED, DELIVERED, CANCELLED
 }
 
-// サービス層
+// Service layer
 public class OrderService {
     private final OrderRepository orderRepository;
     private final InventoryService inventoryService;
@@ -1961,7 +1961,7 @@ public class OrderService {
         Order order = orderRepository.findById(orderId)
             .orElseThrow(() -> new OrderNotFoundException(orderId));
 
-        // ビジネスルール: 在庫チェック
+        // Business rule: check inventory
         for (OrderLine line : order.getLines()) {
             inventoryService.reserve(line.getProduct(), line.getQuantity());
         }
@@ -1969,7 +1969,7 @@ public class OrderService {
         order.confirm();
         orderRepository.save(order);
 
-        // 通知
+        // Notify
         notificationService.sendOrderConfirmation(order);
     }
 }
@@ -1977,31 +1977,31 @@ public class OrderService {
 
 ---
 
-## 7. 各言語のOOPスタイル
+## 7. OOP Styles Across Languages
 
 ```
 ┌──────────────┬───────────────────────────────────────┐
-│ 言語         │ OOPスタイル                            │
+│ Language     │ OOP style                              │
 ├──────────────┼───────────────────────────────────────┤
-│ Java         │ クラスベース・純粋OOP                   │
-│ C++          │ クラスベース・マルチパラダイム           │
-│ Python       │ クラスベース・ダックタイピング           │
-│ TypeScript   │ クラス + 構造的型付け                   │
-│ Ruby         │ 純粋OOP（全てがオブジェクト）           │
-│ Kotlin       │ クラスベース・データクラス               │
-│ Swift        │ プロトコル指向 + クラスベース            │
-│ Rust         │ トレイトベース（クラスなし）             │
-│ Go           │ 構造体 + インターフェース（クラスなし）  │
-│ JavaScript   │ プロトタイプベース + クラス構文          │
+│ Java         │ Class-based, pure OOP                  │
+│ C++          │ Class-based, multi-paradigm            │
+│ Python       │ Class-based, duck typing               │
+│ TypeScript   │ Classes + structural typing            │
+│ Ruby         │ Pure OOP (everything is an object)     │
+│ Kotlin       │ Class-based, data classes              │
+│ Swift        │ Protocol-oriented + class-based        │
+│ Rust         │ Trait-based (no classes)               │
+│ Go           │ Structs + interfaces (no classes)      │
+│ JavaScript   │ Prototype-based + class syntax         │
 └──────────────┴───────────────────────────────────────┘
 ```
 
-### 7.1 各言語でのOOP実装比較
+### 7.1 Comparing OOP Implementations Across Languages
 
-同じ「図形の面積計算」を各言語で実装し、OOPスタイルの違いを見る。
+Let's implement the same "shape area calculation" in each language to see how OOP styles differ.
 
 ```typescript
-// TypeScript: 構造的型付け（ダックタイピング + 型安全）
+// TypeScript: structural typing (duck typing + type safety)
 interface HasArea {
   area(): number;
 }
@@ -2016,28 +2016,28 @@ class TSRectangle implements HasArea {
   area(): number { return this.width * this.height; }
 }
 
-// 構造的型付け: implements を書かなくても型が一致すればOK
+// Structural typing: works even without `implements` if the structure matches
 const customShape = {
   area(): number { return 42; }
 };
 
 function printArea(shape: HasArea): void {
-  console.log(`面積: ${shape.area()}`);
+  console.log(`area: ${shape.area()}`);
 }
 
 printArea(new TSCircle(5));
 printArea(new TSRectangle(3, 4));
-printArea(customShape);  // OK: 構造が一致
+printArea(customShape);  // OK: structure matches
 ```
 
 ```python
-# Python: ダックタイピング + プロトコル（型ヒント）
+# Python: duck typing + Protocol (type hints)
 from typing import Protocol
 import math
 
 
 class SupportsArea(Protocol):
-    """面積を計算できるもの（プロトコル = 構造的型付け）"""
+    """Something that can compute an area (protocol = structural typing)"""
     def area(self) -> float: ...
 
 
@@ -2059,8 +2059,8 @@ class PyRectangle:
 
 
 def print_area(shape: SupportsArea) -> None:
-    """ダックタイピング: area() メソッドがあれば何でも受け付ける"""
-    print(f"面積: {shape.area():.2f}")
+    """Duck typing: accepts anything that has an area() method"""
+    print(f"area: {shape.area():.2f}")
 
 
 print_area(PyCircle(5))
@@ -2068,7 +2068,7 @@ print_area(PyRectangle(3, 4))
 ```
 
 ```go
-// Go: インターフェース + 構造体（クラスなし）
+// Go: interfaces + structs (no classes)
 package main
 
 import (
@@ -2076,12 +2076,12 @@ import (
     "math"
 )
 
-// インターフェース（暗黙的実装）
+// Interface (implicit implementation)
 type Shape interface {
     Area() float64
 }
 
-// 構造体 + メソッド（クラスの代わり）
+// Struct + methods (used in place of classes)
 type GoCircle struct {
     Radius float64
 }
@@ -2099,9 +2099,9 @@ func (r GoRectangle) Area() float64 {
     return r.Width * r.Height
 }
 
-// Shape インターフェースを満たすものなら何でも受け取れる
+// Accepts anything that satisfies the Shape interface
 func PrintArea(s Shape) {
-    fmt.Printf("面積: %.2f\n", s.Area())
+    fmt.Printf("area: %.2f\n", s.Area())
 }
 
 func main() {
@@ -2111,15 +2111,15 @@ func main() {
 ```
 
 ```rust
-// Rust: トレイト + 構造体（クラスなし、継承なし）
+// Rust: traits + structs (no classes, no inheritance)
 use std::f64::consts::PI;
 
 trait Shape {
     fn area(&self) -> f64;
 
-    // デフォルト実装も可能
+    // Default implementations are also possible
     fn describe(&self) -> String {
-        format!("面積: {:.2}", self.area())
+        format!("area: {:.2}", self.area())
     }
 }
 
@@ -2144,7 +2144,7 @@ impl Shape for RustRectangle {
     }
 }
 
-// トレイト境界でジェネリックに
+// Generic over anything bound by the trait
 fn print_area(shape: &dyn Shape) {
     println!("{}", shape.describe());
 }
@@ -2157,51 +2157,51 @@ fn main() {
 }
 ```
 
-### 7.2 プロトタイプベースOOP（JavaScript）
+### 7.2 Prototype-Based OOP (JavaScript)
 
-JavaScriptはクラスベースではなく、プロトタイプベースのOOPを採用している。ES2015以降のclass構文はプロトタイプの糖衣構文である。
+JavaScript is not class-based; it uses prototype-based OOP. The `class` syntax introduced in ES2015 is syntactic sugar over prototypes.
 
 ```javascript
-// JavaScript: プロトタイプベースOOP
+// JavaScript: prototype-based OOP
 
-// === プロトタイプチェーン（内部メカニズム）===
+// === Prototype chain (internal mechanism) ===
 const animal = {
   speak() {
-    return `${this.name}が鳴く`;
+    return `${this.name} makes a sound`;
   },
 };
 
-const dog = Object.create(animal); // animal をプロトタイプとする
-dog.name = "ポチ";
+const dog = Object.create(animal); // use `animal` as the prototype
+dog.name = "Pochi";
 dog.bark = function () {
-  return `${this.name}: ワンワン！`;
+  return `${this.name}: Woof woof!`;
 };
 
-console.log(dog.bark());   // ポチ: ワンワン！
-console.log(dog.speak());  // ポチが鳴く（プロトタイプから継承）
+console.log(dog.bark());   // Pochi: Woof woof!
+console.log(dog.speak());  // Pochi makes a sound (inherited from the prototype)
 
-// === ES2015 class 構文（糖衣構文）===
+// === ES2015 class syntax (syntactic sugar) ===
 class Animal {
   constructor(name) {
     this.name = name;
   }
 
   speak() {
-    return `${this.name}が鳴く`;
+    return `${this.name} makes a sound`;
   }
 }
 
 class Dog extends Animal {
   bark() {
-    return `${this.name}: ワンワン！`;
+    return `${this.name}: Woof woof!`;
   }
 }
 
-const pochi = new Dog("ポチ");
-console.log(pochi.bark());   // ポチ: ワンワン！
-console.log(pochi.speak());  // ポチが鳴く
+const pochi = new Dog("Pochi");
+console.log(pochi.bark());   // Pochi: Woof woof!
+console.log(pochi.speak());  // Pochi makes a sound
 
-// プロトタイプチェーンの確認
+// Verifying the prototype chain
 console.log(pochi instanceof Dog);     // true
 console.log(pochi instanceof Animal);  // true
 console.log(Object.getPrototypeOf(pochi) === Dog.prototype); // true
@@ -2209,51 +2209,52 @@ console.log(Object.getPrototypeOf(pochi) === Dog.prototype); // true
 
 ---
 
-## 8. OOPの批判と限界
+## 8. Criticisms and Limitations of OOP
 
-OOPは万能ではない。その限界を理解しておくことで、より適切な設計判断ができる。
+OOP is not a silver bullet. Understanding its limits enables better design decisions.
 
 ```
-OOPに対する主要な批判:
+Major criticisms of OOP:
 
-  1. 「バナナを要求したら、バナナを持ったゴリラとジャングルがついてきた」
-     — Joe Armstrong（Erlang 作者）
-     → 継承による過度な依存関係
-     → 1つのクラスを使うために、その親クラス、さらにその親クラス...
-     → 解決策: コンポジション重視、薄い継承階層
+  1. "You wanted a banana, but what you got was a gorilla holding the banana
+     and the entire jungle."
+     — Joe Armstrong (creator of Erlang)
+     -> Excessive dependencies caused by inheritance
+     -> To use one class you drag in its parent, grandparent, and so on
+     -> Mitigation: prefer composition and keep inheritance hierarchies shallow
 
-  2. 過剰な抽象化（Over-engineering）
-     → AbstractSingletonProxyFactoryBean 問題
-     → 単純な処理にデザインパターンを詰め込む
-     → 解決策: YAGNI（You Ain't Gonna Need It）
+  2. Over-abstraction (over-engineering)
+     -> The AbstractSingletonProxyFactoryBean problem
+     -> Stuffing simple operations with design patterns
+     -> Mitigation: YAGNI (You Ain't Gonna Need It)
 
-  3. 状態変更による複雑さ
-     → 共有可変状態（Shared Mutable State）は並行処理の天敵
-     → オブジェクトの状態が予測不能に変化
-     → 解決策: 不変オブジェクト、関数型の要素を取り入れる
+  3. Complexity from mutable state
+     -> Shared mutable state is the enemy of concurrency
+     -> Object state changes unpredictably
+     -> Mitigation: immutable objects, adopt functional techniques
 
-  4. 学習コストと生産性
-     → 小規模プロジェクトではオーバーヘッドが大きい
-     → OOP的に「正しく」書くための設計知識が必要
-     → 解決策: 適切な場面で適切に使う
+  4. Learning cost and productivity
+     -> Overhead is heavy for small projects
+     -> Design knowledge is required to write OOP "correctly"
+     -> Mitigation: use it when it fits
 
-  5. テスト困難な密結合
-     → 依存オブジェクトが多いとテストが困難
-     → モック地獄（Mock Hell）
-     → 解決策: 依存性注入、インターフェースによる疎結合
+  5. Hard-to-test tight coupling
+     -> Many dependencies make tests difficult
+     -> Mock hell
+     -> Mitigation: dependency injection, loose coupling via interfaces
 ```
 
-### 8.1 OOPの限界を超えるアプローチ
+### 8.1 Approaches That Go Beyond OOP's Limits
 
 ```typescript
-// TypeScript: OOPの限界に対するモダンなアプローチ
+// TypeScript: modern approaches addressing OOP's limits
 
-// === コンポジション over 継承 ===
+// === Composition over inheritance ===
 
-// 悪い例: 深い継承階層
-// Animal → Mammal → Pet → Dog → GoldenRetriever
+// Bad example: a deep inheritance hierarchy
+// Animal -> Mammal -> Pet -> Dog -> GoldenRetriever
 
-// 良い例: コンポジション（機能を組み合わせる）
+// Good example: composition (combine capabilities)
 interface Walkable {
   walk(): void;
 }
@@ -2270,20 +2271,20 @@ class DogBehavior implements Walkable, Swimmable, Trainable {
   constructor(private name: string) {}
 
   walk(): void {
-    console.log(`${this.name}が散歩する`);
+    console.log(`${this.name} goes for a walk`);
   }
 
   swim(): void {
-    console.log(`${this.name}が泳ぐ`);
+    console.log(`${this.name} swims`);
   }
 
   train(command: string): void {
-    console.log(`${this.name}が「${command}」を覚えた`);
+    console.log(`${this.name} learned "${command}"`);
   }
 }
 
 
-// === 不変オブジェクト + ビルダーパターン ===
+// === Immutable objects + builder pattern ===
 
 class ImmutableConfig {
   readonly host: string;
@@ -2304,7 +2305,7 @@ class ImmutableConfig {
     return new ConfigBuilder();
   }
 
-  // 既存の設定を元に一部変更した新しい設定を作成
+  // Create a new config with some fields changed from the existing one
   withHost(host: string): ImmutableConfig {
     return ImmutableConfig.builder()
       .setHost(host)
@@ -2338,45 +2339,45 @@ class ConfigBuilder {
 
 ---
 
-## 9. OOPを学ぶためのロードマップ
+## 9. A Roadmap for Learning OOP
 
 ```
-OOP学習のロードマップ:
+Roadmap for learning OOP:
 
-  Level 1: 基礎概念
-    □ クラスとオブジェクトの関係
-    □ コンストラクタとインスタンス化
-    □ フィールドとメソッド
-    □ アクセス修飾子（public, private, protected）
+  Level 1: core concepts
+    □ Relationship between classes and objects
+    □ Constructors and instantiation
+    □ Fields and methods
+    □ Access modifiers (public, private, protected)
 
-  Level 2: 4つの柱
-    □ カプセル化（情報隠蔽、バンドリング）
-    □ 継承（is-a 関係、メソッドオーバーライド）
-    □ ポリモーフィズム（インターフェース、抽象クラス）
-    □ 抽象化（複雑さの隠蔽、契約の定義）
+  Level 2: the four pillars
+    □ Encapsulation (information hiding, bundling)
+    □ Inheritance (is-a relationships, method overriding)
+    □ Polymorphism (interfaces, abstract classes)
+    □ Abstraction (hiding complexity, defining contracts)
 
-  Level 3: 設計原則
-    □ SOLID 原則
+  Level 3: design principles
+    □ SOLID principles
     □ Tell, Don't Ask
     □ Law of Demeter
     □ Composition over Inheritance
 
-  Level 4: デザインパターン
-    □ 生成パターン（Factory, Builder, Singleton）
-    □ 構造パターン（Adapter, Decorator, Proxy）
-    □ 振る舞いパターン（Strategy, Observer, Command）
+  Level 4: design patterns
+    □ Creational patterns (Factory, Builder, Singleton)
+    □ Structural patterns (Adapter, Decorator, Proxy)
+    □ Behavioral patterns (Strategy, Observer, Command)
 
-  Level 5: アーキテクチャ
-    □ レイヤードアーキテクチャ
-    □ ドメイン駆動設計（DDD）
-    □ クリーンアーキテクチャ
-    □ 依存性注入（DI）
+  Level 5: architecture
+    □ Layered architecture
+    □ Domain-Driven Design (DDD)
+    □ Clean Architecture
+    □ Dependency Injection (DI)
 
-  Level 6: マルチパラダイム
-    □ OOP + FP の融合
-    □ リアクティブプログラミング
-    □ アクターモデル
-    □ イベントソーシング
+  Level 6: multi-paradigm
+    □ Blending OOP + FP
+    □ Reactive programming
+    □ Actor model
+    □ Event sourcing
 ```
 
 ---
@@ -2384,40 +2385,40 @@ OOP学習のロードマップ:
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when studying this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Accumulating hands-on experience is most important. Understanding deepens when you go beyond theory and actually write code and observe how it runs.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What mistakes do beginners commonly make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping fundamentals and jumping straight to advanced material. We recommend firmly grasping the foundational concepts explained in this guide before moving on.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in real-world work?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is used frequently in day-to-day development, especially during code reviews and architectural design.
 
 ---
 
-## まとめ
+## Summary
 
-| 概念 | ポイント |
+| Concept | Key point |
 |------|---------|
-| OOPの本質 | データと振る舞いをオブジェクトに統合 |
-| 3要素 | 状態 + 振る舞い + アイデンティティ |
-| 4つの柱 | カプセル化、継承、ポリモーフィズム、抽象化 |
-| メッセージ | オブジェクト間のメソッド呼び出し |
-| 得意分野 | GUI、ゲーム、エンタープライズ、フレームワーク |
-| 限界 | 過剰な抽象化、共有可変状態、継承の複雑さ |
-| 現実 | OOP + FP のマルチパラダイムが主流 |
-| 学習 | 基礎 → 4本柱 → SOLID → パターン → アーキテクチャ |
+| Essence of OOP | Integrate data and behavior into objects |
+| Three elements | State + behavior + identity |
+| Four pillars | Encapsulation, inheritance, polymorphism, abstraction |
+| Messages | Method calls between objects |
+| Strengths | GUIs, games, enterprise, frameworks |
+| Limits | Over-abstraction, shared mutable state, inheritance complexity |
+| Reality | The OOP + FP multi-paradigm approach is mainstream |
+| Learning | Basics -> four pillars -> SOLID -> patterns -> architecture |
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
 ---
 
-## 参考文献
+## References
 1. Kay, A. "The Early History of Smalltalk." ACM SIGPLAN Notices, 1993.
 2. Gamma, E. et al. "Design Patterns." Addison-Wesley, 1994.
 3. Martin, R. "Clean Code." Prentice Hall, 2008.
