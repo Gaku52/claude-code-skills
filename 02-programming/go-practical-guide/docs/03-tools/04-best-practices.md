@@ -1,211 +1,211 @@
-# Go ベストプラクティスガイド
+# Go Best Practices Guide
 
-> Effective Goの精神に基づき、保守性・可読性・性能を兼ね備えたGoコードを書くための指針
+> Guidelines for writing Go code that combines maintainability, readability, and performance, based on the spirit of Effective Go
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-1. **Effective Go** の核心 -- Goらしいコードの設計原則と命名規則
-2. **エラーハンドリング** -- エラー値の設計、ラッピング、センチネルエラーの使い分け
-3. **インターフェース設計** -- 小さなインターフェース、暗黙的実装、依存注入
-4. **並行処理のパターン** -- goroutine管理、チャネル設計、コンテキスト伝搬
-5. **構造体設計** -- ゼロ値の活用、機能オプション、コンストラクタパターン
-6. **パッケージ設計** -- 依存関係、循環依存の回避、internal パッケージ
-7. **テスタビリティ** -- テストしやすいコード設計
-8. **パフォーマンス** -- メモリ効率、アロケーション最適化
+1. **The core of Effective Go** -- design principles and naming conventions for idiomatic Go code
+2. **Error handling** -- designing error values, wrapping, and when to use sentinel errors
+3. **Interface design** -- small interfaces, implicit implementation, dependency injection
+4. **Concurrency patterns** -- goroutine management, channel design, context propagation
+5. **Struct design** -- leveraging zero values, functional options, constructor patterns
+6. **Package design** -- dependencies, avoiding circular dependencies, internal packages
+7. **Testability** -- designing code that is easy to test
+8. **Performance** -- memory efficiency, allocation optimization
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Your understanding will deepen if you have the following knowledge before reading this guide:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [Go デプロイガイド](./03-deployment.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related fundamental concepts
+- Understanding of the [Go Deployment Guide](./03-deployment.md)
 
 ---
 
-## 1. Go らしいコードの原則
+## 1. Principles of Idiomatic Go Code
 
-### Goの設計哲学
+### Go's Design Philosophy
 
 ```
 +-------------------------------------------------------+
-|              Go の設計哲学                               |
+|              Go's Design Philosophy                    |
 +-------------------------------------------------------+
 |                                                       |
 |  +-------------+  +-----------+  +------------------+ |
 |  | Simplicity  |  | Readability|  | Composition      | |
-|  | 単純さ      |  | 可読性    |  | 合成 > 継承       | |
+|  | Simplicity  |  | Readability|  | over inheritance | |
 |  +-------------+  +-----------+  +------------------+ |
 |                                                       |
 |  +-------------+  +-----------+  +------------------+ |
 |  | Explicit    |  | Minimal   |  | Convention       | |
-|  | 明示的      |  | 最小限    |  | 規約重視          | |
+|  | Explicit    |  | Minimal   |  | Convention-first | |
 |  +-------------+  +-----------+  +------------------+ |
 |                                                       |
 |  +-------------+  +-----------+  +------------------+ |
 |  | Concurrency |  | Orthogonal|  | Practical        | |
-|  | 並行性      |  | 直交性    |  | 実用性            | |
+|  | Concurrency |  | Orthogonal|  | Practical        | |
 |  +-------------+  +-----------+  +------------------+ |
 |                                                       |
 |  "Clear is better than clever"                        |
-|  「巧妙さより明快さ」                                  |
+|  "Clarity over cleverness"                            |
 |                                                       |
 |  "A little copying is better than a little dependency"|
-|  「少しの依存より少しのコピーの方がよい」               |
+|  "A little copying beats a little dependency"         |
 |                                                       |
 |  "Don't communicate by sharing memory;                |
 |   share memory by communicating"                      |
-|  「メモリの共有で通信するのではなく、                    |
-|   通信でメモリを共有せよ」                              |
+|  "Don't communicate by sharing memory;                |
+|   share memory by communicating"                      |
 +-------------------------------------------------------+
 ```
 
-### 命名規則
+### Naming Conventions
 
 ```
 +----------------------------------------------------------+
-|  Go の命名規則                                             |
+|  Go Naming Conventions                                   |
 +----------------------------------------------------------+
 |                                                          |
-|  パッケージ名: 短く、小文字、単数形                       |
+|  Package names: short, lowercase, singular               |
 |    http, json, fmt, os, user, order                      |
-|    NG: httpUtil, jsonParser, userService                  |
-|    NG: utils, helpers, common, misc (意味が曖昧)          |
+|    NG: httpUtil, jsonParser, userService                 |
+|    NG: utils, helpers, common, misc (ambiguous meaning)  |
 |                                                          |
-|  エクスポート: PascalCase                                 |
+|  Exported: PascalCase                                    |
 |    ReadFile, HTTPClient, UserID                          |
 |                                                          |
-|  非エクスポート: camelCase                                |
+|  Unexported: camelCase                                   |
 |    readFile, httpClient, userID                          |
 |                                                          |
-|  インターフェース: -er 接尾辞 (1メソッドの場合)           |
+|  Interfaces: -er suffix (for single-method interfaces)   |
 |    Reader, Writer, Stringer                              |
 |    Closer, Formatter, Handler                            |
-|    複数メソッド: ReadWriter, UserService                  |
+|    Multi-method: ReadWriter, UserService                 |
 |                                                          |
-|  頭字語: 全大文字を維持                                   |
+|  Acronyms: keep all uppercase                            |
 |    HTTP, URL, ID, JSON, API, XML, SQL                    |
 |    HTTPHandler (not HttpHandler)                         |
 |    XMLRPC (not XmlRpc)                                   |
 |    userID (not userId)                                   |
 |                                                          |
-|  変数名: 短いスコープ → 短い名前                         |
-|    for i := 0; ...          // OK: 短いスコープ          |
-|    for index := 0; ...      // NG: 冗長                  |
-|    func process(r io.Reader) // OK: 1文字でも意味が明確  |
+|  Variable names: short scope -> short name               |
+|    for i := 0; ...          // OK: short scope           |
+|    for index := 0; ...      // NG: verbose               |
+|    func process(r io.Reader) // OK: single letter clear  |
 |                                                          |
-|  定数: PascalCase (CamelCase)                            |
+|  Constants: PascalCase (CamelCase)                       |
 |    MaxRetryCount, DefaultTimeout                         |
-|    NG: MAX_RETRY_COUNT (Goの規約ではない)                |
+|    NG: MAX_RETRY_COUNT (not the Go convention)           |
 +----------------------------------------------------------+
 ```
 
-### コード例1: 良い命名と悪い命名
+### Code Example 1: Good vs Bad Naming
 
 ```go
-// NG: 冗長、Java 風
-type IUserService interface { ... }       // I プレフィックス不要
-type UserServiceImpl struct { ... }       // Impl サフィックス不要
+// NG: Verbose, Java-style
+type IUserService interface { ... }       // I prefix unnecessary
+type UserServiceImpl struct { ... }       // Impl suffix unnecessary
 func (s *UserServiceImpl) GetUserByID(userID string) (*UserModel, error) { ... }
 
-// OK: Go 風
-type UserService interface { ... }        // シンプル
-type userService struct { ... }           // 非公開の実装
+// OK: Go-style
+type UserService interface { ... }        // Simple
+type userService struct { ... }           // Unexported implementation
 func (s *userService) User(id string) (*User, error) { ... }
 
-// NG: パッケージ名の繰り返し
+// NG: Repeating the package name
 package user
-func UserCreate() { ... }   // user.UserCreate() は冗長
-func UserDelete() { ... }   // user.UserDelete() は冗長
+func UserCreate() { ... }   // user.UserCreate() is redundant
+func UserDelete() { ... }   // user.UserDelete() is redundant
 
-// OK: パッケージ名を活用
+// OK: Leverage the package name
 package user
-func Create() { ... }       // user.Create() で明確
-func Delete() { ... }       // user.Delete() で明確
+func Create() { ... }       // user.Create() is clear
+func Delete() { ... }       // user.Delete() is clear
 
-// NG: Get プレフィックスの乱用
-func GetName() string { ... }      // Go では不要
-func GetAge() int { ... }          // getter に Get は使わない
+// NG: Overuse of the Get prefix
+func GetName() string { ... }      // Unnecessary in Go
+func GetAge() int { ... }          // Getters don't use Get
 
-// OK: フィールド名と同じ名前
+// OK: Same name as the field
 func (u *User) Name() string { return u.name }
 func (u *User) Age() int { return u.age }
-func (u *User) SetName(name string) { u.name = name }  // setter は Set プレフィックス
+func (u *User) SetName(name string) { u.name = name }  // Setters use the Set prefix
 
-// NG: bool を返す関数名
-func IsValid() bool { ... }     // OK（is で始まるのは一般的）
+// NG: Function names that return bool
+func IsValid() bool { ... }     // OK (starting with Is is common)
 func HasPermission() bool { ... }  // OK
-func CheckValid() bool { ... }    // NG: Check は error を返すべき
+func CheckValid() bool { ... }    // NG: Check should return error
 
-// OK: エラーを返す関数
-func (u *User) Validate() error { ... }  // Check/Validate はエラーを返す
+// OK: Functions that return an error
+func (u *User) Validate() error { ... }  // Check/Validate return errors
 ```
 
-### コード例2: パッケージ設計のベストプラクティス
+### Code Example 2: Package Design Best Practices
 
 ```go
-// プロジェクト構成の例
+// Example project structure
 
-// 小規模プロジェクト: フラット構成
+// Small project: flat structure
 // project/
-// ├── main.go
-// ├── handler.go
-// ├── store.go
-// ├── model.go
-// └── go.mod
+// |-- main.go
+// |-- handler.go
+// |-- store.go
+// |-- model.go
+// |-- go.mod
 
-// 中〜大規模プロジェクト: レイヤー構成
+// Medium to large project: layered structure
 // project/
-// ├── cmd/
-// │   └── server/
-// │       └── main.go          -- エントリーポイント
-// ├── internal/
-// │   ├── handler/             -- HTTPハンドラ
-// │   │   ├── user.go
-// │   │   └── order.go
-// │   ├── service/             -- ビジネスロジック
-// │   │   ├── user.go
-// │   │   └── order.go
-// │   ├── repository/          -- データアクセス
-// │   │   ├── user.go
-// │   │   └── order.go
-// │   ├── model/               -- ドメインモデル
-// │   │   ├── user.go
-// │   │   └── order.go
-// │   └── middleware/          -- ミドルウェア
-// │       ├── auth.go
-// │       └── logging.go
-// ├── pkg/                     -- 公開ライブラリ（他プロジェクトから利用可能）
-// │   └── validator/
-// │       └── validator.go
-// ├── migrations/              -- DBマイグレーション
-// │   └── 000001_init.sql
-// ├── configs/                 -- 設定ファイル
-// ├── go.mod
-// └── go.sum
+// |-- cmd/
+// |   |-- server/
+// |       |-- main.go          -- entry point
+// |-- internal/
+// |   |-- handler/             -- HTTP handlers
+// |   |   |-- user.go
+// |   |   |-- order.go
+// |   |-- service/             -- business logic
+// |   |   |-- user.go
+// |   |   |-- order.go
+// |   |-- repository/          -- data access
+// |   |   |-- user.go
+// |   |   |-- order.go
+// |   |-- model/               -- domain models
+// |   |   |-- user.go
+// |   |   |-- order.go
+// |   |-- middleware/          -- middleware
+// |       |-- auth.go
+// |       |-- logging.go
+// |-- pkg/                     -- public libraries (usable from other projects)
+// |   |-- validator/
+// |       |-- validator.go
+// |-- migrations/              -- DB migrations
+// |   |-- 000001_init.sql
+// |-- configs/                 -- configuration files
+// |-- go.mod
+// |-- go.sum
 
-// 依存の方向（一方向に保つ）
-// handler → service → repository → model
+// Direction of dependencies (keep it one-way)
+// handler -> service -> repository -> model
 //
-// handler は service のインターフェースに依存
-// service は repository のインターフェースに依存
-// model はどこにも依存しない（純粋なデータ構造）
+// handler depends on the service interface
+// service depends on the repository interface
+// model depends on nothing (pure data structures)
 
-// NG: 循環依存
-// package user → package order → package user (コンパイルエラー)
+// NG: Circular dependency
+// package user -> package order -> package user (compile error)
 
-// OK: インターフェースで依存を断ち切る
-// package service で interface を定義
-// package repository で実装
-// main.go で組み立て（Dependency Injection）
+// OK: Break dependencies with interfaces
+// Define the interface in package service
+// Implement in package repository
+// Assemble in main.go (Dependency Injection)
 ```
 
 ---
 
-## 2. エラーハンドリング
+## 2. Error Handling
 
-### コード例3: エラーの設計パターン
+### Code Example 3: Error Design Patterns
 
 ```go
 package storage
@@ -216,9 +216,9 @@ import (
 )
 
 // ===================================
-// 1. センチネルエラー
-// パッケージレベルで定義する固定のエラー値
-// errors.Is() で判定
+// 1. Sentinel errors
+// Fixed error values defined at package level
+// Checked with errors.Is()
 // ===================================
 var (
     ErrNotFound     = errors.New("storage: not found")
@@ -229,9 +229,9 @@ var (
 )
 
 // ===================================
-// 2. カスタムエラー型
-// 追加情報を持つ構造体エラー
-// errors.As() で判定
+// 2. Custom error types
+// Struct errors carrying additional information
+// Checked with errors.As()
 // ===================================
 type ValidationError struct {
     Field   string
@@ -242,7 +242,7 @@ func (e *ValidationError) Error() string {
     return fmt.Sprintf("validation error: %s - %s", e.Field, e.Message)
 }
 
-// 複数のバリデーションエラーをまとめる
+// Bundle multiple validation errors together
 type ValidationErrors struct {
     Errors []ValidationError
 }
@@ -260,36 +260,36 @@ func (e *ValidationErrors) HasErrors() bool {
 }
 
 // ===================================
-// 3. エラーラッピング
-// fmt.Errorf("%w", err) でコンテキスト付与
+// 3. Error wrapping
+// Add context with fmt.Errorf("%w", err)
 // ===================================
 func (s *Store) FindUser(id string) (*User, error) {
     user, err := s.db.Get(id)
     if err != nil {
         if errors.Is(err, sql.ErrNoRows) {
-            // センチネルエラーにラップ
+            // Wrap in a sentinel error
             return nil, fmt.Errorf("FindUser(%s): %w", id, ErrNotFound)
         }
-        // 内部エラーをラップ
+        // Wrap the internal error
         return nil, fmt.Errorf("FindUser(%s): %w", id, err)
     }
     return user, nil
 }
 
 // ===================================
-// 4. エラー判定
-// errors.Is / errors.As でエラーチェーンを辿る
+// 4. Error inspection
+// Traverse the error chain with errors.Is / errors.As
 // ===================================
 func handleError(err error) {
-    // 値の比較（センチネルエラー）
+    // Value comparison (sentinel error)
     if errors.Is(err, ErrNotFound) {
-        // 404 応答
+        // 404 response
     }
     if errors.Is(err, ErrUnauthorized) {
-        // 401 応答
+        // 401 response
     }
 
-    // 型の比較（カスタムエラー）
+    // Type comparison (custom error)
     var valErr *ValidationError
     if errors.As(err, &valErr) {
         fmt.Printf("Field: %s, Message: %s\n", valErr.Field, valErr.Message)
@@ -304,44 +304,44 @@ func handleError(err error) {
 }
 ```
 
-### エラーハンドリングの判断フロー
+### Error Handling Decision Flow
 
 ```
-エラーが発生した
+An error occurred
     |
-    +-- 回復可能か？
+    +-- Is it recoverable?
     |       |
-    |       +-- YES → エラーを返す (return err)
-    |       |         コンテキスト付与 (fmt.Errorf("...: %w", err))
+    |       +-- YES -> Return the error (return err)
+    |       |         Add context (fmt.Errorf("...: %w", err))
     |       |
-    |       +-- NO → log.Fatal / panic（起動時のみ）
-    |                 例: 設定ファイル読み込み失敗
-    |                     DB接続失敗（リトライ後）
+    |       +-- NO -> log.Fatal / panic (startup only)
+    |                 e.g., failure to load config file
+    |                      DB connection failure (after retries)
     |
-    +-- 呼び出し元はエラーの種類を知る必要があるか？
+    +-- Does the caller need to know the error kind?
     |       |
-    |       +-- YES → センチネルエラー or カスタムエラー型
-    |       |         例: ErrNotFound → 404
-    |       |              *ValidationError → 400 + 詳細
+    |       +-- YES -> Sentinel error or custom error type
+    |       |         e.g., ErrNotFound -> 404
+    |       |              *ValidationError -> 400 + details
     |       |
-    |       +-- NO → fmt.Errorf で文字列ラップのみ
-    |                 例: 内部実装の詳細は呼び出し元に不要
+    |       +-- NO -> Just wrap as a string with fmt.Errorf
+    |                 e.g., internal implementation details the caller doesn't need
     |
-    +-- エラーのコンテキストは十分か？
+    +-- Is the error context sufficient?
     |       |
-    |       +-- NO → fmt.Errorf("op(%s): %w", id, err)
-    |       |         関数名、引数値をエラーメッセージに含める
+    |       +-- NO -> fmt.Errorf("op(%s): %w", id, err)
+    |       |         Include function name and argument values in the message
     |       |
-    |       +-- YES → そのままreturn
+    |       +-- YES -> Return as-is
     |
-    +-- エラーログを記録すべきか？
+    +-- Should the error be logged?
             |
-            +-- ハンドラ層で1回だけログ記録
-            +-- 途中の層では記録せずにラップして返す
-            +-- 二重ログを避ける
+            +-- Log only once, in the handler layer
+            +-- In intermediate layers, wrap and return without logging
+            +-- Avoid duplicate logging
 ```
 
-### コード例4: エラーハンドリングの実践パターン
+### Code Example 4: Practical Error Handling Patterns
 
 ```go
 package handler
@@ -353,14 +353,14 @@ import (
     "net/http"
 )
 
-// ErrorResponse はAPIエラーレスポンスの統一フォーマット
+// ErrorResponse is the unified format for API error responses
 type ErrorResponse struct {
     Error   string            `json:"error"`
     Code    string            `json:"code,omitempty"`
     Details map[string]string `json:"details,omitempty"`
 }
 
-// handleError はエラーをHTTPレスポンスに変換する（ハンドラ層で1回だけ）
+// handleError converts an error into an HTTP response (only once, at the handler layer)
 func handleError(w http.ResponseWriter, err error, logger *log.Logger) {
     var resp ErrorResponse
     var statusCode int
@@ -396,10 +396,10 @@ func handleError(w http.ResponseWriter, err error, logger *log.Logger) {
                 Details: details,
             }
         } else {
-            // 未知のエラー → 500
+            // Unknown error -> 500
             statusCode = http.StatusInternalServerError
             resp = ErrorResponse{Error: "internal server error", Code: "INTERNAL"}
-            // 内部エラーはログに記録（レスポンスには含めない）
+            // Log internal errors (do not include them in the response)
             logger.Printf("Internal error: %v", err)
         }
     }
@@ -410,25 +410,25 @@ func handleError(w http.ResponseWriter, err error, logger *log.Logger) {
 }
 ```
 
-### errors.Is vs errors.As 比較表
+### errors.Is vs errors.As Comparison
 
-| 関数 | 目的 | 比較対象 | 使用場面 |
-|------|------|---------|---------|
-| `errors.Is(err, target)` | エラーチェーンに target と一致するエラーがあるか | 値（センチネルエラー） | `ErrNotFound`, `sql.ErrNoRows` |
-| `errors.As(err, &target)` | エラーチェーンに target型のエラーがあるか | 型（カスタムエラー） | `*ValidationError`, `*os.PathError` |
-| `errors.Unwrap(err)` | 1層だけアンラップ | -- | 通常は直接使わない |
-| `errors.Join(err1, err2)` | 複数エラーを結合 (Go 1.20+) | -- | 複数の後処理エラー |
+| Function | Purpose | Compared against | When to use |
+|----------|---------|------------------|-------------|
+| `errors.Is(err, target)` | Whether the error chain contains an error equal to target | Value (sentinel error) | `ErrNotFound`, `sql.ErrNoRows` |
+| `errors.As(err, &target)` | Whether the error chain contains an error of target's type | Type (custom error) | `*ValidationError`, `*os.PathError` |
+| `errors.Unwrap(err)` | Unwrap only one layer | -- | Normally not used directly |
+| `errors.Join(err1, err2)` | Combine multiple errors (Go 1.20+) | -- | Multiple post-processing errors |
 
 ---
 
-## 3. インターフェース設計
+## 3. Interface Design
 
-### コード例5: 小さなインターフェースの原則
+### Code Example 5: The Principle of Small Interfaces
 
 ```go
-// Go標準ライブラリの美しいインターフェース設計
+// Elegant interface designs from the Go standard library
 
-// 1メソッド — 最も再利用性が高い
+// Single method -- highest reusability
 type Reader interface {
     Read(p []byte) (n int, err error)
 }
@@ -445,7 +445,7 @@ type Stringer interface {
     String() string
 }
 
-// 合成で必要なインターフェースを構築
+// Build the required interface via composition
 type ReadWriter interface {
     Reader
     Writer
@@ -457,45 +457,45 @@ type ReadWriteCloser interface {
     Closer
 }
 
-// ReadCloser は io パッケージの典型例
+// ReadCloser is a typical example from the io package
 type ReadCloser interface {
     Reader
     Closer
 }
 ```
 
-### コード例6: インターフェースの正しい使い方
+### Code Example 6: How to Use Interfaces Correctly
 
 ```go
 // ===================================
-// 原則1: 「受け取り側でインターフェースを定義する」
+// Principle 1: "Define interfaces on the consumer side"
 // ===================================
 
-// NG: 実装側でインターフェースを定義
+// NG: Define the interface on the implementation side
 package repository
 
-type UserRepository interface {  // 実装パッケージにインターフェース
+type UserRepository interface {  // Interface in the implementation package
     GetByID(ctx context.Context, id int64) (*User, error)
     Create(ctx context.Context, u *User) error
 }
 
 type postgresUserRepo struct { ... }
-// → 使う側は repository パッケージに依存することを強制される
+// -> Consumers are forced to depend on the repository package
 
-// OK: 使う側でインターフェースを定義
+// OK: Define the interface on the consumer side
 package service
 
-// 自分が必要なメソッドだけを定義
+// Declare only the methods you need
 type UserStore interface {
     GetByID(ctx context.Context, id int64) (*User, error)
     Create(ctx context.Context, u *User) error
 }
 
 type UserService struct {
-    store UserStore  // インターフェースに依存
+    store UserStore  // Depend on the interface
 }
 
-// repository パッケージは構造体を提供するだけ
+// The repository package merely provides a struct
 package repository
 
 type PostgresUserRepo struct {
@@ -504,93 +504,91 @@ type PostgresUserRepo struct {
 
 func (r *PostgresUserRepo) GetByID(ctx context.Context, id int64) (*User, error) { ... }
 func (r *PostgresUserRepo) Create(ctx context.Context, u *User) error { ... }
-// → 暗黙的に service.UserStore を満たす
+// -> Implicitly satisfies service.UserStore
 
 // ===================================
-// 原則2: 「インターフェースを受け取り、構造体を返す」
+// Principle 2: "Accept interfaces, return structs"
 // ===================================
 
-// NG: 戻り値をインターフェースにする
+// NG: Return an interface
 func NewUserService(repo UserStore) UserServiceInterface {
     return &userService{repo: repo}
 }
-// → 型情報が失われ、具体メソッドにアクセスできない
+// -> Type information is lost; concrete methods are inaccessible
 
-// OK: 構造体を返す
+// OK: Return a struct
 func NewUserService(repo UserStore) *UserService {
     return &UserService{repo: repo}
 }
-// → 構造体のメソッドに直接アクセス可能
+// -> Struct methods are directly accessible
 
 // ===================================
-// 原則3: 「実際に使う機能だけを要求する」
+// Principle 3: "Ask only for the functionality you actually use"
 // ===================================
 
-// NG: 過大なインターフェースを要求
+// NG: Demand an oversized interface
 func ProcessData(rw ReadWriteCloser) error {
-    // 実際にはReadしか使わない
+    // Actually only uses Read
     buf := make([]byte, 1024)
     _, err := rw.Read(buf)
     return err
 }
 
-// OK: 必要な機能だけを要求
+// OK: Ask only for the functionality you need
 func ProcessData(r io.Reader) error {
     buf := make([]byte, 1024)
     _, err := r.Read(buf)
     return err
 }
-// → *os.File, *bytes.Buffer, *strings.Reader, net.Conn 全てが使える
+// -> *os.File, *bytes.Buffer, *strings.Reader, and net.Conn all work
 ```
 
-### インターフェース設計の原則
+### Interface Design Principles
 
 ```
 +----------------------------------------------------------+
 |  "Accept interfaces, return structs"                     |
-|  「インターフェースを受け取り、構造体を返す」              |
+|  "Accept interfaces, return structs"                     |
 +----------------------------------------------------------+
 |                                                          |
-|  // 引数: インターフェース（柔軟性）                      |
+|  // Parameter: interface (flexibility)                   |
 |  func NewService(repo UserRepository) *UserService       |
 |                                                          |
-|  // 戻り値: 構造体（具体性）                              |
+|  // Return value: struct (concreteness)                  |
 |  func NewService(...) *UserService  // NOT UserService   |
 |                                                          |
 +----------------------------------------------------------+
 |                                                          |
 |  "The bigger the interface, the weaker the abstraction"  |
-|  「インターフェースが大きいほど抽象度は低い」             |
-|                                     — Rob Pike           |
+|                                     -- Rob Pike          |
 +----------------------------------------------------------+
 |                                                          |
 |  "Define interfaces at the point of use"                 |
-|  「インターフェースは使う側で定義する」                   |
 +----------------------------------------------------------+
 |                                                          |
 |  "Don't export interfaces for implementation"            |
-|  「実装のためにインターフェースを公開するな」              |
 +----------------------------------------------------------+
 
-暗黙的インターフェース実装の利点:
-┌─────────────────────────────────────────┐
-│ Go: 暗黙的（Structural Typing）          │
-│   → 実装側はインターフェースの存在を     │
-│     知らなくてよい                        │
-│   → 依存関係がシンプル                   │
-│   → テスト用モックが容易                 │
-│                                         │
-│ Java/C#: 明示的（implements / :）        │
-│   → 実装側がインターフェースに依存       │
-│   → 変更時の影響範囲が大きい             │
-└─────────────────────────────────────────┘
+Benefits of implicit interface implementation:
++-----------------------------------------+
+| Go: implicit (Structural Typing)        |
+|   -> Implementations need not know      |
+|      the interface exists               |
+|   -> Simple dependency relationships    |
+|   -> Easy to mock for testing           |
+|                                         |
+| Java/C#: explicit (implements / :)      |
+|   -> Implementations depend on the      |
+|      interface                          |
+|   -> Large blast radius on changes      |
++-----------------------------------------+
 ```
 
 ---
 
-## 4. 並行処理のベストプラクティス
+## 4. Concurrency Best Practices
 
-### コード例7: goroutine のライフサイクル管理
+### Code Example 7: Goroutine Lifecycle Management
 
 ```go
 package main
@@ -606,8 +604,8 @@ import (
 )
 
 // ===================================
-// パターン1: WaitGroup
-// 単純な並列処理、エラーが不要な場合
+// Pattern 1: WaitGroup
+// Simple parallel processing, when no error handling is needed
 // ===================================
 func processItems(items []Item) {
     var wg sync.WaitGroup
@@ -622,37 +620,37 @@ func processItems(items []Item) {
 }
 
 // ===================================
-// パターン2: errgroup
-// 並列処理 + エラーハンドリング（推奨）
+// Pattern 2: errgroup
+// Parallel processing + error handling (recommended)
 // ===================================
 func fetchAll(ctx context.Context, urls []string) ([]Response, error) {
     g, ctx := errgroup.WithContext(ctx)
     responses := make([]Response, len(urls))
 
     for i, url := range urls {
-        i, url := i, url  // ループ変数のキャプチャ（Go 1.22+ では不要）
+        i, url := i, url  // Capture loop variables (unnecessary in Go 1.22+)
         g.Go(func() error {
             resp, err := fetch(ctx, url)
             if err != nil {
                 return fmt.Errorf("fetch %s: %w", url, err)
             }
-            responses[i] = resp  // インデックスが異なるので排他制御不要
+            responses[i] = resp  // Different indexes, no synchronization needed
             return nil
         })
     }
 
     if err := g.Wait(); err != nil {
-        return nil, err  // 最初のエラーが返される
+        return nil, err  // The first error is returned
     }
     return responses, nil
 }
 
 // ===================================
-// パターン3: errgroup + セマフォ（並列度制限）
+// Pattern 3: errgroup + semaphore (concurrency limit)
 // ===================================
 func fetchAllWithLimit(ctx context.Context, urls []string, maxConcurrency int) ([]Response, error) {
     g, ctx := errgroup.WithContext(ctx)
-    g.SetLimit(maxConcurrency)  // 同時実行数を制限
+    g.SetLimit(maxConcurrency)  // Limit concurrent execution
 
     responses := make([]Response, len(urls))
 
@@ -672,8 +670,8 @@ func fetchAllWithLimit(ctx context.Context, urls []string, maxConcurrency int) (
 }
 
 // ===================================
-// パターン4: Worker Pool
-// 制限付き並列処理、ジョブキュー
+// Pattern 4: Worker Pool
+// Bounded parallelism with a job queue
 // ===================================
 func workerPool(ctx context.Context, jobs <-chan int, results chan<- int) {
     var wg sync.WaitGroup
@@ -687,7 +685,7 @@ func workerPool(ctx context.Context, jobs <-chan int, results chan<- int) {
                 select {
                 case job, ok := <-jobs:
                     if !ok {
-                        return // チャネルが閉じられた
+                        return // Channel closed
                     }
                     select {
                     case results <- process(job):
@@ -695,13 +693,13 @@ func workerPool(ctx context.Context, jobs <-chan int, results chan<- int) {
                         return
                     }
                 case <-ctx.Done():
-                    return // コンテキストキャンセル
+                    return // Context canceled
                 }
             }
         }(i)
     }
 
-    // 全worker終了後にresultsを閉じる
+    // Close results after all workers finish
     go func() {
         wg.Wait()
         close(results)
@@ -709,11 +707,11 @@ func workerPool(ctx context.Context, jobs <-chan int, results chan<- int) {
 }
 
 // ===================================
-// パターン5: Pipeline
-// ステージごとのデータ処理
+// Pattern 5: Pipeline
+// Stage-by-stage data processing
 // ===================================
 func pipeline(ctx context.Context, input <-chan int) <-chan string {
-    // Stage 1: フィルター
+    // Stage 1: filter
     filtered := make(chan int)
     go func() {
         defer close(filtered)
@@ -728,7 +726,7 @@ func pipeline(ctx context.Context, input <-chan int) <-chan string {
         }
     }()
 
-    // Stage 2: 変換
+    // Stage 2: transform
     output := make(chan string)
     go func() {
         defer close(output)
@@ -746,17 +744,17 @@ func pipeline(ctx context.Context, input <-chan int) <-chan string {
 }
 
 // ===================================
-// パターン6: Fan-out / Fan-in
-// 分散処理と結果集約
+// Pattern 6: Fan-out / Fan-in
+// Distributed processing and result aggregation
 // ===================================
 func fanOutFanIn(ctx context.Context, input <-chan int, numWorkers int) <-chan int {
-    // Fan-out: 複数のworkerに分配
+    // Fan-out: distribute to multiple workers
     workers := make([]<-chan int, numWorkers)
     for i := 0; i < numWorkers; i++ {
         workers[i] = worker(ctx, input)
     }
 
-    // Fan-in: 複数のworkerの結果を集約
+    // Fan-in: aggregate results from multiple workers
     return merge(ctx, workers...)
 }
 
@@ -805,61 +803,61 @@ func merge(ctx context.Context, channels ...<-chan int) <-chan int {
 }
 ```
 
-### コード例8: context の正しい伝搬
+### Code Example 8: Proper context Propagation
 
 ```go
 // ===================================
-// context のルール
+// Rules for context
 // ===================================
 
-// 1. context は第一引数に渡す
+// 1. Pass context as the first parameter
 func fetchData(ctx context.Context) (*Data, error) { ... }
 
-// 2. context は struct に保存しない
+// 2. Do not store context in a struct
 // NG:
 type Server struct {
-    ctx context.Context  // NG: リクエストスコープの ctx を保存
+    ctx context.Context  // NG: storing a request-scoped ctx
 }
-// OK: メソッドの引数として渡す
+// OK: pass it as a method argument
 
-// 3. nil context を渡さない
+// 3. Do not pass a nil context
 // NG: fetchData(nil)
 // OK: fetchData(context.Background())
-//     fetchData(context.TODO())  // 後で適切な context に置き換える場合
+//     fetchData(context.TODO())  // when you plan to replace it with a proper context later
 
-// 4. context.WithValue は最小限に（認証情報等のみ）
-// NG: context に大量のデータを詰め込む
-// OK: リクエストID、認証情報など横断的関心事のみ
+// 4. Keep context.WithValue minimal (authentication info, etc., only)
+// NG: cramming lots of data into context
+// OK: only cross-cutting concerns such as request IDs and auth info
 
-// コンテキストの連鎖
+// Context chaining
 func main() {
-    // ルートコンテキスト（キャンセル可能）
+    // Root context (cancellable)
     ctx, cancel := context.WithCancel(context.Background())
     defer cancel()
 
-    // タイムアウト付きコンテキスト
+    // Context with a timeout
     ctx, cancel = context.WithTimeout(ctx, 30*time.Second)
     defer cancel()
 
-    // デッドライン付きコンテキスト
+    // Context with a deadline
     deadline := time.Now().Add(1 * time.Minute)
     ctx, cancel = context.WithDeadline(ctx, deadline)
     defer cancel()
 
-    // 値付きコンテキスト（横断的関心事のみ）
+    // Context with a value (cross-cutting concerns only)
     ctx = context.WithValue(ctx, requestIDKey{}, "req-123")
 }
 
-// HTTPハンドラ内での context 使用
+// Using context inside an HTTP handler
 http.HandleFunc("/api/data", func(w http.ResponseWriter, r *http.Request) {
-    // リクエストのコンテキストを使用
-    // → クライアント切断で自動キャンセル
+    // Use the request's context
+    // -> automatically canceled when the client disconnects
     ctx := r.Context()
 
     data, err := fetchData(ctx)
     if err != nil {
         if ctx.Err() == context.Canceled {
-            // クライアントが切断した → ログだけ
+            // The client disconnected -> log only
             return
         }
         if ctx.Err() == context.DeadlineExceeded {
@@ -872,7 +870,7 @@ http.HandleFunc("/api/data", func(w http.ResponseWriter, r *http.Request) {
     json.NewEncoder(w).Encode(data)
 })
 
-// context を下流に伝搬
+// Propagate context downstream
 func fetchData(ctx context.Context) (*Data, error) {
     req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
     if err != nil {
@@ -887,43 +885,43 @@ func fetchData(ctx context.Context) (*Data, error) {
 }
 ```
 
-### 並行処理パターンの比較表
+### Concurrency Pattern Comparison
 
-| パターン | 用途 | エラー処理 | キャンセル | 複雑度 | 推奨度 |
-|---------|------|-----------|-----------|--------|--------|
-| goroutine + WaitGroup | 単純な並列処理 | 手動（チャネル等） | 手動（context） | 低 | 基本 |
-| errgroup | 並列処理 + エラー集約 | 自動（最初のエラー） | 自動（context連携） | 低 | 推奨 |
-| errgroup + SetLimit | 並列度制限 | 自動 | 自動 | 低 | 推奨 |
-| Worker Pool | ジョブキュー | 手動 | context対応 | 中 | 特定用途 |
-| Pipeline | ステージ処理 | ステージ間で伝搬 | context + done | 高 | 特定用途 |
-| Fan-out/Fan-in | 分散処理 + 集約 | 集約時に処理 | context対応 | 高 | 特定用途 |
+| Pattern | Use case | Error handling | Cancellation | Complexity | Recommendation |
+|---------|----------|----------------|--------------|------------|----------------|
+| goroutine + WaitGroup | Simple parallel processing | Manual (e.g., channels) | Manual (context) | Low | Basic |
+| errgroup | Parallel processing + error aggregation | Automatic (first error) | Automatic (context-integrated) | Low | Recommended |
+| errgroup + SetLimit | Concurrency-limited | Automatic | Automatic | Low | Recommended |
+| Worker Pool | Job queues | Manual | context-aware | Medium | Special-purpose |
+| Pipeline | Staged processing | Propagated between stages | context + done | High | Special-purpose |
+| Fan-out/Fan-in | Distributed processing + aggregation | Handled at aggregation | context-aware | High | Special-purpose |
 
 ---
 
-## 5. 構造体とメソッド設計
+## 5. Struct and Method Design
 
-### コード例9: ゼロ値を有用にする
+### Code Example 9: Make Zero Values Useful
 
 ```go
-// Go 標準ライブラリの優れたゼロ値設計
+// Great zero-value designs in the Go standard library
 
-// sync.Mutex — ゼロ値ですぐ使える
+// sync.Mutex -- usable as its zero value
 var mu sync.Mutex
-mu.Lock() // 初期化不要
+mu.Lock() // No initialization required
 
-// bytes.Buffer — ゼロ値ですぐ使える
+// bytes.Buffer -- usable as its zero value
 var buf bytes.Buffer
 buf.WriteString("hello")
 
-// sync.Once — ゼロ値ですぐ使える
+// sync.Once -- usable as its zero value
 var once sync.Once
-once.Do(func() { /* 初期化 */ })
+once.Do(func() { /* initialization */ })
 
-// 自作の型もゼロ値を有用に設計する
+// Design your own types so their zero value is useful
 type Logger struct {
-    output io.Writer // nil なら os.Stderr を使う
-    level  int       // 0 なら INFO レベル
-    prefix string    // "" なら空文字
+    output io.Writer // nil means use os.Stderr
+    level  int       // 0 means INFO level
+    prefix string    // "" means empty string
 }
 
 func (l *Logger) writer() io.Writer {
@@ -937,11 +935,11 @@ func (l *Logger) Info(msg string) {
     fmt.Fprintf(l.writer(), "%s[INFO] %s\n", l.prefix, msg)
 }
 
-// ゼロ値で使える
+// Usable as a zero value
 var log Logger
-log.Info("ready") // os.Stderr に INFO レベルで出力
+log.Info("ready") // Outputs at INFO level to os.Stderr
 
-// 明示的な初期化も可能
+// Explicit initialization is also possible
 customLog := Logger{
     output: os.Stdout,
     level:  2,
@@ -949,37 +947,37 @@ customLog := Logger{
 }
 customLog.Info("started")
 
-// NG: ゼロ値が無効な設計
+// NG: design where the zero value is invalid
 type BadConfig struct {
-    MaxRetries int  // 0 = リトライしない? or 未設定?
-    Timeout    time.Duration  // 0 = 即タイムアウト?
+    MaxRetries int  // 0 = no retries? or unset?
+    Timeout    time.Duration  // 0 = immediate timeout?
 }
 
-// OK: ゼロ値を区別する設計
+// OK: design that distinguishes the zero value
 type GoodConfig struct {
-    MaxRetries *int           // nil = 未設定（デフォルト3）
-    Timeout    time.Duration  // 0 = デフォルト（30秒）
+    MaxRetries *int           // nil = unset (default 3)
+    Timeout    time.Duration  // 0 = default (30 seconds)
 }
 
 func (c *GoodConfig) maxRetries() int {
     if c.MaxRetries == nil {
-        return 3 // デフォルト
+        return 3 // default
     }
     return *c.MaxRetries
 }
 
 func (c *GoodConfig) timeout() time.Duration {
     if c.Timeout == 0 {
-        return 30 * time.Second // デフォルト
+        return 30 * time.Second // default
     }
     return c.Timeout
 }
 ```
 
-### コード例10: 機能オプションパターン（Functional Options）
+### Code Example 10: Functional Options Pattern
 
 ```go
-// 機能オプションパターンの完全な実装
+// A complete implementation of the functional options pattern
 
 type Server struct {
     addr         string
@@ -992,49 +990,49 @@ type Server struct {
     middleware   []Middleware
 }
 
-// Option は Server の設定オプション
+// Option is a configuration option for Server
 type Option func(*Server)
 
-// WithReadTimeout は読み取りタイムアウトを設定する
+// WithReadTimeout sets the read timeout
 func WithReadTimeout(d time.Duration) Option {
     return func(s *Server) { s.readTimeout = d }
 }
 
-// WithWriteTimeout は書き込みタイムアウトを設定する
+// WithWriteTimeout sets the write timeout
 func WithWriteTimeout(d time.Duration) Option {
     return func(s *Server) { s.writeTimeout = d }
 }
 
-// WithIdleTimeout はアイドルタイムアウトを設定する
+// WithIdleTimeout sets the idle timeout
 func WithIdleTimeout(d time.Duration) Option {
     return func(s *Server) { s.idleTimeout = d }
 }
 
-// WithMaxConnections は最大接続数を設定する
+// WithMaxConnections sets the maximum number of connections
 func WithMaxConnections(n int) Option {
     return func(s *Server) { s.maxConn = n }
 }
 
-// WithLogger はロガーを設定する
+// WithLogger sets the logger
 func WithLogger(l *log.Logger) Option {
     return func(s *Server) { s.logger = l }
 }
 
-// WithTLS はTLS設定を適用する
+// WithTLS applies the TLS configuration
 func WithTLS(config *tls.Config) Option {
     return func(s *Server) { s.tlsConfig = config }
 }
 
-// WithMiddleware はミドルウェアを追加する
+// WithMiddleware appends middleware
 func WithMiddleware(mw ...Middleware) Option {
     return func(s *Server) { s.middleware = append(s.middleware, mw...) }
 }
 
-// NewServer は新しいサーバーを作成する
+// NewServer creates a new server
 func NewServer(addr string, opts ...Option) *Server {
     s := &Server{
         addr:         addr,
-        readTimeout:  5 * time.Second,   // デフォルト値
+        readTimeout:  5 * time.Second,   // default values
         writeTimeout: 10 * time.Second,
         idleTimeout:  120 * time.Second,
         maxConn:      100,
@@ -1046,7 +1044,7 @@ func NewServer(addr string, opts ...Option) *Server {
     return s
 }
 
-// 使用例
+// Example usage
 func main() {
     srv := NewServer(":8080",
         WithReadTimeout(30*time.Second),
@@ -1055,22 +1053,22 @@ func main() {
         WithMiddleware(loggingMW, authMW),
     )
 
-    // デフォルト値で十分な場合
+    // When the defaults are sufficient
     simpleSrv := NewServer(":8080")
 }
 
-// 機能オプションパターンの利点:
-// 1. 後方互換性: 新オプション追加が既存コードに影響しない
-// 2. 可読性: 設定の意味が明確
-// 3. デフォルト値: 未指定のオプションはデフォルト値を使用
-// 4. バリデーション: Option関数内でバリデーション可能
-// 5. ドキュメント: 各Withの関数にGoDocを書ける
+// Benefits of the functional options pattern:
+// 1. Backward compatibility: adding new options does not affect existing code
+// 2. Readability: the meaning of each setting is clear
+// 3. Default values: unspecified options use their defaults
+// 4. Validation: validation can happen inside the Option functions
+// 5. Documentation: you can write GoDoc for each With-function
 ```
 
-### コード例11: Builder パターン（機能オプションの代替）
+### Code Example 11: Builder Pattern (Alternative to Functional Options)
 
 ```go
-// Builder パターン（チェーン形式）
+// Builder pattern (chained form)
 type ServerBuilder struct {
     server *Server
     errs   []error
@@ -1112,7 +1110,7 @@ func (b *ServerBuilder) Build() (*Server, error) {
     return b.server, nil
 }
 
-// 使用例
+// Example usage
 srv, err := NewServerBuilder(":8080").
     ReadTimeout(30 * time.Second).
     MaxConnections(1000).
@@ -1121,33 +1119,33 @@ srv, err := NewServerBuilder(":8080").
 
 ---
 
-## 6. テスタビリティの設計
+## 6. Designing for Testability
 
-### コード例12: テストしやすいコード
+### Code Example 12: Code That Is Easy to Test
 
 ```go
 // ===================================
-// 原則: 依存を注入し、インターフェースで抽象化
+// Principle: inject dependencies and abstract with interfaces
 // ===================================
 
-// テスト困難なコード
-// NG: 具体的な実装に直接依存
+// Hard-to-test code
+// NG: Directly depends on a concrete implementation
 type UserServiceBad struct {
-    db *sql.DB  // 具体型に依存 → テスト時にDBが必要
+    db *sql.DB  // Depends on a concrete type -> needs a DB for testing
 }
 
 func (s *UserServiceBad) GetUser(id int64) (*User, error) {
-    return s.db.QueryRow("SELECT ...") // DBに直接アクセス
+    return s.db.QueryRow("SELECT ...") // Accesses the DB directly
 }
 
-// テスト容易なコード
-// OK: インターフェースに依存
+// Easy-to-test code
+// OK: Depends on an interface
 type UserRepository interface {
     GetByID(ctx context.Context, id int64) (*User, error)
 }
 
 type UserService struct {
-    repo UserRepository  // インターフェースに依存
+    repo UserRepository  // Depends on the interface
 }
 
 func NewUserService(repo UserRepository) *UserService {
@@ -1161,10 +1159,10 @@ func (s *UserService) GetUser(ctx context.Context, id int64) (*User, error) {
     return s.repo.GetByID(ctx, id)
 }
 
-// テスト用モック
+// Mock for testing
 type mockUserRepo struct {
     users map[int64]*User
-    err   error // テスト用のエラー注入
+    err   error // Error injection for tests
 }
 
 func (m *mockUserRepo) GetByID(ctx context.Context, id int64) (*User, error) {
@@ -1178,7 +1176,7 @@ func (m *mockUserRepo) GetByID(ctx context.Context, id int64) (*User, error) {
     return u, nil
 }
 
-// テーブル駆動テスト
+// Table-driven test
 func TestUserService_GetUser(t *testing.T) {
     tests := []struct {
         name    string
@@ -1230,17 +1228,17 @@ func TestUserService_GetUser(t *testing.T) {
 }
 ```
 
-### コード例13: 時間のテスタビリティ
+### Code Example 13: Testability of Time
 
 ```go
-// NG: time.Now() を直接呼ぶとテストが不安定
+// NG: Calling time.Now() directly makes tests flaky
 func (s *TokenService) IsExpired(token *Token) bool {
-    return time.Now().After(token.ExpiresAt) // テスト時に制御不可
+    return time.Now().After(token.ExpiresAt) // Uncontrollable in tests
 }
 
-// OK: 時間関数を注入可能にする
+// OK: Make the time function injectable
 type TokenService struct {
-    now func() time.Time // テスト時に差し替え可能
+    now func() time.Time // Swappable in tests
 }
 
 func NewTokenService() *TokenService {
@@ -1251,7 +1249,7 @@ func (s *TokenService) IsExpired(token *Token) bool {
     return s.now().After(token.ExpiresAt)
 }
 
-// テスト
+// Test
 func TestIsExpired(t *testing.T) {
     fixedTime := time.Date(2024, 6, 1, 12, 0, 0, 0, time.UTC)
     svc := &TokenService{
@@ -1267,96 +1265,96 @@ func TestIsExpired(t *testing.T) {
 
 ---
 
-## 7. アンチパターン
+## 7. Anti-patterns
 
-### アンチパターン1: エラーを握りつぶす
+### Anti-pattern 1: Swallowing Errors
 
 ```go
-// NG: エラーを無視
-data, _ := json.Marshal(user)    // マーシャルエラーを捨てている
-f, _ := os.Open("config.yaml")  // ファイルが存在しない場合パニック
+// NG: Ignoring errors
+data, _ := json.Marshal(user)    // Discards the marshal error
+f, _ := os.Open("config.yaml")  // Panics if the file does not exist
 defer f.Close()
 
-// OK: エラーを適切に処理
+// OK: Handle errors properly
 data, err := json.Marshal(user)
 if err != nil {
-    return fmt.Errorf("ユーザーのJSON変換に失敗: %w", err)
+    return fmt.Errorf("failed to marshal user to JSON: %w", err)
 }
 
 f, err := os.Open("config.yaml")
 if err != nil {
-    return fmt.Errorf("設定ファイルを開けません: %w", err)
+    return fmt.Errorf("cannot open config file: %w", err)
 }
 defer f.Close()
 
-// 唯一エラーを無視してよい場面:
-// 1. defer での Close()（ただしログは出すべき）
+// The only situations where ignoring errors is acceptable:
+// 1. Close() in defer (though you should still log it)
 defer func() {
     if err := f.Close(); err != nil {
         log.Printf("file close error: %v", err)
     }
 }()
-// 2. fmt.Fprint* 系（ほぼ失敗しない）
+// 2. fmt.Fprint* family (almost never fails)
 fmt.Fprintf(w, "hello")
 ```
 
-### アンチパターン2: init() の乱用
+### Anti-pattern 2: Abuse of init()
 
 ```go
-// NG: init() で複雑な初期化
+// NG: Complex initialization in init()
 func init() {
     db, err := sql.Open("postgres", os.Getenv("DATABASE_URL"))
     if err != nil {
-        log.Fatal(err) // テスト時にも実行される
+        log.Fatal(err) // Runs during tests too
     }
     globalDB = db
 }
-// 問題:
-// - テスト時にDBが必要
-// - 初期化順序が不明確
-// - エラー時にlog.Fatal → テストが落ちる
+// Problems:
+// - Requires a DB during testing
+// - Initialization order is unclear
+// - log.Fatal on error -> tests crash
 
-// OK: 明示的な初期化関数
+// OK: Explicit initialization function
 func NewApp(cfg Config) (*App, error) {
     db, err := sql.Open("postgres", cfg.DatabaseURL)
     if err != nil {
-        return nil, fmt.Errorf("DB接続失敗: %w", err)
+        return nil, fmt.Errorf("DB connection failed: %w", err)
     }
     return &App{db: db}, nil
 }
 
-// init() が適切な場面:
-// - driver.Register (database/sql ドライバの登録)
-// - flag.Parse の前提設定
-// - 非常に単純な初期化（変数の初期値設定等）
+// When init() is appropriate:
+// - driver.Register (registering a database/sql driver)
+// - Setting prerequisites for flag.Parse
+// - Very simple initialization (assigning initial values to variables, etc.)
 ```
 
-### アンチパターン3: goroutine を Fire-and-Forget
+### Anti-pattern 3: Fire-and-Forget Goroutines
 
 ```go
-// NG: goroutine のライフサイクルを管理しない
+// NG: Goroutine lifecycle is unmanaged
 func handler(w http.ResponseWriter, r *http.Request) {
-    go sendEmail(user.Email) // パニックしても誰も気づかない
-    w.WriteHeader(200)       // メール送信の結果を確認しない
+    go sendEmail(user.Email) // A panic goes unnoticed
+    w.WriteHeader(200)       // No check of the email result
 }
-// 問題:
-// - パニック → プロセス全体が落ちる
-// - エラー → 検知できない
-// - メモリリーク → goroutineが終了しない可能性
+// Problems:
+// - A panic -> the whole process crashes
+// - Errors -> undetectable
+// - Memory leak -> the goroutine may never terminate
 
-// OK: errgroup や recover で管理
+// OK: Manage with errgroup or recover
 func handler(w http.ResponseWriter, r *http.Request) {
     g, ctx := errgroup.WithContext(r.Context())
     g.Go(func() error {
         return sendEmail(ctx, user.Email)
     })
     if err := g.Wait(); err != nil {
-        log.Printf("email送信失敗: %v", err)
+        log.Printf("email send failed: %v", err)
     }
     w.WriteHeader(200)
 }
 
-// OK: バックグラウンドタスク用のワーカー
+// OK: A worker for background tasks
 type BackgroundWorker struct {
     tasks chan func()
     wg    sync.WaitGroup
@@ -1381,87 +1379,87 @@ func (w *BackgroundWorker) Shutdown() {
 }
 ```
 
-### アンチパターン4: sync.Mutex の誤用
+### Anti-pattern 4: Misuse of sync.Mutex
 
 ```go
-// NG: Mutex をコピーする
+// NG: Copying a Mutex
 type Cache struct {
     mu    sync.Mutex
     items map[string]string
 }
 
-func (c Cache) Get(key string) string {  // 値レシーバ → Mutexがコピーされる
+func (c Cache) Get(key string) string {  // Value receiver -> the Mutex is copied
     c.mu.Lock()
     defer c.mu.Unlock()
     return c.items[key]
 }
 
-// OK: ポインタレシーバを使う
+// OK: Use a pointer receiver
 func (c *Cache) Get(key string) string {
     c.mu.Lock()
     defer c.mu.Unlock()
     return c.items[key]
 }
 
-// NG: Mutex を公開する
+// NG: Exposing the Mutex
 type Cache struct {
-    Mu    sync.Mutex  // 公開フィールド → 外部からロック可能
+    Mu    sync.Mutex  // Exported field -> external code can lock it
     Items map[string]string
 }
 
-// OK: Mutex を非公開にする
+// OK: Keep the Mutex unexported
 type Cache struct {
     mu    sync.Mutex
     items map[string]string
 }
 
-// NG: 読み取りにもMutexを使う（RWMutexを使うべき）
+// NG: Using a Mutex even for reads (should be an RWMutex)
 func (c *Cache) Get(key string) string {
-    c.mu.Lock()       // 読み取りなのに排他ロック
+    c.mu.Lock()       // An exclusive lock for read-only access
     defer c.mu.Unlock()
     return c.items[key]
 }
 
-// OK: 読み取りにはRLockを使う
+// OK: Use RLock for reads
 type Cache struct {
     mu    sync.RWMutex
     items map[string]string
 }
 
 func (c *Cache) Get(key string) string {
-    c.mu.RLock()       // 読み取りロック（複数goroutineが同時に読める）
+    c.mu.RLock()       // Read lock (multiple goroutines can read concurrently)
     defer c.mu.RUnlock()
     return c.items[key]
 }
 
 func (c *Cache) Set(key, value string) {
-    c.mu.Lock()        // 書き込みロック（排他）
+    c.mu.Lock()        // Write lock (exclusive)
     defer c.mu.Unlock()
     c.items[key] = value
 }
 ```
 
-### アンチパターン5: 不要な else
+### Anti-pattern 5: Unnecessary else
 
 ```go
-// NG: 冗長な else
+// NG: Redundant else
 func process(data []byte) error {
     if len(data) == 0 {
         return errors.New("empty data")
     } else {
-        return parse(data)  // else 不要
+        return parse(data)  // else is unnecessary
     }
 }
 
-// OK: 早期リターン
+// OK: Early return
 func process(data []byte) error {
     if len(data) == 0 {
         return errors.New("empty data")
     }
-    return parse(data)  // 正常パスがインデント0
+    return parse(data)  // Happy path at indentation 0
 }
 
-// NG: ネストが深い
+// NG: Deep nesting
 func validate(user *User) error {
     if user != nil {
         if user.Name != "" {
@@ -1478,7 +1476,7 @@ func validate(user *User) error {
     }
 }
 
-// OK: ガード節で早期リターン
+// OK: Guard clauses with early returns
 func validate(user *User) error {
     if user == nil {
         return errors.New("user is nil")
@@ -1495,51 +1493,51 @@ func validate(user *User) error {
 
 ---
 
-## 8. パフォーマンス指針
+## 8. Performance Guidelines
 
-### メモリアロケーション最適化
+### Memory Allocation Optimization
 
 ```go
-// NG: ループ内でスライスを動的拡張
+// NG: Growing a slice dynamically inside a loop
 func processItems(items []Item) []Result {
-    var results []Result  // 容量不明
+    var results []Result  // Unknown capacity
     for _, item := range items {
         results = append(results, process(item))
-        // → 容量が足りないたびにメモリ再割当 + コピー
+        // -> Memory reallocation + copy every time capacity runs out
     }
     return results
 }
 
-// OK: 事前に容量を確保
+// OK: Pre-allocate capacity
 func processItems(items []Item) []Result {
-    results := make([]Result, 0, len(items))  // 容量を事前確保
+    results := make([]Result, 0, len(items))  // Pre-allocate capacity
     for _, item := range items {
         results = append(results, process(item))
     }
     return results
 }
 
-// strings.Builder を使った文字列結合
-// NG: += で結合（毎回新しい文字列を生成）
+// String concatenation with strings.Builder
+// NG: Concatenation via += (creates a new string each time)
 func buildString(parts []string) string {
     result := ""
     for _, p := range parts {
-        result += p  // O(n^2) のメモリアロケーション
+        result += p  // O(n^2) memory allocations
     }
     return result
 }
 
-// OK: strings.Builder（O(n)）
+// OK: strings.Builder (O(n))
 func buildString(parts []string) string {
     var b strings.Builder
-    b.Grow(estimatedSize)  // 推定サイズを事前確保
+    b.Grow(estimatedSize)  // Pre-allocate an estimated size
     for _, p := range parts {
         b.WriteString(p)
     }
     return b.String()
 }
 
-// sync.Pool でオブジェクトを再利用
+// Reuse objects with sync.Pool
 var bufPool = sync.Pool{
     New: func() interface{} {
         return new(bytes.Buffer)
@@ -1552,7 +1550,7 @@ func processRequest(data []byte) string {
     defer bufPool.Put(buf)
 
     buf.Write(data)
-    // ... 処理
+    // ... processing
     return buf.String()
 }
 ```
@@ -1561,22 +1559,22 @@ func processRequest(data []byte) string {
 
 ## FAQ
 
-### Q1. Go のコードフォーマットはどうする？
+### Q1. How do I format Go code?
 
-`gofmt` はGoの公式フォーマッタで、議論の余地なく一律のスタイルを適用する。`goimports` は `gofmt` に加えて import の整理も行う。CI では `gofmt -l .` で未フォーマットのファイルがないか確認する。
+`gofmt` is Go's official formatter, applying a uniform style without room for debate. `goimports` goes further than `gofmt` and also organizes imports. In CI, run `gofmt -l .` to verify there are no unformatted files.
 
 ```bash
-# フォーマット
+# Format
 gofmt -w .
 goimports -w .
 
-# CIでのチェック
+# Check in CI
 test -z "$(gofmt -l .)"
 ```
 
-### Q2. リンターは何を使うべき？
+### Q2. What linter should I use?
 
-`golangci-lint` が業界標準。`staticcheck`, `errcheck`, `govet`, `gosimple` など多数のリンターを統合実行できる。`.golangci.yml` でプロジェクトに合わせたルール設定が可能。
+`golangci-lint` is the industry standard. It can run many linters in a unified way, including `staticcheck`, `errcheck`, `govet`, and `gosimple`. You can configure project-specific rules in `.golangci.yml`.
 
 ```yaml
 # .golangci.yml
@@ -1593,89 +1591,89 @@ linters:
     - goimports
     - gocritic
     - revive
-    - prealloc      # スライスの事前割当推奨
-    - bodyclose     # HTTPレスポンスBody閉じ忘れ
-    - nilerr        # nil エラーチェック
-    - exportloopref # ループ変数キャプチャ
+    - prealloc      # Recommends pre-allocating slices
+    - bodyclose     # Forgotten HTTP response Body close
+    - nilerr        # nil error checks
+    - exportloopref # Loop variable capture
 ```
 
-### Q3. パッケージ構成のベストプラクティスは？
+### Q3. What is the best practice for package layout?
 
-小さなプロジェクトではフラット構成で十分。大規模では `internal/` で外部公開を制限し、ドメインごとにパッケージを分ける。循環依存を避け、依存の方向を一方向に保つ。`cmd/` 配下にエントリポイントを置く。
-
-```
-推奨構成:
-  cmd/server/main.go          -- エントリポイント（薄く保つ）
-  internal/                    -- 外部非公開
-    handler/                   -- HTTPハンドラ
-    service/                   -- ビジネスロジック
-    repository/                -- データアクセス
-    model/                     -- ドメインモデル
-  pkg/                         -- 外部公開ライブラリ
-
-依存の方向:
-  main → handler → service → repository → model
-  （一方向、循環なし）
-```
-
-### Q4. ポインタレシーバと値レシーバの使い分けは？
+For small projects, a flat structure is sufficient. For large ones, use `internal/` to restrict external visibility and split packages per domain. Avoid circular dependencies and keep the dependency direction one-way. Place entry points under `cmd/`.
 
 ```
-ポインタレシーバ (*T) を使う場面:
-  → 構造体を変更する（setter）
-  → 構造体が大きい（コピーコストが高い）
-  → sync.Mutex 等コピー禁止のフィールドがある
-  → 一貫性のため（1つでもポインタレシーバがあれば全てポインタ）
+Recommended layout:
+  cmd/server/main.go          -- entry point (keep it thin)
+  internal/                    -- not externally visible
+    handler/                   -- HTTP handlers
+    service/                   -- business logic
+    repository/                -- data access
+    model/                     -- domain models
+  pkg/                         -- externally visible libraries
 
-値レシーバ (T) を使う場面:
-  → 構造体が小さく不変（Point{x, y}等）
-  → map のキーとして使う型
-  → time.Time のように値として扱う型
+Dependency direction:
+  main -> handler -> service -> repository -> model
+  (one-way, no cycles)
 ```
 
-### Q5. Go 1.22 以降の主な改善点は？
+### Q4. When should I use a pointer receiver vs a value receiver?
 
-- **ループ変数のスコープ修正**: `for i, v := range` のループ変数がイテレーションごとに新しく確保される
-- **range over integers**: `for i := range 10` が可能に
-- **Enhanced HTTP routing**: `http.ServeMux` がパスパラメータに対応
-- **cmp パッケージ**: 比較関数の標準化
+```
+Use a pointer receiver (*T) when:
+  -> The struct is mutated (setter)
+  -> The struct is large (copy cost is high)
+  -> It contains fields that must not be copied, such as sync.Mutex
+  -> For consistency (if any method has a pointer receiver, all methods should)
+
+Use a value receiver (T) when:
+  -> The struct is small and immutable (e.g., Point{x, y})
+  -> A type used as a map key
+  -> A type treated as a value, like time.Time
+```
+
+### Q5. What are the major improvements in Go 1.22 and later?
+
+- **Loop variable scope fix**: the loop variable in `for i, v := range` is freshly allocated on each iteration
+- **range over integers**: `for i := range 10` is now possible
+- **Enhanced HTTP routing**: `http.ServeMux` supports path parameters
+- **cmp package**: standardized comparison functions
 
 ---
 
-## まとめ
+## Summary
 
-| 概念 | 要点 |
-|------|------|
-| 命名規則 | PascalCase/camelCase、頭字語は大文字維持、短いスコープ→短い名前 |
-| インターフェース | 小さく保つ、使う側で定義、暗黙的実装 |
-| エラーハンドリング | %w でラップ、Is/As で判定、ハンドラ層で1回ログ |
-| ゼロ値 | 有用なゼロ値を設計する |
-| Option パターン | 柔軟な初期化、後方互換性 |
-| context | 第一引数、キャンセル伝搬、値は横断的関心事のみ |
-| errgroup | goroutine管理の推奨パターン |
-| gofmt / golangci-lint | コード品質の自動化、CIに組み込む |
-| テスタビリティ | インターフェース + DI でモック可能に |
-| パフォーマンス | スライス事前割当、strings.Builder、sync.Pool |
-| パッケージ設計 | 一方向依存、循環禁止、internal で非公開 |
-| 早期リターン | ガード節でネストを減らす |
-
----
-
-## 次に読むべきガイド
-
-- **02-web/04-testing.md** -- テスト：table-driven tests、testify、httptest
-- **03-tools/01-generics.md** -- ジェネリクス：型パラメータ、制約
-- **03-tools/02-profiling.md** -- プロファイリング：pprof、trace
+| Concept | Key points |
+|---------|-----------|
+| Naming conventions | PascalCase/camelCase, keep acronyms uppercase, short scope -> short name |
+| Interfaces | Keep them small, define them on the consumer side, implicit implementation |
+| Error handling | Wrap with %w, inspect with Is/As, log once in the handler layer |
+| Zero values | Design useful zero values |
+| Option pattern | Flexible initialization, backward compatibility |
+| context | First argument, propagate cancellation, values for cross-cutting concerns only |
+| errgroup | Recommended pattern for goroutine management |
+| gofmt / golangci-lint | Automate code quality, wire it into CI |
+| Testability | Enable mocking via interfaces and DI |
+| Performance | Pre-allocate slices, strings.Builder, sync.Pool |
+| Package design | One-way dependencies, no cycles, keep private with internal |
+| Early return | Reduce nesting with guard clauses |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
 
-1. **Go公式 -- Effective Go** https://go.dev/doc/effective_go
-2. **Go公式 -- Code Review Comments** https://go.dev/wiki/CodeReviewComments
+- **02-web/04-testing.md** -- Testing: table-driven tests, testify, httptest
+- **03-tools/01-generics.md** -- Generics: type parameters, constraints
+- **03-tools/02-profiling.md** -- Profiling: pprof, trace
+
+---
+
+## References
+
+1. **Go official -- Effective Go** https://go.dev/doc/effective_go
+2. **Go official -- Code Review Comments** https://go.dev/wiki/CodeReviewComments
 3. **Go Blog -- Error handling and Go** https://go.dev/blog/error-handling-and-go
 4. **Uber Go Style Guide** https://github.com/uber-go/guide/blob/master/style.md
 5. **Go Proverbs** https://go-proverbs.github.io/
 6. **100 Go Mistakes and How to Avoid Them** -- Teiva Harsanyi
-7. **Go公式 -- Package Names** https://go.dev/blog/package-names
+7. **Go official -- Package Names** https://go.dev/blog/package-names
 8. **golang.org/x/sync/errgroup** https://pkg.go.dev/golang.org/x/sync/errgroup
