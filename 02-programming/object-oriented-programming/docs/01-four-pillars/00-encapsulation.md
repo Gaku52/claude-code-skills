@@ -1,65 +1,65 @@
-# カプセル化
+# Encapsulation
 
-> カプセル化は「データとそれを操作するメソッドを1つの単位にまとめ、内部の実装詳細を隠蔽する」原則。OOPの4つの柱の中で最も基本的かつ重要。
+> Encapsulation is the principle of "bundling data together with the methods that operate on it, and hiding the internal implementation details." It is the most fundamental and important of OOP's four pillars.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] カプセル化の2つの側面（バンドリングと情報隠蔽）を理解する
-- [ ] アクセス修飾子の使い分けを把握する
-- [ ] 不変オブジェクトの設計を学ぶ
-- [ ] Tell, Don't Ask 原則を実践できるようになる
-- [ ] 防衛的コピーとデータ漏洩防止を理解する
-- [ ] 各言語のカプセル化メカニズムの違いを把握する
+- [ ] Understand the two facets of encapsulation (bundling and information hiding)
+- [ ] Grasp how to use access modifiers appropriately
+- [ ] Learn how to design immutable objects
+- [ ] Be able to practice the Tell, Don't Ask principle
+- [ ] Understand defensive copying and preventing data leakage
+- [ ] Grasp the differences in encapsulation mechanisms across languages
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Your understanding will be deeper if you have the following knowledge before reading this guide:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
+- Basic programming knowledge
+- Understanding of related foundational concepts
 
 ---
 
-## 1. カプセル化の2つの側面
+## 1. The Two Facets of Encapsulation
 
 ```
-カプセル化 = バンドリング + 情報隠蔽
+Encapsulation = Bundling + Information Hiding
 
-  バンドリング（Bundling）:
-    → 関連するデータとメソッドを1つのクラスにまとめる
-    → 「このデータはこのメソッドで操作する」という意図を明確化
+  Bundling:
+    -> Group related data and methods into a single class
+    -> Clarify the intent: "this data is manipulated by these methods"
 
-  情報隠蔽（Information Hiding）:
-    → 内部の実装詳細を外部から見えなくする
-    → 外部には必要最小限のインターフェースのみ公開
-    → 内部実装を変更しても外部に影響しない
+  Information Hiding:
+    -> Make internal implementation details invisible from outside
+    -> Expose only the minimum necessary interface
+    -> Internal implementation changes do not affect external code
 
-  ┌──────────────────────────────────┐
-  │         BankAccount              │
-  │  ┌──────────────────────────┐   │
-  │  │ private:                 │   │
-  │  │   balance: number        │   │  内部（隠蔽）
-  │  │   transactions: Log[]    │   │
-  │  │   validate(amount)       │   │
-  │  └──────────────────────────┘   │
-  │  ┌──────────────────────────┐   │
-  │  │ public:                  │   │
-  │  │   deposit(amount)        │   │  外部（公開API）
-  │  │   withdraw(amount)       │   │
-  │  │   getBalance()           │   │
-  │  └──────────────────────────┘   │
-  └──────────────────────────────────┘
+  +----------------------------------+
+  |         BankAccount              |
+  |  +--------------------------+    |
+  |  | private:                 |    |
+  |  |   balance: number        |    |  internal (hidden)
+  |  |   transactions: Log[]    |    |
+  |  |   validate(amount)       |    |
+  |  +--------------------------+    |
+  |  +--------------------------+    |
+  |  | public:                  |    |
+  |  |   deposit(amount)        |    |  external (public API)
+  |  |   withdraw(amount)       |    |
+  |  |   getBalance()           |    |
+  |  +--------------------------+    |
+  +----------------------------------+
 ```
 
-### 1.1 バンドリングの深掘り
+### 1.1 A Deeper Look at Bundling
 
-バンドリングは単に「データとメソッドをまとめる」だけでなく、「意味のある単位」を形成することが重要。
+Bundling is not simply about "grouping data and methods together"; the important thing is to form a "meaningful unit."
 
 ```typescript
-// TypeScript: バンドリングの良い例と悪い例
+// TypeScript: Good and bad examples of bundling
 
-// ❌ 悪い例: 関連性の薄いデータとメソッドの混在
+// Bad: mixing data and methods with little relation to each other
 class Miscellaneous {
   userName: string = "";
   productPrice: number = 0;
@@ -70,7 +70,7 @@ class Miscellaneous {
   writeLog(message: string): void { console.log(`[${this.logLevel}] ${message}`); }
 }
 
-// ✅ 良い例: 意味のある単位にバンドリング
+// Good: bundle into meaningful units
 class UserName {
   constructor(private readonly value: string) {
     if (value.trim().length === 0) {
@@ -167,22 +167,22 @@ class Logger {
 }
 ```
 
-### 1.2 情報隠蔽の本質
+### 1.2 The Essence of Information Hiding
 
-情報隠蔽の目的は「変更の影響を局所化する」こと。内部実装を隠すことで、外部コードに影響を与えずに内部を自由に変更できる。
+The purpose of information hiding is to "localize the impact of changes." By hiding internal implementation, you can freely change internals without affecting external code.
 
 ```python
-# Python: 情報隠蔽による変更の局所化
+# Python: Localizing changes through information hiding
 
-# バージョン1: リストで在庫管理
+# Version 1: inventory management with a list
 class Inventory:
-    """在庫管理システム（バージョン1: リスト実装）"""
+    """Inventory management system (version 1: list implementation)"""
 
     def __init__(self):
-        self._items: list[dict] = []  # 内部実装はリスト
+        self._items: list[dict] = []  # internal implementation is a list
 
     def add_item(self, name: str, quantity: int, price: int) -> None:
-        """商品を追加"""
+        """Add a product"""
         for item in self._items:
             if item["name"] == name:
                 item["quantity"] += quantity
@@ -194,7 +194,7 @@ class Inventory:
         })
 
     def remove_item(self, name: str, quantity: int) -> bool:
-        """商品を取り出す"""
+        """Withdraw a product"""
         for item in self._items:
             if item["name"] == name:
                 if item["quantity"] >= quantity:
@@ -206,28 +206,28 @@ class Inventory:
         return False
 
     def get_stock(self, name: str) -> int:
-        """在庫数を取得"""
+        """Get the stock quantity"""
         for item in self._items:
             if item["name"] == name:
                 return item["quantity"]
         return 0
 
     def get_total_value(self) -> int:
-        """在庫の総額"""
+        """Total value of the inventory"""
         return sum(item["quantity"] * item["price"] for item in self._items)
 
     def get_all_items(self) -> list[tuple[str, int, int]]:
-        """全商品の情報を返す（内部構造を漏らさない）"""
+        """Return info on all products (without leaking internal structure)"""
         return [(item["name"], item["quantity"], item["price"]) for item in self._items]
 
 
-# バージョン2: 辞書で在庫管理に変更
-# → 外部のコードは一切変更不要！（公開APIが同じため）
+# Version 2: changed to dict-based inventory management
+# -> External code requires no changes at all! (because the public API is the same)
 class InventoryV2:
-    """在庫管理システム（バージョン2: 辞書実装で高速化）"""
+    """Inventory management system (version 2: dict implementation for speed)"""
 
     def __init__(self):
-        self._items: dict[str, dict] = {}  # 内部実装を辞書に変更
+        self._items: dict[str, dict] = {}  # internal implementation changed to a dict
 
     def add_item(self, name: str, quantity: int, price: int) -> None:
         if name in self._items:
@@ -263,20 +263,20 @@ class InventoryV2:
         ]
 
 
-# 利用側のコード: バージョン1でも2でも同じコードが動く
+# Caller-side code: the same code works with either version 1 or 2
 def process_order(inventory, item_name: str, quantity: int) -> bool:
-    """注文処理: 内部実装を知らなくても使える"""
+    """Order processing: works without knowing the internal implementation"""
     stock = inventory.get_stock(item_name)
     if stock < quantity:
-        print(f"在庫不足: {item_name}（在庫: {stock}, 注文: {quantity}）")
+        print(f"在庫不足: {item_name}(在庫: {stock}, 注文: {quantity})")
         return False
 
     inventory.remove_item(item_name, quantity)
     print(f"出荷完了: {item_name} x {quantity}")
     return True
 
-# 使用例（どちらのバージョンでも同じように動く）
-inv = Inventory()  # または InventoryV2()
+# Usage (works the same with either version)
+inv = Inventory()  # or InventoryV2()
 inv.add_item("ノートPC", 10, 150000)
 inv.add_item("マウス", 50, 3000)
 
@@ -284,61 +284,61 @@ process_order(inv, "ノートPC", 3)
 print(f"在庫総額: {inv.get_total_value():,}円")
 ```
 
-### 1.3 カプセル化と契約による設計
+### 1.3 Encapsulation and Design by Contract
 
 ```
-契約による設計（Design by Contract）:
-  → カプセル化されたオブジェクトは「契約」を持つ
+Design by Contract:
+  -> An encapsulated object has a "contract"
 
-  事前条件（Precondition）:
-    → メソッドを呼ぶ前に満たすべき条件
-    → 例: deposit(amount) → amount > 0
+  Precondition:
+    -> Condition that must hold before calling a method
+    -> Example: deposit(amount) -> amount > 0
 
-  事後条件（Postcondition）:
-    → メソッド実行後に保証される条件
-    → 例: deposit(amount) → 残高が amount だけ増加
+  Postcondition:
+    -> Condition guaranteed to hold after the method executes
+    -> Example: deposit(amount) -> balance increases by amount
 
-  不変条件（Invariant）:
-    → オブジェクトの生存期間中、常に成り立つ条件
-    → 例: 残高 >= 0
+  Invariant:
+    -> Condition that always holds during the object's lifetime
+    -> Example: balance >= 0
 ```
 
 ```typescript
-// TypeScript: 契約による設計とカプセル化
+// TypeScript: Design by contract and encapsulation
 
 class DateRange {
-  // 不変条件: start <= end
+  // Invariant: start <= end
   private readonly _start: Date;
   private readonly _end: Date;
 
   constructor(start: Date, end: Date) {
-    // 事前条件の検証
+    // Check the precondition
     if (start > end) {
       throw new Error(
         `開始日(${start.toISOString()})は終了日(${end.toISOString()})以前である必要があります`
       );
     }
-    this._start = new Date(start.getTime()); // 防衛的コピー
-    this._end = new Date(end.getTime());     // 防衛的コピー
+    this._start = new Date(start.getTime()); // defensive copy
+    this._end = new Date(end.getTime());     // defensive copy
   }
 
-  // 事後条件: 返される日付は start 以後 end 以前
+  // Postcondition: the returned date is on or after start and on or before end
   get start(): Date {
-    return new Date(this._start.getTime()); // 防衛的コピーを返す
+    return new Date(this._start.getTime()); // return a defensive copy
   }
 
   get end(): Date {
     return new Date(this._end.getTime());
   }
 
-  // 事前条件: date は null/undefined でない
-  // 事後条件: start <= date <= end のとき true
+  // Precondition: date is not null/undefined
+  // Postcondition: true when start <= date <= end
   contains(date: Date): boolean {
     return date >= this._start && date <= this._end;
   }
 
-  // 事後条件: 返される DateRange は不変条件を満たす
-  // （intersection が存在しない場合は null）
+  // Postcondition: the returned DateRange satisfies the invariant
+  // (null if no intersection exists)
   intersect(other: DateRange): DateRange | null {
     const newStart = new Date(Math.max(this._start.getTime(), other._start.getTime()));
     const newEnd = new Date(Math.min(this._end.getTime(), other._end.getTime()));
@@ -361,44 +361,44 @@ class DateRange {
   }
 }
 
-// 使用例
+// Usage
 const q1 = new DateRange(new Date("2025-01-01"), new Date("2025-03-31"));
 const feb = new DateRange(new Date("2025-02-01"), new Date("2025-02-28"));
 
 console.log(q1.contains(new Date("2025-02-15"))); // true
 console.log(q1.intersect(feb)?.toString());        // "2025-02-01 ~ 2025-02-28 (27日間)"
 
-// 不変条件の違反は不可能
+// Violating the invariant is impossible
 // const invalid = new DateRange(new Date("2025-12-31"), new Date("2025-01-01")); // Error!
 ```
 
 ---
 
-## 2. アクセス修飾子
+## 2. Access Modifiers
 
 ```
-┌──────────────┬───────────┬──────────┬───────────┬──────────┐
-│ 修飾子       │ クラス内  │ サブクラス│ パッケージ│ 外部     │
-├──────────────┼───────────┼──────────┼───────────┼──────────┤
-│ private      │ ○        │ ×       │ ×        │ ×       │
-│ protected    │ ○        │ ○       │ △(Java)  │ ×       │
-│ package      │ ○        │ ×       │ ○        │ ×       │
-│ public       │ ○        │ ○       │ ○        │ ○       │
-└──────────────┴───────────┴──────────┴───────────┴──────────┘
++--------------+-----------+----------+-----------+----------+
+| Modifier     | In class  | Subclass | Package   | Outside  |
++--------------+-----------+----------+-----------+----------+
+| private      | yes       | no       | no        | no       |
+| protected    | yes       | yes      | partial(Java) | no   |
+| package      | yes       | no       | yes       | no       |
+| public       | yes       | yes      | yes       | yes      |
++--------------+-----------+----------+-----------+----------+
 
-原則: 最も制限的なアクセスレベルを選ぶ
-  → まず private にして、必要に応じて公開範囲を広げる
+Principle: choose the most restrictive access level
+  -> Start with private and widen the scope only when needed
 ```
 
-### 2.1 各言語のアクセス制御
+### 2.1 Access Control in Each Language
 
 ```typescript
 // TypeScript
 class User {
-  public name: string;        // どこからでもアクセス可
-  protected email: string;    // サブクラスからアクセス可
-  private password: string;   // クラス内のみ
-  readonly id: string;        // 読み取り専用
+  public name: string;        // accessible from anywhere
+  protected email: string;    // accessible from subclasses
+  private password: string;   // within the class only
+  readonly id: string;        // read-only
 
   constructor(name: string, email: string, password: string) {
     this.id = crypto.randomUUID();
@@ -410,15 +410,15 @@ class User {
 ```
 
 ```python
-# Python: 規約ベース（強制ではない）
+# Python: convention-based (not enforced)
 class User:
     def __init__(self, name: str, email: str, password: str):
-        self.name = name          # public（規約）
-        self._email = email       # protected（規約: アンダースコア1つ）
-        self.__password = password # private（名前マングリング）
+        self.name = name          # public (by convention)
+        self._email = email       # protected (convention: single underscore)
+        self.__password = password # private (name mangling)
 
     @property
-    def email(self) -> str:       # プロパティでアクセス制御
+    def email(self) -> str:       # access control via property
         return self._email
 
     @email.setter
@@ -429,9 +429,9 @@ class User:
 ```
 
 ```java
-// Java: 厳格なアクセス制御
+// Java: strict access control
 public class User {
-    private final String id;           // private + final = 不変
+    private final String id;           // private + final = immutable
     private String name;
     private String email;
 
@@ -441,11 +441,11 @@ public class User {
         this.email = email;
     }
 
-    // getter: 読み取りのみ公開
+    // getters: only expose reads
     public String getName() { return name; }
     public String getEmail() { return email; }
 
-    // setter: バリデーション付き
+    // setter: with validation
     public void setEmail(String email) {
         if (!email.contains("@")) {
             throw new IllegalArgumentException("Invalid email");
@@ -453,50 +453,55 @@ public class User {
         this.email = email;
     }
 
-    // id の setter は提供しない → 外部から変更不可
+    // No setter is provided for id -> cannot be modified from outside
 }
 ```
 
-### 2.2 アクセス修飾子の詳細比較
+### 2.2 Detailed Comparison of Access Modifiers
 
 ```
-各言語のアクセス制御メカニズムの比較:
+Comparison of access control mechanisms across languages:
 
-┌──────────┬──────────────────────────────────────────────────────┐
-│ Java     │ private, package-private(デフォルト), protected,     │
-│          │ public の4段階。コンパイル時に厳格に検証              │
-├──────────┼──────────────────────────────────────────────────────┤
-│ C#       │ private, protected, internal, protected internal,   │
-│          │ private protected, public の6段階                    │
-├──────────┼──────────────────────────────────────────────────────┤
-│ C++      │ private, protected, public の3段階 + friend         │
-│          │ コンパイル時検証。friend でカプセル化を限定的に突破   │
-├──────────┼──────────────────────────────────────────────────────┤
-│ TypeScript│ private, protected, public の3段階                  │
-│          │ コンパイル時のみ検証（JSランタイムでは制限なし）      │
-│          │ ECMAScript #private も使用可能（ランタイム制限あり）  │
-├──────────┼──────────────────────────────────────────────────────┤
-│ Python   │ 規約ベース。_protected, __private（名前マングリング）│
-│          │ 強制力なし。「大人の合意」に依存                      │
-├──────────┼──────────────────────────────────────────────────────┤
-│ Kotlin   │ private, protected, internal, public の4段階         │
-│          │ internal はモジュールスコープ                         │
-├──────────┼──────────────────────────────────────────────────────┤
-│ Rust     │ pub なし=クレート内プライベート、pub=公開             │
-│          │ pub(crate), pub(super), pub(in path) で細かく制御    │
-├──────────┼──────────────────────────────────────────────────────┤
-│ Go       │ 大文字始まり=公開、小文字始まり=パッケージ内プライベート│
-│          │ 2段階のみ。シンプルだが柔軟性は低い                   │
-├──────────┼──────────────────────────────────────────────────────┤
-│ Swift    │ open, public, internal, fileprivate, private の5段階 │
-│          │ open は継承/オーバーライド可能な公開                   │
-└──────────┴──────────────────────────────────────────────────────┘
++----------+------------------------------------------------------+
+| Java     | private, package-private (default), protected,       |
+|          | public (4 levels). Strictly checked at compile time  |
++----------+------------------------------------------------------+
+| C#       | private, protected, internal, protected internal,    |
+|          | private protected, public (6 levels)                 |
++----------+------------------------------------------------------+
+| C++      | private, protected, public (3 levels) + friend       |
+|          | Compile-time checks. friend allows selective breaks  |
++----------+------------------------------------------------------+
+| TypeScript| private, protected, public (3 levels)               |
+|          | Checked only at compile time (no restriction at JS   |
+|          | runtime). ECMAScript #private also available (with   |
+|          | runtime restriction).                                |
++----------+------------------------------------------------------+
+| Python   | Convention-based. _protected, __private (name        |
+|          | mangling). Not enforced. Relies on "consenting       |
+|          | adults" agreement.                                   |
++----------+------------------------------------------------------+
+| Kotlin   | private, protected, internal, public (4 levels)      |
+|          | internal has module scope                            |
++----------+------------------------------------------------------+
+| Rust     | No pub = private to the crate, pub = public          |
+|          | Fine-grained control via pub(crate), pub(super),     |
+|          | pub(in path)                                         |
++----------+------------------------------------------------------+
+| Go       | Uppercase start = public, lowercase start = private  |
+|          | to the package. Only two levels. Simple but less     |
+|          | flexible.                                            |
++----------+------------------------------------------------------+
+| Swift    | open, public, internal, fileprivate, private         |
+|          | (5 levels). open = public that allows                |
+|          | inheritance/override.                                |
++----------+------------------------------------------------------+
 ```
 
 ```kotlin
-// Kotlin: アクセス修飾子の活用
+// Kotlin: putting access modifiers to work
 
-// internal: モジュール内でのみアクセス可能（マルチモジュール開発に有効）
+// internal: accessible only within the module (useful for multi-module development)
 internal class DatabasePool {
     private val connections = mutableListOf<Connection>()
     private val maxSize = 10
@@ -518,17 +523,17 @@ internal class DatabasePool {
     }
 
     private fun createNewConnection(): Connection {
-        // プライベート: 接続の作成方法は完全に隠蔽
+        // private: the way connections are created is fully hidden
         return Connection("jdbc:postgresql://localhost/mydb")
     }
 }
 
-// 公開API: ユーザーが使うインターフェース
+// Public API: the interface users will use
 class UserRepository(private val pool: DatabasePool) {
     fun findById(id: Long): User? {
         val conn = pool.getConnection()
         try {
-            // データベース操作
+            // database operation
             return conn.query("SELECT * FROM users WHERE id = ?", id)
         } finally {
             pool.returnConnection(conn)
@@ -548,24 +553,24 @@ class UserRepository(private val pool: DatabasePool) {
 ```
 
 ```rust
-// Rust: モジュールシステムによるアクセス制御
+// Rust: access control via the module system
 
 mod database {
-    // pub なし = このモジュール内でのみアクセス可能
+    // No pub = accessible only within this module
     struct ConnectionConfig {
         host: String,
         port: u16,
         database: String,
     }
 
-    // pub(crate) = クレート内でのみアクセス可能
+    // pub(crate) = accessible only within the crate
     pub(crate) struct Connection {
         config: ConnectionConfig,
         is_active: bool,
     }
 
     impl Connection {
-        // pub(crate) = クレート内で使える
+        // pub(crate) = usable within the crate
         pub(crate) fn new(host: &str, port: u16, database: &str) -> Self {
             Connection {
                 config: ConnectionConfig {
@@ -577,16 +582,16 @@ mod database {
             }
         }
 
-        // pub = 外部から使える
+        // pub = usable from outside
         pub fn execute(&self, query: &str) -> Result<Vec<String>, String> {
             if !self.is_active {
                 return Err("接続が無効です".to_string());
             }
-            // クエリ実行ロジック
+            // query execution logic
             Ok(vec![format!("実行: {}", query)])
         }
 
-        // プライベート: モジュール内のみ
+        // private: within the module only
         fn reset(&mut self) {
             self.is_active = true;
         }
@@ -596,7 +601,7 @@ mod database {
         }
     }
 
-    // pub = 外部に公開するファサード
+    // pub = the facade exposed to the outside
     pub struct Database {
         connections: Vec<Connection>,
     }
@@ -615,25 +620,25 @@ mod database {
     }
 }
 
-// 外部から使えるのは pub なメンバのみ
+// From outside, only pub members are accessible
 fn main() {
     let mut db = database::Database::new("localhost", 5432, "myapp", 5);
     if let Some(conn) = db.get_connection() {
         let result = conn.execute("SELECT 1");
         println!("{:?}", result);
     }
-    // database::ConnectionConfig にはアクセス不可
-    // conn.config にもアクセス不可
+    // database::ConnectionConfig is inaccessible
+    // conn.config is also inaccessible
 }
 ```
 
-### 2.3 TypeScript の ECMAScript Private Fields
+### 2.3 TypeScript's ECMAScript Private Fields
 
 ```typescript
-// TypeScript: # による真のプライベートフィールド
+// TypeScript: truly private fields via #
 
 class SecureWallet {
-  // ECMAScript private fields: ランタイムレベルで本当にプライベート
+  // ECMAScript private fields: genuinely private at the runtime level
   #balance: number;
   #transactions: Array<{ type: string; amount: number; date: Date }>;
   #owner: string;
@@ -651,7 +656,7 @@ class SecureWallet {
     }
   }
 
-  // 公開API
+  // Public API
   get owner(): string {
     return this.#owner;
   }
@@ -691,7 +696,7 @@ class SecureWallet {
     return lines.join("\n");
   }
 
-  // プライベートメソッド: 外部からアクセス不可
+  // Private method: inaccessible from outside
   #validatePositiveAmount(amount: number): void {
     if (amount <= 0) {
       throw new Error("金額は正の数である必要があります");
@@ -706,69 +711,69 @@ class SecureWallet {
   }
 }
 
-// 使用例
+// Usage
 const wallet = new SecureWallet("田中太郎", 100000);
 wallet.deposit(50000);
 wallet.withdraw(30000);
 console.log(wallet.getStatement());
 
-// 以下は全てエラーになる（TypeScriptでもJavaScriptでも）
+// All of the following produce errors (in both TypeScript and JavaScript)
 // wallet.#balance = 999999;  // SyntaxError
 // wallet.#transactions;       // SyntaxError
 // (wallet as any).#balance;  // SyntaxError
-// Object.keys(wallet);       // #フィールドは列挙されない
+// Object.keys(wallet);       // # fields are not enumerated
 ```
 
 ---
 
-## 3. ゲッター/セッター論争
+## 3. The Getter/Setter Debate
 
 ```
-「全フィールドに getter/setter を付ける」は悪い慣習:
+"Putting a getter/setter on every field" is a bad habit:
 
-  悪い例（Anemic Domain Model）:
+  Bad example (Anemic Domain Model):
     class User {
       getName() / setName()
       getAge() / setAge()
       getEmail() / setEmail()
       getBalance() / setBalance()
     }
-    → 単なるデータの器。振る舞いが外部に漏れ出す
-    → カプセル化の意味がない
+    -> Just a container for data. Behavior leaks to the outside.
+    -> Encapsulation is pointless.
 
-  良い例（Rich Domain Model）:
+  Good example (Rich Domain Model):
     class BankAccount {
-      deposit(amount)     ← ビジネスロジックを内包
-      withdraw(amount)    ← バリデーション含む
-      getBalance()        ← 読み取りのみ
-      // setBalance() は存在しない
+      deposit(amount)     <- contains business logic
+      withdraw(amount)    <- includes validation
+      getBalance()        <- read only
+      // setBalance() does not exist
     }
-    → オブジェクトが自分の責任で状態を管理
+    -> The object manages its own state responsibly.
 
-指針:
-  getter: 必要なものだけ公開
-  setter: 原則として作らない。代わりにビジネスメソッドを提供
-  → 「Tell, Don't Ask」原則
+Guidelines:
+  getter: expose only what is needed
+  setter: don't create them as a rule; provide business methods instead
+  -> The "Tell, Don't Ask" principle
 ```
 
 ```typescript
-// Tell, Don't Ask の例
+// Example of Tell, Don't Ask
 
-// ❌ Ask（状態を聞いてから外部で判断）
+// Ask (query state and decide externally)
 if (account.getBalance() >= amount) {
   account.setBalance(account.getBalance() - amount);
 }
 
-// ✅ Tell（オブジェクトに指示する）
-account.withdraw(amount); // 内部でバリデーション + 更新
+// Tell (give instructions to the object)
+account.withdraw(amount); // validation + update happens internally
 ```
 
-### 3.1 Anemic Domain Model の問題点
+### 3.1 Problems with the Anemic Domain Model
 
 ```typescript
-// TypeScript: Anemic vs Rich Domain Model の比較
+// TypeScript: comparing Anemic vs. Rich Domain Model
 
-// ❌ Anemic Domain Model: データの器でしかない
+// Anemic Domain Model: nothing more than a data container
 class AnemicOrder {
   id: string = "";
   customerId: string = "";
@@ -780,7 +785,7 @@ class AnemicOrder {
   createdAt: Date = new Date();
 }
 
-// ビジネスロジックが外部に散乱
+// Business logic scattered outside the object
 class OrderService {
   calculateTotal(order: AnemicOrder): void {
     let subtotal = 0;
@@ -801,11 +806,11 @@ class OrderService {
     order.status = "cancelled";
   }
 
-  // 問題: 誰でも order.status = "shipped" と直接変更できてしまう
-  // → バリデーションを回避される可能性
+  // Problem: anyone can directly set order.status = "shipped"
+  // -> Validation can be bypassed
 }
 
-// ✅ Rich Domain Model: オブジェクトが自分の責任で状態を管理
+// Rich Domain Model: the object manages its own state responsibly
 class OrderItem {
   constructor(
     public readonly productId: string,
@@ -847,16 +852,16 @@ class Order {
     this.createdAt = new Date();
   }
 
-  // 状態は読み取りのみ公開
+  // State is exposed as read-only
   get status(): OrderStatus {
     return this._status;
   }
 
   get items(): ReadonlyArray<OrderItem> {
-    return [...this._items]; // 防衛的コピー
+    return [...this._items]; // defensive copy
   }
 
-  // ビジネスメソッド: 状態遷移のルールを内包
+  // Business methods: contain the state transition rules
   addItem(item: OrderItem): void {
     if (this._status !== "pending") {
       throw new Error("確定済みの注文に商品を追加できません");
@@ -883,7 +888,7 @@ class Order {
     this._shippingCost = cost;
   }
 
-  // 合計額の計算は Order が責任を持つ
+  // The Order is responsible for calculating the total
   get subtotal(): number {
     return this._items.reduce((sum, item) => sum + item.subtotal, 0);
   }
@@ -896,10 +901,10 @@ class Order {
     return this.subtotal - this.discountAmount + this._shippingCost;
   }
 
-  // 状態遷移: ルールを内包
+  // State transitions: rules are contained here
   confirm(): void {
     if (this._status !== "pending") {
-      throw new Error(`注文の確認ができません（現在のステータス: ${this._status}）`);
+      throw new Error(`注文の確認ができません(現在のステータス: ${this._status})`);
     }
     if (this._items.length === 0) {
       throw new Error("空の注文は確認できません");
@@ -909,21 +914,21 @@ class Order {
 
   ship(): void {
     if (this._status !== "confirmed") {
-      throw new Error(`出荷できません（現在のステータス: ${this._status}）`);
+      throw new Error(`出荷できません(現在のステータス: ${this._status})`);
     }
     this._status = "shipping";
   }
 
   deliver(): void {
     if (this._status !== "shipping") {
-      throw new Error(`配達完了にできません（現在のステータス: ${this._status}）`);
+      throw new Error(`配達完了にできません(現在のステータス: ${this._status})`);
     }
     this._status = "delivered";
   }
 
   cancel(): void {
     if (this._status === "delivered" || this._status === "cancelled") {
-      throw new Error(`この注文はキャンセルできません（ステータス: ${this._status}）`);
+      throw new Error(`この注文はキャンセルできません(ステータス: ${this._status})`);
     }
     this._status = "cancelled";
   }
@@ -949,12 +954,12 @@ class Order {
   }
 }
 
-// 使用例
+// Usage
 const order = new Order("ORD-001", "CUST-123");
 order.addItem(new OrderItem("P001", "MacBook Pro", 1, 298000));
 order.addItem(new OrderItem("P002", "Magic Mouse", 2, 13800));
 order.applyDiscount(0.1);
-order.setShippingCost(0); // 送料無料
+order.setShippingCost(0); // free shipping
 
 console.log(order.getSummary());
 order.confirm();
@@ -962,16 +967,16 @@ order.ship();
 // order.addItem(...); // Error: 確定済みの注文に商品を追加できません
 ```
 
-### 3.2 プロパティパターン（スマートなgetter/setter）
+### 3.2 The Property Pattern (Smart Getters/Setters)
 
 ```python
-# Python: property を使ったスマートなアクセス制御
+# Python: smart access control using property
 
 class Temperature:
-    """温度クラス: 内部的にはケルビンで保持"""
+    """Temperature class: internally stored in Kelvin"""
 
     def __init__(self, kelvin: float):
-        self.kelvin = kelvin  # property 経由でバリデーション
+        self.kelvin = kelvin  # validation via the property
 
     @property
     def kelvin(self) -> float:
@@ -985,16 +990,16 @@ class Temperature:
 
     @property
     def celsius(self) -> float:
-        """摂氏温度（計算プロパティ）"""
+        """Temperature in Celsius (computed property)"""
         return self._kelvin - 273.15
 
     @celsius.setter
     def celsius(self, value: float) -> None:
-        self.kelvin = value + 273.15  # ケルビンのバリデーションを再利用
+        self.kelvin = value + 273.15  # reuse the Kelvin validation
 
     @property
     def fahrenheit(self) -> float:
-        """華氏温度（計算プロパティ）"""
+        """Temperature in Fahrenheit (computed property)"""
         return self.celsius * 9 / 5 + 32
 
     @fahrenheit.setter
@@ -1003,27 +1008,27 @@ class Temperature:
 
     @property
     def is_freezing(self) -> bool:
-        """水の凝固点以下かどうか"""
+        """Whether at or below the freezing point of water"""
         return self.celsius <= 0
 
     @property
     def is_boiling(self) -> bool:
-        """水の沸点以上かどうか"""
+        """Whether at or above the boiling point of water"""
         return self.celsius >= 100
 
     def __repr__(self) -> str:
         return f"Temperature({self.celsius:.1f}°C / {self.fahrenheit:.1f}°F / {self.kelvin:.1f}K)"
 
 
-# 使用例
+# Usage
 t = Temperature(373.15)
 print(t)              # Temperature(100.0°C / 212.0°F / 373.1K)
 print(t.is_boiling)   # True
 
-t.celsius = 25        # 摂氏で設定
+t.celsius = 25        # set via Celsius
 print(t)              # Temperature(25.0°C / 77.0°F / 298.1K)
 
-t.fahrenheit = 0      # 華氏で設定
+t.fahrenheit = 0      # set via Fahrenheit
 print(t)              # Temperature(-17.8°C / 0.0°F / 255.4K)
 print(t.is_freezing)  # True
 
@@ -1034,18 +1039,18 @@ except ValueError as e:
 ```
 
 ```java
-// Java: Record による軽量なデータキャリア（Java 16+）
+// Java: lightweight data carriers via Record (Java 16+)
 
-// Record: 不変のデータキャリア（getter 自動生成、setterなし）
+// Record: immutable data carrier (getters auto-generated, no setter)
 public record Point(double x, double y) {
-    // バリデーション: コンパクトコンストラクタ
+    // Validation: compact constructor
     public Point {
         if (Double.isNaN(x) || Double.isNaN(y)) {
             throw new IllegalArgumentException("座標にNaNは使用できません");
         }
     }
 
-    // 追加メソッド
+    // Additional methods
     public double distanceTo(Point other) {
         double dx = this.x - other.x;
         double dy = this.y - other.y;
@@ -1061,13 +1066,13 @@ public record Point(double x, double y) {
     }
 }
 
-// Record: 複合的なデータ
+// Record: composite data
 public record Address(
     String postalCode,
     String prefecture,
     String city,
     String street,
-    String building   // null 許容
+    String building   // allows null
 ) {
     public Address {
         if (postalCode == null || !postalCode.matches("\\d{3}-\\d{4}")) {
@@ -1095,12 +1100,12 @@ public record Address(
     }
 }
 
-// 使用例
+// Usage
 var p1 = new Point(3, 4);
 var p2 = new Point(0, 0);
 System.out.println(p1.distanceTo(p2)); // 5.0
-System.out.println(p1.x());            // 3.0（自動生成のgetter）
-// p1.x = 10;  // コンパイルエラー: Record は不変
+System.out.println(p1.x());            // 3.0 (auto-generated getter)
+// p1.x = 10;  // compile error: Record is immutable
 
 var addr = new Address("100-0001", "東京都", "千代田区", "千代田1-1", null);
 System.out.println(addr.toSingleLine()); // 〒100-0001 東京都千代田区千代田1-1
@@ -1108,26 +1113,26 @@ System.out.println(addr.toSingleLine()); // 〒100-0001 東京都千代田区千
 
 ---
 
-## 4. 不変オブジェクト
+## 4. Immutable Objects
 
 ```
-不変オブジェクト（Immutable Object）:
-  → 生成後に状態が変化しないオブジェクト
-  → スレッドセーフ（ロック不要）
-  → 予測可能（副作用なし）
-  → ハッシュキーとして安全
+Immutable Object:
+  -> An object whose state does not change after construction
+  -> Thread-safe (no locks required)
+  -> Predictable (no side effects)
+  -> Safe to use as a hash key
 
-作り方:
-  1. 全フィールドを final/readonly にする
-  2. setter を提供しない
-  3. コンストラクタで全ての値を設定
-  4. ミュータブルな参照を外部に漏らさない
+How to create one:
+  1. Make all fields final/readonly
+  2. Do not provide setters
+  3. Set every value in the constructor
+  4. Do not leak mutable references to the outside
 ```
 
-### 4.1 TypeScript の不変オブジェクト
+### 4.1 Immutable Objects in TypeScript
 
 ```typescript
-// TypeScript: 不変オブジェクト
+// TypeScript: immutable object
 class Money {
   constructor(
     public readonly amount: number,
@@ -1136,7 +1141,7 @@ class Money {
     if (amount < 0) throw new Error("金額は0以上");
   }
 
-  // 変更メソッドは新しいオブジェクトを返す
+  // Mutating methods return a new object
   add(other: Money): Money {
     if (this.currency !== other.currency) {
       throw new Error("通貨が異なります");
@@ -1154,35 +1159,35 @@ class Money {
 }
 
 const price = new Money(1000, "JPY");
-const tax = price.multiply(0.1);      // 新しいオブジェクト
-const total = price.add(tax);         // 新しいオブジェクト
-// price は変わらない（不変）
+const tax = price.multiply(0.1);      // new object
+const total = price.add(tax);         // new object
+// price is unchanged (immutable)
 ```
 
-### 4.2 Kotlin の data class
+### 4.2 Kotlin's data class
 
 ```kotlin
-// Kotlin: data class（不変オブジェクトの簡潔な記法）
+// Kotlin: data class (concise notation for immutable objects)
 data class Point(val x: Double, val y: Double) {
     fun distanceTo(other: Point): Double =
         sqrt((x - other.x).pow(2) + (y - other.y).pow(2))
 
-    // copy() で一部だけ変えた新しいオブジェクトを生成
+    // copy() creates a new object with only some fields changed
     fun translate(dx: Double, dy: Double): Point =
         copy(x = x + dx, y = y + dy)
 }
 
 val p1 = Point(1.0, 2.0)
 val p2 = p1.translate(3.0, 4.0)  // Point(4.0, 6.0)
-// p1 は Point(1.0, 2.0) のまま
+// p1 remains Point(1.0, 2.0)
 ```
 
-### 4.3 不変オブジェクトの実践パターン
+### 4.3 Practical Patterns for Immutable Objects
 
 ```typescript
-// TypeScript: 実践的な不変オブジェクト設計
+// TypeScript: practical immutable object design
 
-// 不変のコレクションを持つオブジェクト
+// Object holding an immutable collection
 class Playlist {
   private constructor(
     public readonly name: string,
@@ -1207,7 +1212,7 @@ class Playlist {
     return this._songs.reduce((total, song) => total + song.durationSec, 0);
   }
 
-  // 変更操作は新しいオブジェクトを返す
+  // Mutating operations return a new object
   addSong(song: Song): Playlist {
     if (this._songs.some(s => s.id === song.id)) {
       throw new Error(`「${song.title}」は既に追加されています`);
@@ -1275,7 +1280,7 @@ class Song {
   }
 }
 
-// 使用例: 全ての操作が新しいオブジェクトを返す
+// Usage: every operation returns a new object
 let playlist = Playlist.create("ドライブ", "田中");
 
 playlist = playlist
@@ -1290,47 +1295,47 @@ console.log(playlist.getSummary());
 //   2. Born to Run - Springsteen (4:30)
 //   3. Drive - The Cars (3:55)
 
-// 元のplaylistは変更されない（不変）
+// The original playlist is not modified (immutable)
 const reordered = playlist.reorder(2, 0);
 console.log(reordered.songs[0].title); // "Drive"
-console.log(playlist.songs[0].title);  // "Highway Star"（変更なし）
+console.log(playlist.songs[0].title);  // "Highway Star" (unchanged)
 ```
 
-### 4.4 ミュータブルな内部状態の漏洩防止
+### 4.4 Preventing Leakage of Mutable Internal State
 
 ```java
-// Java: 防衛的コピーによる内部状態の保護
+// Java: protecting internal state with defensive copies
 
 import java.util.*;
 
 public class Schedule {
     private final String name;
-    private final List<Event> events;  // ミュータブルなリスト
+    private final List<Event> events;  // mutable list
 
     public Schedule(String name, List<Event> events) {
         this.name = name;
-        // 防衛的コピー: 外部のリストへの参照を持たない
+        // Defensive copy: do not hold a reference to the external list
         this.events = new ArrayList<>(events);
-        // さらにリスト内のオブジェクトもコピーすべき（深いコピー）
+        // Ideally also copy the objects inside the list (deep copy)
     }
 
     public String getName() { return name; }
 
-    // ❌ 悪い例: 内部リストの参照を直接返す
+    // Bad: returning the reference to the internal list directly
     // public List<Event> getEvents() { return events; }
-    // → 外部で events.add() されると内部状態が壊れる
+    // -> External events.add() calls would corrupt internal state
 
-    // ✅ 良い例1: 不変ビューを返す
+    // Good 1: return an unmodifiable view
     public List<Event> getEvents() {
         return Collections.unmodifiableList(events);
     }
 
-    // ✅ 良い例2: 防衛的コピーを返す
+    // Good 2: return a defensive copy
     public List<Event> getEventsCopy() {
         return new ArrayList<>(events);
     }
 
-    // ✅ 良い例3: ストリームを返す（Java 8+）
+    // Good 3: return a stream (Java 8+)
     public java.util.stream.Stream<Event> eventStream() {
         return events.stream();
     }
@@ -1368,16 +1373,16 @@ public record Event(
 ```
 
 ```python
-# Python: 防衛的コピーと __slots__
+# Python: defensive copies and __slots__
 
 from copy import deepcopy
 from datetime import datetime
 from typing import Iterator
 
 class Config:
-    """設定クラス: 内部辞書の漏洩を防ぐ"""
+    """Configuration class: prevent leakage of the internal dict"""
 
-    __slots__ = ("_data", "_frozen")  # __dict__ を無効化してメモリ効率化
+    __slots__ = ("_data", "_frozen")  # disable __dict__ for memory efficiency
 
     def __init__(self, initial: dict | None = None):
         object.__setattr__(self, "_data", dict(initial or {}))
@@ -1386,14 +1391,14 @@ class Config:
     def set(self, key: str, value) -> None:
         if self._frozen:
             raise RuntimeError("この設定は凍結されています")
-        self._data[key] = deepcopy(value)  # 値も防衛的コピー
+        self._data[key] = deepcopy(value)  # defensive copy of the value too
 
     def get(self, key: str, default=None):
         value = self._data.get(key, default)
-        return deepcopy(value)  # 返す値も防衛的コピー
+        return deepcopy(value)  # defensive copy of the returned value too
 
     def freeze(self) -> None:
-        """設定を凍結（以後変更不可）"""
+        """Freeze the configuration (no further modifications allowed)"""
         object.__setattr__(self, "_frozen", True)
 
     @property
@@ -1410,7 +1415,7 @@ class Config:
         status = "frozen" if self._frozen else "mutable"
         return f"Config({status}, {len(self._data)} items)"
 
-    # __setattr__ と __delattr__ をブロック
+    # Block __setattr__ and __delattr__
     def __setattr__(self, name: str, value) -> None:
         raise AttributeError("Config のフィールドに直接アクセスできません")
 
@@ -1418,16 +1423,16 @@ class Config:
         raise AttributeError("Config のフィールドを削除できません")
 
 
-# 使用例
+# Usage
 config = Config({"db_host": "localhost", "db_port": 5432})
 config.set("features", ["auth", "logging"])
 
-# 取得した値を変更しても内部に影響しない
+# Mutating the returned value does not affect the internal state
 features = config.get("features")
 features.append("hacked!")
-print(config.get("features"))  # ["auth", "logging"]（変更されていない）
+print(config.get("features"))  # ["auth", "logging"] (not changed)
 
-# 凍結
+# Freeze
 config.freeze()
 try:
     config.set("db_host", "evil.com")  # RuntimeError
@@ -1437,38 +1442,39 @@ except RuntimeError as e:
 
 ---
 
-## 5. カプセル化のアンチパターン
+## 5. Encapsulation Anti-patterns
 
 ```
-1. 全公開（public フィールド）:
-   → 内部実装への依存が発生
-   → 変更すると利用者コードが全て壊れる
+1. Exposing everything (public fields):
+   -> Creates dependencies on internal implementation
+   -> Changing it breaks all callers
 
-2. 過剰な getter/setter:
-   → Anemic Domain Model
-   → カプセル化の意味がない
+2. Excessive getters/setters:
+   -> Anemic Domain Model
+   -> Defeats the purpose of encapsulation
 
-3. 内部コレクションの漏洩:
+3. Leaking internal collections:
    class Team {
      getMembers(): Member[] { return this.members; }
    }
-   → 外部で members.push() されると内部状態が壊れる
-   → 防衛的コピーまたは ReadonlyArray を返す
+   -> External members.push() calls corrupt internal state
+   -> Return a defensive copy or a ReadonlyArray
 
-4. フレンドクラスの乱用（C++）:
-   → カプセル化の境界を曖昧にする
+4. Abuse of friend classes (C++):
+   -> Blurs the boundary of encapsulation
 
-5. リフレクションによるアクセス:
-   → private を無視してアクセス可能
-   → テスト以外では使わない
+5. Access via reflection:
+   -> Can bypass private and access fields
+   -> Use only in testing
+
 ```
 
-### 5.1 アンチパターンの詳細と対策
+### 5.1 Detailed Anti-patterns and Remedies
 
 ```typescript
-// TypeScript: アンチパターンと対策
+// TypeScript: anti-patterns and remedies
 
-// ❌ アンチパターン1: 内部コレクションの漏洩
+// Anti-pattern 1: leaking internal collections
 class TeamBad {
   private members: string[] = [];
 
@@ -1477,17 +1483,17 @@ class TeamBad {
   }
 
   getMembers(): string[] {
-    return this.members; // 内部配列の参照を直接返す！
+    return this.members; // returns the reference to the internal array directly!
   }
 }
 
 const teamBad = new TeamBad();
 teamBad.addMember("田中");
 const membersBad = teamBad.getMembers();
-membersBad.push("不正なメンバー"); // 外部から内部状態を破壊！
+membersBad.push("不正なメンバー"); // internal state corrupted from outside!
 console.log(teamBad.getMembers()); // ["田中", "不正なメンバー"]
 
-// ✅ 対策: ReadonlyArray + 防衛的コピー
+// Remedy: ReadonlyArray + defensive copy
 class TeamGood {
   private members: string[] = [];
 
@@ -1510,7 +1516,7 @@ class TeamGood {
   }
 
   getMembers(): ReadonlyArray<string> {
-    return [...this.members]; // 防衛的コピーを返す
+    return [...this.members]; // return a defensive copy
   }
 
   hasMember(name: string): boolean {
@@ -1522,33 +1528,33 @@ class TeamGood {
   }
 }
 
-// ❌ アンチパターン2: God Object（何でも知っている巨大クラス）
+// Anti-pattern 2: God Object (a huge class that knows everything)
 class ApplicationBad {
-  // ユーザー管理
+  // User management
   private users: Map<string, any> = new Map();
   createUser(name: string): void { /* ... */ }
   deleteUser(id: string): void { /* ... */ }
 
-  // 商品管理
+  // Product management
   private products: Map<string, any> = new Map();
   addProduct(name: string, price: number): void { /* ... */ }
   removeProduct(id: string): void { /* ... */ }
 
-  // 注文管理
+  // Order management
   private orders: Map<string, any> = new Map();
   createOrder(userId: string, productId: string): void { /* ... */ }
 
-  // メール送信
+  // Email sending
   sendEmail(to: string, subject: string, body: string): void { /* ... */ }
 
-  // ログ出力
+  // Logging
   log(message: string): void { /* ... */ }
 
-  // → 1つのクラスが全責任を持ちすぎ
-  // → 変更理由が多すぎて保守不能
+  // -> A single class carries too many responsibilities
+  // -> Too many reasons to change, making it unmaintainable
 }
 
-// ✅ 対策: 責任の分離 + ファサードパターン
+// Remedy: separation of responsibilities + facade pattern
 class UserRepository {
   private users = new Map<string, { name: string; email: string }>();
 
@@ -1595,28 +1601,28 @@ class OrderService {
     if (!product) throw new Error("商品が見つかりません");
 
     const orderId = crypto.randomUUID();
-    // 注文処理...
+    // order processing...
     return orderId;
   }
 }
 ```
 
-### 5.2 Feature Envy（機能の横恋慕）
+### 5.2 Feature Envy
 
 ```python
-# Python: Feature Envy の検出と修正
+# Python: detecting and fixing Feature Envy
 
-# ❌ Feature Envy: 他のオブジェクトのデータに依存しすぎ
+# Feature Envy: too dependent on another object's data
 class ReportGeneratorBad:
     def generate_salary_report(self, employee) -> str:
-        """従業員の給与レポートを生成（悪い例）"""
+        """Generate a salary report for the employee (bad example)"""
         base = employee.base_salary
         bonus = employee.bonus_rate * base
         tax = (base + bonus) * employee.tax_rate
         net = base + bonus - tax
 
-        # employee のデータを全部取り出して外部で計算
-        # → employee 自身が計算すべき
+        # Pulls out all of the employee's data and computes externally
+        # -> employee itself should do the calculation
         return (
             f"名前: {employee.name}\n"
             f"基本給: {base:,}円\n"
@@ -1626,7 +1632,7 @@ class ReportGeneratorBad:
         )
 
 
-# ✅ 修正: 計算を Employee に移動
+# Fix: move calculations into Employee
 class Employee:
     def __init__(self, name: str, base_salary: int,
                  bonus_rate: float, tax_rate: float):
@@ -1651,7 +1657,7 @@ class Employee:
         return gross - self.calculate_tax()
 
     def get_salary_breakdown(self) -> dict[str, int]:
-        """給与の内訳を返す（データの公開は最小限）"""
+        """Return the salary breakdown (minimum data exposure)"""
         return {
             "base_salary": self._base_salary,
             "bonus": self.calculate_bonus(),
@@ -1661,7 +1667,7 @@ class Employee:
 
 class ReportGeneratorGood:
     def generate_salary_report(self, employee: Employee) -> str:
-        """従業員の給与レポートを生成（良い例）"""
+        """Generate a salary report for the employee (good example)"""
         breakdown = employee.get_salary_breakdown()
         return (
             f"名前: {employee.name}\n"
@@ -1672,7 +1678,7 @@ class ReportGeneratorGood:
         )
 
 
-# 使用例
+# Usage
 emp = Employee("田中太郎", 400000, 0.2, 0.3)
 report = ReportGeneratorGood()
 print(report.generate_salary_report(emp))
@@ -1680,75 +1686,75 @@ print(report.generate_salary_report(emp))
 
 ---
 
-## 6. モジュールレベルのカプセル化
+## 6. Module-level Encapsulation
 
-### 6.1 パッケージ/モジュールによる境界設定
+### 6.1 Setting Boundaries via Packages/Modules
 
 ```
-カプセル化はクラスだけでなく、モジュール/パッケージレベルでも重要:
+Encapsulation matters not only for classes but also at the module/package level:
 
-  ┌─── public API ──────────────────────┐
-  │                                      │
-  │  UserService  ←─ 外部が使うクラス    │
-  │  UserDTO      ←─ 外部に返すデータ    │
-  │                                      │
-  │  ┌─── internal ──────────────────┐  │
-  │  │                                │  │
-  │  │  UserRepository  ←─ 内部実装  │  │
-  │  │  UserValidator   ←─ 内部実装  │  │
-  │  │  UserMapper      ←─ 内部実装  │  │
-  │  │  user_queries.sql ←─ 内部     │  │
-  │  │                                │  │
-  │  └────────────────────────────────┘  │
-  │                                      │
-  └──────────────────────────────────────┘
+  +--- public API -----------------------+
+  |                                      |
+  |  UserService  <- class used outside  |
+  |  UserDTO      <- data returned out   |
+  |                                      |
+  |  +--- internal ------------------+   |
+  |  |                                |  |
+  |  |  UserRepository  <- internal  |  |
+  |  |  UserValidator   <- internal  |  |
+  |  |  UserMapper      <- internal  |  |
+  |  |  user_queries.sql <- internal |  |
+  |  |                                |  |
+  |  +--------------------------------+  |
+  |                                      |
+  +--------------------------------------+
 ```
 
 ```python
-# Python: __all__ とモジュールレベルのカプセル化
+# Python: __all__ and module-level encapsulation
 
 # user_module/__init__.py
 from .service import UserService
 from .dto import UserDTO, CreateUserRequest
 
-# 公開するクラスのみ __all__ に記載
+# List only the classes to expose in __all__
 __all__ = ["UserService", "UserDTO", "CreateUserRequest"]
 
-# 内部実装は公開しない
-# UserRepository, UserValidator, UserMapper は __all__ に含めない
+# Do not expose internal implementations
+# UserRepository, UserValidator, UserMapper are not included in __all__
 ```
 
 ```typescript
-// TypeScript: barrel export によるモジュールカプセル化
+// TypeScript: module encapsulation via barrel export
 
-// user/index.ts（公開API）
+// user/index.ts (public API)
 export { UserService } from "./service";
 export { UserDTO, CreateUserRequest } from "./dto";
 
-// 以下は export しない（内部実装）
+// The following are not exported (internal implementations)
 // UserRepository, UserValidator, UserMapper
 ```
 
-### 6.2 依存関係の方向とカプセル化
+### 6.2 Direction of Dependencies and Encapsulation
 
 ```
-依存関係逆転の原則（DIP）とカプセル化:
+Dependency Inversion Principle (DIP) and encapsulation:
 
-  ❌ 悪い例: 上位モジュールが下位モジュールの実装に依存
-    OrderService → MySQLOrderRepository
-    → データベースの変更が OrderService に波及
+  Bad: a higher-level module depends on a lower-level module's implementation
+    OrderService -> MySQLOrderRepository
+    -> Database changes propagate into OrderService
 
-  ✅ 良い例: 抽象に依存
-    OrderService → OrderRepository（interface）
-                   ↑
+  Good: depend on an abstraction
+    OrderService -> OrderRepository (interface)
+                   ^
     MySQLOrderRepository implements OrderRepository
-    → データベースの変更が OrderService に影響しない
+    -> Database changes don't affect OrderService
 ```
 
 ```typescript
-// TypeScript: 依存関係逆転によるカプセル化の強化
+// TypeScript: strengthening encapsulation through dependency inversion
 
-// 抽象（インターフェース）
+// Abstractions (interfaces)
 interface OrderRepository {
   save(order: Order): Promise<void>;
   findById(id: string): Promise<Order | null>;
@@ -1769,7 +1775,7 @@ interface PaymentResult {
   status: "success" | "failed";
 }
 
-// 上位モジュール: 抽象にのみ依存
+// Higher-level module: depends only on abstractions
 class OrderUseCase {
   constructor(
     private readonly orderRepo: OrderRepository,
@@ -1782,21 +1788,21 @@ class OrderUseCase {
     items: Array<{ productId: string; quantity: number; price: number }>,
     paymentMethodId: string,
   ): Promise<string> {
-    // 注文の作成
+    // Create the order
     const orderId = crypto.randomUUID();
     const totalAmount = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
-    // 支払い処理（PaymentGateway の実装詳細は知らない）
+    // Payment processing (knows nothing of PaymentGateway's implementation details)
     const result = await this.payment.charge(totalAmount, "JPY", paymentMethodId);
     if (result.status === "failed") {
       throw new Error("支払いに失敗しました");
     }
 
-    // 注文の永続化（OrderRepository の実装詳細は知らない）
+    // Persist the order (knows nothing of OrderRepository's implementation details)
     const order = new Order(orderId, customerId, items, result.transactionId);
     await this.orderRepo.save(order);
 
-    // 通知（NotificationService の実装詳細は知らない）
+    // Notification (knows nothing of NotificationService's implementation details)
     await this.notification.notify(
       customerId,
       `注文 #${orderId} が確定しました。合計: ${totalAmount.toLocaleString()}円`,
@@ -1806,21 +1812,21 @@ class OrderUseCase {
   }
 }
 
-// 下位モジュール: インターフェースを実装（実装詳細はカプセル化）
+// Lower-level module: implements the interface (implementation details are encapsulated)
 class PostgresOrderRepository implements OrderRepository {
-  // PostgreSQL 固有の実装は完全に隠蔽
+  // PostgreSQL-specific implementation is fully hidden
   private pool: any; // pg.Pool
 
   constructor(connectionString: string) {
-    // DB接続の詳細は内部に閉じる
+    // DB connection details stay internal
   }
 
   async save(order: Order): Promise<void> {
-    // SQL INSERT の詳細は外部から見えない
+    // SQL INSERT details are invisible from outside
   }
 
   async findById(id: string): Promise<Order | null> {
-    // SQL SELECT の詳細は外部から見えない
+    // SQL SELECT details are invisible from outside
     return null;
   }
 
@@ -1830,7 +1836,7 @@ class PostgresOrderRepository implements OrderRepository {
 }
 
 class StripePaymentGateway implements PaymentGateway {
-  // Stripe SDK の使い方は完全に隠蔽
+  // How the Stripe SDK is used is fully hidden
   private apiKey: string;
 
   constructor(apiKey: string) {
@@ -1838,12 +1844,12 @@ class StripePaymentGateway implements PaymentGateway {
   }
 
   async charge(amount: number, currency: string, paymentMethodId: string): Promise<PaymentResult> {
-    // Stripe API 呼び出しの詳細は外部から見えない
+    // Stripe API call details are invisible from outside
     return { transactionId: "txn_xxx", status: "success" };
   }
 
   async refund(transactionId: string): Promise<void> {
-    // Stripe の返金処理は外部から見えない
+    // Stripe refund handling is invisible from outside
   }
 }
 
@@ -1851,11 +1857,11 @@ class SlackNotificationService implements NotificationService {
   constructor(private webhookUrl: string) {}
 
   async notify(userId: string, message: string): Promise<void> {
-    // Slack API の使い方は外部から見えない
+    // How the Slack API is used is invisible from outside
   }
 }
 
-// テスト用のモック実装も簡単に作れる
+// Mock implementations for tests are also easy to create
 class InMemoryOrderRepository implements OrderRepository {
   private orders = new Map<string, Order>();
 
@@ -1875,59 +1881,60 @@ class InMemoryOrderRepository implements OrderRepository {
 
 ---
 
-## 7. カプセル化とテスト
+## 7. Encapsulation and Testing
 
-### 7.1 テスタビリティとカプセル化のバランス
+### 7.1 Balancing Testability and Encapsulation
 
 ```
-問題: private メソッドをテストしたい
+Problem: you want to test a private method
 
-  → private メソッドのテストは「コードの臭い」かもしれない
-  → private メソッドが複雑すぎるなら、別クラスに抽出すべきサイン
+  -> Testing private methods may itself be a "code smell"
+  -> If the private method is too complex, it may be a sign that it
+     should be extracted into a separate class
 
-  対策:
-    1. public メソッド経由で間接的にテストする
-    2. 複雑な private ロジックは別クラスに抽出する
-    3. package-private（Java）を使ってテストクラスからアクセス可能にする
+  Remedies:
+    1. Test it indirectly via a public method
+    2. Extract the complex private logic into another class
+    3. Use package-private (Java) to make it accessible from the test class
 ```
 
 ```python
-# Python: テスタビリティを考慮したカプセル化
+# Python: encapsulation with testability in mind
 
-# ❌ テストしにくい設計
+# Hard-to-test design
 class OrderProcessorBad:
     def process(self, order_data: dict) -> str:
-        # 1. バリデーション（テストしたい）
+        # 1. Validation (want to test)
         if not order_data.get("customer_id"):
             raise ValueError("顧客IDが必要です")
         if not order_data.get("items"):
             raise ValueError("商品が必要です")
 
-        # 2. 合計計算（テストしたい）
+        # 2. Total calculation (want to test)
         total = 0
         for item in order_data["items"]:
             total += item["price"] * item["quantity"]
             if item["quantity"] > 100:
-                total *= 0.9  # 大量割引
+                total *= 0.9  # bulk discount
 
-        # 3. 決済処理（外部API呼び出し）
+        # 3. Payment processing (external API call)
         payment_result = self._call_payment_api(total)
 
-        # 4. 通知（外部API呼び出し）
+        # 4. Notification (external API call)
         self._send_notification(order_data["customer_id"], total)
 
         return payment_result["transaction_id"]
 
     def _call_payment_api(self, amount: float) -> dict:
-        # 外部API呼び出し...
+        # external API call...
         return {"transaction_id": "xxx"}
 
     def _send_notification(self, customer_id: str, amount: float) -> None:
-        # 外部API呼び出し...
+        # external API call...
         pass
 
 
-# ✅ テストしやすい設計: 責任の分離
+# Test-friendly design: separation of responsibilities
 from typing import Protocol
 
 class PaymentGateway(Protocol):
@@ -1937,7 +1944,7 @@ class NotificationSender(Protocol):
     def send(self, recipient: str, message: str) -> None: ...
 
 class OrderValidator:
-    """バリデーションロジックを独立したクラスに抽出"""
+    """Extract the validation logic into its own class"""
 
     def validate(self, order_data: dict) -> list[str]:
         errors = []
@@ -1954,7 +1961,7 @@ class OrderValidator:
         return errors
 
 class PriceCalculator:
-    """価格計算ロジックを独立したクラスに抽出"""
+    """Extract the price calculation logic into its own class"""
 
     BULK_THRESHOLD = 100
     BULK_DISCOUNT = 0.1
@@ -1969,7 +1976,7 @@ class PriceCalculator:
         return total
 
 class OrderProcessor:
-    """注文処理: 各コンポーネントを合成"""
+    """Order processing: compose the components"""
 
     def __init__(
         self,
@@ -1984,18 +1991,18 @@ class OrderProcessor:
         self._notification = notification
 
     def process(self, order_data: dict) -> str:
-        # 1. バリデーション
+        # 1. Validation
         errors = self._validator.validate(order_data)
         if errors:
             raise ValueError(f"バリデーションエラー: {', '.join(errors)}")
 
-        # 2. 合計計算
+        # 2. Total calculation
         total = self._calculator.calculate_total(order_data["items"])
 
-        # 3. 決済
+        # 3. Payment
         transaction_id = self._payment.charge(total)
 
-        # 4. 通知
+        # 4. Notification
         self._notification.send(
             order_data["customer_id"],
             f"注文完了: {total:,}円"
@@ -2004,7 +2011,7 @@ class OrderProcessor:
         return transaction_id
 
 
-# テスト
+# Tests
 import unittest
 from unittest.mock import Mock
 
@@ -2033,7 +2040,7 @@ class TestPriceCalculator(unittest.TestCase):
 
     def test_bulk_discount(self):
         items = [{"price": 100, "quantity": 200}]
-        # 200 > 100 なので10%割引
+        # 200 > 100, so a 10% discount applies
         assert self.calculator.calculate_total(items) == 18000
 
 class TestOrderProcessor(unittest.TestCase):
@@ -2061,23 +2068,24 @@ class TestOrderProcessor(unittest.TestCase):
 
 ---
 
-## 8. カプセル化の設計指針チェックリスト
+## 8. Encapsulation Design Checklist
 
 ```
-クラス設計時のカプセル化チェックリスト:
+Checklist for encapsulation when designing a class:
 
-□ フィールドは全て private（または最も制限的なアクセスレベル）か？
-□ getter は本当に必要なものだけ公開しているか？
-□ setter の代わりにビジネスメソッドを提供しているか？
-□ 内部コレクションの参照を直接外部に渡していないか？
-□ コンストラクタで不変条件を確立しているか？
-□ ミュータブルな引数を防衛的にコピーしているか？
-□ 不変にできるフィールドは final/readonly にしているか？
-□ Tell, Don't Ask 原則に従っているか？
-□ 1つのクラスが持つ責任は1つだけか？
-□ 内部実装の変更が外部に影響しない設計か？
-□ テスタビリティを損なわない範囲でカプセル化しているか？
-□ モジュール/パッケージレベルでもアクセス制御しているか？
+[ ] Are all fields private (or at the most restrictive access level)?
+[ ] Are only the truly necessary getters exposed?
+[ ] Do you provide business methods instead of setters?
+[ ] Do you avoid handing out references to internal collections directly?
+[ ] Do you establish invariants in the constructor?
+[ ] Do you defensively copy mutable arguments?
+[ ] Are fields that can be immutable marked final/readonly?
+[ ] Do you follow the Tell, Don't Ask principle?
+[ ] Does each class have only a single responsibility?
+[ ] Is the design such that changes to the internal implementation
+    don't impact the outside?
+[ ] Is encapsulation kept at a level that does not harm testability?
+[ ] Do you also apply access control at the module/package level?
 ```
 
 ---
@@ -2085,43 +2093,43 @@ class TestOrderProcessor(unittest.TestCase):
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Deeper understanding comes from not only the theory but also actually writing code and observing how it behaves.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping straight to advanced topics. We recommend firmly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-| 概念 | ポイント |
-|------|---------|
-| バンドリング | データとメソッドを意味のある単位にまとめる |
-| 情報隠蔽 | 内部実装を隠し、公開APIのみ提供。変更の影響を局所化 |
-| アクセス修飾子 | 最も制限的なレベルを選ぶ。言語ごとに仕組みが異なる |
-| getter/setter | setterは原則不要。ビジネスメソッドを提供 |
-| Tell, Don't Ask | 状態を聞かずにオブジェクトに指示する |
-| 不変オブジェクト | 変更時は新しいオブジェクトを返す。スレッドセーフ |
-| 防衛的コピー | 内部コレクションの参照を外部に漏らさない |
-| Rich Domain Model | オブジェクトが自分の責任で状態とロジックを管理 |
-| 契約による設計 | 事前条件・事後条件・不変条件を定義・検証 |
-| モジュールカプセル化 | パッケージ/モジュールレベルでもアクセス制御 |
-| テスタビリティ | 複雑なprivateロジックは別クラスに抽出 |
+The knowledge of this topic is frequently applied in day-to-day development work. It becomes especially important during code reviews and when designing architecture.
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Concept | Key Point |
+|---------|-----------|
+| Bundling | Group data and methods into meaningful units |
+| Information hiding | Hide internal implementation and expose only the public API; localize the impact of changes |
+| Access modifiers | Choose the most restrictive level; mechanisms differ between languages |
+| Getter/setter | Setters are generally unnecessary; provide business methods instead |
+| Tell, Don't Ask | Instruct the object rather than querying its state |
+| Immutable objects | Return new objects on modification; thread-safe |
+| Defensive copying | Do not leak references to internal collections |
+| Rich Domain Model | Objects manage their own state and logic |
+| Design by contract | Define and check preconditions, postconditions, and invariants |
+| Module encapsulation | Apply access control at the package/module level as well |
+| Testability | Extract complex private logic into separate classes |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
+
+---
+
+## References
 1. Bloch, J. "Effective Java." Item 15-17: Minimize accessibility, Use immutability. 2018.
 2. Fowler, M. "Anemic Domain Model." martinfowler.com, 2003.
 3. Parnas, D. "On the Criteria To Be Used in Decomposing Systems into Modules." CACM, 1972.
