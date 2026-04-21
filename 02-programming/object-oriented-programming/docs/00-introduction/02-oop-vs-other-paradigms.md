@@ -1,153 +1,153 @@
-# OOP vs 他パラダイム
+# OOP vs Other Paradigms
 
-> OOPは万能ではない。手続き型、関数型、リアクティブ、アクターモデルなど、各パラダイムの強みと弱みを理解し、適切に使い分けることが現代のエンジニアに求められる。
+> OOP is not a silver bullet. Modern engineers are expected to understand the strengths and weaknesses of each paradigm—procedural, functional, reactive, the actor model, and more—and apply them appropriately.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] 主要パラダイムの特徴と適用領域を把握する
-- [ ] OOPと関数型の根本的な設計思想の違いを理解する
-- [ ] マルチパラダイムの実践的な使い分けを学ぶ
-- [ ] 各パラダイムの実装を複数言語で比較する
-- [ ] 現実のプロジェクトでのパラダイム選択基準を理解する
+- [ ] Grasp the characteristics and domains of applicability of the major paradigms
+- [ ] Understand the fundamental design philosophy differences between OOP and functional programming
+- [ ] Learn the practical use of multi-paradigm approaches
+- [ ] Compare implementations of each paradigm across multiple languages
+- [ ] Understand the criteria for selecting a paradigm in real-world projects
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Reading the following beforehand will deepen your understanding of this guide:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [OOPの歴史と進化](./01-history-and-evolution.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related fundamental concepts
+- Understanding of [History and Evolution of OOP](./01-history-and-evolution.md)
 
 ---
 
-## 1. パラダイム比較
+## 1. Paradigm Comparison
 
 ```
 ┌──────────────┬──────────────┬──────────────┬──────────────┐
-│              │ 手続き型     │ OOP          │ 関数型       │
+│              │ Procedural   │ OOP          │ Functional   │
 ├──────────────┼──────────────┼──────────────┼──────────────┤
-│ 中心概念      │ 手順・命令   │ オブジェクト │ 関数・変換   │
+│ Core concept │ Steps/cmds   │ Objects      │ Funcs/xforms │
 ├──────────────┼──────────────┼──────────────┼──────────────┤
-│ データ管理    │ グローバル変数│ カプセル化   │ イミュータブル│
+│ Data mgmt    │ Global vars  │ Encapsulation│ Immutable    │
 ├──────────────┼──────────────┼──────────────┼──────────────┤
-│ コード再利用  │ 関数         │ 継承/合成    │ 高階関数     │
+│ Code reuse   │ Functions    │ Inherit/Comp │ Higher-order │
 ├──────────────┼──────────────┼──────────────┼──────────────┤
-│ 状態管理      │ 変数の変更   │ メソッドで変更│ 新しい値を返す│
+│ State mgmt   │ Var mutation │ Via methods  │ Return new   │
 ├──────────────┼──────────────┼──────────────┼──────────────┤
-│ 副作用        │ どこでも発生 │ メソッド内   │ 最小限に制限 │
+│ Side effects │ Anywhere     │ In methods   │ Minimized    │
 ├──────────────┼──────────────┼──────────────┼──────────────┤
-│ テスト容易性  │ △           │ ○           │ ◎           │
+│ Testability  │ △           │ ○           │ ◎           │
 ├──────────────┼──────────────┼──────────────┼──────────────┤
-│ 並行処理      │ 困難         │ 困難(共有状態)│ 容易(不変)   │
+│ Concurrency  │ Difficult    │ Hard(shared) │ Easy(immut)  │
 ├──────────────┼──────────────┼──────────────┼──────────────┤
-│ 学習コスト    │ 低           │ 中           │ 高           │
+│ Learning cost│ Low          │ Medium       │ High         │
 └──────────────┴──────────────┴──────────────┴──────────────┘
 ```
 
-### 1.1 各パラダイムの詳細な特徴
+### 1.1 Detailed Characteristics of Each Paradigm
 
 ```
-手続き型プログラミング（Procedural Programming）:
-  核心: 手順の記述
-  代表言語: C, Pascal, BASIC, Shell Script
-  特徴:
-    - 上から下へ、順番に命令を実行
-    - 関数でコードを構造化
-    - データと処理が分離
-    - グローバル変数による状態共有
-  利点:
-    - 学習が容易
-    - 実行の流れが直感的
-    - オーバーヘッドが少ない
-  欠点:
-    - 大規模コードで破綻しやすい
-    - データの整合性が保証しにくい
-    - コードの再利用が限定的
+Procedural Programming:
+  Core: Describing procedures
+  Representative languages: C, Pascal, BASIC, Shell Script
+  Characteristics:
+    - Execute instructions top to bottom, in order
+    - Structure code via functions
+    - Data and processing are separated
+    - State sharing through global variables
+  Advantages:
+    - Easy to learn
+    - Execution flow is intuitive
+    - Low overhead
+  Disadvantages:
+    - Tends to break down at large scale
+    - Hard to guarantee data integrity
+    - Code reuse is limited
 
-OOP（Object-Oriented Programming）:
-  核心: オブジェクト間の協調
-  代表言語: Java, C#, Python, TypeScript, Kotlin
-  特徴:
-    - データと振る舞いの統合
-    - カプセル化による情報隠蔽
-    - 継承による再利用
-    - ポリモーフィズムによる柔軟性
-  利点:
-    - 大規模開発に強い
-    - チーム開発でのモジュール分割が明確
-    - 現実世界のモデリングが自然
-  欠点:
-    - 過剰な抽象化のリスク
-    - 共有可変状態による並行処理の困難
-    - ボイラープレートが多くなりがち
+OOP (Object-Oriented Programming):
+  Core: Collaboration between objects
+  Representative languages: Java, C#, Python, TypeScript, Kotlin
+  Characteristics:
+    - Integration of data and behavior
+    - Information hiding via encapsulation
+    - Reuse through inheritance
+    - Flexibility through polymorphism
+  Advantages:
+    - Strong for large-scale development
+    - Clear module boundaries in team development
+    - Natural modeling of the real world
+  Disadvantages:
+    - Risk of over-abstraction
+    - Concurrency is hard due to shared mutable state
+    - Tends to accumulate boilerplate
 
-関数型プログラミング（Functional Programming）:
-  核心: データ変換のパイプライン
-  代表言語: Haskell, Erlang, Clojure, Elm, F#
-  特徴:
-    - 不変データ（immutable data）
-    - 純粋関数（同じ入力 → 常に同じ出力）
-    - 高階関数（関数を引数や戻り値にできる）
-    - 参照透過性（副作用なし）
-  利点:
-    - テストが容易（純粋関数）
-    - 並行処理が安全（共有状態なし）
-    - 推論しやすいコード
-  欠点:
-    - 学習コストが高い
-    - 状態管理が本質的な領域では不自然
-    - パフォーマンスチューニングが難しい場合がある
+Functional Programming:
+  Core: Data transformation pipelines
+  Representative languages: Haskell, Erlang, Clojure, Elm, F#
+  Characteristics:
+    - Immutable data
+    - Pure functions (same input → always same output)
+    - Higher-order functions (functions as arguments or return values)
+    - Referential transparency (no side effects)
+  Advantages:
+    - Easy to test (pure functions)
+    - Safe concurrency (no shared state)
+    - Easy-to-reason-about code
+  Disadvantages:
+    - High learning cost
+    - Unnatural for domains where state management is essential
+    - Performance tuning can be difficult
 
-リアクティブプログラミング（Reactive Programming）:
-  核心: データの流れと変化の伝播
-  代表: RxJS, Reactor, Akka Streams
-  特徴:
-    - 非同期データストリーム
-    - イベント駆動
-    - バックプレッシャー
-  利点:
-    - 非同期処理の宣言的な記述
-    - UIイベント処理に適する
-  欠点:
-    - デバッグが困難
-    - 学習コストが高い
+Reactive Programming:
+  Core: Data flow and propagation of changes
+  Representatives: RxJS, Reactor, Akka Streams
+  Characteristics:
+    - Asynchronous data streams
+    - Event-driven
+    - Backpressure
+  Advantages:
+    - Declarative description of asynchronous processing
+    - Well-suited to UI event handling
+  Disadvantages:
+    - Debugging is difficult
+    - High learning cost
 
-アクターモデル（Actor Model）:
-  核心: 独立した計算単位（アクター）間のメッセージパッシング
-  代表: Erlang/OTP, Akka, Orleans
-  特徴:
-    - 各アクターが独自の状態を持つ
-    - メッセージの非同期送受信
-    - 故障の隔離（Let it crash）
-  利点:
-    - 分散システムに適する
-    - スケーラビリティが高い
-    - 耐障害性に優れる
-  欠点:
-    - メッセージ順序の保証が限定的
-    - デバッグが困難
+Actor Model:
+  Core: Message passing between independent computational units (actors)
+  Representatives: Erlang/OTP, Akka, Orleans
+  Characteristics:
+    - Each actor has its own state
+    - Asynchronous sending and receiving of messages
+    - Fault isolation (Let it crash)
+  Advantages:
+    - Well-suited to distributed systems
+    - High scalability
+    - Excellent fault tolerance
+  Disadvantages:
+    - Limited guarantee on message ordering
+    - Debugging is difficult
 ```
 
 ---
 
-## 2. 同じ問題を各パラダイムで解く
+## 2. Solving the Same Problem with Each Paradigm
 
-### 問題: ユーザーリストから成人のメールアドレスを取得
+### Problem: Extract email addresses of adults from a user list
 
 ```python
-# === 手続き型 ===
+# === Procedural ===
 users = [
-    {"name": "田中", "age": 25, "email": "tanaka@example.com"},
-    {"name": "山田", "age": 17, "email": "yamada@example.com"},
-    {"name": "佐藤", "age": 30, "email": "sato@example.com"},
+    {"name": "Tanaka", "age": 25, "email": "tanaka@example.com"},
+    {"name": "Yamada", "age": 17, "email": "yamada@example.com"},
+    {"name": "Sato", "age": 30, "email": "sato@example.com"},
 ]
 
 adult_emails = []
 for user in users:
     if user["age"] >= 18:
         adult_emails.append(user["email"])
-# → 手順を逐次的に記述
+# → Describes the procedure sequentially
 ```
 
 ```python
@@ -168,21 +168,21 @@ class UserRepository:
     def get_adult_emails(self) -> list[str]:
         return [u.email for u in self._users if u.is_adult()]
 
-# → 責任をオブジェクトに委譲
+# → Delegates responsibility to objects
 repo = UserRepository([
-    User("田中", 25, "tanaka@example.com"),
-    User("山田", 17, "yamada@example.com"),
-    User("佐藤", 30, "sato@example.com"),
+    User("Tanaka", 25, "tanaka@example.com"),
+    User("Yamada", 17, "yamada@example.com"),
+    User("Sato", 30, "sato@example.com"),
 ])
 adult_emails = repo.get_adult_emails()
 ```
 
 ```python
-# === 関数型 ===
+# === Functional ===
 from dataclasses import dataclass
 from typing import Callable
 
-@dataclass(frozen=True)  # イミュータブル
+@dataclass(frozen=True)  # Immutable
 class User:
     name: str
     age: int
@@ -195,23 +195,23 @@ def get_email(user: User) -> str:
     return user.email
 
 users = [
-    User("田中", 25, "tanaka@example.com"),
-    User("山田", 17, "yamada@example.com"),
-    User("佐藤", 30, "sato@example.com"),
+    User("Tanaka", 25, "tanaka@example.com"),
+    User("Yamada", 17, "yamada@example.com"),
+    User("Sato", 30, "sato@example.com"),
 ]
 
 adult_emails = list(map(get_email, filter(is_adult, users)))
-# → データ変換のパイプライン
+# → A pipeline of data transformations
 ```
 
-### 問題2: ECサイトの注文処理
+### Problem 2: Order processing for an e-commerce site
 
-より複雑な問題で各パラダイムの特性を比較する。
+Compare the characteristics of each paradigm with a more complex problem.
 
 ```typescript
-// === 手続き型アプローチ ===
+// === Procedural approach ===
 
-// データは分離された配列/辞書で管理
+// Data is managed as separate arrays/dictionaries
 interface OrderData {
   orderId: string;
   items: { productId: string; quantity: number; price: number }[];
@@ -219,7 +219,7 @@ interface OrderData {
   discount: number;
 }
 
-// 関数群
+// A collection of functions
 function calculateSubtotal(order: OrderData): number {
   let total = 0;
   for (const item of order.items) {
@@ -253,15 +253,15 @@ function processOrder(order: OrderData): {
     total: afterDiscount + tax,
   };
 }
-// 問題: 関数間でデータが分散、状態管理が困難
+// Problem: Data is scattered across functions, state management is difficult
 ```
 
 ```typescript
-// === OOPアプローチ ===
+// === OOP approach ===
 
 class Money {
   constructor(private readonly _amount: number) {
-    if (_amount < 0) throw new Error("金額は0以上");
+    if (_amount < 0) throw new Error("Amount must be 0 or more");
   }
 
   get amount(): number { return this._amount; }
@@ -290,7 +290,7 @@ class OrderItem {
     public readonly unitPrice: Money,
     public readonly quantity: number,
   ) {
-    if (quantity <= 0) throw new Error("数量は1以上");
+    if (quantity <= 0) throw new Error("Quantity must be 1 or more");
   }
 
   get subtotal(): Money {
@@ -309,13 +309,13 @@ class Order {
 
   addItem(item: OrderItem): void {
     if (this._status !== "draft") {
-      throw new Error("確定済みの注文には商品を追加できません");
+      throw new Error("Cannot add items to a confirmed order");
     }
     this._items.push(item);
   }
 
   applyDiscount(rate: number): void {
-    if (rate < 0 || rate > 1) throw new Error("割引率は0〜1の範囲");
+    if (rate < 0 || rate > 1) throw new Error("Discount rate must be in the range 0–1");
     this._discountRate = rate;
   }
 
@@ -343,7 +343,7 @@ class Order {
   }
 
   confirm(): void {
-    if (this._items.length === 0) throw new Error("空の注文は確定不可");
+    if (this._items.length === 0) throw new Error("An empty order cannot be confirmed");
     this._status = "confirmed";
   }
 
@@ -356,26 +356,26 @@ class Order {
   }
 
   display(): string {
-    const lines = [`注文 ${this.orderId} (${this._status})`];
+    const lines = [`Order ${this.orderId} (${this._status})`];
     for (const item of this._items) {
       lines.push(`  ${item.productName} x${item.quantity} = ${item.subtotal}`);
     }
-    lines.push(`  小計: ${this.subtotal}`);
+    lines.push(`  Subtotal: ${this.subtotal}`);
     if (this._discountRate > 0) {
-      lines.push(`  割引: -${this.discountAmount} (${this._discountRate * 100}%)`);
+      lines.push(`  Discount: -${this.discountAmount} (${this._discountRate * 100}%)`);
     }
-    lines.push(`  税: ${this.tax}`);
-    lines.push(`  合計: ${this.total}`);
+    lines.push(`  Tax: ${this.tax}`);
+    lines.push(`  Total: ${this.total}`);
     return lines.join("\n");
   }
 }
-// 利点: ビジネスルールがオブジェクトに内包される
+// Advantage: Business rules are encapsulated within the object
 ```
 
 ```typescript
-// === 関数型アプローチ ===
+// === Functional approach ===
 
-// すべて不変データ型
+// All immutable data types
 type FPOrderItem = Readonly<{
   productId: string;
   productName: string;
@@ -397,7 +397,7 @@ type OrderSummary = Readonly<{
   total: number;
 }>;
 
-// 純粋関数群（副作用なし、同じ入力 → 同じ出力）
+// Pure functions (no side effects, same input → same output)
 const itemSubtotal = (item: FPOrderItem): number =>
   item.unitPrice * item.quantity;
 
@@ -423,7 +423,7 @@ const summarize = (order: FPOrder): OrderSummary => {
   };
 };
 
-// 注文の変更は新しいオブジェクトを返す
+// Changes to an order return a new object
 const addItem = (order: FPOrder, item: FPOrderItem): FPOrder => ({
   ...order,
   items: [...order.items, item],
@@ -439,11 +439,11 @@ const confirmOrder = (order: FPOrder): FPOrder => ({
   status: "confirmed" as OrderStatus,
 });
 
-// パイプライン: 関数の合成
+// Pipeline: function composition
 const pipe = <T>(...fns: ((arg: T) => T)[]) =>
   (initial: T): T => fns.reduce((acc, fn) => fn(acc), initial);
 
-// 使用例
+// Usage example
 const baseOrder: FPOrder = {
   orderId: "ORD001",
   items: [],
@@ -452,53 +452,53 @@ const baseOrder: FPOrder = {
 };
 
 const processedOrder = pipe<FPOrder>(
-  (o) => addItem(o, { productId: "P1", productName: "本", unitPrice: 1500, quantity: 2 }),
-  (o) => addItem(o, { productId: "P2", productName: "ペン", unitPrice: 200, quantity: 5 }),
+  (o) => addItem(o, { productId: "P1", productName: "Book", unitPrice: 1500, quantity: 2 }),
+  (o) => addItem(o, { productId: "P2", productName: "Pen", unitPrice: 200, quantity: 5 }),
   (o) => applyDiscountFP(o, 0.1),
   confirmOrder,
 )(baseOrder);
 
 const summary = summarize(processedOrder);
-// baseOrder は変わらない（不変）
-// processedOrder は新しいオブジェクト
+// baseOrder is unchanged (immutable)
+// processedOrder is a new object
 ```
 
 ---
 
-## 3. OOP vs 関数型: 根本的な違い
+## 3. OOP vs Functional: Fundamental Differences
 
 ```
-Expression Problem（表現問題）:
+The Expression Problem:
 
-  OOP: 新しい「型」の追加が容易、新しい「操作」の追加が困難
-  FP:  新しい「操作」の追加が容易、新しい「型」の追加が困難
+  OOP: Easy to add new "types", hard to add new "operations"
+  FP:  Easy to add new "operations", hard to add new "types"
 
-  例: 図形の描画
+  Example: Drawing shapes
 
   OOP:
-    Shape（抽象クラス）
-    ├── Circle.draw()      ← 新しい型（Triangle）を追加するのは簡単
-    ├── Rectangle.draw()      各クラスにdraw()を実装するだけ
-    └── Triangle.draw()    ← でも新しい操作（area()）を追加すると
-                              全クラスを修正する必要がある
+    Shape (abstract class)
+    ├── Circle.draw()      ← Adding a new type (Triangle) is easy
+    ├── Rectangle.draw()      just implement draw() in each class
+    └── Triangle.draw()    ← But adding a new operation (area())
+                              requires modifying all classes
 
   FP:
-    draw(shape) = match shape with    ← 新しい操作（area()）を追加するのは簡単
-    | Circle r -> ...                    新しい関数を定義するだけ
-    | Rectangle w h -> ...            ← でも新しい型（Triangle）を追加すると
-                                         全関数を修正する必要がある
+    draw(shape) = match shape with    ← Adding a new operation (area()) is easy
+    | Circle r -> ...                    just define a new function
+    | Rectangle w h -> ...            ← But adding a new type (Triangle)
+                                         requires modifying all functions
 
-  → どちらが良いかは「何が頻繁に変わるか」による
-  → 型が増える → OOP
-  → 操作が増える → FP
+  → Which is better depends on "what changes frequently"
+  → Types grow → OOP
+  → Operations grow → FP
 ```
 
-### 3.1 Expression Problemの具体例
+### 3.1 A Concrete Example of the Expression Problem
 
 ```typescript
-// TypeScript: OOPでの Expression Problem
+// TypeScript: The Expression Problem in OOP
 
-// === OOPアプローチ: 新しい型の追加が容易 ===
+// === OOP approach: easy to add new types ===
 
 interface Shape {
   area(): number;
@@ -520,7 +520,7 @@ class Rectangle implements Shape {
   draw(): string { return `□ (${this.width}x${this.height})`; }
 }
 
-// 新しい型（Triangle）の追加: 簡単！既存コードの変更なし
+// Adding a new type (Triangle): Easy! No changes to existing code
 class Triangle implements Shape {
   constructor(
     private base: number,
@@ -533,20 +533,20 @@ class Triangle implements Shape {
   draw(): string { return `△ (base=${this.base})`; }
 }
 
-// しかし、新しい操作（例: serialize）を追加するには
-// 全クラスを修正する必要がある → 困難
-// interface Shape に serialize(): string を追加
-// → Circle, Rectangle, Triangle 全てに実装を追加
+// However, adding a new operation (e.g., serialize)
+// requires modifying all classes → difficult
+// Add serialize(): string to interface Shape
+// → Add implementation to Circle, Rectangle, and Triangle
 
 
-// === 関数型アプローチ: 新しい操作の追加が容易 ===
+// === Functional approach: easy to add new operations ===
 
 type FPShape =
   | { type: "circle"; radius: number }
   | { type: "rectangle"; width: number; height: number }
   | { type: "triangle"; base: number; height: number; sideA: number; sideB: number };
 
-// 操作1
+// Operation 1
 function fpArea(shape: FPShape): number {
   switch (shape.type) {
     case "circle": return Math.PI * shape.radius ** 2;
@@ -555,7 +555,7 @@ function fpArea(shape: FPShape): number {
   }
 }
 
-// 操作2
+// Operation 2
 function fpPerimeter(shape: FPShape): number {
   switch (shape.type) {
     case "circle": return 2 * Math.PI * shape.radius;
@@ -564,12 +564,12 @@ function fpPerimeter(shape: FPShape): number {
   }
 }
 
-// 新しい操作（serialize）の追加: 簡単！既存コードの変更なし
+// Adding a new operation (serialize): Easy! No changes to existing code
 function fpSerialize(shape: FPShape): string {
   return JSON.stringify(shape);
 }
 
-// 新しい操作（SVGに変換）の追加: 簡単！
+// Adding a new operation (convert to SVG): Easy!
 function fpToSvg(shape: FPShape): string {
   switch (shape.type) {
     case "circle":
@@ -581,36 +581,36 @@ function fpToSvg(shape: FPShape): string {
   }
 }
 
-// しかし、新しい型（pentagon）を追加するには
-// 全関数を修正する必要がある → 困難
+// However, adding a new type (pentagon)
+// requires modifying all functions → difficult
 ```
 
-### 3.2 状態管理の違い
+### 3.2 Differences in State Management
 
 ```
-OOP: 可変状態をカプセル化
-  account.deposit(1000)   ← オブジェクトの内部状態が変わる
-  account.withdraw(500)   ← 同じオブジェクトが変化し続ける
+OOP: Encapsulated mutable state
+  account.deposit(1000)   ← Object's internal state changes
+  account.withdraw(500)   ← The same object keeps changing
 
-FP: 不変データを変換
-  newAccount = deposit(account, 1000)   ← 新しいオブジェクトを返す
-  finalAccount = withdraw(newAccount, 500) ← 元のaccountは変わらない
+FP: Transforming immutable data
+  newAccount = deposit(account, 1000)   ← Returns a new object
+  finalAccount = withdraw(newAccount, 500) ← Original account is unchanged
 
-  FPの利点:
-    - 並行処理が安全（共有状態がない）
-    - タイムトラベルデバッグが可能
-    - テストが容易（同じ入力 → 同じ出力）
+  Advantages of FP:
+    - Safe concurrency (no shared state)
+    - Time-travel debugging is possible
+    - Easy to test (same input → same output)
 
-  OOPの利点:
-    - 直感的（現実世界のモデルに近い）
-    - GUIやゲームなど、状態変化が本質的な領域に適合
-    - メモリ効率が良い（オブジェクトを更新するだけ）
+  Advantages of OOP:
+    - Intuitive (close to real-world models)
+    - Fits domains where state change is essential, such as GUIs and games
+    - Memory efficient (just update the object)
 ```
 
 ```typescript
-// TypeScript: 状態管理の違い - 銀行口座の例
+// TypeScript: Differences in state management — bank account example
 
-// === OOPスタイル: 可変オブジェクト ===
+// === OOP style: mutable object ===
 class MutableBankAccount {
   private _balance: number;
   private _transactions: { amount: number; type: string; date: Date }[] = [];
@@ -623,7 +623,7 @@ class MutableBankAccount {
   }
 
   deposit(amount: number): void {
-    if (amount <= 0) throw new Error("入金額は正の数");
+    if (amount <= 0) throw new Error("Deposit amount must be positive");
     this._balance += amount;
     this._transactions.push({
       amount,
@@ -633,7 +633,7 @@ class MutableBankAccount {
   }
 
   withdraw(amount: number): void {
-    if (amount > this._balance) throw new Error("残高不足");
+    if (amount > this._balance) throw new Error("Insufficient funds");
     this._balance -= amount;
     this._transactions.push({
       amount: -amount,
@@ -651,13 +651,13 @@ class MutableBankAccount {
   }
 }
 
-// 使用: オブジェクトの状態が変わる
+// Usage: the object's state changes
 const account = new MutableBankAccount("001", 10000);
-account.deposit(5000);   // balance: 15000（内部が変わる）
-account.withdraw(3000);  // balance: 12000（内部が変わる）
+account.deposit(5000);   // balance: 15000 (internals mutate)
+account.withdraw(3000);  // balance: 12000 (internals mutate)
 
 
-// === 関数型スタイル: 不変データ ===
+// === Functional style: immutable data ===
 type ImmutableAccount = Readonly<{
   accountNumber: string;
   balance: number;
@@ -675,7 +675,7 @@ const createAccount = (accountNumber: string, balance: number = 0): ImmutableAcc
 });
 
 const deposit = (account: ImmutableAccount, amount: number): ImmutableAccount => {
-  if (amount <= 0) throw new Error("入金額は正の数");
+  if (amount <= 0) throw new Error("Deposit amount must be positive");
   return {
     ...account,
     balance: account.balance + amount,
@@ -687,7 +687,7 @@ const deposit = (account: ImmutableAccount, amount: number): ImmutableAccount =>
 };
 
 const withdraw = (account: ImmutableAccount, amount: number): ImmutableAccount => {
-  if (amount > account.balance) throw new Error("残高不足");
+  if (amount > account.balance) throw new Error("Insufficient funds");
   return {
     ...account,
     balance: account.balance - amount,
@@ -698,37 +698,37 @@ const withdraw = (account: ImmutableAccount, amount: number): ImmutableAccount =
   };
 };
 
-// 使用: 各操作が新しい状態を返す
+// Usage: each operation returns a new state
 const acc0 = createAccount("001", 10000);
-const acc1 = deposit(acc0, 5000);   // 新しいオブジェクト（acc0は不変）
-const acc2 = withdraw(acc1, 3000);  // 新しいオブジェクト（acc1は不変）
+const acc1 = deposit(acc0, 5000);   // New object (acc0 is unchanged)
+const acc2 = withdraw(acc1, 3000);  // New object (acc1 is unchanged)
 
-// タイムトラベル: 全ての状態が保存されている
-console.log(acc0.balance); // 10000（元の状態）
-console.log(acc1.balance); // 15000（入金後）
-console.log(acc2.balance); // 12000（出金後）
+// Time travel: every state is preserved
+console.log(acc0.balance); // 10000 (original state)
+console.log(acc1.balance); // 15000 (after deposit)
+console.log(acc2.balance); // 12000 (after withdrawal)
 ```
 
-### 3.3 副作用の管理
+### 3.3 Managing Side Effects
 
 ```python
-# Python: 副作用の管理の違い
+# Python: Differences in managing side effects
 
-# === 手続き型: 副作用がどこでも発生 ===
+# === Procedural: side effects occur anywhere ===
 
-total_orders = 0  # グローバル状態
-log_file = None   # グローバルリソース
+total_orders = 0  # Global state
+log_file = None   # Global resource
 
 def process_order_procedural(order_data: dict) -> dict:
     global total_orders
-    total_orders += 1  # 副作用: グローバル状態の変更
+    total_orders += 1  # Side effect: mutating global state
 
-    # 副作用: ファイルI/O
+    # Side effect: file I/O
     with open("orders.log", "a") as f:
         f.write(f"Order: {order_data}\n")
 
-    # 副作用: 外部API呼び出し
-    # send_email(order_data["email"], "注文確認")
+    # Side effect: external API call
+    # send_email(order_data["email"], "Order Confirmation")
 
     result = {
         "order_id": f"ORD-{total_orders}",
@@ -736,10 +736,10 @@ def process_order_procedural(order_data: dict) -> dict:
     }
     return result
 
-# 問題: 副作用が散在、テストが困難
+# Problem: side effects are scattered, and testing is difficult
 
 
-# === 関数型: 副作用を分離 ===
+# === Functional: isolate side effects ===
 
 from dataclasses import dataclass
 from typing import Callable, TypeVar
@@ -749,7 +749,7 @@ E = TypeVar("E")
 
 @dataclass(frozen=True)
 class Result:
-    """成功/失敗を表現する型"""
+    """A type representing success/failure"""
     success: bool
     value: object = None
     error: str = ""
@@ -766,7 +766,7 @@ class Result:
 @dataclass(frozen=True)
 class OrderInput:
     customer_email: str
-    items: tuple  # 不変のタプル
+    items: tuple  # Immutable tuple
 
 
 @dataclass(frozen=True)
@@ -777,7 +777,7 @@ class OrderResult:
     total: int
 
 
-# 純粋関数: 副作用なし、テスト容易
+# Pure function: no side effects, easy to test
 def calculate_order(order_input: OrderInput, order_number: int) -> OrderResult:
     subtotal = sum(item["price"] * item["qty"] for item in order_input.items)
     tax = int(subtotal * 0.1)
@@ -791,15 +791,15 @@ def calculate_order(order_input: OrderInput, order_number: int) -> OrderResult:
 
 def validate_order(order_input: OrderInput) -> Result:
     if not order_input.items:
-        return Result.fail("商品が空です")
+        return Result.fail("Items list is empty")
     if "@" not in order_input.customer_email:
-        return Result.fail("メールアドレスが無効です")
+        return Result.fail("Invalid email address")
     return Result.ok(order_input)
 
 
-# 副作用を持つ関数は「境界」に配置
+# Functions with side effects are placed at the "boundaries"
 class OrderProcessor:
-    """副作用の境界: I/O、DB、外部APIをここに集約"""
+    """Side effect boundary: I/O, DB, and external APIs are consolidated here"""
 
     def __init__(self, db, mailer, logger):
         self._db = db
@@ -807,55 +807,55 @@ class OrderProcessor:
         self._logger = logger
 
     def process(self, order_input: OrderInput) -> Result:
-        # 1. バリデーション（純粋関数）
+        # 1. Validation (pure function)
         validation = validate_order(order_input)
         if not validation.success:
             return validation
 
-        # 2. 注文番号取得（副作用: DB）
+        # 2. Get order number (side effect: DB)
         order_number = self._db.next_order_number()
 
-        # 3. 計算（純粋関数）
+        # 3. Calculate (pure function)
         result = calculate_order(order_input, order_number)
 
-        # 4. 保存（副作用: DB）
+        # 4. Save (side effect: DB)
         self._db.save_order(result)
 
-        # 5. 通知（副作用: メール）
-        self._mailer.send(order_input.customer_email, f"注文確認: {result.order_id}")
+        # 5. Notify (side effect: email)
+        self._mailer.send(order_input.customer_email, f"Order Confirmation: {result.order_id}")
 
-        # 6. ログ（副作用: ファイル）
-        self._logger.info(f"注文処理完了: {result.order_id}")
+        # 6. Log (side effect: file)
+        self._logger.info(f"Order processing complete: {result.order_id}")
 
         return Result.ok(result)
 ```
 
 ---
 
-## 4. マルチパラダイムの実践
+## 4. Multi-paradigm in Practice
 
 ```
-現代のベストプラクティス:
+Modern best practices:
 
-  「ドメインモデル」→ OOP
-    ビジネスエンティティの表現にクラスを使う
-    例: User, Order, Product
+  "Domain model" → OOP
+    Use classes to represent business entities
+    Example: User, Order, Product
 
-  「データ変換」→ FP
-    データのフィルタリング・変換に関数を使う
-    例: map, filter, reduce
+  "Data transformation" → FP
+    Use functions for filtering and transforming data
+    Example: map, filter, reduce
 
-  「副作用の管理」→ FP
-    I/O、DB操作を関数の境界に押しやる
+  "Side effect management" → FP
+    Push I/O and DB operations to the boundaries of functions
 
-  「状態を持つUI」→ OOP + リアクティブ
-    コンポーネントの状態管理
+  "UI with state" → OOP + Reactive
+    Manage component state
 
-実践例（TypeScript）:
+Practical example (TypeScript):
 ```
 
 ```typescript
-// ドメインモデル: OOP
+// Domain model: OOP
 class Order {
   constructor(
     public readonly id: string,
@@ -865,7 +865,7 @@ class Order {
   ) {}
 
   get totalPrice(): number {
-    // FP: データ変換
+    // FP: data transformation
     return this.items
       .map(item => item.price * item.quantity)
       .reduce((sum, price) => sum + price, 0);
@@ -876,36 +876,36 @@ class Order {
   }
 }
 
-// データ変換: FP
+// Data transformation: FP
 const getRecentHighValueOrders = (orders: Order[]): Order[] =>
   orders
     .filter(order => order.totalPrice > 10000)
     .filter(order => order.createdAt > thirtyDaysAgo())
     .sort((a, b) => b.totalPrice - a.totalPrice);
 
-// 副作用の管理: 関数の境界に分離
+// Side effect management: isolated at function boundaries
 async function processOrders(repo: OrderRepository): Promise<void> {
-  const orders = await repo.findAll();          // 副作用（DB）
-  const highValue = getRecentHighValueOrders(orders); // 純粋関数
-  await notifyAdmins(highValue);                // 副作用（通知）
+  const orders = await repo.findAll();          // Side effect (DB)
+  const highValue = getRecentHighValueOrders(orders); // Pure function
+  await notifyAdmins(highValue);                // Side effect (notification)
 }
 ```
 
-### 4.1 レイヤーごとのパラダイム選択
+### 4.1 Choosing a Paradigm per Layer
 
-現実のアプリケーションでは、レイヤーごとに最適なパラダイムが異なる。
+In real-world applications, the optimal paradigm differs by layer.
 
 ```typescript
-// TypeScript: レイヤーごとのパラダイム選択
+// TypeScript: choosing a paradigm per layer
 
-// === ドメイン層: OOP（エンティティ + 値オブジェクト） ===
+// === Domain layer: OOP (entities + value objects) ===
 
 class Email {
   private readonly _value: string;
 
   constructor(value: string) {
     if (!/^[\w.-]+@[\w.-]+\.\w+$/.test(value)) {
-      throw new Error(`無効なメールアドレス: ${value}`);
+      throw new Error(`Invalid email address: ${value}`);
     }
     this._value = value.toLowerCase();
   }
@@ -967,9 +967,9 @@ class Customer {
 }
 
 
-// === アプリケーション層: FP（ユースケースのオーケストレーション） ===
+// === Application layer: FP (use case orchestration) ===
 
-// 純粋関数: ビジネスルールの計算
+// Pure function: computing business rules
 const calculateOrderTotal = (
   items: { price: number; quantity: number }[],
   discountRate: number,
@@ -989,7 +989,7 @@ const calculateOrderTotal = (
   };
 };
 
-// データ変換パイプライン
+// Data transformation pipeline
 const getEligibleCustomers = (
   customers: Customer[],
   minTier: string,
@@ -1001,7 +1001,7 @@ const getEligibleCustomers = (
     .sort((a, b) => b.totalPurchases - a.totalPurchases);
 };
 
-// キャンペーンメールの対象者を抽出
+// Extract the target audience for a campaign email
 const getCampaignTargets = (
   customers: Customer[],
   campaign: { minTier: string; minPurchases: number },
@@ -1019,7 +1019,7 @@ const getCampaignTargets = (
     }));
 
 
-// === インフラ層: 手続き型（副作用を明示的に管理） ===
+// === Infrastructure layer: procedural (explicitly manage side effects) ===
 
 interface CustomerRepository {
   findById(id: string): Promise<Customer | null>;
@@ -1043,13 +1043,13 @@ class CampaignService {
     subject: string;
     bodyTemplate: string;
   }): Promise<{ sent: number; failed: number }> {
-    // 副作用: DB からデータ取得
+    // Side effect: fetch data from DB
     const customers = await this.customerRepo.findAll();
 
-    // 純粋関数: 対象者の抽出
+    // Pure function: extract targets
     const targets = getCampaignTargets(customers, campaign);
 
-    // 副作用: メール送信
+    // Side effect: send emails
     let sent = 0;
     let failed = 0;
     for (const target of targets) {
@@ -1072,12 +1072,12 @@ class CampaignService {
 }
 ```
 
-### 4.2 リアクティブプログラミングとの融合
+### 4.2 Integration with Reactive Programming
 
 ```typescript
-// TypeScript: リアクティブプログラミングの概念
+// TypeScript: concepts of reactive programming
 
-// Observable パターン（簡易実装）
+// Observable pattern (simple implementation)
 type Observer<T> = (value: T) => void;
 
 class Observable<T> {
@@ -1085,7 +1085,7 @@ class Observable<T> {
 
   subscribe(observer: Observer<T>): () => void {
     this.observers.push(observer);
-    // unsubscribe 関数を返す
+    // Return an unsubscribe function
     return () => {
       this.observers = this.observers.filter(o => o !== observer);
     };
@@ -1097,7 +1097,7 @@ class Observable<T> {
     }
   }
 
-  // FP的な変換メソッド
+  // FP-style transformation methods
   map<U>(transform: (value: T) => U): Observable<U> {
     const result = new Observable<U>();
     this.subscribe(value => {
@@ -1127,7 +1127,7 @@ class Observable<T> {
   }
 }
 
-// OOP: 状態を持つイベントソース
+// OOP: stateful event source
 class SearchInput extends Observable<string> {
   private _value = "";
 
@@ -1139,29 +1139,29 @@ class SearchInput extends Observable<string> {
   }
 }
 
-// FP + リアクティブ: データ変換パイプライン
+// FP + Reactive: data transformation pipeline
 const searchInput = new SearchInput();
 
 const searchResults = searchInput
-  .debounce(300)                          // 300ms デバウンス
-  .filter(query => query.length >= 2)     // 2文字以上
-  .map(query => query.toLowerCase().trim()) // 正規化
-  .map(query => `検索: "${query}"`);      // 表示用に変換
+  .debounce(300)                          // 300ms debounce
+  .filter(query => query.length >= 2)     // 2 characters or more
+  .map(query => query.toLowerCase().trim()) // Normalize
+  .map(query => `Search: "${query}"`);    // Transform for display
 
 searchResults.subscribe(result => {
   console.log(result);
 });
 
-// 使用例
-searchInput.setValue("T");        // 無視（2文字未満）
-searchInput.setValue("Ty");       // 300ms後に "検索: "ty""
-searchInput.setValue("TypeScript"); // 300ms後に "検索: "typescript""
+// Usage examples
+searchInput.setValue("T");        // Ignored (fewer than 2 characters)
+searchInput.setValue("Ty");       // After 300ms: 'Search: "ty"'
+searchInput.setValue("TypeScript"); // After 300ms: 'Search: "typescript"'
 ```
 
-### 4.3 アクターモデルとの比較
+### 4.3 Comparison with the Actor Model
 
 ```typescript
-// TypeScript: アクターモデルの簡易実装
+// TypeScript: a simple implementation of the actor model
 
 type Message = {
   type: string;
@@ -1191,19 +1191,19 @@ class Actor<T extends Message> {
     try {
       this.handler(message, this);
     } catch (error) {
-      console.error(`Actor ${this.name}: エラー`, error);
-      // Let it crash: エラーを隔離
+      console.error(`Actor ${this.name}: error`, error);
+      // Let it crash: isolate the error
     } finally {
       this.processing = false;
       if (this.mailbox.length > 0) {
-        // 次のメッセージを非同期に処理
+        // Process the next message asynchronously
         setTimeout(() => this.processNext(), 0);
       }
     }
   }
 }
 
-// アクターモデルでの銀行口座
+// A bank account in the actor model
 type BankMessage =
   | { type: "deposit"; payload: { amount: number }; replyTo?: Actor<any> }
   | { type: "withdraw"; payload: { amount: number }; replyTo?: Actor<any> }
@@ -1220,15 +1220,15 @@ function createBankAccountActor(
     switch (message.type) {
       case "deposit":
         balance += (message.payload as { amount: number }).amount;
-        console.log(`[${accountId}] 入金: ${(message.payload as any).amount} → 残高: ${balance}`);
+        console.log(`[${accountId}] Deposit: ${(message.payload as any).amount} → balance: ${balance}`);
         break;
       case "withdraw":
         const amount = (message.payload as { amount: number }).amount;
         if (amount > balance) {
-          console.log(`[${accountId}] 残高不足`);
+          console.log(`[${accountId}] Insufficient funds`);
         } else {
           balance -= amount;
-          console.log(`[${accountId}] 出金: ${amount} → 残高: ${balance}`);
+          console.log(`[${accountId}] Withdrawal: ${amount} → balance: ${balance}`);
         }
         break;
       case "getBalance":
@@ -1243,90 +1243,90 @@ function createBankAccountActor(
   });
 }
 
-// 使用例
+// Usage example
 const account = createBankAccountActor("001", 10000);
 account.send({ type: "deposit", payload: { amount: 5000 } });
 account.send({ type: "withdraw", payload: { amount: 3000 } });
 
-// アクターモデルの利点:
-// - 各アクターが独立した状態を持つ（共有状態なし）
-// - メッセージは非同期で処理される
-// - エラーが他のアクターに影響しない
-// - 分散システムに自然に拡張できる
+// Advantages of the actor model:
+// - Each actor has independent state (no shared state)
+// - Messages are processed asynchronously
+// - Errors do not affect other actors
+// - Naturally extends to distributed systems
 ```
 
 ---
 
-## 5. 選択指針
+## 5. Selection Guidelines
 
 ```
-OOPを使うべき場面:
-  ✓ ビジネスドメインのモデリング（エンティティが多い）
-  ✓ GUIフレームワーク（ウィジェット階層）
-  ✓ ゲームのエンティティシステム
-  ✓ フレームワーク/ライブラリの公開API設計
-  ✓ チーム開発（構造の共通理解が重要）
+When to use OOP:
+  ✓ Modeling a business domain (many entities)
+  ✓ GUI frameworks (widget hierarchies)
+  ✓ Game entity systems
+  ✓ Designing public APIs for frameworks/libraries
+  ✓ Team development (shared understanding of structure matters)
 
-関数型を使うべき場面:
-  ✓ データ処理パイプライン
-  ✓ 並行・分散処理
-  ✓ 数学的・科学的計算
-  ✓ コンパイラ・パーサー
-  ✓ 状態を持たない変換ロジック
+When to use functional:
+  ✓ Data processing pipelines
+  ✓ Concurrent/distributed processing
+  ✓ Mathematical/scientific computation
+  ✓ Compilers/parsers
+  ✓ Stateless transformation logic
 
-手続き型を使うべき場面:
-  ✓ シンプルなスクリプト
-  ✓ シェルスクリプト的な処理
-  ✓ プロトタイプ・使い捨てコード
-  ✓ ハードウェア制御
+When to use procedural:
+  ✓ Simple scripts
+  ✓ Shell-script-like processing
+  ✓ Prototypes/throwaway code
+  ✓ Hardware control
 
-マルチパラダイム（推奨）:
-  → ドメインモデル = OOP
-  → データ変換 = FP
-  → 設定・スクリプト = 手続き型
-  → 並行処理 = アクターモデル / CSP
+Multi-paradigm (recommended):
+  → Domain model = OOP
+  → Data transformation = FP
+  → Configuration/scripting = Procedural
+  → Concurrency = Actor model / CSP
 ```
 
-### 5.1 判断フローチャート
+### 5.1 Decision Flowchart
 
 ```
-パラダイム選択のフローチャート:
+Flowchart for choosing a paradigm:
 
-  Q1: プロジェクトの規模は？
-    → 100行未満 → 手続き型
-    → 100-1000行 → OOP or FP
-    → 1000行以上 → Q2へ
+  Q1: What is the size of the project?
+    → Under 100 lines → Procedural
+    → 100–1000 lines → OOP or FP
+    → Over 1000 lines → Go to Q2
 
-  Q2: 主な関心事は？
-    → エンティティの管理（ユーザー、注文等）→ OOP
-    → データの変換・処理 → FP
-    → 並行・分散処理 → アクターモデル / FP
-    → UI / イベント処理 → OOP + リアクティブ
-    → システムプログラミング → 手続き型 + OOP
+  Q2: What is the main concern?
+    → Managing entities (users, orders, etc.) → OOP
+    → Transforming/processing data → FP
+    → Concurrent/distributed processing → Actor model / FP
+    → UI / event handling → OOP + Reactive
+    → Systems programming → Procedural + OOP
 
-  Q3: 何が頻繁に変わるか？
-    → 型（エンティティ）が増える → OOP
-    → 操作（ビジネスルール）が増える → FP
-    → 両方 → マルチパラダイム
+  Q3: What changes frequently?
+    → Types (entities) grow → OOP
+    → Operations (business rules) grow → FP
+    → Both → Multi-paradigm
 
-  Q4: チームの習熟度は？
-    → OOP経験豊富 → OOP + FP要素
-    → FP経験豊富 → FP + OOP要素
-    → 混合チーム → マルチパラダイム（明確なガイドライン付き）
+  Q4: What is the team's proficiency?
+    → Experienced in OOP → OOP + FP elements
+    → Experienced in FP → FP + OOP elements
+    → Mixed team → Multi-paradigm (with clear guidelines)
 
-  Q5: テスト戦略は？
-    → 単体テスト重視 → FP（純粋関数のテストが容易）
-    → 統合テスト重視 → OOP（モックによるDI）
-    → 両方 → マルチパラダイム
+  Q5: What is the testing strategy?
+    → Emphasis on unit tests → FP (easy to test pure functions)
+    → Emphasis on integration tests → OOP (DI with mocks)
+    → Both → Multi-paradigm
 ```
 
-### 5.2 実際のプロジェクトでの判断例
+### 5.2 Example of Judgment in a Real Project
 
 ```typescript
-// TypeScript: ECサイトのバックエンドでの判断例
+// TypeScript: example decisions for an e-commerce backend
 
-// === ドメインモデル: OOP ===
-// 理由: エンティティが多く、ビジネスルールが各エンティティに紐づく
+// === Domain model: OOP ===
+// Reason: many entities, business rules bound to each entity
 class Product {
   constructor(
     public readonly id: string,
@@ -1343,7 +1343,7 @@ class Product {
   get isAvailable(): boolean { return this._stock > 0; }
 
   reserve(quantity: number): void {
-    if (quantity > this._stock) throw new Error("在庫不足");
+    if (quantity > this._stock) throw new Error("Insufficient stock");
     this._stock -= quantity;
   }
 
@@ -1352,14 +1352,14 @@ class Product {
   }
 
   updatePrice(newPrice: number): void {
-    if (newPrice < 0) throw new Error("価格は0以上");
+    if (newPrice < 0) throw new Error("Price must be 0 or more");
     this._price = newPrice;
   }
 }
 
 
-// === レポート/集計: FP ===
-// 理由: データの変換・集計が主な処理
+// === Reports/aggregations: FP ===
+// Reason: the main work is data transformation and aggregation
 type SalesRecord = {
   productId: string;
   category: string;
@@ -1368,7 +1368,7 @@ type SalesRecord = {
   date: Date;
 };
 
-// 純粋関数で集計ロジックを記述
+// Describe aggregation logic with pure functions
 const totalSales = (records: SalesRecord[]): number =>
   records.reduce((sum, r) => sum + r.amount, 0);
 
@@ -1400,65 +1400,65 @@ const monthlySales = (records: SalesRecord[]): Map<string, number> =>
   }, new Map<string, number>());
 
 
-// === バッチ処理/スクリプト: 手続き型 ===
-// 理由: 手順が明確で、1回きりの処理
+// === Batch processing/scripts: procedural ===
+// Reason: procedures are clear and the processing is one-off
 async function runDailyReport(
   db: Database,
   mailer: EmailService,
 ): Promise<void> {
-  // 1. データ取得
+  // 1. Fetch data
   const records = await db.getSalesRecords(new Date());
 
-  // 2. 集計（純粋関数を利用）
+  // 2. Aggregate (use pure functions)
   const total = totalSales(records);
   const byCategory = salesByCategory(records);
   const topN = topProducts(records, 10);
 
-  // 3. レポート生成
+  // 3. Generate report
   const report = formatReport(total, byCategory, topN);
 
-  // 4. メール送信
-  await mailer.send("admin@example.com", "日次売上レポート", report);
+  // 4. Send email
+  await mailer.send("admin@example.com", "Daily Sales Report", report);
 
-  // 5. ログ
-  console.log(`日次レポート送信完了: 売上 ${total}円`);
+  // 5. Log
+  console.log(`Daily report sent: sales ${total} yen`);
 }
 ```
 
 ---
 
-## 6. パラダイム間の対応表
+## 6. Mapping Between Paradigms
 
 ```
-概念の対応:
+Conceptual correspondences:
 
   ┌──────────────────┬────────────────┬────────────────┬─────────────────┐
-  │ 概念             │ OOP            │ FP             │ 手続き型        │
+  │ Concept          │ OOP            │ FP             │ Procedural      │
   ├──────────────────┼────────────────┼────────────────┼─────────────────┤
-  │ データ + 操作    │ クラス         │ モジュール     │ 構造体 + 関数   │
-  │ コード再利用     │ 継承           │ 高階関数       │ 関数ライブラリ  │
-  │ 多態性           │ ポリモーフィズム│ パターンマッチ │ 関数ポインタ    │
-  │ 状態管理         │ カプセル化     │ 不変データ     │ グローバル変数  │
-  │ エラー処理       │ 例外           │ Result/Maybe型 │ エラーコード    │
-  │ 依存管理         │ DI             │ 関数の引数     │ グローバル参照  │
-  │ コレクション操作 │ イテレータ     │ map/filter     │ forループ       │
-  │ 非同期処理       │ Future/Promise │ IO モナド      │ コールバック    │
+  │ Data + operation │ Class          │ Module         │ Struct + funcs  │
+  │ Code reuse       │ Inheritance    │ Higher-order   │ Function library│
+  │ Polymorphism     │ Polymorphism   │ Pattern match  │ Function ptr    │
+  │ State management │ Encapsulation  │ Immutable data │ Global variables│
+  │ Error handling   │ Exceptions     │ Result/Maybe   │ Error codes     │
+  │ Dependency mgmt  │ DI             │ Function args  │ Global refs     │
+  │ Collection ops   │ Iterators      │ map/filter     │ for loops       │
+  │ Async processing │ Future/Promise │ IO monad       │ Callbacks       │
   └──────────────────┴────────────────┴────────────────┴─────────────────┘
 ```
 
-### 6.1 エラー処理の比較
+### 6.1 Comparison of Error Handling
 
 ```typescript
-// TypeScript: 各パラダイムでのエラー処理
+// TypeScript: error handling in each paradigm
 
-// === OOP: 例外ベース ===
+// === OOP: exception-based ===
 class InsufficientFundsError extends Error {
   constructor(
     public readonly accountId: string,
     public readonly balance: number,
     public readonly requested: number,
   ) {
-    super(`残高不足: 残高 ${balance}円、要求 ${requested}円`);
+    super(`Insufficient funds: balance ${balance} yen, requested ${requested} yen`);
     this.name = "InsufficientFundsError";
   }
 }
@@ -1473,22 +1473,22 @@ class OOPBankService {
   }
 
   private findAccount(id: string): { balance: number } {
-    return { balance: 10000 }; // 簡略化
+    return { balance: 10000 }; // Simplified
   }
 }
 
-// 呼び出し側
+// Caller side
 try {
   const service = new OOPBankService();
   service.withdraw("001", 50000);
 } catch (e) {
   if (e instanceof InsufficientFundsError) {
-    console.log(`残高不足: ${e.balance}円 < ${e.requested}円`);
+    console.log(`Insufficient funds: ${e.balance} yen < ${e.requested} yen`);
   }
 }
 
 
-// === FP: Result型ベース ===
+// === FP: Result type-based ===
 type WithdrawError =
   | { type: "INSUFFICIENT_FUNDS"; balance: number; requested: number }
   | { type: "ACCOUNT_NOT_FOUND"; accountId: string }
@@ -1516,29 +1516,29 @@ function fpWithdraw(
   return { ok: true, value: { newBalance: balance - amount } };
 }
 
-// 呼び出し側: 全てのケースを型安全にハンドリング
+// Caller side: handle all cases in a type-safe way
 const result = fpWithdraw(10000, 50000);
 if (result.ok) {
-  console.log(`出金成功: 新残高 ${result.value.newBalance}円`);
+  console.log(`Withdrawal successful: new balance ${result.value.newBalance} yen`);
 } else {
   switch (result.error.type) {
     case "INSUFFICIENT_FUNDS":
-      console.log(`残高不足: ${result.error.balance}円 < ${result.error.requested}円`);
+      console.log(`Insufficient funds: ${result.error.balance} yen < ${result.error.requested} yen`);
       break;
     case "INVALID_AMOUNT":
-      console.log(`無効な金額: ${result.error.amount}円`);
+      console.log(`Invalid amount: ${result.error.amount} yen`);
       break;
     case "ACCOUNT_NOT_FOUND":
-      console.log(`口座が見つかりません: ${result.error.accountId}`);
+      console.log(`Account not found: ${result.error.accountId}`);
       break;
   }
 }
 ```
 
-### 6.2 コレクション操作の比較
+### 6.2 Comparison of Collection Operations
 
 ```python
-# Python: コレクション操作の各パラダイム比較
+# Python: comparison of collection operations across paradigms
 
 from dataclasses import dataclass
 from typing import Callable
@@ -1552,21 +1552,21 @@ class Employee:
     years: int
 
 employees = [
-    Employee("田中", "開発", 600000, 5),
-    Employee("山田", "営業", 450000, 3),
-    Employee("佐藤", "開発", 750000, 8),
-    Employee("鈴木", "人事", 500000, 2),
-    Employee("高橋", "開発", 550000, 4),
-    Employee("伊藤", "営業", 400000, 1),
-    Employee("渡辺", "人事", 600000, 6),
+    Employee("Tanaka", "Development", 600000, 5),
+    Employee("Yamada", "Sales", 450000, 3),
+    Employee("Sato", "Development", 750000, 8),
+    Employee("Suzuki", "HR", 500000, 2),
+    Employee("Takahashi", "Development", 550000, 4),
+    Employee("Ito", "Sales", 400000, 1),
+    Employee("Watanabe", "HR", 600000, 6),
 ]
 
-# === 手続き型 ===
+# === Procedural ===
 def get_dev_avg_salary_procedural(employees):
     total = 0
     count = 0
     for emp in employees:
-        if emp.department == "開発":
+        if emp.department == "Development":
             total += emp.salary
             count += 1
     return total / count if count > 0 else 0
@@ -1598,14 +1598,14 @@ class EmployeeAnalytics:
         return report
 
 analytics = EmployeeAnalytics(employees)
-print(analytics.average_salary_by_department("開発"))
+print(analytics.average_salary_by_department("Development"))
 print(analytics.top_earners(3))
 
-# === 関数型 ===
+# === Functional ===
 from itertools import groupby
 from operator import attrgetter
 
-# 純粋関数のパイプライン
+# A pipeline of pure functions
 def fp_avg_salary_by_dept(employees: list[Employee], dept: str) -> float:
     dept_salaries = [e.salary for e in employees if e.department == dept]
     return sum(dept_salaries) / len(dept_salaries) if dept_salaries else 0
@@ -1624,9 +1624,9 @@ def fp_department_summary(employees: list[Employee]) -> dict[str, dict]:
         for dept, emps in groupby(sorted_emps, key=attrgetter("department"))
     }
 
-# 関数合成
+# Function composition
 def compose(*functions):
-    """関数を合成する"""
+    """Compose functions"""
     def composed(data):
         result = data
         for fn in functions:
@@ -1634,62 +1634,62 @@ def compose(*functions):
         return result
     return composed
 
-# パイプライン: 開発部門の高給取りTOP2の名前
+# Pipeline: names of the top 2 highest-paid employees in the Development department
 pipeline = compose(
-    lambda emps: [e for e in emps if e.department == "開発"],
+    lambda emps: [e for e in emps if e.department == "Development"],
     lambda emps: sorted(emps, key=lambda e: e.salary, reverse=True),
     lambda emps: emps[:2],
     lambda emps: [e.name for e in emps],
 )
 
 result = pipeline(employees)
-print(result)  # ['佐藤', '田中']
+print(result)  # ['Sato', 'Tanaka']
 ```
 
 ---
 
-## 7. パラダイムの融合: 現代のトレンド
+## 7. Fusion of Paradigms: Modern Trends
 
 ```
-現代の言語はパラダイムの壁を越えて融合している:
+Modern languages are crossing paradigm boundaries and fusing:
 
-  TypeScript: OOP + FP + 構造的型付け
-  Kotlin: OOP + FP + コルーチン
-  Swift: OOP + プロトコル指向 + 値型
-  Rust: トレイト + FP + 所有権
-  Scala: OOP + FP の完全な融合
-  Python: OOP + FP + 手続き型
+  TypeScript: OOP + FP + structural typing
+  Kotlin: OOP + FP + coroutines
+  Swift: OOP + protocol-oriented + value types
+  Rust: traits + FP + ownership
+  Scala: complete fusion of OOP + FP
+  Python: OOP + FP + procedural
 
-  「何パラダイムで書くか」ではなく
-  「この問題に最適なツールは何か」で考える時代
+  The era is moving from "which paradigm to write in"
+  to "what is the best tool for this problem"
 
-  ベストプラクティス:
-    1. デフォルトは不変データ
-    2. 純粋関数を中心に設計
-    3. エンティティが必要ならOOP
-    4. 副作用は境界に集約
-    5. テスト容易性を常に意識
+  Best practices:
+    1. Default to immutable data
+    2. Design around pure functions
+    3. Use OOP when entities are needed
+    4. Consolidate side effects at boundaries
+    5. Always keep testability in mind
 ```
 
 ```typescript
-// TypeScript: パラダイム融合の実例
+// TypeScript: a practical example of paradigm fusion
 
-// 関数型の値オブジェクト
+// Functional value object
 type Currency = "JPY" | "USD" | "EUR";
 
 const createMoney = (amount: number, currency: Currency = "JPY") => {
-  if (amount < 0) throw new Error("金額は0以上");
+  if (amount < 0) throw new Error("Amount must be 0 or more");
   return Object.freeze({ amount, currency });
 };
 
 type MoneyType = ReturnType<typeof createMoney>;
 
 const addMoney = (a: MoneyType, b: MoneyType): MoneyType => {
-  if (a.currency !== b.currency) throw new Error("通貨不一致");
+  if (a.currency !== b.currency) throw new Error("Currency mismatch");
   return createMoney(a.amount + b.amount, a.currency);
 };
 
-// OOPのエンティティ（内部は不変データを活用）
+// OOP entity (internally leverages immutable data)
 class Invoice {
   private readonly _lines: ReadonlyArray<{
     description: string;
@@ -1715,7 +1715,7 @@ class Invoice {
     return this._lines.length;
   }
 
-  // FP的: 新しいInvoiceを返す（不変）
+  // FP-style: return a new Invoice (immutable)
   addLine(description: string, amount: MoneyType): Invoice {
     return new Invoice(
       this.invoiceId,
@@ -1725,7 +1725,7 @@ class Invoice {
   }
 }
 
-// 関数型のパイプライン
+// Functional pipeline
 const getOverdueInvoices = (
   invoices: Invoice[],
   dueDate: Date,
@@ -1740,38 +1740,38 @@ const getOverdueInvoices = (
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Your understanding deepens not only through theory but also by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What mistakes do beginners commonly make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend firmly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently used in day-to-day development. It becomes particularly important during code reviews and architecture design.
 
 ---
 
-## まとめ
+## Summary
 
-| パラダイム | 核心 | 得意分野 | 弱点 |
+| Paradigm | Core | Strengths | Weaknesses |
 |-----------|------|---------|------|
-| 手続き型 | 手順の記述 | シンプル・スクリプト | 大規模で破綻 |
-| OOP | オブジェクト | ドメインモデル・GUI | 共有状態・並行処理 |
-| 関数型 | データ変換 | 並行処理・パイプライン | GUI・状態管理 |
-| リアクティブ | データの流れ | 非同期・UI | デバッグ困難 |
-| アクターモデル | メッセージ | 分散・耐障害性 | 順序保証困難 |
-| マルチ | 適材適所 | 現代の大規模開発 | 判断力が必要 |
+| Procedural | Describing procedures | Simple scripts | Breaks down at large scale |
+| OOP | Objects | Domain modeling, GUIs | Shared state, concurrency |
+| Functional | Data transformation | Concurrency, pipelines | GUIs, state management |
+| Reactive | Data flow | Async, UI | Difficult to debug |
+| Actor model | Messages | Distribution, fault tolerance | Hard to guarantee ordering |
+| Multi | Right tool for the job | Modern large-scale development | Requires judgment |
 
 ---
 
-## 次に読むべきガイド
+## Next Guides to Read
 
 ---
 
-## 参考文献
+## References
 1. Wadler, P. "The Expression Problem." 1998.
 2. Martin, R. "Clean Architecture." Prentice Hall, 2017.
 3. Odersky, M. "Programming in Scala." Artima, 2021.
