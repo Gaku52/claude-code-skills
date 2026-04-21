@@ -1,129 +1,128 @@
-# OOPの歴史と進化
+# History and Evolution of OOP
 
-> OOPは1960年代のSimulaに始まり、Smalltalk、C++、Javaを経て、現代のマルチパラダイム言語へと進化してきた。歴史を知ることで「なぜこう設計されているのか」が分かる。
+> OOP began with Simula in the 1960s, evolved through Smalltalk, C++, and Java, and has developed into today's multi-paradigm languages. Knowing the history helps you understand "why it is designed this way."
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] OOPの誕生から現代までの進化を理解する
-- [ ] 各時代の革新とその影響を把握する
-- [ ] 各言語が解決しようとした問題とトレードオフを理解する
-- [ ] 現代のOOPがどこに向かっているかを展望する
+- [ ] Understand the evolution of OOP from its birth to the present day
+- [ ] Grasp the innovations of each era and their impact
+- [ ] Understand the problems each language tried to solve and the trade-offs involved
+- [ ] Gain a perspective on where modern OOP is headed
 
+## Prerequisite Knowledge
 
-## 前提知識
+Reading this guide will be more productive if you have the following background:
 
-このガイドを読む前に、以下の知識があると理解が深まります:
-
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [OOPとは何か](./00-what-is-oop.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding of the content in [What is OOP](./00-what-is-oop.md)
 
 ---
 
-## 1. OOPの年表
+## 1. OOP Timeline
 
 ```
-1960s: 誕生
-  1967  Simula       — OOPの祖。クラス・継承の概念を導入
-                       ノルウェーの Dahl と Nygaard が開発
-                       シミュレーション用途 → 一般化
+1960s: Birth
+  1967  Simula       — The ancestor of OOP. Introduced classes and inheritance
+                       Developed by Dahl and Nygaard in Norway
+                       Originally for simulation -> generalized
 
-1970s: 純粋OOPの確立
-  1972  Smalltalk    — Alan Kay（Xerox PARC）
-                       「すべてはオブジェクト」
-                       メッセージパッシング、GC、IDE、GUI
-                       → 現代のOOP概念の大部分を確立
+1970s: Establishment of Pure OOP
+  1972  Smalltalk    — Alan Kay (Xerox PARC)
+                       "Everything is an object"
+                       Message passing, GC, IDE, GUI
+                       -> Established most modern OOP concepts
 
-1980s: 実用化
+1980s: Practical Adoption
   1983  C++          — Bjarne Stroustrup
-                       C + OOP。「ゼロコスト抽象化」
-                       静的型付け + 多重継承
-  1986  Objective-C  — C + Smalltalk のメッセージング
-                       → Apple/NeXT で採用
+                       C + OOP. "Zero-cost abstractions"
+                       Static typing + multiple inheritance
+  1986  Objective-C  — C + Smalltalk messaging
+                       -> Adopted by Apple/NeXT
 
-1990s: 普及
+1990s: Widespread Adoption
   1995  Java         — Sun Microsystems
-                       「Write once, run anywhere」
-                       単一継承 + インターフェース
-                       GC、JVM → エンタープライズの標準
-  1995  JavaScript   — プロトタイプベースOOP
-                       クラスなしでオブジェクト生成
-  1993  Ruby         — まつもとゆきひろ
-                       「全てがオブジェクト」、開発者の幸福
+                       "Write once, run anywhere"
+                       Single inheritance + interfaces
+                       GC, JVM -> the enterprise standard
+  1995  JavaScript   — Prototype-based OOP
+                       Object creation without classes
+  1993  Ruby         — Yukihiro Matsumoto
+                       "Everything is an object," developer happiness
 
-2000s: 反省と改良
-  2000  C#           — Microsoft（Java への対抗）
-                       プロパティ、デリゲート、LINQ
-  2003  Scala        — OOP + FP の融合
-                       JVM上で動作
+2000s: Reflection and Refinement
+  2000  C#           — Microsoft (counter to Java)
+                       Properties, delegates, LINQ
+  2003  Scala        — Fusion of OOP + FP
+                       Runs on the JVM
 
-2010s: モダンOOP
-  2011  Kotlin       — より良いJava。null安全、データクラス
-  2014  Swift        — プロトコル指向プログラミング
-                       値型中心、参照カウント
-  2012  TypeScript   — JavaScript + 型安全
-                       構造的型付け
+2010s: Modern OOP
+  2011  Kotlin       — A better Java. Null safety, data classes
+  2014  Swift        — Protocol-oriented programming
+                       Value-type centric, reference counting
+  2012  TypeScript   — JavaScript + type safety
+                       Structural typing
 
-2020s: ポストOOP
-  → マルチパラダイム（OOP + FP）が標準
-  → 「純粋OOP」から「必要に応じてOOP」へ
-  → コンポジション重視、継承縮小
+2020s: Post-OOP
+  -> Multi-paradigm (OOP + FP) becomes the standard
+  -> From "pure OOP" to "OOP when needed"
+  -> Emphasis on composition, shrinking use of inheritance
 ```
 
 ---
 
-## 2. 各時代の革新
+## 2. Innovations of Each Era
 
-### Simula（1967）: クラスと継承の発明
-
-```
-Simula の革新:
-  1. クラス（class）: データと手続きを一体化した「設計図」
-  2. オブジェクト: クラスから生成された「実体」
-  3. 継承（inheritance）: 既存クラスの拡張
-  4. 仮想手続き（virtual procedure）: ポリモーフィズムの原型
-
-背景:
-  → 離散事象シミュレーションのために開発
-  → 「現実世界のモノをプログラムで表現する」必要性
-  → 顧客、車、工場...を「オブジェクト」として表現
-```
-
-Simulaが生まれた背景には、1960年代のノルウェーにおけるシミュレーション研究がある。Ole-Johan Dahl と Kristen Nygaard は、ALGOL 60 をベースに、シミュレーションに必要な概念を言語レベルで表現しようとした。
+### Simula (1967): The Invention of Classes and Inheritance
 
 ```
-Simula の設計思想:
+Simula's innovations:
+  1. Class: a "blueprint" that unifies data and procedures
+  2. Object: an "instance" created from a class
+  3. Inheritance: extending an existing class
+  4. Virtual procedure: prototype of polymorphism
 
-  ALGOL 60 の問題:
-    → データ構造と手続きが分離している
-    → シミュレーション対象（顧客、車、工場）を
-      自然に表現する手段がない
-    → コルーチン的な並行処理が必要
+Background:
+  -> Developed for discrete-event simulation
+  -> The need to "represent real-world things in a program"
+  -> Customers, cars, factories... expressed as "objects"
+```
 
-  Simula 67 の解決策:
-    → クラスでデータと手続きを統合
-    → 継承で共通性と差異を表現
-    → 仮想手続きで実行時の振る舞いを切り替え
-    → コルーチン機能で擬似並行処理を実現
+The background to Simula's birth lies in simulation research in Norway during the 1960s. Ole-Johan Dahl and Kristen Nygaard built on ALGOL 60 to express at the language level the concepts needed for simulation.
 
-  例: 銀行のシミュレーション
+```
+Simula's design philosophy:
+
+  Problems with ALGOL 60:
+    -> Data structures and procedures were separated
+    -> No natural way to represent simulation subjects
+      (customers, cars, factories)
+    -> Coroutine-like concurrency was needed
+
+  Solutions in Simula 67:
+    -> Unify data and procedures in classes
+    -> Express commonality and differences through inheritance
+    -> Switch runtime behavior via virtual procedures
+    -> Achieve pseudo-concurrency with coroutine features
+
+  Example: Bank simulation
     class Customer:
-      到着時刻、サービス時間、待ち時間
-      → 各顧客をオブジェクトとして表現
+      arrival time, service time, wait time
+      -> each customer represented as an object
 
     class Teller:
-      顧客キュー、処理中の顧客
-      → 窓口係もオブジェクトとして表現
+      customer queue, customer being served
+      -> tellers also represented as objects
 
     class Bank:
-      窓口係のリスト、シミュレーション時間
-      → 全体を管理するオブジェクト
+      list of tellers, simulation time
+      -> the object managing the whole simulation
 ```
 
-Simulaのコード例（疑似コード）:
+Simula code example (pseudo-code):
 
 ```
-! Simula 67 風の疑似コード
+! Simula 67-style pseudo-code
 Class Vehicle;
   Virtual: Real Procedure fuelConsumption;
 Begin
@@ -157,144 +156,145 @@ Begin
 End;
 ```
 
-### Smalltalk（1972）: 純粋OOPの確立
+### Smalltalk (1972): Establishment of Pure OOP
 
 ```
-Smalltalk の革新:
-  1. すべてがオブジェクト（数値、真偽値、nil も）
-  2. メッセージパッシング（メソッド呼び出しではない）
-  3. ガベージコレクション
-  4. 統合開発環境（IDE）の発明
-  5. MVC パターンの発明
-  6. リフレクション（メタプログラミング）
+Smalltalk's innovations:
+  1. Everything is an object (numbers, booleans, nil too)
+  2. Message passing (not method invocation)
+  3. Garbage collection
+  4. Invention of the Integrated Development Environment (IDE)
+  5. Invention of the MVC pattern
+  6. Reflection (metaprogramming)
 
-Alan Kay の思想:
-  「OOPとはメッセージングのことだ。
-   クラスや継承よりも、オブジェクト間のメッセージ交換が本質」
+Alan Kay's philosophy:
+  "OOP is about messaging.
+   The essence is the exchange of messages between objects,
+   more than classes or inheritance."
 
-  → 現代の多くの言語は Kay の意図とは異なる方向に進化
-  → Kay: 「C++ や Java は私が意図した OOP ではない」
+  -> Many modern languages evolved in a different direction than Kay intended
+  -> Kay: "C++ and Java are not the OOP I intended."
 ```
 
-Smalltalkが生まれたXerox PARCは、現代のコンピューティングの多くの概念を生み出した研究所である。
+Xerox PARC, where Smalltalk was born, was a research laboratory that produced many of the core concepts of modern computing.
 
 ```
-Xerox PARC の貢献（1970s）:
-  → GUI（グラフィカルユーザーインターフェース）
-  → WYSIWYG エディタ
-  → イーサネット（LAN）
-  → レーザープリンタ
-  → Smalltalk（OOP + IDE + GUI）
+Contributions of Xerox PARC (1970s):
+  -> GUI (Graphical User Interface)
+  -> WYSIWYG editor
+  -> Ethernet (LAN)
+  -> Laser printer
+  -> Smalltalk (OOP + IDE + GUI)
 
-  Alan Kay のビジョン:
-    → 「Dynabook」構想
-    → 子供でもプログラミングできるコンピュータ
-    → オブジェクトが「小さなコンピュータ」のように
-      独立して動作し、メッセージで通信する
-    → 生物の細胞からインスピレーション
+  Alan Kay's vision:
+    -> The "Dynabook" concept
+    -> A computer that even children could program
+    -> Objects should operate independently like "small computers"
+      and communicate via messages
+    -> Inspiration drawn from biological cells
 
-Smalltalk のメッセージパッシング:
+Smalltalk message passing:
   3 + 4
-  → 3 に「+」メッセージと引数 4 を送る
-  → 3（Integer オブジェクト）が自分で加算方法を決める
+  -> Send a "+" message with argument 4 to 3
+  -> 3 (an Integer object) decides how to add by itself
 
   "hello" size
-  → "hello" に「size」メッセージを送る
-  → String オブジェクトが文字数を返す
+  -> Send the "size" message to "hello"
+  -> The String object returns the number of characters
 
   collection do: [:each | each printNl]
-  → collection に「do:」メッセージとブロック引数を送る
-  → コレクションが自分で反復方法を決める
+  -> Send the "do:" message with a block argument to collection
+  -> The collection decides how to iterate by itself
 
-  重要な違い:
-    C++/Java: コンパイラがメソッド呼び出しを解決
-    Smalltalk: オブジェクトが動的にメッセージを処理
-    → メッセージに対応するメソッドがない場合も処理可能
-    → doesNotUnderstand: を使ったメタプログラミング
+  Important difference:
+    C++/Java: compiler resolves method calls
+    Smalltalk: objects handle messages dynamically
+    -> Can also handle cases where no method corresponds to the message
+    -> Metaprogramming via doesNotUnderstand:
 ```
 
-Smalltalkが発明・確立した概念は、現代のソフトウェア開発に深く浸透している。
+The concepts Smalltalk invented and established have deeply permeated modern software development.
 
 ```
-Smalltalk が現代に残した遺産:
+Smalltalk's legacy to the modern world:
 
-  1. MVC パターン（Model-View-Controller）
-     → Web フレームワークの基本構造
-     → Rails, Django, Spring MVC, ASP.NET MVC
-     → React/Vue の設計思想にも影響
+  1. MVC pattern (Model-View-Controller)
+     -> The basic structure of web frameworks
+     -> Rails, Django, Spring MVC, ASP.NET MVC
+     -> Also influenced the design philosophy of React/Vue
 
-  2. IDE（統合開発環境）
-     → コードエディタ + デバッガ + ブラウザ を統合
-     → Eclipse, IntelliJ IDEA, VS Code の先祖
+  2. IDE (Integrated Development Environment)
+     -> Integration of code editor + debugger + browser
+     -> The ancestor of Eclipse, IntelliJ IDEA, VS Code
 
-  3. リファクタリング
-     → コードの構造を改善する体系的手法
-     → Martin Fowler の著書は Smalltalk コミュニティから発展
+  3. Refactoring
+     -> Systematic methods for improving code structure
+     -> Martin Fowler's book grew out of the Smalltalk community
 
-  4. テスト駆動開発（TDD）
-     → SUnit（Smalltalk の単体テストフレームワーク）
-     → JUnit, pytest, Jest の原型
+  4. Test-Driven Development (TDD)
+     -> SUnit (Smalltalk's unit testing framework)
+     -> The prototype for JUnit, pytest, Jest
 
-  5. デザインパターン
-     → GoF パターンの多くは Smalltalk コミュニティで発見
-     → Iterator, Observer, Strategy などは Smalltalk が起源
+  5. Design Patterns
+     -> Many of the GoF patterns were discovered in the Smalltalk community
+     -> Iterator, Observer, Strategy and others originated in Smalltalk
 
-  6. アジャイル開発
-     → XP（エクストリームプログラミング）は Smalltalk プロジェクトから
-     → Kent Beck は Smalltalk コミュニティ出身
+  6. Agile development
+     -> XP (Extreme Programming) came out of a Smalltalk project
+     -> Kent Beck came from the Smalltalk community
 ```
 
-### C++（1983）: 実用化と静的型付け
+### C++ (1983): Practical Adoption and Static Typing
 
 ```
-C++ の革新:
-  1. C との後方互換性（既存コードの活用）
-  2. 静的型付けによるコンパイル時チェック
-  3. 多重継承
-  4. テンプレート（ジェネリクスの原型）
-  5. 演算子オーバーロード
-  6. RAII（Resource Acquisition Is Initialization）
+C++'s innovations:
+  1. Backward compatibility with C (leveraging existing code)
+  2. Compile-time checks via static typing
+  3. Multiple inheritance
+  4. Templates (prototype of generics)
+  5. Operator overloading
+  6. RAII (Resource Acquisition Is Initialization)
 
-影響:
-  → 「OOP = クラス + 継承 + ポリモーフィズム」の定義を普及
-  → ゼロコスト抽象化の思想
-  → ただし複雑さも増大（C++ は最も複雑な言語の一つ）
+Impact:
+  -> Spread the definition "OOP = classes + inheritance + polymorphism"
+  -> The philosophy of zero-cost abstractions
+  -> But complexity also grew (C++ is one of the most complex languages)
 ```
 
-C++の設計思想は「ゼロオーバーヘッド原則」に基づいている。
+C++'s design philosophy is based on the "zero-overhead principle."
 
 ```
-Bjarne Stroustrup の設計哲学:
+Bjarne Stroustrup's design philosophy:
 
-  1. ゼロオーバーヘッド原則:
-     「使わない機能のコストは払わない」
-     「使う機能のコストは手書きのコードと同等」
-     → 仮想関数テーブルのコストは、
-       関数ポインタのテーブルを自分で書くのと同じ
+  1. Zero-overhead principle:
+     "You don't pay for what you don't use."
+     "What you do use costs the same as hand-written code."
+     -> The cost of a virtual function table is the same as
+       writing a table of function pointers yourself.
 
-  2. C との互換性:
-     → 既存の C コードをそのまま使える
-     → 段階的な OOP 導入が可能
-     → システムプログラミングでの採用を促進
+  2. C compatibility:
+     -> Existing C code can be used as-is
+     -> Gradual adoption of OOP is possible
+     -> Encouraged adoption in systems programming
 
-  3. 多パラダイム:
-     → OOP だけでなく、手続き型、ジェネリック、関数型も
-     → 「特定のスタイルを強制しない」
+  3. Multi-paradigm:
+     -> Not just OOP, but also procedural, generic, and functional
+     -> "Don't enforce a particular style"
 
-  C++ がOOPに与えた影響:
-    良い面:
-      → OOP を実用的なシステムプログラミングに持ち込んだ
-      → 静的型付けと OOP の組み合わせを確立
-      → テンプレートメタプログラミングの発見
+  C++'s impact on OOP:
+    Positives:
+      -> Brought OOP into practical systems programming
+      -> Established the combination of static typing and OOP
+      -> Discovery of template metaprogramming
 
-    悪い面:
-      → 多重継承のダイヤモンド問題
-      → 過度に複雑な言語仕様
-      → 「C with Classes」止まりの使い方が広まった
+    Negatives:
+      -> Diamond problem of multiple inheritance
+      -> Excessively complex language specification
+      -> The "C with Classes" style of use became widespread
 ```
 
 ```cpp
-// C++: OOP の実用的な例（RAII パターン）
+// C++: A practical example of OOP (RAII pattern)
 
 #include <iostream>
 #include <fstream>
@@ -302,14 +302,14 @@ Bjarne Stroustrup の設計哲学:
 #include <memory>
 #include <vector>
 
-// RAII: リソースの獲得は初期化時に、解放はデストラクタで
+// RAII: Resources are acquired at initialization and released in the destructor
 class FileHandle {
 private:
     std::fstream file;
     std::string filename;
 
 public:
-    // コンストラクタでファイルを開く（リソース獲得）
+    // Open the file in the constructor (resource acquisition)
     explicit FileHandle(const std::string& fname)
         : filename(fname) {
         file.open(fname, std::ios::in | std::ios::out);
@@ -319,7 +319,7 @@ public:
         std::cout << "ファイルを開きました: " << fname << std::endl;
     }
 
-    // デストラクタでファイルを閉じる（リソース解放）
+    // Close the file in the destructor (resource release)
     ~FileHandle() {
         if (file.is_open()) {
             file.close();
@@ -327,11 +327,11 @@ public:
         }
     }
 
-    // コピー禁止（リソースの二重解放を防ぐ）
+    // Disable copying (to prevent double release of the resource)
     FileHandle(const FileHandle&) = delete;
     FileHandle& operator=(const FileHandle&) = delete;
 
-    // ムーブは許可（所有権の移転）
+    // Allow moving (transfer of ownership)
     FileHandle(FileHandle&& other) noexcept
         : file(std::move(other.file)), filename(std::move(other.filename)) {}
 
@@ -348,24 +348,24 @@ public:
     }
 };
 
-// スマートポインタ: RAII のメモリ管理版
+// Smart pointers: the memory-management version of RAII
 class ResourceManager {
 public:
-    // unique_ptr: 排他的所有権
+    // unique_ptr: exclusive ownership
     std::unique_ptr<FileHandle> openFile(const std::string& filename) {
         return std::make_unique<FileHandle>(filename);
     }
 
-    // shared_ptr: 共有所有権（参照カウント）
+    // shared_ptr: shared ownership (reference counting)
     std::shared_ptr<std::vector<int>> createSharedData() {
         return std::make_shared<std::vector<int>>();
     }
 };
 
-// C++ のテンプレート: コンパイル時のポリモーフィズム
+// C++ templates: compile-time polymorphism
 template<typename Shape>
 double calculateArea(const Shape& shape) {
-    return shape.area(); // コンパイル時にメソッド解決
+    return shape.area(); // Method resolved at compile time
 }
 
 class Circle {
@@ -382,33 +382,33 @@ public:
     double area() const { return width * height; }
 };
 
-// テンプレートは仮想関数なしでポリモーフィズムを実現
-// → ゼロオーバーヘッド（仮想関数テーブルの間接呼び出しなし）
+// Templates achieve polymorphism without virtual functions
+// -> Zero overhead (no indirect calls through a vtable)
 ```
 
-### Java（1995）: エンタープライズ標準化
+### Java (1995): Enterprise Standardization
 
 ```
-Java の革新:
-  1. 単一継承 + インターフェース（多重継承の問題を回避）
-  2. ガベージコレクション（C++ のメモリ管理から解放）
-  3. JVM による移植性
-  4. 豊富な標準ライブラリ
-  5. パッケージによる名前空間管理
+Java's innovations:
+  1. Single inheritance + interfaces (avoiding the problems of multiple inheritance)
+  2. Garbage collection (relief from C++ memory management)
+  3. Portability via the JVM
+  4. A rich standard library
+  5. Namespace management via packages
 
-影響:
-  → エンタープライズの標準言語に
-  → デザインパターン（GoF）の普及
-  → ただし「冗長すぎる」「ボイラープレート多すぎ」批判も
-  → AbstractSingletonProxyFactoryBean 問題
+Impact:
+  -> Became the de facto standard language for enterprise
+  -> Popularized design patterns (GoF)
+  -> But also criticized as "too verbose" and "too much boilerplate"
+  -> The AbstractSingletonProxyFactoryBean problem
 ```
 
-Javaは「一度書けばどこでも動く」というビジョンを実現し、エンタープライズ開発の標準となった。
+Java realized the vision of "write once, run anywhere" and became the standard for enterprise development.
 
 ```java
-// Java: エンタープライズパターンの進化
+// Java: Evolution of enterprise patterns
 
-// === Java 1.0 時代（1995）: 基本的なOOP ===
+// === Java 1.0 era (1995): Basic OOP ===
 public class Employee {
     private String name;
     private double salary;
@@ -442,10 +442,10 @@ public class Employee {
         return Objects.hash(name, salary);
     }
 }
-// → ボイラープレートの山（getter/setter/equals/hashCode/toString）
+// -> A mountain of boilerplate (getter/setter/equals/hashCode/toString)
 
 
-// === Java 5 時代（2004）: ジェネリクス + アノテーション ===
+// === Java 5 era (2004): Generics + annotations ===
 public interface Repository<T, ID> {
     Optional<T> findById(ID id);
     List<T> findAll();
@@ -479,7 +479,7 @@ public class EmployeeRepository implements Repository<Employee, Long> {
 }
 
 
-// === Java 8 時代（2014）: ラムダ + Stream API ===
+// === Java 8 era (2014): Lambdas + Stream API ===
 public class EmployeeService {
     private final Repository<Employee, Long> repository;
 
@@ -487,7 +487,7 @@ public class EmployeeService {
         this.repository = repository;
     }
 
-    // Stream API: 関数型プログラミングの要素
+    // Stream API: elements of functional programming
     public List<Employee> getHighPaidEmployees(double threshold) {
         return repository.findAll().stream()
             .filter(e -> e.getSalary() > threshold)
@@ -510,23 +510,23 @@ public class EmployeeService {
 }
 
 
-// === Java 17+ 時代（2021-）: Record + Sealed + Pattern Matching ===
+// === Java 17+ era (2021-): Records + Sealed + Pattern Matching ===
 
-// Record: ボイラープレート削減（不変データクラス）
+// Record: reduced boilerplate (immutable data class)
 public record EmployeeRecord(
     long id,
     String name,
     String department,
     double salary
 ) {
-    // コンパクトコンストラクタでバリデーション
+    // Compact constructor for validation
     public EmployeeRecord {
         if (salary < 0) throw new IllegalArgumentException("給与は正の数");
         if (name == null || name.isBlank()) throw new IllegalArgumentException("名前は必須");
     }
 }
 
-// Sealed class: 代数的データ型
+// Sealed class: algebraic data type
 public sealed interface PaymentMethod
     permits CreditCard, BankTransfer, DigitalWallet {
 }
@@ -535,7 +535,7 @@ public record CreditCard(String number, String expiry) implements PaymentMethod 
 public record BankTransfer(String accountNumber, String bankCode) implements PaymentMethod {}
 public record DigitalWallet(String walletId, String provider) implements PaymentMethod {}
 
-// Pattern Matching: switch式で型安全な分岐
+// Pattern Matching: type-safe branching in switch expressions
 public String processPayment(PaymentMethod method, double amount) {
     return switch (method) {
         case CreditCard cc -> "クレジットカード %s で %.0f円決済".formatted(
@@ -548,36 +548,36 @@ public String processPayment(PaymentMethod method, double amount) {
 }
 ```
 
-### Ruby（1993）: 開発者の幸福
+### Ruby (1993): Developer Happiness
 
-Rubyはまつもとゆきひろ（Matz）によって設計され、「プログラマの幸福」を最大化することを目標とした。
+Ruby was designed by Yukihiro Matsumoto (Matz) with the goal of maximizing "programmer happiness."
 
 ```
-Ruby の設計哲学:
-  → 人間にとって自然な文法
-  → 驚き最小の原則（Principle of Least Surprise）
-  → 全てがオブジェクト（Smalltalk の影響）
-  → メタプログラミング（言語を拡張する力）
+Ruby's design philosophy:
+  -> Syntax natural for humans
+  -> Principle of Least Surprise
+  -> Everything is an object (influenced by Smalltalk)
+  -> Metaprogramming (the power to extend the language)
 
-Ruby が OOP に与えた影響:
-  1. ブロック構文: クロージャの簡潔な記法
-  2. open class: 既存クラスを後から拡張
-  3. mixin: モジュールによる多重継承の代替
-  4. DSL: ドメイン固有言語の構築が容易
-  5. Rails: Web 開発における OOP の革命
+Ruby's impact on OOP:
+  1. Block syntax: concise notation for closures
+  2. Open class: extending existing classes after the fact
+  3. Mixin: modules as an alternative to multiple inheritance
+  4. DSL: easy construction of domain-specific languages
+  5. Rails: a revolution for OOP in web development
 ```
 
 ```ruby
-# Ruby: 純粋OOP + メタプログラミング
+# Ruby: pure OOP + metaprogramming
 
-# 全てがオブジェクト
+# Everything is an object
 42.class          # => Integer
 42.even?          # => true
 "hello".reverse   # => "olleh"
 nil.class         # => NilClass
 true.class        # => TrueClass
 
-# Mixin（多重継承の代替）
+# Mixin (alternative to multiple inheritance)
 module Serializable
   def to_json
     require 'json'
@@ -622,7 +622,7 @@ class User
   end
 end
 
-# Open class: 既存クラスの拡張
+# Open class: extending existing classes
 class String
   def palindrome?
     self == self.reverse
@@ -632,7 +632,7 @@ end
 "racecar".palindrome?  # => true
 "hello".palindrome?    # => false
 
-# メタプログラミング: 動的なメソッド定義
+# Metaprogramming: dynamic method definition
 class ActiveRecordLike
   def self.has_attribute(name, type: :string, default: nil)
     # getter
@@ -645,7 +645,7 @@ class ActiveRecordLike
       instance_variable_set("@#{name}", value)
     end
 
-    # クエリメソッド
+    # query method
     define_method("#{name}?") do
       !send(name).nil? && send(name) != "" && send(name) != false
     end
@@ -665,22 +665,22 @@ p.name?      # => true
 p.in_stock?  # => true
 ```
 
-### Python（1991）: 実用的OOP
+### Python (1991): Practical OOP
 
-Pythonはオランダの Guido van Rossum によって設計された。OOPをサポートするが、それを強制しない実用的な設計となっている。
+Python was designed by Guido van Rossum of the Netherlands. It supports OOP but does not enforce it, resulting in a practical design.
 
 ```
-Python の OOP の特徴:
-  1. マルチパラダイム: OOP は選択肢の一つ
-  2. ダックタイピング: 「アヒルのように歩き、鳴くなら、それはアヒル」
-  3. 規約ベースのアクセス制御: _private は強制ではない
-  4. 特殊メソッド: __init__, __str__, __eq__ 等でカスタマイズ
-  5. デコレータ: メタプログラミングの簡潔な手段
-  6. データクラス: Python 3.7+ でボイラープレート削減
+Characteristics of Python's OOP:
+  1. Multi-paradigm: OOP is just one option
+  2. Duck typing: "If it walks like a duck and quacks like a duck, it's a duck"
+  3. Convention-based access control: _private is not enforced
+  4. Special methods: customize via __init__, __str__, __eq__, etc.
+  5. Decorators: a concise means of metaprogramming
+  6. Data classes: reduced boilerplate since Python 3.7+
 ```
 
 ```python
-# Python: モダンなOOPの実践
+# Python: modern OOP in practice
 
 from __future__ import annotations
 from dataclasses import dataclass, field
@@ -690,8 +690,8 @@ from functools import total_ordering
 from datetime import datetime
 
 
-# データクラス: ボイラープレートの自動生成
-@dataclass(frozen=True)  # frozen=True で不変に
+# Data class: automatic generation of boilerplate
+@dataclass(frozen=True)  # frozen=True makes it immutable
 @total_ordering
 class Money:
     """金額値オブジェクト"""
@@ -726,7 +726,7 @@ class Money:
         return f"{self.amount / 100:.2f} {self.currency}"
 
 
-# プロトコル: 構造的型付け（ダックタイピングの型安全版）
+# Protocol: structural typing (type-safe version of duck typing)
 @runtime_checkable
 class Discountable(Protocol):
     """割引適用可能なもの"""
@@ -735,7 +735,7 @@ class Discountable(Protocol):
     def price(self) -> Money: ...
 
 
-# 抽象基底クラス
+# Abstract base class
 class Product(ABC):
     """商品の抽象基底クラス"""
 
@@ -763,7 +763,7 @@ class Product(ABC):
         return self._base_price * (1 - rate)
 
 
-# 具象クラス
+# Concrete classes
 @dataclass
 class Book(Product):
     """書籍"""
@@ -800,7 +800,7 @@ class Electronics(Product):
         return f"{self.brand} {self.name} (保証: {self.warranty_months}ヶ月)"
 
 
-# デコレータパターン
+# Decorator pattern
 class DiscountedProduct:
     """割引適用済み商品（デコレータ）"""
 
@@ -825,7 +825,7 @@ class DiscountedProduct:
         return f"{self._product.description()} - {self._discount_rate*100:.0f}%OFF"
 
 
-# コンテキストマネージャ: Pythonらしいリソース管理
+# Context manager: Pythonic resource management
 class DatabaseConnection:
     """データベース接続（コンテキストマネージャ）"""
 
@@ -842,7 +842,7 @@ class DatabaseConnection:
         if self._connected:
             print("DB接続終了")
             self._connected = False
-        return False  # 例外を再送出
+        return False  # Re-raise the exception
 
     def query(self, sql: str) -> list[dict]:
         if not self._connected:
@@ -851,72 +851,72 @@ class DatabaseConnection:
         return []
 
 
-# 使用例
+# Example usage
 with DatabaseConnection("postgresql://localhost/mydb") as db:
     results = db.query("SELECT * FROM users")
-# → __exit__ が自動的に呼ばれる（例外発生時も）
+# -> __exit__ is called automatically (even when an exception occurs)
 ```
 
 ---
 
-## 3. OOPの進化の方向性
+## 3. Directions in the Evolution of OOP
 
 ```
-第1世代（1967-1980）: クラスベース
+1st generation (1967-1980): Class-based
   Simula, Smalltalk
-  → 「世界をオブジェクトでモデリングする」
+  -> "Model the world with objects"
 
-第2世代（1983-1995）: 静的型付け + 実用化
+2nd generation (1983-1995): Static typing + practical adoption
   C++, Java, C#
-  → 「大規模開発を構造化する」
+  -> "Structure large-scale development"
 
-第3世代（2000-2015）: 軽量OOP + FP融合
+3rd generation (2000-2015): Lightweight OOP + FP fusion
   Ruby, Scala, Kotlin, Swift
-  → 「ボイラープレートを減らし、関数型の良さを取り入れる」
+  -> "Reduce boilerplate and bring in the good parts of functional programming"
 
-第4世代（2015-現在）: ポストOOP
-  Rust（トレイト）, Go（インターフェース）, TypeScript（構造的型付け）
-  → 「継承を排除し、コンポジションとインターフェースで設計する」
+4th generation (2015-present): Post-OOP
+  Rust (traits), Go (interfaces), TypeScript (structural typing)
+  -> "Eliminate inheritance, design with composition and interfaces"
 
-進化の傾向:
-  多重継承 → 単一継承 → 継承よりコンポジション → 継承なし
-  ミュータブル → イミュータブル優先
-  クラス中心 → インターフェース/トレイト中心
-  暗黙的 → 明示的
+Trends in evolution:
+  Multiple inheritance -> single inheritance -> composition over inheritance -> no inheritance
+  Mutable -> immutable first
+  Class-centric -> interface/trait-centric
+  Implicit -> explicit
 ```
 
-### 3.1 継承の退潮
+### 3.1 The Decline of Inheritance
 
-OOPの歴史において、最も大きな変化の一つは「継承からコンポジションへ」の流れである。
+One of the biggest shifts in OOP history has been the move "from inheritance to composition."
 
 ```
-継承の退潮の歴史:
+History of the decline of inheritance:
 
-  1990s: 継承は OOP の中心
-    → GoF: 「インターフェースに対してプログラムせよ」
-    → しかし実際には深い継承階層が乱立
+  1990s: Inheritance is at the center of OOP
+    -> GoF: "Program to an interface"
+    -> In practice, however, deep inheritance hierarchies proliferated
 
-  2000s: 継承の問題が認識される
-    → Joshua Bloch (Effective Java): 「継承よりコンポジション」
-    → 脆弱な基底クラス問題
-    → リスコフの置換原則の違反
+  2000s: The problems of inheritance become recognized
+    -> Joshua Bloch (Effective Java): "Favor composition over inheritance"
+    -> The fragile base class problem
+    -> Violations of the Liskov Substitution Principle
 
-  2010s: 継承を排除する言語の登場
-    → Go: 継承なし、インターフェースの暗黙的実装
-    → Rust: 継承なし、トレイトベース
-    → Swift: プロトコル指向（値型 + プロトコル）
+  2010s: Languages that eliminate inheritance emerge
+    -> Go: no inheritance, implicit interface implementation
+    -> Rust: no inheritance, trait-based
+    -> Swift: protocol-oriented (value types + protocols)
 
-  2020s: 継承は「限定的に使う」コンセンサス
-    → モダンな Java でも sealed class + record が推奨
-    → Kotlin の data class は継承不可
-    → 深い継承階層は明確なアンチパターン
+  2020s: Consensus that inheritance should be "used sparingly"
+    -> Modern Java recommends sealed class + record
+    -> Kotlin's data class cannot be inherited
+    -> Deep inheritance hierarchies are a clear anti-pattern
 ```
 
 ```typescript
-// TypeScript: 継承からコンポジションへの進化
+// TypeScript: Evolution from inheritance to composition
 
-// === 1990s スタイル: 深い継承階層 ===
-// 問題だらけのアプローチ
+// === 1990s style: deep inheritance hierarchy ===
+// An approach riddled with problems
 
 /*
 abstract class Animal {
@@ -941,15 +941,15 @@ class Cat extends Pet {
   speak(): string { return "ニャー！"; }
 }
 
-// 問題: ペンギンは鳥だが飛べない → 継承階層が破綻
-// 問題: 新しい振る舞いの追加が困難
-// 問題: テストのための差し替えが困難
+// Problem: Penguins are birds but can't fly -> inheritance hierarchy breaks
+// Problem: Adding new behaviors is difficult
+// Problem: Swapping implementations for testing is difficult
 */
 
 
-// === 2020s スタイル: コンポジション + インターフェース ===
+// === 2020s style: composition + interfaces ===
 
-// 振る舞いをインターフェースで定義
+// Define behaviors via interfaces
 interface CanSpeak {
   speak(): string;
 }
@@ -966,7 +966,7 @@ interface CanFly {
   fly(): string;
 }
 
-// コンポジションで組み合わせ
+// Combine via composition
 class DogComposed implements CanSpeak, CanMove, CanSwim {
   constructor(
     public readonly name: string,
@@ -984,7 +984,7 @@ class PenguinComposed implements CanSpeak, CanMove, CanSwim {
   speak(): string { return `${this.name}: ペンペン！`; }
   move(): string { return `${this.name}がよちよち歩く`; }
   swim(): string { return `${this.name}が高速で泳ぐ`; }
-  // fly() は実装しない → コンパイル時に飛べないことが保証される
+  // fly() is not implemented -> the inability to fly is guaranteed at compile time
 }
 
 class EagleComposed implements CanSpeak, CanMove, CanFly {
@@ -993,57 +993,57 @@ class EagleComposed implements CanSpeak, CanMove, CanFly {
   speak(): string { return `${this.name}: ピーッ！`; }
   move(): string { return `${this.name}が飛び回る`; }
   fly(): string { return `${this.name}が大空を飛ぶ`; }
-  // swim() は実装しない → 泳げないことが型で表現される
+  // swim() is not implemented -> the inability to swim is expressed in the type
 }
 
-// 必要なインターフェースだけを要求
+// Require only the interfaces that are actually needed
 function makeSwimRace(swimmers: CanSwim[]): void {
   for (const s of swimmers) {
     console.log(s.swim());
   }
 }
 
-// Dog と Penguin は泳げるが、Eagle は泳げない
-// → コンパイル時にエラーで検出
+// Dog and Penguin can swim, but Eagle cannot
+// -> caught as a compile-time error
 makeSwimRace([
   new DogComposed("ポチ", "田中"),
   new PenguinComposed("ペンタ"),
-  // new EagleComposed("タカ"),  // コンパイルエラー: CanSwim を実装していない
+  // new EagleComposed("タカ"),  // Compile error: does not implement CanSwim
 ]);
 ```
 
-### 3.2 型システムの進化
+### 3.2 Evolution of Type Systems
 
-OOP言語の型システムも大きく進化してきた。
+The type systems of OOP languages have also evolved significantly.
 
 ```
-型システムの進化:
+Evolution of type systems:
 
-  名前的型付け（Nominal Typing）:
-    → Java, C#, C++
-    → 型名が一致しないと互換性なし
-    → 明示的に implements / extends を宣言する必要がある
+  Nominal typing:
+    -> Java, C#, C++
+    -> No compatibility unless type names match
+    -> You must explicitly declare implements / extends
 
-  構造的型付け（Structural Typing）:
-    → TypeScript, Go
-    → 型の構造（メソッドのシグネチャ）が一致すれば互換
-    → implements を書かなくても、メソッドが一致すれば OK
+  Structural typing:
+    -> TypeScript, Go
+    -> Types are compatible if their structure (method signatures) matches
+    -> Even without writing implements, it's OK if methods match
 
-  ダックタイピング（Duck Typing）:
-    → Python, Ruby
-    → 実行時に必要なメソッドがあれば OK
-    → 「アヒルのように歩き、鳴くなら、アヒル」
+  Duck typing:
+    -> Python, Ruby
+    -> OK if the required methods exist at runtime
+    -> "If it walks like a duck and quacks like a duck, it's a duck"
 
-  進化の流れ:
-    名前的（厳格すぎる）
-      → 構造的（柔軟 + 型安全）
-        → ダックタイピング + 型ヒント（柔軟 + 文書化）
+  Direction of evolution:
+    Nominal (too strict)
+      -> Structural (flexible + type-safe)
+        -> Duck typing + type hints (flexible + documented)
 ```
 
 ```typescript
-// TypeScript: 構造的型付けの実践例
+// TypeScript: Practical example of structural typing
 
-// インターフェースを明示的に実装しなくても型互換
+// Types are compatible even without explicitly implementing an interface
 interface Printable {
   toString(): string;
 }
@@ -1052,19 +1052,19 @@ interface HasLength {
   length: number;
 }
 
-// クラスでも使える
+// Works with classes
 class Document implements Printable {
   constructor(private content: string) {}
   toString(): string { return this.content; }
 }
 
-// プレーンオブジェクトでも OK（構造が一致すれば）
+// Works with plain objects too (as long as the structure matches)
 const logEntry = {
   toString(): string { return "2024-01-01 INFO: Application started"; }
 };
 
-// 配列は HasLength を満たす
-const items = [1, 2, 3]; // { length: number } を持つ
+// Arrays satisfy HasLength
+const items = [1, 2, 3]; // has { length: number }
 
 function print(item: Printable): void {
   console.log(item.toString());
@@ -1075,35 +1075,35 @@ function getLength(item: HasLength): number {
 }
 
 print(new Document("Hello"));   // OK
-print(logEntry);                 // OK: 構造が一致
-getLength(items);               // OK: length プロパティがある
-getLength("hello");             // OK: string も length を持つ
+print(logEntry);                 // OK: structure matches
+getLength(items);               // OK: has a length property
+getLength("hello");             // OK: strings also have length
 ```
 
 ---
 
-## 4. 現代のOOP: マルチパラダイム
+## 4. Modern OOP: Multi-paradigm
 
 ```kotlin
-// Kotlin: モダンOOPの例
-// データクラス（ボイラープレート削減）
+// Kotlin: example of modern OOP
+// Data class (reduced boilerplate)
 data class User(
     val name: String,
     val email: String,
     val age: Int
 )
 
-// sealed class（代数的データ型 — FPからの影響）
+// sealed class (algebraic data type - influence from FP)
 sealed class Result<out T> {
     data class Success<T>(val value: T) : Result<T>()
     data class Failure(val error: Throwable) : Result<Nothing>()
 }
 
-// 拡張関数（オブジェクトを変更せずに機能追加）
+// Extension functions (adding functionality without modifying the object)
 fun String.isValidEmail(): Boolean =
     this.matches(Regex("^[\\w.-]+@[\\w.-]+\\.[a-zA-Z]{2,}$"))
 
-// 高階関数（FPの要素）
+// Higher-order functions (element of FP)
 fun <T> List<T>.filterAndMap(
     predicate: (T) -> Boolean,
     transform: (T) -> String
@@ -1111,7 +1111,7 @@ fun <T> List<T>.filterAndMap(
 ```
 
 ```swift
-// Swift: プロトコル指向プログラミング
+// Swift: Protocol-oriented programming
 protocol Drawable {
     func draw()
 }
@@ -1120,14 +1120,14 @@ protocol Resizable {
     func resize(by factor: Double)
 }
 
-// プロトコル拡張（デフォルト実装）
+// Protocol extension (default implementation)
 extension Drawable {
     func draw() {
         print("Default drawing")
     }
 }
 
-// 値型（struct）+ プロトコル準拠
+// Value type (struct) + protocol conformance
 struct Circle: Drawable, Resizable {
     var radius: Double
 
@@ -1141,27 +1141,27 @@ struct Circle: Drawable, Resizable {
 }
 ```
 
-### 4.1 Kotlin: より良いJava
+### 4.1 Kotlin: A Better Java
 
-Kotlinは JetBrains が「より良いJava」を目指して設計した言語であり、モダンOOPの多くの特徴を備えている。
+Kotlin is a language JetBrains designed with the goal of being "a better Java," and it has many features characteristic of modern OOP.
 
 ```kotlin
-// Kotlin: モダンOOPの包括的な例
+// Kotlin: A comprehensive example of modern OOP
 
-// === Null安全 ===
+// === Null safety ===
 fun processUser(name: String?) {
-    // コンパイラが null チェックを強制
+    // The compiler enforces null checks
     val length = name?.length ?: 0
     val upper = name?.uppercase() ?: "UNKNOWN"
 
-    // スマートキャスト
+    // Smart cast
     if (name != null) {
-        // この分岐内では name は String（非null）
+        // Inside this branch, name is String (non-null)
         println(name.length)
     }
 }
 
-// === Sealed class + When 式（網羅的パターンマッチ） ===
+// === Sealed class + when expression (exhaustive pattern matching) ===
 sealed interface Shape {
     data class Circle(val radius: Double) : Shape
     data class Rectangle(val width: Double, val height: Double) : Shape
@@ -1172,10 +1172,10 @@ fun area(shape: Shape): Double = when (shape) {
     is Shape.Circle -> Math.PI * shape.radius * shape.radius
     is Shape.Rectangle -> shape.width * shape.height
     is Shape.Triangle -> shape.base * shape.height / 2
-    // when 式は網羅的: 新しい Shape を追加するとコンパイルエラー
+    // when expressions are exhaustive: adding a new Shape causes a compile error
 }
 
-// === 委譲パターン（by キーワード） ===
+// === Delegation pattern (the by keyword) ===
 interface Logger {
     fun log(message: String)
 }
@@ -1185,24 +1185,24 @@ class ConsoleLogger : Logger {
 }
 
 class UserService(logger: Logger) : Logger by logger {
-    // Logger の実装を ConsoleLogger に委譲
-    // log() メソッドを明示的に実装する必要なし
+    // Delegates the implementation of Logger to ConsoleLogger
+    // No need to implement the log() method explicitly
 
     fun createUser(name: String) {
-        log("Creating user: $name")  // 委譲されたメソッド
-        // ... ユーザー作成ロジック
+        log("Creating user: $name")  // Delegated method
+        // ... user creation logic
     }
 }
 
-// === コルーチン（非同期プログラミング） ===
+// === Coroutines (asynchronous programming) ===
 import kotlinx.coroutines.*
 
 class OrderProcessor {
     suspend fun processOrder(orderId: String): Result<Order> {
         return try {
-            val order = fetchOrder(orderId)      // 非同期DB取得
-            val validated = validateOrder(order)  // バリデーション
-            val charged = chargePayment(validated) // 非同期決済
+            val order = fetchOrder(orderId)      // async DB fetch
+            val validated = validateOrder(order)  // validation
+            val charged = chargePayment(validated) // async payment
             Result.success(charged)
         } catch (e: Exception) {
             Result.failure(e)
@@ -1210,46 +1210,46 @@ class OrderProcessor {
     }
 
     private suspend fun fetchOrder(id: String): Order = withContext(Dispatchers.IO) {
-        // DB からの取得（非同期）
-        delay(100) // シミュレーション
+        // Fetch from DB (async)
+        delay(100) // simulation
         Order(id, "pending")
     }
 
     private fun validateOrder(order: Order): Order {
-        // ビジネスルールのバリデーション
+        // Validate business rules
         require(order.status == "pending") { "注文は pending 状態である必要があります" }
         return order
     }
 
     private suspend fun chargePayment(order: Order): Order = withContext(Dispatchers.IO) {
-        // 決済処理（非同期）
-        delay(200) // シミュレーション
+        // Payment processing (async)
+        delay(200) // simulation
         order.copy(status = "confirmed")
     }
 }
 ```
 
-### 4.2 Rust: ポストOOPの最前線
+### 4.2 Rust: The Leading Edge of Post-OOP
 
-Rustはクラスも継承も持たないが、トレイトと構造体で強力なOOP的パターンを実現する。
+Rust has neither classes nor inheritance, but it realizes powerful OOP-like patterns via traits and structs.
 
 ```rust
-// Rust: トレイトベースのOOP
+// Rust: Trait-based OOP
 
 use std::fmt;
 
-// トレイト: インターフェース + デフォルト実装 + 関連型
+// Trait: interface + default implementation + associated types
 trait Animal: fmt::Display {
     fn name(&self) -> &str;
     fn sound(&self) -> &str;
 
-    // デフォルト実装
+    // Default implementation
     fn introduce(&self) -> String {
         format!("{}は「{}」と鳴きます", self.name(), self.sound())
     }
 }
 
-// 構造体 + トレイト実装
+// Struct + trait implementation
 struct Dog {
     name: String,
     breed: String,
@@ -1283,20 +1283,20 @@ impl fmt::Display for Cat {
     }
 }
 
-// トレイトオブジェクト: 実行時ポリモーフィズム
+// Trait objects: runtime polymorphism
 fn introduce_all(animals: &[&dyn Animal]) {
     for animal in animals {
         println!("{}", animal.introduce());
     }
 }
 
-// ジェネリクス + トレイト境界: コンパイル時ポリモーフィズム
+// Generics + trait bounds: compile-time polymorphism
 fn loudest_sound<T: Animal>(animals: &[T]) -> &str {
-    // コンパイル時に型が確定 → 仮想関数テーブルなし → ゼロコスト
+    // Type determined at compile time -> no vtable -> zero cost
     animals.first().map(|a| a.sound()).unwrap_or("")
 }
 
-// 列挙型: 代数的データ型（Rust の強み）
+// Enums: algebraic data types (one of Rust's strengths)
 enum Shape {
     Circle { radius: f64 },
     Rectangle { width: f64, height: f64 },
@@ -1324,7 +1324,7 @@ impl Shape {
     }
 }
 
-// 所有権システム: コンパイル時のメモリ安全性保証
+// Ownership system: compile-time memory safety guarantees
 struct FileProcessor {
     path: String,
     content: Option<String>,
@@ -1338,30 +1338,30 @@ impl FileProcessor {
         }
     }
 
-    // &self: 読み取り専用借用
+    // &self: read-only borrow
     fn path(&self) -> &str {
         &self.path
     }
 
-    // &mut self: 可変借用
+    // &mut self: mutable borrow
     fn load(&mut self) -> Result<(), std::io::Error> {
         self.content = Some(std::fs::read_to_string(&self.path)?);
         Ok(())
     }
 
-    // self: 所有権を消費（呼び出し後は使えない）
+    // self: consumes ownership (cannot be used after the call)
     fn into_content(self) -> Option<String> {
         self.content
     }
 }
 ```
 
-### 4.3 Go: シンプルさの追求
+### 4.3 Go: The Pursuit of Simplicity
 
-Goは意図的にOOPの多くの機能を省略し、シンプルさを追求した。
+Go intentionally omits many OOP features in the pursuit of simplicity.
 
 ```go
-// Go: 構造体 + インターフェース（暗黙的実装）
+// Go: Structs + interfaces (implicit implementation)
 package main
 
 import (
@@ -1370,19 +1370,19 @@ import (
     "sort"
 )
 
-// インターフェース: 暗黙的に実装される
+// Interface: implemented implicitly
 type Shape interface {
     Area() float64
     Perimeter() float64
     String() string
 }
 
-// 構造体（クラスの代わり）
+// Struct (in place of class)
 type Circle struct {
     Radius float64
 }
 
-// メソッド（レシーバ付き関数）
+// Method (a function with a receiver)
 func (c Circle) Area() float64 {
     return math.Pi * c.Radius * c.Radius
 }
@@ -1411,9 +1411,9 @@ func (r Rectangle) String() string {
     return fmt.Sprintf("Rect(%.2fx%.2f)", r.Width, r.Height)
 }
 
-// 埋め込み（Embedding）: 継承の代替
+// Embedding: the alternative to inheritance
 type NamedShape struct {
-    Shape // Shape インターフェースを埋め込み
+    Shape // Embeds the Shape interface
     Name  string
 }
 
@@ -1421,7 +1421,7 @@ func (ns NamedShape) Describe() string {
     return fmt.Sprintf("%s: area=%.2f", ns.Name, ns.Area())
 }
 
-// インターフェースの合成
+// Composition of interfaces
 type ReadWriter interface {
     Reader
     Writer
@@ -1435,7 +1435,7 @@ type Writer interface {
     Write(p []byte) (n int, err error)
 }
 
-// 関数型: 小さなインターフェースを多用
+// Functional style: heavy use of small interfaces
 type SortByArea []Shape
 
 func (s SortByArea) Len() int           { return len(s) }
@@ -1460,49 +1460,49 @@ func main() {
 
 ---
 
-## 5. OOPの未来
+## 5. The Future of OOP
 
 ```
-2020s-2030s の OOP の方向性:
+Direction of OOP in the 2020s-2030s:
 
-  1. 代数的データ型の普及
-     → sealed class (Kotlin, Java 17+)
-     → enum + match (Rust)
-     → union types (TypeScript)
-     → OOP + FP のハイブリッドパターンが標準化
+  1. Spread of algebraic data types
+     -> sealed class (Kotlin, Java 17+)
+     -> enum + match (Rust)
+     -> union types (TypeScript)
+     -> OOP + FP hybrid patterns become standardized
 
-  2. 不変性の主流化
-     → record (Java), data class (Kotlin)
-     → frozen dataclass (Python)
-     → readonly (TypeScript)
-     → 「デフォルト不変、必要な時だけ可変」が原則に
+  2. Immutability becomes mainstream
+     -> record (Java), data class (Kotlin)
+     -> frozen dataclass (Python)
+     -> readonly (TypeScript)
+     -> "Immutable by default, mutable only when necessary" as a principle
 
-  3. 型推論の進化
-     → ローカル変数の型推論は当たり前
-     → 構造的型付けの普及
-     → コンパイル時の安全性 + 記述の簡潔さ
+  3. Evolution of type inference
+     -> Type inference for local variables becomes standard
+     -> Spread of structural typing
+     -> Compile-time safety + concise notation
 
-  4. エフェクトシステム
-     → 副作用の型レベルでの追跡
-     → async/await の進化
-     → 純粋関数と副作用の明確な分離
+  4. Effect systems
+     -> Side effects tracked at the type level
+     -> Evolution of async/await
+     -> Clear separation of pure functions and side effects
 
-  5. コンポジション API
-     → React Hooks, Vue Composition API
-     → Swift Protocol Extensions
-     → Rust Trait + ジェネリクス
-     → 「クラスを使わないOOP的設計」の普及
+  5. Composition APIs
+     -> React Hooks, Vue Composition API
+     -> Swift Protocol Extensions
+     -> Rust Trait + generics
+     -> Spread of "OOP-like design without classes"
 
-  6. AI支援によるコード生成
-     → OOP設計の自動提案
-     → デザインパターンの自動適用
-     → リファクタリングの AI 支援
+  6. AI-assisted code generation
+     -> Automatic suggestions for OOP design
+     -> Automatic application of design patterns
+     -> AI assistance for refactoring
 ```
 
-### 5.1 エフェクトシステムと副作用の管理
+### 5.1 Effect Systems and Management of Side Effects
 
 ```typescript
-// TypeScript: Result型によるエラー処理（FP的アプローチ）
+// TypeScript: Error handling via the Result type (an FP-style approach)
 
 type Result<T, E = Error> =
   | { ok: true; value: T }
@@ -1516,23 +1516,23 @@ function err<E>(error: E): Result<never, E> {
   return { ok: false, error };
 }
 
-// 副作用を明示的に型で表現
+// Express side effects explicitly in the type
 class UserService {
   constructor(
     private readonly db: Database,
     private readonly mailer: Mailer,
   ) {}
 
-  // 戻り値の型が「成功 or 失敗」を明示
+  // The return type makes "success or failure" explicit
   async createUser(
     name: string,
     email: string,
   ): Promise<Result<User, CreateUserError>> {
-    // バリデーション（純粋関数）
+    // Validation (pure function)
     const validationResult = this.validateInput(name, email);
     if (!validationResult.ok) return validationResult;
 
-    // DB操作（副作用）
+    // DB operation (side effect)
     const existingUser = await this.db.findUserByEmail(email);
     if (existingUser) {
       return err({ type: "DUPLICATE_EMAIL", email });
@@ -1540,10 +1540,10 @@ class UserService {
 
     const user = await this.db.createUser({ name, email });
 
-    // メール送信（副作用）
+    // Sending email (side effect)
     const mailResult = await this.mailer.sendWelcome(user);
     if (!mailResult.ok) {
-      // メール失敗はログに記録するが、ユーザー作成は成功
+      // Log on email failure, but the user creation itself is a success
       console.warn("Welcome email failed:", mailResult.error);
     }
 
@@ -1567,12 +1567,12 @@ type CreateUserError =
   | { type: "DATABASE_ERROR"; cause: Error };
 ```
 
-### 5.2 コンポジションAPIパターンの台頭
+### 5.2 The Rise of the Composition API Pattern
 
 ```typescript
-// TypeScript: React Hooks スタイル（クラスなしのOOP的設計）
+// TypeScript: React Hooks style (OOP-like design without classes)
 
-// 状態管理のカプセル化（クラスを使わず）
+// Encapsulating state (without using a class)
 function useCounter(initialValue: number = 0) {
   let count = initialValue;
 
@@ -1584,7 +1584,7 @@ function useCounter(initialValue: number = 0) {
   };
 }
 
-// ビジネスロジックのカプセル化
+// Encapsulating business logic
 function useShoppingCart() {
   const items: Map<string, { name: string; price: number; qty: number }> = new Map();
 
@@ -1624,7 +1624,7 @@ function useShoppingCart() {
   };
 }
 
-// コンポジション: 複数の機能を組み合わせ
+// Composition: combining multiple features
 function useCheckout() {
   const cart = useShoppingCart();
   const step = useCounter(1);
@@ -1635,7 +1635,7 @@ function useCheckout() {
 
     get canProceed() {
       if (step.value === 1) return !cart.isEmpty;
-      if (step.value === 2) return true; // 配送先入力済み
+      if (step.value === 2) return true; // shipping address entered
       return false;
     },
 
@@ -1653,27 +1653,27 @@ function useCheckout() {
   };
 }
 
-// → クラスを使わずに、OOP の利点（カプセル化、コンポジション）を実現
-// → 関数がオブジェクト（クロージャ）を返すパターン
-// → テスト容易（モック不要、純粋関数的）
+// -> Realizing OOP's benefits (encapsulation, composition) without using classes
+// -> Pattern where a function returns an object (a closure)
+// -> Easy to test (no mocks required, more functional in style)
 ```
 
 
 ---
 
-## 実践演習
+## Practical Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that meets the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate the input data
+- Implement appropriate error handling
+- Also write test code
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Template for basic implementation
 class Exercise1:
     """基本的な実装パターンの演習"""
 
@@ -1699,7 +1699,7 @@ class Exercise1:
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1717,12 +1717,12 @@ def test_exercise1():
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation and add the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Advanced patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
@@ -1769,13 +1769,13 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # size limit reached
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
@@ -1786,16 +1786,16 @@ def test_advanced():
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
     """非効率な検索"""
     for i in range(len(data)):
@@ -1804,7 +1804,7 @@ def slow_search(data: list, target: int) -> int:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
     """ハッシュマップを使った効率的な検索"""
     seen = {}
@@ -1815,7 +1815,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1837,48 +1837,48 @@ def benchmark():
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Points:**
+- Be conscious of the computational complexity of algorithms
+- Choose appropriate data structures
+- Measure the effect with benchmarks
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Beyond theory, writing actual code and confirming its behavior deepens your understanding.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What mistakes do beginners often make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping into applied topics. We recommend firmly grasping the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is used frequently in day-to-day development work. It becomes especially important during code reviews and when designing architectures.
 
 ---
 
-## まとめ
+## Summary
 
-| 時代 | 言語 | 革新 |
+| Era | Language | Innovation |
 |------|------|------|
-| 1967 | Simula | クラス・継承の発明 |
-| 1972 | Smalltalk | 純粋OOP・メッセージング・IDE・MVC |
-| 1983 | C++ | 静的型付けOOP・実用化・RAII |
-| 1993 | Ruby | 純粋OOP・メタプログラミング・開発者体験 |
-| 1995 | Java | エンタープライズ標準・GC・JVM |
-| 2010s | Kotlin/Swift | モダンOOP・FP融合・null安全 |
-| 2020s | Rust/Go/TS | ポストOOP・コンポジション・型安全 |
+| 1967 | Simula | Invention of classes and inheritance |
+| 1972 | Smalltalk | Pure OOP, messaging, IDE, MVC |
+| 1983 | C++ | Statically typed OOP, practical adoption, RAII |
+| 1993 | Ruby | Pure OOP, metaprogramming, developer experience |
+| 1995 | Java | Enterprise standard, GC, JVM |
+| 2010s | Kotlin/Swift | Modern OOP, FP fusion, null safety |
+| 2020s | Rust/Go/TS | Post-OOP, composition, type safety |
 
 ---
 
-## 次に読むべきガイド
+## Next Guides to Read
 
 ---
 
-## 参考文献
+## References
 1. Kay, A. "The Early History of Smalltalk." ACM SIGPLAN, 1993.
 2. Stroustrup, B. "The Design and Evolution of C++." Addison-Wesley, 1994.
 3. Bloch, J. "Effective Java." 3rd Ed, Addison-Wesley, 2018.
