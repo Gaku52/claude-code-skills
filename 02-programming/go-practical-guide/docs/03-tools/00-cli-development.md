@@ -1,54 +1,54 @@
-# Go CLI開発ガイド
+# Go CLI Development Guide
 
-> cobra、flag、promptuiを活用して本格的なコマンドラインツールをGoで構築する
+> Building production-grade command-line tools in Go with cobra, flag, and promptui
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-1. **cobra** フレームワークを使ったサブコマンド付きCLIアプリケーションの設計と実装
-2. **標準flag** パッケージと **pflag** の違い、フラグ管理のベストプラクティス
-3. **promptui** による対話型CLI（選択メニュー・入力プロンプト）の構築法
-4. **viper** による設定管理（ファイル・環境変数・フラグの統合）
-5. **シェル補完** と **ドキュメント自動生成** の実装
+1. Designing and implementing CLI applications with subcommands using the **cobra** framework
+2. Differences between the standard **flag** package and **pflag**, and best practices for flag management
+3. How to build interactive CLIs (selection menus, input prompts) with **promptui**
+4. Configuration management with **viper** (integrating files, environment variables, and flags)
+5. Implementing **shell completion** and **automatic documentation generation**
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, your understanding will be deeper if you have:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
+- Basic programming knowledge
+- Understanding of related fundamental concepts
 
 ---
 
-## 1. Go CLIの全体像
+## 1. Overview of Go CLIs
 
-### CLI フレームワーク選定フロー
+### CLI Framework Selection Flow
 
 ```
-CLI ツールを作りたい
+Want to build a CLI tool
         |
-        +-- シンプル（フラグ数個）
+        +-- Simple (a few flags)
         |       |
         |       v
-        |   標準 flag パッケージ
+        |   Standard flag package
         |
-        +-- サブコマンドあり
+        +-- Has subcommands
         |       |
         |       v
-        |   cobra（業界標準）
+        |   cobra (industry standard)
         |
-        +-- 対話型 UI が必要
+        +-- Requires interactive UI
         |       |
         |       v
         |   promptui / survey
         |
-        +-- 超軽量（依存なし）
+        +-- Ultra-lightweight (no dependencies)
                 |
                 v
-            手動パース / 標準 flag + サブコマンド手動実装
+            Manual parsing / standard flag + manually implemented subcommands
 ```
 
-### CLI アーキテクチャ
+### CLI Architecture
 
 ```
 +------------------------------------------------------+
@@ -59,51 +59,51 @@ CLI ツールを作りたい
         v
 +------------------------------------------------------+
 |                   cmd/root.go                        |
-|  rootCmd: アプリ名、バージョン、グローバルフラグ        |
+|  rootCmd: app name, version, global flags            |
 +------------------------------------------------------+
         |
-        +-------> cmd/serve.go   (serve サブコマンド)
+        +-------> cmd/serve.go   (serve subcommand)
         |
-        +-------> cmd/migrate.go (migrate サブコマンド)
+        +-------> cmd/migrate.go (migrate subcommand)
         |
-        +-------> cmd/config.go  (config サブコマンド)
+        +-------> cmd/config.go  (config subcommand)
         |              |
         |              +-> cmd/config_set.go (config set)
         |              +-> cmd/config_get.go (config get)
         |              +-> cmd/config_list.go (config list)
         |
-        +-------> cmd/version.go (version サブコマンド)
+        +-------> cmd/version.go (version subcommand)
         |
-        +-------> cmd/completion.go (シェル補完)
+        +-------> cmd/completion.go (shell completion)
 ```
 
-### プロジェクトディレクトリ構成
+### Project Directory Structure
 
 ```
 myapp/
-├── main.go                    # エントリポイント（最小限）
-├── cmd/                       # コマンド定義
-│   ├── root.go               # ルートコマンド
-│   ├── serve.go              # serve サブコマンド
-│   ├── migrate.go            # migrate サブコマンド
-│   ├── config.go             # config サブコマンド群
-│   ├── version.go            # version サブコマンド
-│   └── completion.go         # シェル補完コマンド
-├── internal/                  # 内部パッケージ
-│   ├── config/               # 設定管理
-│   ├── server/               # サーバーロジック
-│   └── migration/            # マイグレーションロジック
-├── pkg/                       # 外部公開パッケージ（任意）
-├── .goreleaser.yaml           # GoReleaserの設定
-├── Makefile                   # ビルド・テストコマンド
+├── main.go                    # Entry point (minimal)
+├── cmd/                       # Command definitions
+│   ├── root.go               # Root command
+│   ├── serve.go              # serve subcommand
+│   ├── migrate.go            # migrate subcommand
+│   ├── config.go             # config subcommand group
+│   ├── version.go            # version subcommand
+│   └── completion.go         # Shell completion command
+├── internal/                  # Internal packages
+│   ├── config/               # Configuration management
+│   ├── server/               # Server logic
+│   └── migration/            # Migration logic
+├── pkg/                       # Externally exposed packages (optional)
+├── .goreleaser.yaml           # GoReleaser configuration
+├── Makefile                   # Build and test commands
 └── go.mod
 ```
 
 ---
 
-## 2. 標準 flag パッケージ
+## 2. Standard flag Package
 
-### コード例1: flag パッケージの基本
+### Code Example 1: Basics of the flag Package
 
 ```go
 package main
@@ -115,12 +115,12 @@ import (
 )
 
 func main() {
-    // フラグ定義
-    host := flag.String("host", "localhost", "サーバーホスト名")
-    port := flag.Int("port", 8080, "サーバーポート番号")
-    verbose := flag.Bool("verbose", false, "詳細出力を有効にする")
+    // Flag definitions
+    host := flag.String("host", "localhost", "Server host name")
+    port := flag.Int("port", 8080, "Server port number")
+    verbose := flag.Bool("verbose", false, "Enable verbose output")
 
-    // カスタムUsage
+    // Custom Usage
     flag.Usage = func() {
         fmt.Fprintf(os.Stderr, "Usage: %s [options]\n\nOptions:\n", os.Args[0])
         flag.PrintDefaults()
@@ -128,7 +128,7 @@ func main() {
 
     flag.Parse()
 
-    // 残りの引数（非フラグ）
+    // Remaining arguments (non-flags)
     args := flag.Args()
 
     if *verbose {
@@ -136,7 +136,7 @@ func main() {
         fmt.Printf("Args: %v\n", args)
     }
 
-    fmt.Printf("サーバー起動: %s:%d\n", *host, *port)
+    fmt.Printf("Starting server: %s:%d\n", *host, *port)
 }
 ```
 
@@ -144,10 +144,10 @@ func main() {
 $ myapp -host 0.0.0.0 -port 3000 -verbose extra_arg
 Host: 0.0.0.0, Port: 3000
 Args: [extra_arg]
-サーバー起動: 0.0.0.0:3000
+Starting server: 0.0.0.0:3000
 ```
 
-### コード例2: FlagSet を使ったサブコマンド実装
+### Code Example 2: Implementing Subcommands with FlagSet
 
 ```go
 package main
@@ -165,28 +165,28 @@ func main() {
         os.Exit(1)
     }
 
-    // サブコマンドごとにFlagSetを定義
+    // Define a FlagSet for each subcommand
     serveCmd := flag.NewFlagSet("serve", flag.ExitOnError)
-    servePort := serveCmd.Int("port", 8080, "ポート番号")
-    serveHost := serveCmd.String("host", "localhost", "ホスト名")
+    servePort := serveCmd.Int("port", 8080, "Port number")
+    serveHost := serveCmd.String("host", "localhost", "Host name")
 
     migrateCmd := flag.NewFlagSet("migrate", flag.ExitOnError)
-    migrateDir := migrateCmd.String("dir", "./migrations", "マイグレーションディレクトリ")
-    migrateDSN := migrateCmd.String("dsn", "", "データベース接続文字列")
+    migrateDir := migrateCmd.String("dir", "./migrations", "Migration directory")
+    migrateDSN := migrateCmd.String("dsn", "", "Database connection string")
 
     switch os.Args[1] {
     case "serve":
         serveCmd.Parse(os.Args[2:])
-        fmt.Printf("サーバー起動: %s:%d\n", *serveHost, *servePort)
+        fmt.Printf("Starting server: %s:%d\n", *serveHost, *servePort)
 
     case "migrate":
         migrateCmd.Parse(os.Args[2:])
         if *migrateDSN == "" {
-            fmt.Fprintln(os.Stderr, "Error: -dsn フラグは必須です")
+            fmt.Fprintln(os.Stderr, "Error: -dsn flag is required")
             migrateCmd.Usage()
             os.Exit(1)
         }
-        fmt.Printf("マイグレーション実行: dir=%s, dsn=%s\n", *migrateDir, *migrateDSN)
+        fmt.Printf("Running migration: dir=%s, dsn=%s\n", *migrateDir, *migrateDSN)
 
     case "version":
         fmt.Println("myapp v1.0.0")
@@ -198,10 +198,10 @@ func main() {
 }
 ```
 
-### コード例3: カスタムフラグ型
+### Code Example 3: Custom Flag Types
 
 ```go
-// StringSlice はカンマ区切りまたは複数指定のフラグ
+// StringSlice is a flag that accepts comma-separated values or multiple specifications
 type StringSlice []string
 
 func (s *StringSlice) String() string {
@@ -213,7 +213,7 @@ func (s *StringSlice) Set(value string) error {
     return nil
 }
 
-// Duration型のカスタムフラグ
+// Custom flag for Duration type
 type DurationFlag struct {
     value time.Duration
 }
@@ -225,7 +225,7 @@ func (d *DurationFlag) String() string {
 func (d *DurationFlag) Set(s string) error {
     dur, err := time.ParseDuration(s)
     if err != nil {
-        return fmt.Errorf("無効なDuration: %s", s)
+        return fmt.Errorf("invalid Duration: %s", s)
     }
     d.value = dur
     return nil
@@ -233,11 +233,11 @@ func (d *DurationFlag) Set(s string) error {
 
 func main() {
     var tags StringSlice
-    flag.Var(&tags, "tag", "タグ（複数指定可）")
+    flag.Var(&tags, "tag", "Tags (can be specified multiple times)")
 
     var timeout DurationFlag
     timeout.value = 30 * time.Second
-    flag.Var(&timeout, "timeout", "タイムアウト（例: 30s, 5m）")
+    flag.Var(&timeout, "timeout", "Timeout (e.g., 30s, 5m)")
 
     flag.Parse()
 
@@ -254,16 +254,16 @@ Timeout: 5m0s
 
 ---
 
-## 3. cobra フレームワーク
+## 3. The cobra Framework
 
-### インストール
+### Installation
 
 ```bash
 go get github.com/spf13/cobra@latest
 go install github.com/spf13/cobra-cli@latest
 ```
 
-### コード例4: cobra のルートコマンド
+### Code Example 4: cobra Root Command
 
 ```go
 // cmd/root.go
@@ -285,7 +285,7 @@ var (
 var rootCmd = &cobra.Command{
     Use:     "mytool",
     Short:   "My awesome CLI tool",
-    Long:    `mytool はGoで構築された多機能CLIツールです。`,
+    Long:    `mytool is a multi-functional CLI tool built with Go.`,
     Version: "1.0.0",
 }
 
@@ -299,13 +299,13 @@ func Execute() {
 func init() {
     cobra.OnInitialize(initConfig)
 
-    // Persistent Flags: 全サブコマンドで使える
+    // Persistent Flags: usable across all subcommands
     rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "",
-        "設定ファイルパス (デフォルト: $HOME/.mytool.yaml)")
+        "Config file path (default: $HOME/.mytool.yaml)")
     rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false,
-        "詳細出力")
+        "Verbose output")
 
-    // viper と連携
+    // Integrate with viper
     viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose"))
 }
 
@@ -325,7 +325,7 @@ func initConfig() {
 }
 ```
 
-### コード例5: サブコマンドの追加
+### Code Example 5: Adding Subcommands
 
 ```go
 // cmd/serve.go
@@ -345,14 +345,14 @@ var (
 
 var serveCmd = &cobra.Command{
     Use:   "serve",
-    Short: "HTTPサーバーを起動する",
-    Long:  `HTTPサーバーを指定されたホストとポートで起動します。`,
+    Short: "Start the HTTP server",
+    Long:  `Starts the HTTP server on the specified host and port.`,
     Example: `  mytool serve
   mytool serve --port 3000
   mytool serve --host 0.0.0.0 --port 8080`,
     RunE: func(cmd *cobra.Command, args []string) error {
         addr := fmt.Sprintf("%s:%d", serveHost, servePort)
-        fmt.Printf("サーバー起動: http://%s\n", addr)
+        fmt.Printf("Starting server: http://%s\n", addr)
 
         mux := http.NewServeMux()
         mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -365,13 +365,13 @@ var serveCmd = &cobra.Command{
 func init() {
     rootCmd.AddCommand(serveCmd)
 
-    // Local Flags: このコマンド専用
-    serveCmd.Flags().IntVarP(&servePort, "port", "p", 8080, "ポート番号")
-    serveCmd.Flags().StringVar(&serveHost, "host", "localhost", "ホスト名")
+    // Local Flags: specific to this command
+    serveCmd.Flags().IntVarP(&servePort, "port", "p", 8080, "Port number")
+    serveCmd.Flags().StringVar(&serveHost, "host", "localhost", "Host name")
 }
 ```
 
-### コード例6: ネストしたサブコマンド
+### Code Example 6: Nested Subcommands
 
 ```go
 // cmd/config.go
@@ -386,12 +386,12 @@ import (
 
 var configCmd = &cobra.Command{
     Use:   "config",
-    Short: "設定を管理する",
+    Short: "Manage configuration",
 }
 
 var configSetCmd = &cobra.Command{
     Use:   "set [key] [value]",
-    Short: "設定値を変更する",
+    Short: "Change a config value",
     Args:  cobra.ExactArgs(2),
     RunE: func(cmd *cobra.Command, args []string) error {
         key, value := args[0], args[1]
@@ -402,12 +402,12 @@ var configSetCmd = &cobra.Command{
 
 var configGetCmd = &cobra.Command{
     Use:   "get [key]",
-    Short: "設定値を表示する",
+    Short: "Display a config value",
     Args:  cobra.ExactArgs(1),
     Run: func(cmd *cobra.Command, args []string) {
         val := viper.GetString(args[0])
         if val == "" {
-            fmt.Printf("キー '%s' は設定されていません\n", args[0])
+            fmt.Printf("Key '%s' is not set\n", args[0])
             return
         }
         fmt.Println(val)
@@ -416,7 +416,7 @@ var configGetCmd = &cobra.Command{
 
 var configListCmd = &cobra.Command{
     Use:   "list",
-    Short: "全設定を一覧表示する",
+    Short: "List all configuration settings",
     Run: func(cmd *cobra.Command, args []string) {
         for key, val := range viper.AllSettings() {
             fmt.Printf("%s = %v\n", key, val)
@@ -426,9 +426,9 @@ var configListCmd = &cobra.Command{
 
 var configInitCmd = &cobra.Command{
     Use:   "init",
-    Short: "設定ファイルを初期化する",
+    Short: "Initialize the config file",
     RunE: func(cmd *cobra.Command, args []string) error {
-        // デフォルト値を設定
+        // Set default values
         viper.SetDefault("server.host", "localhost")
         viper.SetDefault("server.port", 8080)
         viper.SetDefault("database.driver", "postgres")
@@ -436,9 +436,9 @@ var configInitCmd = &cobra.Command{
         viper.SetDefault("log.format", "json")
 
         if err := viper.SafeWriteConfig(); err != nil {
-            return fmt.Errorf("設定ファイルの作成に失敗: %w", err)
+            return fmt.Errorf("failed to create config file: %w", err)
         }
-        fmt.Println("設定ファイルを作成しました")
+        fmt.Println("Config file created")
         return nil
     },
 }
@@ -452,36 +452,36 @@ func init() {
 }
 ```
 
-### コード例7: 引数バリデーション
+### Code Example 7: Argument Validation
 
 ```go
-// cobra の引数バリデーション関数一覧
+// List of cobra's argument validation functions
 var exampleCmds = []*cobra.Command{
-    // 引数なし
+    // No arguments
     {
         Use:  "status",
         Args: cobra.NoArgs,
         Run:  func(cmd *cobra.Command, args []string) {},
     },
-    // 正確に N 個
+    // Exactly N
     {
         Use:  "rename [old] [new]",
         Args: cobra.ExactArgs(2),
         Run:  func(cmd *cobra.Command, args []string) {},
     },
-    // 最小 N 個
+    // At least N
     {
         Use:  "add [file...]",
         Args: cobra.MinimumNArgs(1),
         Run:  func(cmd *cobra.Command, args []string) {},
     },
-    // 最大 N 個
+    // At most N
     {
         Use:  "show [name]",
         Args: cobra.MaximumNArgs(1),
         Run:  func(cmd *cobra.Command, args []string) {},
     },
-    // 範囲
+    // Range
     {
         Use:  "between [args...]",
         Args: cobra.RangeArgs(1, 3),
@@ -489,13 +489,13 @@ var exampleCmds = []*cobra.Command{
     },
 }
 
-// カスタムバリデーション
+// Custom validation
 var deployCmd = &cobra.Command{
     Use:   "deploy [environment]",
-    Short: "指定環境にデプロイする",
+    Short: "Deploy to the specified environment",
     Args: func(cmd *cobra.Command, args []string) error {
         if len(args) != 1 {
-            return fmt.Errorf("環境名を1つ指定してください")
+            return fmt.Errorf("please specify exactly one environment name")
         }
         validEnvs := map[string]bool{
             "development": true,
@@ -503,27 +503,27 @@ var deployCmd = &cobra.Command{
             "production":  true,
         }
         if !validEnvs[args[0]] {
-            return fmt.Errorf("無効な環境名: %s（development, staging, production のいずれかを指定）", args[0])
+            return fmt.Errorf("invalid environment name: %s (specify one of development, staging, production)", args[0])
         }
         return nil
     },
     RunE: func(cmd *cobra.Command, args []string) error {
         env := args[0]
-        fmt.Printf("%s 環境にデプロイします\n", env)
+        fmt.Printf("Deploying to %s environment\n", env)
         return nil
     },
 }
 
-// ValidArgsFunction: 動的な補完候補
+// ValidArgsFunction: dynamic completion candidates
 var connectCmd = &cobra.Command{
     Use:   "connect [server]",
-    Short: "サーバーに接続する",
+    Short: "Connect to a server",
     Args:  cobra.ExactArgs(1),
     ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
         if len(args) != 0 {
             return nil, cobra.ShellCompDirectiveNoFileComp
         }
-        // 動的にサーバー一覧を取得
+        // Retrieve the server list dynamically
         servers := []string{"web-01", "web-02", "db-01", "cache-01"}
         return servers, cobra.ShellCompDirectiveNoFileComp
     },
@@ -536,91 +536,91 @@ var connectCmd = &cobra.Command{
 
 ---
 
-## 4. cobra フラグ体系
+## 4. cobra Flag System
 
-### Persistent Flags vs Local Flags 比較表
+### Persistent Flags vs Local Flags Comparison
 
-| 項目 | Persistent Flags | Local Flags |
+| Item | Persistent Flags | Local Flags |
 |------|-----------------|-------------|
-| スコープ | 定義コマンド＋全子コマンド | 定義コマンドのみ |
-| 定義方法 | `PersistentFlags()` | `Flags()` |
-| 用途 | `--verbose`, `--config` など共通設定 | `--port`, `--output` などコマンド固有 |
-| viper連携 | `BindPFlag` で永続化可能 | 同様に可能 |
-| 継承 | 子コマンドが自動的に継承 | 継承されない |
+| Scope | Defining command + all child commands | Defining command only |
+| Definition method | `PersistentFlags()` | `Flags()` |
+| Use case | Common settings such as `--verbose`, `--config` | Command-specific options such as `--port`, `--output` |
+| viper integration | Can be persisted via `BindPFlag` | Supported in the same way |
+| Inheritance | Automatically inherited by child commands | Not inherited |
 
-### flag vs pflag vs cobra 比較表
+### flag vs pflag vs cobra Comparison
 
-| 機能 | 標準 flag | pflag | cobra |
-|------|----------|-------|-------|
-| POSIX形式 `--flag` | `-flag` のみ | 対応 | 対応（pflag内蔵） |
-| 短縮形 `-v` | 非対応 | 対応 | 対応 |
-| サブコマンド | 非対応 | 非対応 | 対応 |
-| 自動ヘルプ | 基本的 | 基本的 | リッチ |
-| シェル補完 | 非対応 | 非対応 | bash/zsh/fish/powershell |
-| 引数バリデーション | 手動 | 手動 | `Args` で宣言的に |
-| 設定ファイル連携 | 手動 | 手動 | viper統合 |
+| Feature | Standard flag | pflag | cobra |
+|---------|--------------|-------|-------|
+| POSIX style `--flag` | `-flag` only | Supported | Supported (pflag built-in) |
+| Short form `-v` | Not supported | Supported | Supported |
+| Subcommands | Not supported | Not supported | Supported |
+| Automatic help | Basic | Basic | Rich |
+| Shell completion | Not supported | Not supported | bash/zsh/fish/powershell |
+| Argument validation | Manual | Manual | Declaratively via `Args` |
+| Config file integration | Manual | Manual | Integrated with viper |
 
-### コード例8: フラグの高度な使い方
+### Code Example 8: Advanced Flag Usage
 
 ```go
 // cmd/serve.go
 func init() {
     rootCmd.AddCommand(serveCmd)
 
-    // 基本的なフラグ定義
-    serveCmd.Flags().IntVarP(&port, "port", "p", 8080, "ポート番号")
-    serveCmd.Flags().StringVar(&host, "host", "localhost", "ホスト名")
+    // Basic flag definitions
+    serveCmd.Flags().IntVarP(&port, "port", "p", 8080, "Port number")
+    serveCmd.Flags().StringVar(&host, "host", "localhost", "Host name")
 
-    // 必須フラグ
-    serveCmd.Flags().StringVar(&certFile, "cert", "", "TLS証明書ファイル")
+    // Required flag
+    serveCmd.Flags().StringVar(&certFile, "cert", "", "TLS certificate file")
     serveCmd.MarkFlagRequired("cert")
 
-    // ファイルパスの補完を有効化
+    // Enable file path completion
     serveCmd.MarkFlagFilename("cert", "pem", "crt")
 
-    // 相互排他フラグ
-    serveCmd.Flags().BoolVar(&useTLS, "tls", false, "TLSを有効にする")
-    serveCmd.Flags().BoolVar(&useHTTP2, "h2c", false, "HTTP/2 Cleartext を使う")
+    // Mutually exclusive flags
+    serveCmd.Flags().BoolVar(&useTLS, "tls", false, "Enable TLS")
+    serveCmd.Flags().BoolVar(&useHTTP2, "h2c", false, "Use HTTP/2 Cleartext")
     serveCmd.MarkFlagsMutuallyExclusive("tls", "h2c")
 
-    // グループ化（片方を指定したら両方必須）
-    serveCmd.Flags().StringVar(&certFile, "cert-file", "", "証明書ファイル")
-    serveCmd.Flags().StringVar(&keyFile, "key-file", "", "秘密鍵ファイル")
+    // Group (if one is specified, both are required)
+    serveCmd.Flags().StringVar(&certFile, "cert-file", "", "Certificate file")
+    serveCmd.Flags().StringVar(&keyFile, "key-file", "", "Private key file")
     serveCmd.MarkFlagsRequiredTogether("cert-file", "key-file")
 
-    // 環境変数との連携
+    // Integration with environment variables
     viper.BindPFlag("server.port", serveCmd.Flags().Lookup("port"))
     viper.BindPFlag("server.host", serveCmd.Flags().Lookup("host"))
 
-    // デフォルト値を環境変数から取得
+    // Take default values from environment variables
     viper.BindEnv("server.port", "MYAPP_PORT")
     viper.BindEnv("server.host", "MYAPP_HOST")
 }
 ```
 
-### コード例9: フラグのカスタムバリデーション
+### Code Example 9: Custom Flag Validation
 
 ```go
-// ポート番号のバリデーション
+// Port number validation
 var serveCmd = &cobra.Command{
     Use: "serve",
     PreRunE: func(cmd *cobra.Command, args []string) error {
         port, _ := cmd.Flags().GetInt("port")
         if port < 1 || port > 65535 {
-            return fmt.Errorf("ポート番号は 1-65535 の範囲で指定してください: %d", port)
+            return fmt.Errorf("port number must be in the range 1-65535: %d", port)
         }
         if port < 1024 {
-            fmt.Fprintf(os.Stderr, "警告: ポート %d は特権ポートです（root権限が必要）\n", port)
+            fmt.Fprintf(os.Stderr, "Warning: port %d is a privileged port (root privileges required)\n", port)
         }
         return nil
     },
     RunE: func(cmd *cobra.Command, args []string) error {
-        // メインロジック
+        // Main logic
         return nil
     },
 }
 
-// 列挙型フラグ
+// Enum-style flag
 type LogLevel string
 
 const (
@@ -637,7 +637,7 @@ func (l *LogLevel) Set(v string) error {
         *l = LogLevel(v)
         return nil
     default:
-        return fmt.Errorf("無効なログレベル: %s（debug, info, warn, error のいずれか）", v)
+        return fmt.Errorf("invalid log level: %s (must be one of debug, info, warn, error)", v)
     }
 }
 func (l *LogLevel) Type() string { return "LogLevel" }
@@ -645,7 +645,7 @@ func (l *LogLevel) Type() string { return "LogLevel" }
 var logLevel LogLevel = LogInfo
 
 func init() {
-    rootCmd.PersistentFlags().Var(&logLevel, "log-level", "ログレベル (debug|info|warn|error)")
+    rootCmd.PersistentFlags().Var(&logLevel, "log-level", "Log level (debug|info|warn|error)")
     rootCmd.RegisterFlagCompletionFunc("log-level", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
         return []string{"debug", "info", "warn", "error"}, cobra.ShellCompDirectiveNoFileComp
     })
@@ -654,30 +654,30 @@ func init() {
 
 ---
 
-## 5. viper による設定管理
+## 5. Configuration Management with viper
 
-### 設定の優先順位
+### Configuration Priority
 
 ```
 +----------------------------------------------------------+
-|  viper 設定優先順位（上が高い）                             |
+|  viper configuration priority (higher is stronger)       |
 +----------------------------------------------------------+
 |                                                          |
-|  1. viper.Set() による明示的な設定                        |
+|  1. Explicit settings via viper.Set()                    |
 |     ↓                                                    |
-|  2. コマンドラインフラグ（--port 3000）                   |
+|  2. Command-line flags (--port 3000)                     |
 |     ↓                                                    |
-|  3. 環境変数（MYAPP_PORT=3000）                          |
+|  3. Environment variables (MYAPP_PORT=3000)              |
 |     ↓                                                    |
-|  4. 設定ファイル（.mytool.yaml）                         |
+|  4. Config file (.mytool.yaml)                           |
 |     ↓                                                    |
-|  5. キー/バリューストア（etcd, Consul）                   |
+|  5. Key/value store (etcd, Consul)                       |
 |     ↓                                                    |
-|  6. viper.SetDefault() によるデフォルト値                 |
+|  6. Default values via viper.SetDefault()                |
 +----------------------------------------------------------+
 ```
 
-### コード例10: viperの包括的な設定管理
+### Code Example 10: Comprehensive Configuration Management with viper
 
 ```go
 package config
@@ -690,7 +690,7 @@ import (
     "github.com/spf13/viper"
 )
 
-// Config はアプリケーションの設定構造体
+// Config is the application's configuration struct
 type Config struct {
     Server   ServerConfig   `mapstructure:"server"`
     Database DatabaseConfig `mapstructure:"database"`
@@ -729,7 +729,7 @@ type AuthConfig struct {
 }
 
 func Load() (*Config, error) {
-    // デフォルト値
+    // Default values
     viper.SetDefault("server.host", "0.0.0.0")
     viper.SetDefault("server.port", 8080)
     viper.SetDefault("server.read_timeout", "30s")
@@ -743,29 +743,29 @@ func Load() (*Config, error) {
     viper.SetDefault("log.output", "stdout")
     viper.SetDefault("auth.token_expiry", "24h")
 
-    // 環境変数のバインド
+    // Bind environment variables
     viper.SetEnvPrefix("MYAPP")
     viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
     viper.AutomaticEnv()
 
-    // 設定ファイルの読み込み
+    // Read the config file
     if err := viper.ReadInConfig(); err != nil {
         if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-            return nil, fmt.Errorf("設定ファイルの読み込みに失敗: %w", err)
+            return nil, fmt.Errorf("failed to read config file: %w", err)
         }
-        // 設定ファイルが見つからない場合はデフォルト値で続行
+        // Continue with default values if the config file is not found
     }
 
     var cfg Config
     if err := viper.Unmarshal(&cfg); err != nil {
-        return nil, fmt.Errorf("設定のデコードに失敗: %w", err)
+        return nil, fmt.Errorf("failed to decode configuration: %w", err)
     }
 
     return &cfg, nil
 }
 ```
 
-### 設定ファイルの例
+### Example Config File
 
 ```yaml
 # .mytool.yaml
@@ -782,7 +782,7 @@ database:
   port: 5432
   name: "mydb"
   user: "admin"
-  password: "${DB_PASSWORD}"  # 環境変数で上書き推奨
+  password: "${DB_PASSWORD}"  # Recommended to override via environment variable
   ssl_mode: "require"
 
 log:
@@ -791,12 +791,12 @@ log:
   output: "stdout"
 
 auth:
-  jwt_secret: ""  # 環境変数 MYAPP_AUTH_JWT_SECRET で設定
+  jwt_secret: ""  # Set via environment variable MYAPP_AUTH_JWT_SECRET
   token_expiry: "24h"
   refresh_token: true
 ```
 
-### コード例11: 設定ファイルのホットリロード
+### Code Example 11: Hot Reloading the Config File
 
 ```go
 package config
@@ -821,20 +821,20 @@ func NewConfigWatcher() *ConfigWatcher {
 
 func (w *ConfigWatcher) Watch() {
     viper.OnConfigChange(func(e fsnotify.Event) {
-        log.Printf("設定ファイルが変更されました: %s", e.Name)
+        log.Printf("Config file changed: %s", e.Name)
 
         w.mu.Lock()
         defer w.mu.Unlock()
 
         var newCfg Config
         if err := viper.Unmarshal(&newCfg); err != nil {
-            log.Printf("設定の再読み込みに失敗: %v", err)
+            log.Printf("Failed to reload configuration: %v", err)
             return
         }
 
         w.config = &newCfg
 
-        // コールバックを実行
+        // Invoke callbacks
         for _, cb := range w.callbacks {
             cb(&newCfg)
         }
@@ -857,9 +857,9 @@ func (w *ConfigWatcher) Get() *Config {
 
 ---
 
-## 6. promptui による対話型CLI
+## 6. Interactive CLIs with promptui
 
-### コード例12: 選択メニューと入力プロンプト
+### Code Example 12: Selection Menus and Input Prompts
 
 ```go
 package main
@@ -872,9 +872,9 @@ import (
 )
 
 func main() {
-    // 選択プロンプト
+    // Selection prompt
     envSelect := promptui.Select{
-        Label: "デプロイ環境を選択",
+        Label: "Select deployment environment",
         Items: []string{"development", "staging", "production"},
         Templates: &promptui.SelectTemplates{
             Active:   "▸ {{ . | cyan }}",
@@ -884,29 +884,29 @@ func main() {
     }
     _, env, err := envSelect.Run()
     if err != nil {
-        fmt.Printf("選択キャンセル: %v\n", err)
+        fmt.Printf("Selection canceled: %v\n", err)
         return
     }
 
-    // production の場合、確認プロンプト
+    // Confirmation prompt for production
     if env == "production" {
         confirm := promptui.Prompt{
-            Label:     "本番環境へのデプロイを確認 (yes/no)",
+            Label:     "Confirm deployment to production (yes/no)",
             IsConfirm: true,
         }
         _, err := confirm.Run()
         if err != nil {
-            fmt.Println("デプロイをキャンセルしました")
+            fmt.Println("Deployment canceled")
             return
         }
     }
 
-    // 入力プロンプト（バリデーション付き）
+    // Input prompt (with validation)
     tagPrompt := promptui.Prompt{
-        Label: "リリースタグ (例: v1.2.3)",
+        Label: "Release tag (e.g., v1.2.3)",
         Validate: func(input string) error {
             if !strings.HasPrefix(input, "v") {
-                return fmt.Errorf("タグは 'v' で始まる必要があります")
+                return fmt.Errorf("tag must start with 'v'")
             }
             return nil
         },
@@ -916,28 +916,28 @@ func main() {
         return
     }
 
-    fmt.Printf("デプロイ実行: env=%s, tag=%s\n", env, tag)
+    fmt.Printf("Running deployment: env=%s, tag=%s\n", env, tag)
 }
 ```
 
-### 対話フロー
+### Interactive Flow
 
 ```
 $ mytool deploy
 
-? デプロイ環境を選択:
+? Select deployment environment:
     development
   ▸ staging
     production
 
 ✓ staging
 
-? リリースタグ (例: v1.2.3): v1.5.0
+? Release tag (e.g., v1.2.3): v1.5.0
 
-デプロイ実行: env=staging, tag=v1.5.0
+Running deployment: env=staging, tag=v1.5.0
 ```
 
-### コード例13: 構造体を使ったリッチな選択メニュー
+### Code Example 13: Rich Selection Menu Using Structs
 
 ```go
 type Server struct {
@@ -968,7 +968,7 @@ func selectServer() (*Server, error) {
 {{ "Status:" | faint }}   {{ .Status }}`,
     }
 
-    // 検索機能付き
+    // With search feature
     searcher := func(input string, index int) bool {
         s := servers[index]
         name := strings.Replace(strings.ToLower(s.Name), " ", "", -1)
@@ -977,7 +977,7 @@ func selectServer() (*Server, error) {
     }
 
     prompt := promptui.Select{
-        Label:     "接続先サーバーを選択",
+        Label:     "Select server to connect to",
         Items:     servers,
         Templates: templates,
         Size:      10,
@@ -993,16 +993,16 @@ func selectServer() (*Server, error) {
 }
 ```
 
-### コード例14: パスワード入力
+### Code Example 14: Password Input
 
 ```go
 func promptPassword() (string, error) {
     prompt := promptui.Prompt{
-        Label: "パスワード",
+        Label: "Password",
         Mask:  '*',
         Validate: func(input string) error {
             if len(input) < 8 {
-                return fmt.Errorf("パスワードは8文字以上必要です")
+                return fmt.Errorf("password must be at least 8 characters")
             }
             hasUpper := false
             hasDigit := false
@@ -1015,10 +1015,10 @@ func promptPassword() (string, error) {
                 }
             }
             if !hasUpper {
-                return fmt.Errorf("大文字を1文字以上含めてください")
+                return fmt.Errorf("must include at least one uppercase letter")
             }
             if !hasDigit {
-                return fmt.Errorf("数字を1文字以上含めてください")
+                return fmt.Errorf("must include at least one digit")
             }
             return nil
         },
@@ -1030,9 +1030,9 @@ func promptPassword() (string, error) {
 
 ---
 
-## 7. シェル補完とドキュメント生成
+## 7. Shell Completion and Documentation Generation
 
-### コード例15: シェル補完コマンド
+### Code Example 15: Shell Completion Command
 
 ```go
 // cmd/completion.go
@@ -1046,22 +1046,22 @@ import (
 
 var completionCmd = &cobra.Command{
     Use:   "completion [bash|zsh|fish|powershell]",
-    Short: "シェル補完スクリプトを生成する",
-    Long: `指定されたシェル用の補完スクリプトを生成します。
+    Short: "Generate shell completion scripts",
+    Long: `Generates a completion script for the specified shell.
 
 Bash:
   $ source <(mytool completion bash)
-  # 永続化するには:
+  # To persist:
   $ mytool completion bash > /etc/bash_completion.d/mytool
 
 Zsh:
   $ source <(mytool completion zsh)
-  # 永続化するには:
+  # To persist:
   $ mytool completion zsh > "${fpath[1]}/_mytool"
 
 Fish:
   $ mytool completion fish | source
-  # 永続化するには:
+  # To persist:
   $ mytool completion fish > ~/.config/fish/completions/mytool.fish
 
 PowerShell:
@@ -1091,7 +1091,7 @@ func init() {
 }
 ```
 
-### コード例16: Markdownドキュメント自動生成
+### Code Example 16: Automatic Markdown Documentation Generation
 
 ```go
 // cmd/docs.go
@@ -1104,54 +1104,54 @@ import (
 
 var docsCmd = &cobra.Command{
     Use:    "docs",
-    Short:  "ドキュメントを生成する",
-    Hidden: true, // ユーザーに表示しない
+    Short:  "Generate documentation",
+    Hidden: true, // Hidden from users
     RunE: func(cmd *cobra.Command, args []string) error {
         outputDir, _ := cmd.Flags().GetString("dir")
 
-        // Markdownドキュメント生成
+        // Generate Markdown documentation
         if err := doc.GenMarkdownTree(rootCmd, outputDir); err != nil {
-            return fmt.Errorf("ドキュメント生成に失敗: %w", err)
+            return fmt.Errorf("documentation generation failed: %w", err)
         }
-        fmt.Printf("ドキュメントを %s に生成しました\n", outputDir)
+        fmt.Printf("Documentation generated in %s\n", outputDir)
         return nil
     },
 }
 
 func init() {
     rootCmd.AddCommand(docsCmd)
-    docsCmd.Flags().String("dir", "./docs", "出力ディレクトリ")
+    docsCmd.Flags().String("dir", "./docs", "Output directory")
 }
 ```
 
 ---
 
-## 8. CLI 設計のベストプラクティス
+## 8. CLI Design Best Practices
 
-### コード例17: エラーハンドリングと終了コード
+### Code Example 17: Error Handling and Exit Codes
 
 ```go
 var rootCmd = &cobra.Command{
-    // RunE を使い、エラーを返す
+    // Use RunE and return errors
     RunE: func(cmd *cobra.Command, args []string) error {
         if err := doSomething(); err != nil {
-            // ユーザー向けメッセージはラップして返す
-            return fmt.Errorf("処理に失敗しました: %w", err)
+            // Wrap user-facing messages before returning
+            return fmt.Errorf("operation failed: %w", err)
         }
         return nil
     },
-    // SilenceUsage: エラー時にUsage を表示しない
+    // SilenceUsage: don't print Usage on error
     SilenceUsage: true,
-    // SilenceErrors: cobra のデフォルトエラー表示を抑制
+    // SilenceErrors: suppress cobra's default error display
     SilenceErrors: true,
 }
 
 func Execute() {
     if err := rootCmd.Execute(); err != nil {
-        // エラーを stderr に出力
+        // Print error to stderr
         fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 
-        // エラーの種類に応じた終了コード
+        // Exit code based on error type
         var exitErr *ExitError
         if errors.As(err, &exitErr) {
             os.Exit(exitErr.Code)
@@ -1160,7 +1160,7 @@ func Execute() {
     }
 }
 
-// カスタム終了コード
+// Custom exit code
 type ExitError struct {
     Code    int
     Message string
@@ -1171,10 +1171,10 @@ func (e *ExitError) Error() string {
 }
 ```
 
-### コード例18: テスト可能なCLI設計
+### Code Example 18: Testable CLI Design
 
 ```go
-// main.go — 最小限のエントリポイント
+// main.go — minimal entry point
 package main
 
 import (
@@ -1187,7 +1187,7 @@ func main() {
     cmd.Execute()
 }
 
-// cmd/root.go — テスト可能な構造
+// cmd/root.go — testable structure
 package cmd
 
 import (
@@ -1195,7 +1195,7 @@ import (
     "os"
 )
 
-// App はCLIアプリケーションの依存関係をまとめる
+// App groups the CLI application's dependencies
 type App struct {
     Stdout io.Writer
     Stderr io.Writer
@@ -1212,7 +1212,7 @@ func DefaultApp() *App {
     }
 }
 
-// テスト用
+// For testing
 func TestApp(stdout, stderr io.Writer) *App {
     return &App{
         Stdout: stdout,
@@ -1232,11 +1232,11 @@ func TestServeCommand(t *testing.T) {
 
     err := cmd.Execute()
     require.NoError(t, err)
-    assert.Contains(t, stdout.String(), "サーバー起動")
+    assert.Contains(t, stdout.String(), "Starting server")
 }
 ```
 
-### コード例19: プログレスバーとスピナー
+### Code Example 19: Progress Bars and Spinners
 
 ```go
 package main
@@ -1250,7 +1250,7 @@ import (
 
 func downloadFiles(urls []string) error {
     bar := progressbar.NewOptions(len(urls),
-        progressbar.OptionSetDescription("ダウンロード中"),
+        progressbar.OptionSetDescription("Downloading"),
         progressbar.OptionSetTheme(progressbar.Theme{
             Saucer:        "=",
             SaucerHead:    ">",
@@ -1264,7 +1264,7 @@ func downloadFiles(urls []string) error {
     )
 
     for _, url := range urls {
-        // ダウンロード処理
+        // Download operation
         err := download(url)
         if err != nil {
             return fmt.Errorf("download %s: %w", url, err)
@@ -1272,11 +1272,11 @@ func downloadFiles(urls []string) error {
         bar.Add(1)
     }
 
-    fmt.Println("\n完了!")
+    fmt.Println("\nDone!")
     return nil
 }
 
-// スピナーの実装
+// Spinner implementation
 func withSpinner(message string, fn func() error) error {
     done := make(chan struct{})
     spinner := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
@@ -1307,7 +1307,7 @@ func withSpinner(message string, fn func() error) error {
 }
 ```
 
-### コード例20: 出力フォーマットの切り替え
+### Code Example 20: Switching Output Formats
 
 ```go
 package output
@@ -1364,12 +1364,12 @@ func (p *Printer) PrintUsers(users []User) error {
     }
 }
 
-// CLI での使用
+// Usage in CLI
 var outputFormat string
 
 var listCmd = &cobra.Command{
     Use:   "list",
-    Short: "ユーザー一覧を表示する",
+    Short: "Display the user list",
     RunE: func(cmd *cobra.Command, args []string) error {
         users, err := fetchUsers()
         if err != nil {
@@ -1386,7 +1386,7 @@ var listCmd = &cobra.Command{
 
 func init() {
     listCmd.Flags().StringVarP(&outputFormat, "output", "o", "table",
-        "出力フォーマット (table|json|yaml|wide)")
+        "Output format (table|json|yaml|wide)")
     listCmd.RegisterFlagCompletionFunc("output", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
         return []string{"table", "json", "yaml", "wide"}, cobra.ShellCompDirectiveNoFileComp
     })
@@ -1395,9 +1395,9 @@ func init() {
 
 ---
 
-## 9. GoReleaser によるCLIバイナリ配布
+## 9. Distributing CLI Binaries with GoReleaser
 
-### コード例21: GoReleaser 設定
+### Code Example 21: GoReleaser Configuration
 
 ```yaml
 # .goreleaser.yaml
@@ -1470,22 +1470,22 @@ changelog:
 
 ---
 
-## 10. アンチパターン
+## 10. Anti-patterns
 
-### アンチパターン1: main() にロジックを直書き
+### Anti-pattern 1: Writing Logic Directly in main()
 
 ```go
-// NG: テスト不能、再利用不能
+// BAD: not testable, not reusable
 func main() {
     flag.Parse()
     db, _ := sql.Open("postgres", *dsn)
     rows, _ := db.Query("SELECT ...")
     for rows.Next() {
-        // 全処理がmainに集中
+        // All processing concentrated in main
     }
 }
 
-// OK: ロジックを分離し、mainはエントリポイントのみ
+// GOOD: separate logic; main is only an entry point
 func main() {
     if err := run(os.Args[1:], os.Stdout); err != nil {
         fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -1494,7 +1494,7 @@ func main() {
 }
 
 func run(args []string, stdout io.Writer) error {
-    // テスト可能なロジック
+    // Testable logic
     cfg, err := parseFlags(args)
     if err != nil {
         return err
@@ -1503,10 +1503,10 @@ func run(args []string, stdout io.Writer) error {
 }
 ```
 
-### アンチパターン2: グローバル変数の乱用
+### Anti-pattern 2: Abuse of Global Variables
 
 ```go
-// NG: 全てグローバルで管理
+// BAD: everything managed globally
 var (
     db      *sql.DB
     logger  *log.Logger
@@ -1514,7 +1514,7 @@ var (
     client  *http.Client
 )
 
-// OK: 構造体にまとめて依存注入
+// GOOD: group them in a struct and inject dependencies
 type App struct {
     DB     *sql.DB
     Logger *log.Logger
@@ -1536,105 +1536,105 @@ func NewApp(cfg Config) (*App, error) {
 }
 ```
 
-### アンチパターン3: ユーザーに不親切なエラーメッセージ
+### Anti-pattern 3: Unfriendly Error Messages for Users
 
 ```go
-// NG: 内部エラーをそのまま表示
+// BAD: display internal errors as-is
 func RunE(cmd *cobra.Command, args []string) error {
     return db.Query("SELECT ...")  // "pq: relation \"users\" does not exist"
 }
 
-// OK: ユーザーが理解できるメッセージ + 詳細は verbose で表示
+// GOOD: user-understandable message + details shown with verbose
 func RunE(cmd *cobra.Command, args []string) error {
     _, err := db.Query("SELECT ...")
     if err != nil {
         if verbose {
-            return fmt.Errorf("データベースクエリに失敗しました\n  詳細: %v\n  ヒント: マイグレーションを実行してください: mytool migrate up", err)
+            return fmt.Errorf("database query failed\n  details: %v\n  hint: run migrations with: mytool migrate up", err)
         }
-        return fmt.Errorf("データベースクエリに失敗しました（-v で詳細を表示）")
+        return fmt.Errorf("database query failed (use -v for details)")
     }
     return nil
 }
 ```
 
-### アンチパターン4: シグナルハンドリングの欠如
+### Anti-pattern 4: Missing Signal Handling
 
 ```go
-// NG: Ctrl+C で即座に終了、リソースリーク
+// BAD: terminates immediately on Ctrl+C, resource leak
 func main() {
     srv := startServer()
-    select{} // 永遠にブロック
+    select{} // Blocks forever
 }
 
-// OK: グレースフルシャットダウン
+// GOOD: graceful shutdown
 func main() {
     ctx, cancel := context.WithCancel(context.Background())
     defer cancel()
 
-    // シグナルハンドリング
+    // Signal handling
     sigCh := make(chan os.Signal, 1)
     signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
     srv := startServer(ctx)
 
-    // シグナル待ち
+    // Wait for signal
     sig := <-sigCh
-    fmt.Printf("\nシグナル受信: %v、シャットダウンします...\n", sig)
+    fmt.Printf("\nReceived signal: %v, shutting down...\n", sig)
 
-    // グレースフルシャットダウン
+    // Graceful shutdown
     shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
     defer shutdownCancel()
 
     if err := srv.Shutdown(shutdownCtx); err != nil {
-        fmt.Fprintf(os.Stderr, "シャットダウンエラー: %v\n", err)
+        fmt.Fprintf(os.Stderr, "Shutdown error: %v\n", err)
         os.Exit(1)
     }
-    fmt.Println("正常にシャットダウンしました")
+    fmt.Println("Shut down gracefully")
 }
 ```
 
 
 ---
 
-## 実践演習
+## Practical Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that satisfies the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate input data
+- Implement appropriate error handling
+- Also write test code
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: template for basic implementation
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Exercise in basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main data processing logic"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Retrieve processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Test
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1643,26 +1643,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "An exception should be raised"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation to add the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: advanced patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Exercise in advanced patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1670,7 +1670,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1681,14 +1681,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Remove by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1696,7 +1696,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1704,44 +1704,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Test
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # Size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1750,7 +1750,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1765,79 +1765,79 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient: {slow_time:.4f}s")
+    print(f"Efficient:   {fast_time:.6f}s")
+    print(f"Speedup:     {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key points:**
+- Be mindful of algorithmic complexity
+- Choose appropriate data structures
+- Measure the effect with benchmarks
 ---
 
 ## FAQ
 
-### Q1. cobra と urfave/cli、どちらを選ぶべき？
+### Q1. Should I choose cobra or urfave/cli?
 
-cobraはDocker、Kubernetes、Hugo、GitHub CLIなど大規模プロジェクトで採用されており、エコシステムが充実している。urfave/cliはよりシンプルだが、シェル補完やviper連携などの機能はcobraが優る。新規プロジェクトではcobraを推奨。
+cobra is adopted by large projects such as Docker, Kubernetes, Hugo, and GitHub CLI, and has a rich ecosystem. urfave/cli is simpler, but cobra is superior for features such as shell completion and viper integration. We recommend cobra for new projects.
 
-### Q2. CLIツールのバイナリ配布はどうする？
+### Q2. How should CLI tool binaries be distributed?
 
-GoReleaserを使うと、`git tag` をトリガーにクロスコンパイル・GitHub Releases・Homebrew Tap・Docker Image の自動生成ができる。`.goreleaser.yaml` を設定してGitHub Actionsと連携させるのが標準的。
+Using GoReleaser, you can trigger cross-compilation, GitHub Releases, Homebrew Tap, and Docker Image generation automatically from a `git tag`. Configuring `.goreleaser.yaml` and integrating it with GitHub Actions is the standard approach.
 
-### Q3. 設定ファイル・環境変数・フラグの優先順位は？
+### Q3. What is the priority of config files, environment variables, and flags?
 
-viperの標準優先順位は: 1) 明示的な `Set()` 呼び出し → 2) フラグ → 3) 環境変数 → 4) 設定ファイル → 5) デフォルト値。この順序により、ユーザーは設定ファイルをベースにしつつ、環境変数やフラグで上書きできる。
+The standard viper priority is: 1) an explicit `Set()` call → 2) flags → 3) environment variables → 4) config file → 5) default values. This ordering allows users to use the config file as a baseline while overriding with environment variables or flags.
 
-### Q4. CLIツールのテストはどう書くべき？
+### Q4. How should I write tests for CLI tools?
 
-3層に分けてテストする。1) ビジネスロジックのユニットテスト、2) コマンド実行のインテグレーションテスト（`cmd.SetArgs()` + `cmd.Execute()` を使う）、3) バイナリレベルのE2Eテスト（`os/exec` でバイナリを実行）。テスト可能にするには、`io.Writer` を注入し、`os.Stdout` に直接書き込まない設計にする。
+Test in three layers. 1) Unit tests for business logic; 2) integration tests for command execution (using `cmd.SetArgs()` + `cmd.Execute()`); 3) E2E tests at the binary level (running the binary via `os/exec`). To make things testable, design so that you inject an `io.Writer` and don't write directly to `os.Stdout`.
 
-### Q5. cobra のPreRun/PostRun はどう使い分ける？
+### Q5. How do I use cobra's PreRun/PostRun appropriately?
 
-`PersistentPreRun`: 全サブコマンドの前に実行（ロガー初期化、設定読み込みなど）。`PreRun`: 特定コマンドの前に実行（引数バリデーション、前提条件チェック）。`PostRun`: コマンド後に実行（クリーンアップ、ログ出力）。RunE のエラー有無に関わらず PersistentPostRun は実行される。
+`PersistentPreRun`: runs before every subcommand (logger initialization, loading configuration, etc.). `PreRun`: runs before a specific command (argument validation, prerequisite checks). `PostRun`: runs after a command (cleanup, logging). `PersistentPostRun` is executed regardless of whether RunE returned an error.
 
-### Q6. CLIの出力を構造化するベストプラクティスは？
+### Q6. What are best practices for structuring CLI output?
 
-標準出力(stdout)にはプログラムの結果を、標準エラー出力(stderr)にはログ・プログレス・エラーメッセージを出力する。これにより `mytool list | jq .` のようなパイプ処理が正しく動作する。`--output json` フラグでJSON出力をサポートすると、スクリプトからの利用が容易になる。
-
----
-
-## まとめ
-
-| 概念 | 要点 |
-|------|------|
-| 標準flag | シンプルなCLIに十分、`-flag` 形式 |
-| FlagSet | 標準flagでサブコマンドを実装する方法 |
-| pflag | POSIX互換 `--flag`、短縮形 `-f` 対応 |
-| cobra | サブコマンド・ヘルプ・補完の業界標準 |
-| viper | 設定ファイル・環境変数・フラグの統合管理 |
-| promptui | 対話型選択メニュー・入力プロンプト |
-| RunE | エラーを返すコマンド実行（Run より推奨） |
-| SilenceUsage | エラー時のUsage表示抑制 |
-| シェル補完 | bash/zsh/fish/powershell 対応の補完スクリプト |
-| GoReleaser | クロスコンパイル・配布の自動化 |
-| 出力フォーマット | table/json/yaml の切り替えサポート |
-| シグナルハンドリング | グレースフルシャットダウンの実装 |
+Write program results to standard output (stdout) and logs, progress, and error messages to standard error (stderr). This makes pipe processing such as `mytool list | jq .` work correctly. Supporting JSON output via an `--output json` flag makes consumption from scripts easier.
 
 ---
 
-## 次に読むべきガイド
+## Summary
 
-- **03-tools/01-generics.md** — ジェネリクス：型パラメータ、制約
-- **03-tools/03-deployment.md** — デプロイ：Docker、クロスコンパイル
-- **02-web/04-testing.md** — テスト：table-driven tests、testify、httptest
+| Concept | Key points |
+|---------|-----------|
+| Standard flag | Sufficient for simple CLIs, `-flag` style |
+| FlagSet | How to implement subcommands with the standard flag |
+| pflag | POSIX-compatible `--flag`, supports short form `-f` |
+| cobra | Industry standard for subcommands, help, and completion |
+| viper | Integrated management of config files, environment variables, and flags |
+| promptui | Interactive selection menus and input prompts |
+| RunE | Command execution returning an error (preferred over Run) |
+| SilenceUsage | Suppress Usage display on errors |
+| Shell completion | Completion scripts supporting bash/zsh/fish/powershell |
+| GoReleaser | Automate cross-compilation and distribution |
+| Output format | Support switching between table/json/yaml |
+| Signal handling | Implement graceful shutdown |
 
 ---
 
-## 参考文献
+## Recommended Next Guides
+
+- **03-tools/01-generics.md** — Generics: type parameters, constraints
+- **03-tools/03-deployment.md** — Deployment: Docker, cross-compilation
+- **02-web/04-testing.md** — Testing: table-driven tests, testify, httptest
+
+---
+
+## References
 
 1. **spf13/cobra GitHub** https://github.com/spf13/cobra
 2. **spf13/viper GitHub** https://github.com/spf13/viper
 3. **manifoldco/promptui GitHub** https://github.com/manifoldco/promptui
-4. **GoReleaser 公式ドキュメント** https://goreleaser.com/
-5. **Go公式 — flag パッケージ** https://pkg.go.dev/flag
-6. **cobra ドキュメント — User Guide** https://cobra.dev/
+4. **GoReleaser Official Documentation** https://goreleaser.com/
+5. **Go Official — flag package** https://pkg.go.dev/flag
+6. **cobra Documentation — User Guide** https://cobra.dev/
