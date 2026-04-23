@@ -1,37 +1,36 @@
-# 振る舞いパターン（Behavioral Patterns）
+# Behavioral Patterns
 
-> オブジェクト間の責任の分配とアルゴリズムのカプセル化に関するパターン。Strategy、Observer、Command、State、Iterator、Chain of Responsibility、Template Method、Mediator、Visitor の9つを実践的に解説。
+> Patterns concerning the distribution of responsibilities between objects and the encapsulation of algorithms. A practical guide to nine patterns: Strategy, Observer, Command, State, Iterator, Chain of Responsibility, Template Method, Mediator, and Visitor.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] 各振る舞いパターンの目的と適用場面を理解する
-- [ ] 各パターンの実装方法を複数言語で把握する
-- [ ] 現代のフレームワークでの応用を学ぶ
-- [ ] パターン間の違いと組み合わせを理解する
-- [ ] テスタビリティを考慮した振る舞い設計ができるようになる
+- [ ] Understand the purpose and applicable scenarios of each behavioral pattern
+- [ ] Grasp the implementation of each pattern across multiple languages
+- [ ] Learn how these patterns are applied in modern frameworks
+- [ ] Understand the differences between patterns and how to combine them
+- [ ] Be able to design behaviors with testability in mind
 
+## Prerequisites
 
-## 前提知識
+Your understanding will deepen if you have the following knowledge before reading this guide:
 
-このガイドを読む前に、以下の知識があると理解が深まります:
-
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [構造パターン（Structural Patterns）](./01-structural-patterns.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding of the contents of [Structural Patterns](./01-structural-patterns.md)
 
 ---
 
-## 1. Strategy パターン
+## 1. Strategy Pattern
 
-### 1.1 概要と目的
+### 1.1 Overview and Purpose
 
 ```
-目的: アルゴリズムをカプセル化し、実行時に切り替え可能にする
+Purpose: Encapsulate algorithms and make them interchangeable at runtime
 
-構造:
+Structure:
   ┌─────────┐      ┌────────────────┐
   │ Context │─────→│   Strategy     │
-  │         │      │ (インターフェース) │
+  │         │      │  (interface)   │
   └─────────┘      └───────┬────────┘
                            │
               ┌────────────┼────────────┐
@@ -39,19 +38,19 @@
          │StratA   │  │StratB │  │StratC   │
          └─────────┘  └───────┘  └─────────┘
 
-現代の応用: React のレンダー戦略、ソートアルゴリズムの選択、DI
+Modern applications: React render strategies, sort algorithm selection, DI
 
-いつ使うか:
-  → 同じ処理に複数のアルゴリズムがある
-  → 実行時にアルゴリズムを切り替えたい
-  → if-else/switch の分岐が増えてきた
-  → アルゴリズムの詳細をクライアントから隠したい
+When to use:
+  → Multiple algorithms exist for the same process
+  → You want to switch algorithms at runtime
+  → if-else/switch branches are growing out of hand
+  → You want to hide algorithm details from clients
 ```
 
-### 1.2 圧縮戦略
+### 1.2 Compression Strategies
 
 ```typescript
-// 圧縮戦略
+// Compression strategy
 interface CompressionStrategy {
   compress(data: Buffer): Promise<Buffer>;
   decompress(data: Buffer): Promise<Buffer>;
@@ -101,7 +100,7 @@ class NoCompression implements CompressionStrategy {
   async decompress(data: Buffer): Promise<Buffer> { return data; }
 }
 
-// Context: 圧縮戦略を使うファイルプロセッサ
+// Context: file processor that uses a compression strategy
 class FileProcessor {
   constructor(private compression: CompressionStrategy) {}
 
@@ -133,18 +132,18 @@ class FileProcessor {
   }
 }
 
-// 使用例: ファイルサイズに応じて戦略を自動選択
+// Usage: automatically select strategy based on file size
 function selectCompression(fileSize: number): CompressionStrategy {
-  if (fileSize < 1024) return new NoCompression();           // 1KB未満: 圧縮不要
-  if (fileSize < 1024 * 1024) return new GzipCompression();  // 1MB未満: gzip
-  return new BrotliCompression();                             // 1MB以上: brotli
+  if (fileSize < 1024) return new NoCompression();           // less than 1KB: no compression
+  if (fileSize < 1024 * 1024) return new GzipCompression();  // less than 1MB: gzip
+  return new BrotliCompression();                             // 1MB or more: brotli
 }
 ```
 
-### 1.3 バリデーション戦略
+### 1.3 Validation Strategies
 
 ```typescript
-// バリデーション戦略パターン
+// Validation strategy pattern
 interface ValidationStrategy<T> {
   validate(data: T): ValidationResult;
   readonly name: string;
@@ -163,7 +162,7 @@ class RequiredFieldsValidator implements ValidationStrategy<Record<string, any>>
   validate(data: Record<string, any>): ValidationResult {
     const errors = this.requiredFields
       .filter(field => !data[field] || (typeof data[field] === "string" && data[field].trim() === ""))
-      .map(field => ({ field, message: `${field}は必須です` }));
+      .map(field => ({ field, message: `${field} is required` }));
 
     return { valid: errors.length === 0, errors };
   }
@@ -178,7 +177,7 @@ class EmailFormatValidator implements ValidationStrategy<Record<string, any>> {
   validate(data: Record<string, any>): ValidationResult {
     const errors = this.emailFields
       .filter(field => data[field] && !this.emailRegex.test(data[field]))
-      .map(field => ({ field, message: `${data[field]}は有効なメールアドレスではありません` }));
+      .map(field => ({ field, message: `${data[field]} is not a valid email address` }));
 
     return { valid: errors.length === 0, errors };
   }
@@ -199,10 +198,10 @@ class RangeValidator implements ValidationStrategy<Record<string, any>> {
       if (value === undefined || value === null) continue;
 
       if (rule.min !== undefined && value < rule.min) {
-        errors.push({ field: rule.field, message: `${rule.field}は${rule.min}以上である必要があります` });
+        errors.push({ field: rule.field, message: `${rule.field} must be at least ${rule.min}` });
       }
       if (rule.max !== undefined && value > rule.max) {
-        errors.push({ field: rule.field, message: `${rule.field}は${rule.max}以下である必要があります` });
+        errors.push({ field: rule.field, message: `${rule.field} must be at most ${rule.max}` });
       }
     }
 
@@ -210,7 +209,7 @@ class RangeValidator implements ValidationStrategy<Record<string, any>> {
   }
 }
 
-// 複数の戦略を組み合わせる Composite Strategy
+// Composite Strategy that combines multiple strategies
 class CompositeValidator implements ValidationStrategy<Record<string, any>> {
   name = "composite";
   private strategies: ValidationStrategy<Record<string, any>>[] = [];
@@ -232,31 +231,31 @@ class CompositeValidator implements ValidationStrategy<Record<string, any>> {
   }
 }
 
-// 使用例
+// Usage
 const userValidator = new CompositeValidator()
   .add(new RequiredFieldsValidator(["name", "email", "age"]))
   .add(new EmailFormatValidator(["email"]))
   .add(new RangeValidator([{ field: "age", min: 0, max: 150 }]));
 
 const result = userValidator.validate({
-  name: "太郎",
+  name: "Taro",
   email: "invalid-email",
   age: 200,
 });
 // { valid: false, errors: [
-//   { field: "email", message: "invalid-emailは有効なメールアドレスではありません" },
-//   { field: "age", message: "ageは150以下である必要があります" }
+//   { field: "email", message: "invalid-email is not a valid email address" },
+//   { field: "age", message: "age must be at most 150" }
 // ]}
 ```
 
-### 1.4 Python での Strategy パターン
+### 1.4 Strategy Pattern in Python
 
 ```python
-# Python: Strategy パターン（関数ベースとクラスベース）
+# Python: Strategy pattern (function-based and class-based)
 from typing import Protocol, Callable
 from abc import abstractmethod
 
-# Protocol ベースの Strategy
+# Protocol-based Strategy
 class SortStrategy(Protocol):
     def sort(self, data: list) -> list: ...
 
@@ -304,42 +303,42 @@ class DataProcessor:
     def process(self, data: list) -> list:
         return self._sort_strategy.sort(data)
 
-# 関数ベースの Strategy（Python らしいアプローチ）
+# Function-based Strategy (the Pythonic approach)
 def process_data(data: list, sort_fn: Callable[[list], list] = sorted) -> list:
     return sort_fn(data)
 
-# 使用例
+# Usage
 processor = DataProcessor(QuickSort())
 result = processor.process([3, 1, 4, 1, 5, 9, 2, 6])
 ```
 
 ---
 
-## 2. Observer パターン
+## 2. Observer Pattern
 
-### 2.1 概要と目的
+### 2.1 Overview and Purpose
 
 ```
-目的: オブジェクトの状態変化を他のオブジェクトに自動通知する
+Purpose: Automatically notify other objects of state changes in an object
 
-構造:
+Structure:
   ┌──────────┐      ┌──────────────┐
   │ Subject  │─────→│   Observer   │ ×N
-  │ (発行者) │      │  (購読者)    │
+  │(publisher)│      │ (subscriber) │
   └──────────┘      └──────────────┘
 
-現代の応用: イベントシステム、React の状態管理、RxJS、Pub/Sub
+Modern applications: event systems, React state management, RxJS, Pub/Sub
 
-いつ使うか:
-  → オブジェクトの状態変化を複数のオブジェクトに通知したい
-  → 疎結合な通信メカニズムが必要
-  → 購読者の数や種類が動的に変わる
+When to use:
+  → You want to notify multiple objects of state changes
+  → You need a loosely coupled communication mechanism
+  → The number and kinds of subscribers change dynamically
 ```
 
-### 2.2 型安全な EventEmitter
+### 2.2 Type-Safe EventEmitter
 
 ```typescript
-// 型安全な EventEmitter
+// Type-safe EventEmitter
 type EventMap = {
   userCreated: { userId: string; email: string };
   userDeleted: { userId: string };
@@ -358,7 +357,7 @@ class TypedEventEmitter<T extends Record<string, any>> {
     }
     this.listeners.get(event)!.add(listener);
 
-    // unsubscribe 関数を返す
+    // Return an unsubscribe function
     return () => this.listeners.get(event)?.delete(listener);
   }
 
@@ -371,10 +370,10 @@ class TypedEventEmitter<T extends Record<string, any>> {
   }
 
   emit<K extends keyof T>(event: K, data: T[K]): void {
-    // 通常のリスナー
+    // Regular listeners
     this.listeners.get(event)?.forEach(listener => listener(data));
 
-    // 一度だけのリスナー
+    // One-time listeners
     this.onceListeners.get(event)?.forEach(listener => listener(data));
     this.onceListeners.delete(event);
   }
@@ -398,34 +397,34 @@ class TypedEventEmitter<T extends Record<string, any>> {
   }
 }
 
-// 使用例
+// Usage
 const events = new TypedEventEmitter<EventMap>();
 
-// Observer（購読者）を登録
+// Register Observer (subscriber)
 const unsubscribe = events.on("userCreated", (data) => {
-  console.log(`Welcome email to ${data.email}`); // 型安全
+  console.log(`Welcome email to ${data.email}`); // type-safe
 });
 
 events.on("orderPlaced", (data) => {
   console.log(`Order ${data.orderId}: ¥${data.total}`);
 });
 
-// 1回だけ購読
+// Subscribe only once
 events.once("userCreated", (data) => {
   console.log(`First user bonus for ${data.userId}`);
 });
 
-// Subject（発行者）がイベントを発行
+// Subject (publisher) emits events
 events.emit("userCreated", { userId: "1", email: "tanaka@example.com" });
 events.emit("orderPlaced", { orderId: "O-001", total: 5000 });
 
-unsubscribe(); // 購読解除
+unsubscribe(); // Unsubscribe
 ```
 
-### 2.3 Reactive Store（状態管理）
+### 2.3 Reactive Store (state management)
 
 ```typescript
-// Reactive Store: React/Vue風の状態管理
+// Reactive Store: React/Vue-style state management
 interface StoreOptions<T> {
   initialState: T;
   middleware?: Array<(prev: T, next: T, action: string) => T>;
@@ -446,13 +445,13 @@ class ReactiveStore<T extends Record<string, any>> {
     return this.state;
   }
 
-  // 状態全体を購読
+  // Subscribe to the entire state
   subscribe(listener: (state: T) => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   }
 
-  // 特定のプロパティを購読（セレクタ）
+  // Subscribe to a specific property (selector)
   select<K extends keyof T>(key: K, listener: (value: T[K]) => void): () => void {
     const keyStr = String(key);
     if (!this.selectorListeners.has(keyStr)) {
@@ -462,23 +461,23 @@ class ReactiveStore<T extends Record<string, any>> {
     return () => this.selectorListeners.get(keyStr)?.delete(listener);
   }
 
-  // 状態を更新
+  // Update the state
   setState(updater: Partial<T> | ((prev: T) => Partial<T>), action = "setState"): void {
     const updates = typeof updater === "function" ? updater(this.state) : updater;
     const prev = { ...this.state };
     let next = { ...this.state, ...updates };
 
-    // ミドルウェアを適用
+    // Apply middleware
     for (const mw of this.middleware) {
       next = mw(prev, next, action);
     }
 
     this.state = next;
 
-    // 全体リスナーに通知
+    // Notify global listeners
     this.listeners.forEach(listener => listener(this.state));
 
-    // 変更されたプロパティのセレクタリスナーに通知
+    // Notify selector listeners for changed properties
     for (const key of Object.keys(updates)) {
       if (prev[key] !== this.state[key as keyof T]) {
         this.selectorListeners.get(key)?.forEach(listener =>
@@ -489,7 +488,7 @@ class ReactiveStore<T extends Record<string, any>> {
   }
 }
 
-// 使用例: ログインミドルウェア
+// Usage: logging middleware
 const loggingMiddleware = <T>(prev: T, next: T, action: string): T => {
   console.log(`[${action}]`, { prev, next });
   return next;
@@ -512,52 +511,52 @@ const store = new ReactiveStore<AppState>({
   middleware: [loggingMiddleware],
 });
 
-// テーマの変更だけを監視
+// Watch only theme changes
 store.select("theme", (theme) => {
   document.body.className = theme;
 });
 
-// 通知数の変更を監視
+// Watch notification count changes
 store.select("notifications", (count) => {
-  console.log(`未読通知: ${count}`);
+  console.log(`Unread notifications: ${count}`);
 });
 
-// 状態を更新
-store.setState({ user: { name: "太郎", email: "taro@example.com" } }, "LOGIN");
+// Update state
+store.setState({ user: { name: "Taro", email: "taro@example.com" } }, "LOGIN");
 store.setState(prev => ({ notifications: prev.notifications + 1 }), "NEW_NOTIFICATION");
 store.setState({ theme: "dark" }, "TOGGLE_THEME");
 ```
 
 ---
 
-## 3. Command パターン
+## 3. Command Pattern
 
-### 3.1 概要と目的
+### 3.1 Overview and Purpose
 
 ```
-目的: リクエストをオブジェクトとしてカプセル化する
+Purpose: Encapsulate a request as an object
 
-利点: 取り消し（Undo）、キュー、ログ、トランザクション
-現代の応用: Redux のアクション、エディタのUndo/Redo、CQRSパターン
+Benefits: Undo, queuing, logging, transactions
+Modern applications: Redux actions, editor Undo/Redo, CQRS pattern
 
-構造:
+Structure:
   ┌──────────┐    ┌─────────┐    ┌──────────┐
   │ Invoker  │───→│ Command │───→│ Receiver │
-  │ (実行者) │    │ (命令)  │    │ (受信者) │
+  │(executor)│    │(command)│    │(receiver)│
   └──────────┘    └─────────┘    └──────────┘
 ```
 
-### 3.2 テキストエディタのUndo/Redo
+### 3.2 Text Editor Undo/Redo
 
 ```typescript
-// Command インターフェース
+// Command interface
 interface Command {
   execute(): void;
   undo(): void;
   describe(): string;
 }
 
-// テキストエディタ（Receiver）
+// Text editor (Receiver)
 class TextEditor {
   private content = "";
   private selectionStart = 0;
@@ -595,7 +594,7 @@ class TextEditor {
   }
 }
 
-// 具体的なコマンド群
+// Concrete commands
 class InsertTextCommand implements Command {
   constructor(
     private editor: TextEditor,
@@ -661,7 +660,7 @@ class ReplaceTextCommand implements Command {
   }
 }
 
-// マクロコマンド: 複数のコマンドを1つにまとめる
+// Macro command: bundle multiple commands into one
 class MacroCommand implements Command {
   private commands: Command[];
 
@@ -676,7 +675,7 @@ class MacroCommand implements Command {
   }
 
   undo(): void {
-    // 逆順でundo
+    // Undo in reverse order
     for (let i = this.commands.length - 1; i >= 0; i--) {
       this.commands[i].undo();
     }
@@ -687,7 +686,7 @@ class MacroCommand implements Command {
   }
 }
 
-// コマンド履歴管理（Undo/Redo）
+// Command history management (Undo/Redo)
 class CommandHistory {
   private undoStack: Command[] = [];
   private redoStack: Command[] = [];
@@ -700,9 +699,9 @@ class CommandHistory {
   execute(command: Command): void {
     command.execute();
     this.undoStack.push(command);
-    this.redoStack = []; // Redo履歴をクリア
+    this.redoStack = []; // Clear redo history
 
-    // 履歴の上限チェック
+    // Check history limit
     if (this.undoStack.length > this.maxHistory) {
       this.undoStack.shift();
     }
@@ -739,7 +738,7 @@ class CommandHistory {
   }
 }
 
-// 使用例
+// Usage
 const editor = new TextEditor();
 const history = new CommandHistory();
 
@@ -753,7 +752,7 @@ console.log(editor.getContent()); // "Hello, "
 history.redo();
 console.log(editor.getContent()); // "Hello, World!"
 
-// 検索と置換（マクロコマンド）
+// Find and replace (macro command)
 const findAndReplace = new MacroCommand([
   new DeleteTextCommand(editor, 7, 13),
   new InsertTextCommand(editor, 7, "TypeScript!"),
@@ -762,10 +761,10 @@ history.execute(findAndReplace);
 console.log(editor.getContent()); // "Hello, TypeScript!"
 ```
 
-### 3.3 タスクキュー
+### 3.3 Task Queue
 
 ```typescript
-// Command パターンによるタスクキュー
+// Task queue using the Command pattern
 interface AsyncCommand {
   execute(): Promise<void>;
   describe(): string;
@@ -784,7 +783,7 @@ class TaskQueue {
 
   enqueue(command: AsyncCommand): void {
     this.queue.push(command);
-    // 優先度でソート（高い優先度が先）
+    // Sort by priority (higher priority first)
     this.queue.sort((a, b) => b.priority - a.priority);
     this.processNext();
   }
@@ -815,19 +814,19 @@ class TaskQueue {
 
 ---
 
-## 4. State パターン
+## 4. State Pattern
 
-### 4.1 概要と目的
+### 4.1 Overview and Purpose
 
 ```
-目的: オブジェクトの状態に応じて振る舞いを変える
+Purpose: Change an object's behavior based on its state
 
-現代の応用: ステートマシン、UIコンポーネントの状態管理、ワークフロー
+Modern applications: state machines, UI component state management, workflows
 
-構造:
+Structure:
   ┌─────────┐      ┌─────────────┐
   │ Context │─────→│   State     │
-  │         │      │ (状態)      │
+  │         │      │  (state)    │
   └─────────┘      └──────┬──────┘
                           │
               ┌───────────┼───────────┐
@@ -836,10 +835,10 @@ class TaskQueue {
          └─────────┘ └───────┘ └─────────┘
 ```
 
-### 4.2 注文ステートマシン
+### 4.2 Order State Machine
 
 ```typescript
-// 状態インターフェース
+// State interface
 interface OrderState {
   confirm(order: Order): void;
   ship(order: Order): void;
@@ -853,88 +852,88 @@ interface OrderState {
 class PendingState implements OrderState {
   confirm(order: Order) {
     if (order.getItems().length === 0) {
-      throw new Error("商品がない注文は確認できません");
+      throw new Error("Cannot confirm an order with no items");
     }
     order.setState(new ConfirmedState());
-    order.addLog("注文確認済み");
+    order.addLog("Order confirmed");
   }
-  ship() { throw new Error("未確認の注文は発送できません"); }
-  deliver() { throw new Error("未確認の注文は配達できません"); }
+  ship() { throw new Error("Cannot ship an unconfirmed order"); }
+  deliver() { throw new Error("Cannot deliver an unconfirmed order"); }
   cancel(order: Order) {
-    order.setState(new CancelledState("顧客によるキャンセル"));
-    order.addLog("注文キャンセル");
+    order.setState(new CancelledState("Cancelled by customer"));
+    order.addLog("Order cancelled");
   }
-  refund() { throw new Error("保留中の注文は返金できません"); }
-  toString() { return "保留中"; }
+  refund() { throw new Error("Cannot refund a pending order"); }
+  toString() { return "Pending"; }
   allowedTransitions() { return ["confirm", "cancel"]; }
 }
 
 class ConfirmedState implements OrderState {
-  confirm() { throw new Error("既に確認済みです"); }
+  confirm() { throw new Error("Already confirmed"); }
   ship(order: Order) {
     order.setState(new ShippedState());
-    order.addLog("発送済み");
+    order.addLog("Shipped");
   }
-  deliver() { throw new Error("未発送の注文は配達できません"); }
+  deliver() { throw new Error("Cannot deliver an unshipped order"); }
   cancel(order: Order) {
-    order.setState(new CancelledState("確認後キャンセル"));
-    order.addLog("注文キャンセル（確認後）");
+    order.setState(new CancelledState("Cancelled after confirmation"));
+    order.addLog("Order cancelled (after confirmation)");
   }
-  refund() { throw new Error("未発送の注文は返金できません"); }
-  toString() { return "確認済み"; }
+  refund() { throw new Error("Cannot refund an unshipped order"); }
+  toString() { return "Confirmed"; }
   allowedTransitions() { return ["ship", "cancel"]; }
 }
 
 class ShippedState implements OrderState {
-  confirm() { throw new Error("発送済みです"); }
-  ship() { throw new Error("既に発送済みです"); }
+  confirm() { throw new Error("Already shipped"); }
+  ship() { throw new Error("Already shipped"); }
   deliver(order: Order) {
     order.setState(new DeliveredState());
-    order.addLog("配達完了");
+    order.addLog("Delivery completed");
   }
-  cancel() { throw new Error("発送済みの注文はキャンセルできません"); }
-  refund() { throw new Error("配達前の返金はサポートに連絡してください"); }
-  toString() { return "発送済み"; }
+  cancel() { throw new Error("Cannot cancel a shipped order"); }
+  refund() { throw new Error("Please contact support for refunds before delivery"); }
+  toString() { return "Shipped"; }
   allowedTransitions() { return ["deliver"]; }
 }
 
 class DeliveredState implements OrderState {
-  confirm() { throw new Error("配達済みです"); }
-  ship() { throw new Error("配達済みです"); }
-  deliver() { throw new Error("既に配達済みです"); }
-  cancel() { throw new Error("配達済みの注文はキャンセルできません"); }
+  confirm() { throw new Error("Already delivered"); }
+  ship() { throw new Error("Already delivered"); }
+  deliver() { throw new Error("Already delivered"); }
+  cancel() { throw new Error("Cannot cancel a delivered order"); }
   refund(order: Order) {
     const deliveredAt = order.getLastLogTime();
     const now = new Date();
     const daysSinceDelivery = (now.getTime() - deliveredAt.getTime()) / (1000 * 60 * 60 * 24);
     if (daysSinceDelivery > 30) {
-      throw new Error("配達から30日以上経過した注文は返金できません");
+      throw new Error("Cannot refund an order more than 30 days after delivery");
     }
     order.setState(new RefundedState());
-    order.addLog("返金処理開始");
+    order.addLog("Refund process started");
   }
-  toString() { return "配達済み"; }
+  toString() { return "Delivered"; }
   allowedTransitions() { return ["refund"]; }
 }
 
 class CancelledState implements OrderState {
   constructor(private reason: string) {}
-  confirm() { throw new Error("キャンセル済みです"); }
-  ship() { throw new Error("キャンセル済みです"); }
-  deliver() { throw new Error("キャンセル済みです"); }
-  cancel() { throw new Error("既にキャンセル済みです"); }
-  refund() { throw new Error("キャンセル済みの注文は返金対象外です"); }
-  toString() { return `キャンセル済み（${this.reason}）`; }
+  confirm() { throw new Error("Already cancelled"); }
+  ship() { throw new Error("Already cancelled"); }
+  deliver() { throw new Error("Already cancelled"); }
+  cancel() { throw new Error("Already cancelled"); }
+  refund() { throw new Error("Cancelled orders are not eligible for refund"); }
+  toString() { return `Cancelled (${this.reason})`; }
   allowedTransitions() { return []; }
 }
 
 class RefundedState implements OrderState {
-  confirm() { throw new Error("返金済みです"); }
-  ship() { throw new Error("返金済みです"); }
-  deliver() { throw new Error("返金済みです"); }
-  cancel() { throw new Error("返金済みです"); }
-  refund() { throw new Error("既に返金済みです"); }
-  toString() { return "返金済み"; }
+  confirm() { throw new Error("Already refunded"); }
+  ship() { throw new Error("Already refunded"); }
+  deliver() { throw new Error("Already refunded"); }
+  cancel() { throw new Error("Already refunded"); }
+  refund() { throw new Error("Already refunded"); }
+  toString() { return "Refunded"; }
   allowedTransitions() { return []; }
 }
 
@@ -971,27 +970,27 @@ class Order {
   }
 }
 
-// 使用例
+// Usage
 const order = new Order();
 order.addItem({ productId: "P-001", quantity: 1, price: 1000 });
 
-console.log(order.getStatus());          // "保留中"
+console.log(order.getStatus());          // "Pending"
 console.log(order.getAllowedActions());   // ["confirm", "cancel"]
 
-order.confirm();  // 保留中 → 確認済み
-order.ship();     // 確認済み → 発送済み
-order.deliver();  // 発送済み → 配達済み
+order.confirm();  // Pending → Confirmed
+order.ship();     // Confirmed → Shipped
+order.deliver();  // Shipped → Delivered
 
-console.log(order.getStatus());          // "配達済み"
+console.log(order.getStatus());          // "Delivered"
 console.log(order.getAllowedActions());   // ["refund"]
 
-// order.cancel(); // Error: 配達済みの注文はキャンセルできません
+// order.cancel(); // Error: Cannot cancel a delivered order
 ```
 
-### 4.3 汎用的なステートマシン
+### 4.3 Generic State Machine
 
 ```typescript
-// 汎用ステートマシンの実装
+// Generic state machine implementation
 interface StateMachineConfig<S extends string, E extends string> {
   initial: S;
   states: Record<S, {
@@ -1009,7 +1008,7 @@ class StateMachine<S extends string, E extends string> {
   constructor(config: StateMachineConfig<S, E>) {
     this.config = config;
     this.current = config.initial;
-    // 初期状態の onEnter を実行
+    // Run onEnter of the initial state
     config.states[config.initial]?.onEnter?.();
   }
 
@@ -1034,12 +1033,12 @@ class StateMachine<S extends string, E extends string> {
       transition.action?.();
     }
 
-    // onExit → 遷移 → onEnter
+    // onExit → transition → onEnter
     stateConfig?.onExit?.();
     this.current = targetState;
     this.config.states[targetState]?.onEnter?.();
 
-    // リスナーに通知
+    // Notify listeners
     this.listeners.forEach(listener => listener(this.current, event));
 
     return this.current;
@@ -1056,7 +1055,7 @@ class StateMachine<S extends string, E extends string> {
   }
 }
 
-// 使用例: 信号機
+// Usage: traffic light
 type TrafficState = "red" | "yellow" | "green";
 type TrafficEvent = "timer" | "emergency";
 
@@ -1066,23 +1065,23 @@ const trafficLight = new StateMachine<TrafficState, TrafficEvent>({
     red: {
       on: {
         timer: "green",
-        emergency: "red",  // 赤のまま
+        emergency: "red",  // stays red
       },
-      onEnter: () => console.log("赤信号: 停止"),
+      onEnter: () => console.log("Red light: Stop"),
     },
     green: {
       on: {
         timer: "yellow",
         emergency: "red",
       },
-      onEnter: () => console.log("青信号: 進行"),
+      onEnter: () => console.log("Green light: Go"),
     },
     yellow: {
       on: {
         timer: "red",
         emergency: "red",
       },
-      onEnter: () => console.log("黄信号: 注意"),
+      onEnter: () => console.log("Yellow light: Caution"),
     },
   },
 });
@@ -1094,24 +1093,24 @@ trafficLight.send("timer");  // yellow → red
 
 ---
 
-## 5. Iterator パターン
+## 5. Iterator Pattern
 
-### 5.1 概要と目的
+### 5.1 Overview and Purpose
 
 ```
-目的: コレクションの内部構造を公開せずに要素を順番にアクセスする
-現代の応用: for...of, Python の __iter__, Rust の Iterator トレイト
+Purpose: Access elements of a collection sequentially without exposing its internal structure
+Modern applications: for...of, Python's __iter__, Rust's Iterator trait
 
-いつ使うか:
-  → コレクションの実装を隠蔽したい
-  → 複数の走査方法を提供したい
-  → 遅延評価でメモリ効率を上げたい
+When to use:
+  → You want to hide the implementation of a collection
+  → You want to provide multiple ways to traverse it
+  → You want to improve memory efficiency with lazy evaluation
 ```
 
-### 5.2 カスタムイテレータ
+### 5.2 Custom Iterator
 
 ```typescript
-// TypeScript: カスタムイテレータ
+// TypeScript: custom iterator
 class Range implements Iterable<number> {
   constructor(
     private start: number,
@@ -1138,7 +1137,7 @@ class Range implements Iterable<number> {
     };
   }
 
-  // ユーティリティメソッド
+  // Utility methods
   toArray(): number[] { return [...this]; }
   map<T>(fn: (n: number) => T): T[] { return [...this].map(fn); }
   filter(fn: (n: number) => boolean): number[] { return [...this].filter(fn); }
@@ -1147,22 +1146,22 @@ class Range implements Iterable<number> {
   }
 }
 
-// for...of で使える
+// Usable with for...of
 for (const n of new Range(0, 10, 2)) {
   console.log(n); // 0, 2, 4, 6, 8
 }
 
-// スプレッド演算子も使える
+// Also works with the spread operator
 const numbers = [...new Range(1, 6)]; // [1, 2, 3, 4, 5]
 
-// 逆順
+// Reverse order
 const reversed = [...new Range(10, 0, -1)]; // [10, 9, 8, ..., 1]
 ```
 
-### 5.3 ジェネレータベースのイテレータ
+### 5.3 Generator-Based Iterator
 
 ```typescript
-// ジェネレータ関数によるイテレータ
+// Iterator via a generator function
 function* fibonacci(limit?: number): Generator<number> {
   let a = 0, b = 1;
   let count = 0;
@@ -1173,12 +1172,12 @@ function* fibonacci(limit?: number): Generator<number> {
   }
 }
 
-// 最初の10個のフィボナッチ数
+// First 10 Fibonacci numbers
 for (const n of fibonacci(10)) {
   console.log(n); // 0, 1, 1, 2, 3, 5, 8, 13, 21, 34
 }
 
-// ツリーの深さ優先走査
+// Depth-first traversal of a tree
 interface TreeNode<T> {
   value: T;
   children: TreeNode<T>[];
@@ -1200,7 +1199,7 @@ function* breadthFirst<T>(root: TreeNode<T>): Generator<T> {
   }
 }
 
-// ページネーションイテレータ
+// Pagination iterator
 async function* paginatedFetch<T>(
   fetchPage: (page: number) => Promise<{ data: T[]; hasMore: boolean }>,
 ): AsyncGenerator<T> {
@@ -1217,26 +1216,26 @@ async function* paginatedFetch<T>(
   }
 }
 
-// 使用例: 全ユーザーを遅延取得
+// Usage: lazily fetch all users
 const allUsers = paginatedFetch(async (page) => {
   const response = await fetch(`/api/users?page=${page}&limit=100`);
   const data = await response.json();
   return { data: data.users, hasMore: data.hasMore };
 });
 
-// 必要な分だけ取得（全件メモリに載せない）
+// Fetch only as many as needed (no need to load everything into memory)
 for await (const user of allUsers) {
   console.log(user.name);
-  if (someCondition) break; // 途中で止められる
+  if (someCondition) break; // Can stop midway
 }
 ```
 
-### 5.4 Python でのイテレータ
+### 5.4 Iterators in Python
 
 ```python
-# Python: イテレータプロトコル
+# Python: iterator protocol
 class FileLineIterator:
-    """大きなファイルを1行ずつ遅延読み込み"""
+    """Lazily reads a large file one line at a time"""
 
     def __init__(self, filepath: str):
         self.filepath = filepath
@@ -1253,9 +1252,9 @@ class FileLineIterator:
         self.file.close()
         raise StopIteration
 
-# ジェネレータ関数
+# Generator function
 def chunked(iterable, size: int):
-    """イテラブルをchunkに分割"""
+    """Split an iterable into chunks"""
     chunk = []
     for item in iterable:
         chunk.append(item)
@@ -1265,33 +1264,33 @@ def chunked(iterable, size: int):
     if chunk:
         yield chunk
 
-# 使用例
+# Usage
 for chunk in chunked(range(100), 10):
     print(f"Processing chunk of {len(chunk)} items")
 ```
 
 ---
 
-## 6. Chain of Responsibility パターン
+## 6. Chain of Responsibility Pattern
 
-### 6.1 概要と目的
+### 6.1 Overview and Purpose
 
 ```
-目的: リクエストを処理できるオブジェクトのチェーンを通じて、
-      適切なハンドラに到達させる
+Purpose: Pass a request through a chain of objects that can handle it
+         until it reaches an appropriate handler
 
-現代の応用: Express/Koa のミドルウェア、DOM イベントバブリング
+Modern applications: Express/Koa middleware, DOM event bubbling
 
-構造:
+Structure:
   ┌───────────┐    ┌───────────┐    ┌───────────┐
   │ Handler1  │───→│ Handler2  │───→│ Handler3  │
   └───────────┘    └───────────┘    └───────────┘
 ```
 
-### 6.2 HTTPミドルウェアチェーン
+### 6.2 HTTP Middleware Chain
 
 ```typescript
-// Express風のミドルウェアチェーン
+// Express-style middleware chain
 type Middleware = (
   req: Request,
   res: Response,
@@ -1319,7 +1318,7 @@ class MiddlewarePipeline {
   }
 }
 
-// ミドルウェアの例
+// Example middlewares
 const loggingMiddleware: Middleware = async (req, res, next) => {
   const start = Date.now();
   console.log(`→ ${req.method} ${req.url}`);
@@ -1331,7 +1330,7 @@ const authMiddleware: Middleware = async (req, res, next) => {
   const token = req.headers.get("Authorization")?.replace("Bearer ", "");
   if (!token) {
     res.statusCode = 401;
-    return; // チェーンを中断
+    return; // Short-circuit the chain
   }
   (req as any).userId = "decoded-user-id";
   await next();
@@ -1339,7 +1338,7 @@ const authMiddleware: Middleware = async (req, res, next) => {
 
 const rateLimitMiddleware: Middleware = async (req, res, next) => {
   const clientIp = req.headers.get("X-Forwarded-For") ?? "unknown";
-  // レートリミットチェック...
+  // Rate limit check...
   await next();
 };
 
@@ -1353,7 +1352,7 @@ const corsMiddleware: Middleware = async (req, res, next) => {
   await next();
 };
 
-// パイプラインの構築
+// Build the pipeline
 const pipeline = new MiddlewarePipeline()
   .use(loggingMiddleware)
   .use(corsMiddleware)
@@ -1361,16 +1360,16 @@ const pipeline = new MiddlewarePipeline()
   .use(authMiddleware);
 ```
 
-### 6.3 バリデーションチェーン
+### 6.3 Validation Chain
 
 ```typescript
-// バリデーションチェーン
+// Validation chain
 abstract class ValidationHandler {
   private next?: ValidationHandler;
 
   setNext(handler: ValidationHandler): ValidationHandler {
     this.next = handler;
-    return handler; // チェーンの最後のハンドラを返す
+    return handler; // Return the last handler of the chain
   }
 
   async handle(data: any): Promise<ValidationResult> {
@@ -1386,7 +1385,7 @@ abstract class ValidationHandler {
 class SyntaxValidator extends ValidationHandler {
   protected async validate(data: any): Promise<ValidationResult> {
     if (typeof data !== "object" || data === null) {
-      return { valid: false, errors: [{ field: "root", message: "データはオブジェクトである必要があります" }] };
+      return { valid: false, errors: [{ field: "root", message: "Data must be an object" }] };
     }
     return { valid: true, errors: [] };
   }
@@ -1399,7 +1398,7 @@ class SchemaValidator extends ValidationHandler {
     const errors: Array<{ field: string; message: string }> = [];
     for (const [field, type] of Object.entries(this.schema)) {
       if (typeof data[field] !== type) {
-        errors.push({ field, message: `${field}は${type}型である必要があります` });
+        errors.push({ field, message: `${field} must be of type ${type}` });
       }
     }
     return { valid: errors.length === 0, errors };
@@ -1410,41 +1409,41 @@ class BusinessRuleValidator extends ValidationHandler {
   protected async validate(data: any): Promise<ValidationResult> {
     const errors: Array<{ field: string; message: string }> = [];
     if (data.age && data.age < 18) {
-      errors.push({ field: "age", message: "18歳未満は登録できません" });
+      errors.push({ field: "age", message: "Users under 18 cannot register" });
     }
     return { valid: errors.length === 0, errors };
   }
 }
 
-// チェーンの構築
+// Build the chain
 const syntaxValidator = new SyntaxValidator();
 const schemaValidator = new SchemaValidator({ name: "string", age: "number" });
 const businessValidator = new BusinessRuleValidator();
 
 syntaxValidator.setNext(schemaValidator).setNext(businessValidator);
 
-// 使用
-const result = await syntaxValidator.handle({ name: "太郎", age: 15 });
-// { valid: false, errors: [{ field: "age", message: "18歳未満は登録できません" }] }
+// Usage
+const result = await syntaxValidator.handle({ name: "Taro", age: 15 });
+// { valid: false, errors: [{ field: "age", message: "Users under 18 cannot register" }] }
 ```
 
 ---
 
-## 7. Template Method パターン
+## 7. Template Method Pattern
 
-### 7.1 概要と目的
+### 7.1 Overview and Purpose
 
 ```
-目的: アルゴリズムの骨格を基底クラスで定義し、
-      具体的なステップをサブクラスで実装する
+Purpose: Define the skeleton of an algorithm in a base class,
+         letting subclasses implement the concrete steps
 
-構造:
+Structure:
   ┌────────────────────┐
   │  AbstractClass     │
-  │  templateMethod()  │ ← 骨格（変更不可）
-  │  step1()           │ ← 抽象（サブクラスが実装）
+  │  templateMethod()  │ ← skeleton (cannot be changed)
+  │  step1()           │ ← abstract (implemented by subclasses)
   │  step2()           │
-  │  hook()            │ ← フック（オプション）
+  │  hook()            │ ← hook (optional)
   └─────────┬──────────┘
             │
   ┌─────────┴──────────┐
@@ -1454,53 +1453,53 @@ const result = await syntaxValidator.handle({ name: "太郎", age: 15 });
   └────────────────────┘
 ```
 
-### 7.2 データエクスポートのテンプレート
+### 7.2 Data Export Template
 
 ```typescript
-// Template Method: データエクスポートの共通フロー
+// Template Method: shared flow for data export
 abstract class DataExporter<T> {
-  // テンプレートメソッド: 全体のフロー（変更不可）
+  // Template method: the overall flow (cannot be changed)
   async export(query: ExportQuery): Promise<ExportResult> {
     console.log(`Starting export: ${this.getFormatName()}`);
 
-    // 1. データ取得
+    // 1. Fetch data
     const rawData = await this.fetchData(query);
 
-    // 2. フィルタリング（フック: オプション）
+    // 2. Filtering (hook: optional)
     const filtered = this.filterData(rawData, query);
 
-    // 3. データ変換
+    // 3. Data transformation
     const transformed = await this.transformData(filtered);
 
-    // 4. フォーマット（サブクラスが実装）
+    // 4. Formatting (implemented by subclass)
     const formatted = await this.formatOutput(transformed);
 
-    // 5. 出力
+    // 5. Output
     const result = await this.writeOutput(formatted, query.outputPath);
 
-    // 6. 後処理（フック: オプション）
+    // 6. Post-processing (hook: optional)
     await this.postProcess(result);
 
     return result;
   }
 
-  // 抽象メソッド: サブクラスが実装
+  // Abstract methods: implemented by subclasses
   protected abstract getFormatName(): string;
   protected abstract formatOutput(data: T[]): Promise<string | Buffer>;
 
-  // 共通実装（必要に応じてオーバーライド可能）
+  // Shared implementation (can be overridden if needed)
   protected async fetchData(query: ExportQuery): Promise<T[]> {
-    // デフォルトのデータ取得ロジック
+    // Default data fetching logic
     return [];
   }
 
-  // フック: オプションのステップ
+  // Hook: optional step
   protected filterData(data: T[], query: ExportQuery): T[] {
-    return data; // デフォルトではフィルタリングなし
+    return data; // No filtering by default
   }
 
   protected async transformData(data: T[]): Promise<T[]> {
-    return data; // デフォルトでは変換なし
+    return data; // No transformation by default
   }
 
   protected async writeOutput(
@@ -1517,11 +1516,11 @@ abstract class DataExporter<T> {
   }
 
   protected async postProcess(result: ExportResult): Promise<void> {
-    // デフォルトでは何もしない
+    // Does nothing by default
   }
 }
 
-// CSV エクスポーター
+// CSV exporter
 class CsvExporter extends DataExporter<Record<string, any>> {
   protected getFormatName(): string { return "CSV"; }
 
@@ -1535,7 +1534,7 @@ class CsvExporter extends DataExporter<Record<string, any>> {
   }
 
   protected filterData(data: Record<string, any>[], query: ExportQuery) {
-    // CSVは全カラムをエクスポート、不要なカラムを除外
+    // CSV exports all columns, excluding unnecessary ones
     if (!query.excludeColumns) return data;
     return data.map(row => {
       const filtered = { ...row };
@@ -1547,7 +1546,7 @@ class CsvExporter extends DataExporter<Record<string, any>> {
   }
 }
 
-// JSON エクスポーター
+// JSON exporter
 class JsonExporter extends DataExporter<Record<string, any>> {
   protected getFormatName(): string { return "JSON"; }
 
@@ -1556,17 +1555,17 @@ class JsonExporter extends DataExporter<Record<string, any>> {
   }
 }
 
-// Excel エクスポーター
+// Excel exporter
 class ExcelExporter extends DataExporter<Record<string, any>> {
   protected getFormatName(): string { return "Excel"; }
 
   protected async formatOutput(data: Record<string, any>[]): Promise<Buffer> {
-    // ExcelJS等を使ってExcelファイルを生成
+    // Generate an Excel file using ExcelJS or similar
     return Buffer.from("excel-content");
   }
 
   protected async postProcess(result: ExportResult): Promise<void> {
-    // Excelファイルにパスワード保護を追加
+    // Add password protection to the Excel file
     console.log(`Password protecting ${result.path}`);
   }
 }
@@ -1574,31 +1573,32 @@ class ExcelExporter extends DataExporter<Record<string, any>> {
 
 ---
 
-## 8. Mediator パターン
+## 8. Mediator Pattern
 
-### 8.1 概要と目的
+### 8.1 Overview and Purpose
 
 ```
-目的: オブジェクト間の直接的な通信を仲介者を通じて行い、疎結合にする
+Purpose: Have objects communicate through a mediator rather than directly,
+         promoting loose coupling
 
-構造:
+Structure:
   ┌───────────┐
   │ Mediator  │
-  │ (仲介者)  │
+  │(mediator) │
   └─────┬─────┘
         │
   ┌─────┼─────┐
   │     │     │
   ┌──┐ ┌──┐ ┌──┐
-  │A │ │B │ │C │  ← 同僚（Colleague）
+  │A │ │B │ │C │  ← Colleagues
   └──┘ └──┘ └──┘
-  A, B, C は互いに知らない（Mediator のみ知る）
+  A, B, and C do not know each other (only the Mediator does)
 ```
 
-### 8.2 チャットルームの Mediator
+### 8.2 Chat Room Mediator
 
 ```typescript
-// Mediator: チャットルーム
+// Mediator: chat room
 interface ChatMediator {
   register(participant: ChatParticipant): void;
   sendMessage(sender: ChatParticipant, message: string): void;
@@ -1633,7 +1633,7 @@ class ChatRoom implements ChatMediator {
   register(participant: ChatParticipant): void {
     this.participants.set(participant.name, participant);
     participant.setMediator(this);
-    this.broadcast("System", `${participant.name}が参加しました`);
+    this.broadcast("System", `${participant.name} has joined`);
   }
 
   sendMessage(sender: ChatParticipant, message: string): void {
@@ -1654,7 +1654,7 @@ class ChatRoom implements ChatMediator {
   sendDirectMessage(sender: ChatParticipant, recipientName: string, message: string): void {
     const recipient = this.participants.get(recipientName);
     if (!recipient) {
-      sender.receive("System", `${recipientName}は見つかりません`);
+      sender.receive("System", `${recipientName} was not found`);
       return;
     }
 
@@ -1688,7 +1688,7 @@ class User extends ChatParticipant {
   }
 }
 
-// 使用例
+// Usage
 const chatRoom = new ChatRoom();
 const alice = new User("Alice");
 const bob = new User("Bob");
@@ -1698,29 +1698,29 @@ chatRoom.register(alice);
 chatRoom.register(bob);
 chatRoom.register(charlie);
 
-alice.send("こんにちは、みなさん！");    // Bob と Charlie に送信
-bob.sendTo("Alice", "元気ですか？");     // Alice にDM
+alice.send("Hello, everyone!");          // Sent to Bob and Charlie
+bob.sendTo("Alice", "How are you?");     // DM to Alice
 ```
 
 ---
 
-## 9. Visitor パターン
+## 9. Visitor Pattern
 
-### 9.1 概要と目的
+### 9.1 Overview and Purpose
 
 ```
-目的: データ構造とそれに対する操作を分離する
+Purpose: Separate a data structure from the operations performed on it
 
-いつ使うか:
-  → データ構造は安定しているが、操作が頻繁に追加される
-  → 複数の無関係な操作をデータ構造に適用したい
-  → Double Dispatch が必要な場合
+When to use:
+  → The data structure is stable, but operations are frequently added
+  → You want to apply multiple unrelated operations to a data structure
+  → Double Dispatch is required
 ```
 
-### 9.2 AST（抽象構文木）のVisitor
+### 9.2 Visitor for an AST (Abstract Syntax Tree)
 
 ```typescript
-// AST ノード
+// AST node
 interface ASTNode {
   accept<T>(visitor: ASTVisitor<T>): T;
 }
@@ -1749,7 +1749,7 @@ class FunctionCall implements ASTNode {
   accept<T>(visitor: ASTVisitor<T>): T { return visitor.visitFunctionCall(this); }
 }
 
-// Visitor インターフェース
+// Visitor interface
 interface ASTVisitor<T> {
   visitNumber(node: NumberLiteral): T;
   visitString(node: StringLiteral): T;
@@ -1757,7 +1757,7 @@ interface ASTVisitor<T> {
   visitFunctionCall(node: FunctionCall): T;
 }
 
-// 評価 Visitor
+// Evaluation Visitor
 class EvaluatorVisitor implements ASTVisitor<number> {
   visitNumber(node: NumberLiteral): number { return node.value; }
   visitString(node: StringLiteral): number { return parseFloat(node.value) || 0; }
@@ -1784,7 +1784,7 @@ class EvaluatorVisitor implements ASTVisitor<number> {
   }
 }
 
-// 文字列化 Visitor
+// Stringification Visitor
 class PrinterVisitor implements ASTVisitor<string> {
   visitNumber(node: NumberLiteral): string { return String(node.value); }
   visitString(node: StringLiteral): string { return `"${node.value}"`; }
@@ -1799,7 +1799,7 @@ class PrinterVisitor implements ASTVisitor<string> {
   }
 }
 
-// 使用例: max(3 + 4, 2 * 5)
+// Usage: max(3 + 4, 2 * 5)
 const ast = new FunctionCall("max", [
   new BinaryExpression(new NumberLiteral(3), "+", new NumberLiteral(4)),
   new BinaryExpression(new NumberLiteral(2), "*", new NumberLiteral(5)),
@@ -1817,56 +1817,56 @@ console.log(ast.accept(evaluator));                           // 10
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Your understanding deepens not only by studying theory but also by actually writing code and verifying how it behaves.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What mistakes do beginners commonly make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently applied in day-to-day development work. It becomes especially important during code reviews and architectural design.
 
 ---
 
-## まとめ
+## Summary
 
-| パターン | 目的 | 現代の応用 |
+| Pattern | Purpose | Modern Applications |
 |---------|------|-----------|
-| Strategy | アルゴリズムの切り替え | DI、ポリシー、プラグイン |
-| Observer | 状態変化の通知 | イベント、Reactive、Pub/Sub |
-| Command | 操作のオブジェクト化 | Undo/Redo、Redux、CQRS |
-| State | 状態による振る舞い変更 | ステートマシン、ワークフロー |
-| Iterator | 順次アクセス | for...of、ジェネレータ、ストリーム |
-| Chain of Responsibility | リクエストの連鎖処理 | ミドルウェア、パイプライン |
-| Template Method | アルゴリズムの骨格定義 | フレームワークの拡張ポイント |
-| Mediator | オブジェクト間の疎結合通信 | チャット、イベントバス |
-| Visitor | データ構造と操作の分離 | AST操作、シリアライズ |
+| Strategy | Switching algorithms | DI, policies, plugins |
+| Observer | Notifying state changes | Events, Reactive, Pub/Sub |
+| Command | Turning operations into objects | Undo/Redo, Redux, CQRS |
+| State | Changing behavior based on state | State machines, workflows |
+| Iterator | Sequential access | for...of, generators, streams |
+| Chain of Responsibility | Chained request handling | Middleware, pipelines |
+| Template Method | Defining an algorithm's skeleton | Framework extension points |
+| Mediator | Loosely coupled object communication | Chat, event buses |
+| Visitor | Separating data structure from operations | AST manipulation, serialization |
 
-### パターン選択の指針
+### Guidelines for Choosing a Pattern
 
 ```
-振る舞いの問題を解決したい
-├── アルゴリズムを実行時に切替 → Strategy
-├── 状態変化を通知 → Observer
-├── 操作を記録・再実行・取消 → Command
-├── 状態に応じた振る舞い → State
-├── コレクションの走査 → Iterator
-├── リクエストの連鎖処理 → Chain of Responsibility
-├── 処理フローの骨格定義 → Template Method
-├── オブジェクト間の疎結合通信 → Mediator
-└── データ構造への操作追加 → Visitor
+I want to solve a behavior problem
+├── Switch algorithms at runtime → Strategy
+├── Notify of state changes → Observer
+├── Record, replay, or undo operations → Command
+├── Change behavior based on state → State
+├── Traverse a collection → Iterator
+├── Chain request handling → Chain of Responsibility
+├── Define the skeleton of a process → Template Method
+├── Loosely coupled object communication → Mediator
+└── Add operations to a data structure → Visitor
 ```
 
 ---
 
-## 次に読むべきガイド
+## Next Guides to Read
 
 ---
 
-## 参考文献
+## References
 1. Gamma, E. et al. "Design Patterns: Elements of Reusable Object-Oriented Software." Addison-Wesley, 1994.
 2. Freeman, E. et al. "Head First Design Patterns." O'Reilly, 2020.
 3. Nystrom, R. "Game Programming Patterns." Genever Benning, 2014.
