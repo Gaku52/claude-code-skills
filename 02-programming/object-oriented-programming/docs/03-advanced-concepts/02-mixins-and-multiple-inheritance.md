@@ -1,31 +1,31 @@
-# ミックスインと多重継承
+# Mixins and Multiple Inheritance
 
-> 多重継承の問題を回避しつつ、複数の振る舞いを組み合わせるための手法。Python のMRO、Ruby のモジュール、TypeScript のミックスインパターンを比較する。
+> A technique for combining multiple behaviors while avoiding the problems of multiple inheritance. Compares Python's MRO, Ruby's modules, and TypeScript's mixin pattern.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] 多重継承の問題（ダイヤモンド問題）とその解決策を理解する
-- [ ] ミックスインパターンの実装方法を把握する
-- [ ] 各言語でのアプローチの違いを学ぶ
-- [ ] 協調的多重継承（cooperative multiple inheritance）を理解する
-- [ ] ミックスインの設計原則とアンチパターンを把握する
-- [ ] テスト戦略を習得する
+- [ ] Understand the problems of multiple inheritance (the diamond problem) and how to solve them
+- [ ] Grasp how to implement the mixin pattern
+- [ ] Learn how approaches differ across languages
+- [ ] Understand cooperative multiple inheritance
+- [ ] Grasp the design principles and anti-patterns of mixins
+- [ ] Master testing strategies
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Your understanding will deepen if you have the following knowledge before reading this guide:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [インターフェースとトレイト](./01-interfaces-and-traits.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding of the content of [Interfaces and Traits](./01-interfaces-and-traits.md)
 
 ---
 
-## 1. 多重継承の問題
+## 1. The Problem of Multiple Inheritance
 
 ```
-ダイヤモンド問題:
+The Diamond Problem:
 
       ┌─────────┐
       │    A    │  greet() → "Hello from A"
@@ -38,53 +38,53 @@
      └────┬────┘
           ▼
       ┌─────┐
-      │  D  │  D.greet() → ???（B? C? A?）
+      │  D  │  D.greet() → ??? (B? C? A?)
       └─────┘
 
-解決策:
-  C++:    仮想継承（virtual inheritance）
-  Python: MRO（C3線形化）
-  Java:   多重継承禁止（インターフェースのみ）
-  Ruby:   モジュール（Module）
-  Rust:   トレイト（多重継承なし）
+Solutions:
+  C++:    Virtual inheritance
+  Python: MRO (C3 linearization)
+  Java:   Multiple inheritance forbidden (interfaces only)
+  Ruby:   Module
+  Rust:   Trait (no multiple inheritance)
 ```
 
-### 1.1 ダイヤモンド問題の本質
+### 1.1 The Essence of the Diamond Problem
 
 ```
-ダイヤモンド問題の3つの側面:
+Three aspects of the diamond problem:
 
-  1. メソッド解決の曖昧性（Method Resolution Ambiguity）
-     → 同名メソッドが複数の経路で継承される
-     → どのバージョンを呼ぶべきか不明確
-     → D.greet() は B.greet() か C.greet() か？
+  1. Method Resolution Ambiguity
+     → Methods with the same name are inherited through multiple paths
+     → Which version should be called is unclear
+     → Is D.greet() B.greet() or C.greet()?
 
-  2. コンストラクタの多重呼び出し（Constructor Duplication）
-     → A のコンストラクタが B 経由と C 経由で2回呼ばれる
-     → リソースの二重初期化、状態の不整合
+  2. Constructor Duplication
+     → A's constructor is called twice, once via B and once via C
+     → Double initialization of resources, inconsistent state
 
-  3. 状態の共有問題（Shared State Problem）
-     → A のフィールドが B と C で別々に初期化される
-     → D から見たとき、どの状態が正しいのか？
-     → フィールドのコピーが2つ存在する可能性
+  3. Shared State Problem
+     → A's fields are initialized separately in B and C
+     → From D's perspective, which state is correct?
+     → Two copies of the fields may exist
 
-  歴史:
-    → 1969年: Simula 67 は単一継承のみ
-    → 1983年: C++ が多重継承を導入
-    → 1987年: ダイヤモンド問題が広く認識される
-    → 1995年: Java は多重継承を意図的に排除
-    → 2000年代: トレイト / ミックスインが主流に
+  History:
+    → 1969: Simula 67 only supports single inheritance
+    → 1983: C++ introduces multiple inheritance
+    → 1987: The diamond problem becomes widely recognized
+    → 1995: Java intentionally excludes multiple inheritance
+    → 2000s: Traits / mixins become mainstream
 ```
 
-### 1.2 C++: 仮想継承
+### 1.2 C++: Virtual Inheritance
 
 ```cpp
-// C++: ダイヤモンド問題と仮想継承
+// C++: The diamond problem and virtual inheritance
 
 #include <iostream>
 #include <string>
 
-// 仮想継承なしの場合
+// Without virtual inheritance
 class A {
 public:
     int value;
@@ -94,7 +94,7 @@ public:
     virtual std::string greet() { return "Hello from A"; }
 };
 
-// 通常の継承: A のコピーが2つ作られる
+// Normal inheritance: two copies of A are created
 class B_normal : public A {
 public:
     B_normal() : A(1) {}
@@ -108,10 +108,10 @@ public:
 };
 
 // class D_normal : public B_normal, public C_normal {};
-// → コンパイルエラー: A のメンバーが曖昧
-// → d.value は B_normal::value か C_normal::value か？
+// → Compile error: A's members are ambiguous
+// → Is d.value B_normal::value or C_normal::value?
 
-// 仮想継承: A のインスタンスは1つだけ
+// Virtual inheritance: only one instance of A
 class B_virtual : virtual public A {
 public:
     B_virtual() : A(1) {}
@@ -126,10 +126,10 @@ public:
 
 class D : public B_virtual, public C_virtual {
 public:
-    // 仮想基底クラス A のコンストラクタは最派生クラスが呼ぶ
+    // The constructor of the virtual base class A is called by the most derived class
     D() : A(0), B_virtual(), C_virtual() {}
 
-    // greet() はオーバーライドが必要（B と C のどちらか曖昧なため）
+    // greet() must be overridden (because it is ambiguous between B and C)
     std::string greet() override {
         return "Hello from D (B says: " + B_virtual::greet() + ")";
     }
@@ -138,44 +138,44 @@ public:
 int main() {
     D d;
     std::cout << d.greet() << std::endl;
-    std::cout << d.value << std::endl;  // 0（A のコンストラクタは D が呼ぶ）
-    // A(0) constructed が1回だけ出力される
+    std::cout << d.value << std::endl;  // 0 (A's constructor is called by D)
+    // "A(0) constructed" is printed only once
     return 0;
 }
 ```
 
-### 1.3 各言語のアプローチ比較
+### 1.3 Comparison of Approaches Across Languages
 
 ```
 ┌──────────┬──────────────────────┬───────────────────┬──────────────┐
-│ 言語     │ 多重継承の扱い       │ 振る舞いの合成手段│ 状態の共有   │
+│ Language │ Multiple Inheritance │ Behavior Comp.    │ Shared State │
 ├──────────┼──────────────────────┼───────────────────┼──────────────┤
-│ C++      │ 仮想継承で対応       │ 仮想基底クラス    │ 可能         │
-│ Python   │ MRO で線形化         │ 多重継承 + Mixin  │ 可能         │
-│ Java     │ クラス多重継承禁止   │ インターフェース  │ 不可         │
-│ Kotlin   │ クラス多重継承禁止   │ インターフェース  │ 不可         │
-│ Ruby     │ クラス多重継承禁止   │ Module            │ 不可（注1）  │
-│ Scala    │ クラス多重継承禁止   │ trait             │ 可能（val）  │
-│ Rust     │ クラス自体がない     │ trait             │ 不可         │
-│ Swift    │ クラス多重継承禁止   │ Protocol          │ 不可         │
-│ TypeScript│ クラス多重継承禁止  │ ミックスイン関数  │ 可能（注2）  │
-│ PHP      │ クラス多重継承禁止   │ trait             │ 可能         │
+│ C++      │ Via virtual inherit. │ Virtual base cls  │ Possible     │
+│ Python   │ Linearized with MRO  │ Multi-inh + Mixin │ Possible     │
+│ Java     │ No class multi-inh.  │ Interface         │ Not possible │
+│ Kotlin   │ No class multi-inh.  │ Interface         │ Not possible │
+│ Ruby     │ No class multi-inh.  │ Module            │ No (Note 1)  │
+│ Scala    │ No class multi-inh.  │ trait             │ Possible(val)│
+│ Rust     │ No classes at all    │ trait             │ Not possible │
+│ Swift    │ No class multi-inh.  │ Protocol          │ Not possible │
+│ TypeScript│ No class multi-inh. │ Mixin function    │ Possible (N2)│
+│ PHP      │ No class multi-inh.  │ trait             │ Possible     │
 └──────────┴──────────────────────┴───────────────────┴──────────────┘
 
-注1: Ruby の Module は include 先のインスタンス変数にアクセスはできるが、
-     Module 自体が状態を持つわけではない
-注2: TypeScript のミックスインはクラスを返す関数なので、
-     状態（プロパティ）を追加できる
+Note 1: Ruby's Module can access the instance variables of the class that
+        includes it, but the Module itself does not hold state
+Note 2: TypeScript mixins are functions that return classes, so they can
+        add state (properties)
 ```
 
 ---
 
-## 2. Python: MRO（Method Resolution Order）
+## 2. Python: MRO (Method Resolution Order)
 
-### 2.1 C3線形化アルゴリズム
+### 2.1 The C3 Linearization Algorithm
 
 ```python
-# Python: C3線形化によるMRO
+# Python: MRO via C3 linearization
 class A:
     def greet(self):
         return "Hello from A"
@@ -194,25 +194,25 @@ class D(B, C):
 d = D()
 print(d.greet())  # "Hello from B"
 
-# MROの確認
+# Check the MRO
 print(D.__mro__)
 # (D, B, C, A, object)
-# → D → B → C → A → object の順で探索
+# → Searched in the order D → B → C → A → object
 ```
 
 ```python
-# C3線形化アルゴリズムの詳細
+# Details of the C3 linearization algorithm
 
-# C3線形化の定式化:
+# C3 linearization formula:
 # L(C) = C + merge(L(B1), L(B2), ..., L(Bn), B1 B2 ... Bn)
 #
-# merge のルール:
-#   1. 最初のリストの先頭要素を取る
-#   2. その要素が他のリストの「先頭以外」に出現しなければ、結果に追加
-#   3. 出現する場合、次のリストの先頭要素を試す
-#   4. すべてのリストが空になるまで繰り返す
+# Rules for merge:
+#   1. Take the head element of the first list
+#   2. If that element does not appear in the "tail" of any other list, add it to the result
+#   3. If it does appear, try the head of the next list
+#   4. Repeat until all lists are empty
 
-class O: pass   # object の代わり
+class O: pass   # stand-in for object
 
 class A(O):
     def method(self):
@@ -239,7 +239,7 @@ class F(C, D):
 class G(E, F):
     pass
 
-# MRO の計算:
+# MRO computation:
 # L(O) = [O]
 # L(A) = [A, O]
 # L(B) = [B, O]
@@ -264,25 +264,25 @@ print(G.__mro__)
 #  <class 'F'>, <class 'C'>, <class 'D'>, <class 'O'>)
 
 
-# C3線形化が失敗するケース
-# 矛盾する継承順序を検出してエラーを出す
-class X(A, B): pass  # A が B より先
-class Y(B, A): pass  # B が A より先
+# A case where C3 linearization fails
+# Contradictory inheritance orders are detected and raise an error
+class X(A, B): pass  # A before B
+class Y(B, A): pass  # B before A
 
 # class Z(X, Y): pass
 # → TypeError: Cannot create a consistent method resolution order (MRO)
 #   for bases A, B
-# X は A → B の順序を要求し、Y は B → A の順序を要求するため矛盾
+# X requires the order A → B, while Y requires B → A, which is contradictory
 ```
 
-### 2.2 協調的多重継承（Cooperative Multiple Inheritance）
+### 2.2 Cooperative Multiple Inheritance
 
 ```python
-# super() を使った協調的多重継承
+# Cooperative multiple inheritance using super()
 
 class Base:
     def __init__(self, **kwargs):
-        # 最終的な基底クラスは残ったkwargsを無視
+        # The final base class ignores any remaining kwargs
         pass
 
     def process(self, data: str) -> str:
@@ -290,22 +290,22 @@ class Base:
 
 
 class LoggingMixin(Base):
-    """ログ記録を追加するミックスイン"""
+    """Mixin that adds logging"""
     def __init__(self, *, log_prefix: str = "LOG", **kwargs):
-        super().__init__(**kwargs)  # 次のクラスに委譲
+        super().__init__(**kwargs)  # delegate to the next class
         self.log_prefix = log_prefix
         self._logs: list[str] = []
 
     def process(self, data: str) -> str:
         self._logs.append(f"[{self.log_prefix}] Processing: {data}")
-        # super() で MRO の次のクラスの process を呼ぶ
+        # Call the next class's process via super() in MRO order
         result = super().process(data)
         self._logs.append(f"[{self.log_prefix}] Result: {result}")
         return result
 
 
 class ValidationMixin(Base):
-    """バリデーションを追加するミックスイン"""
+    """Mixin that adds validation"""
     def __init__(self, *, max_length: int = 100, **kwargs):
         super().__init__(**kwargs)
         self.max_length = max_length
@@ -319,7 +319,7 @@ class ValidationMixin(Base):
 
 
 class TransformMixin(Base):
-    """データ変換を追加するミックスイン"""
+    """Mixin that adds data transformation"""
     def __init__(self, *, uppercase: bool = False, **kwargs):
         super().__init__(**kwargs)
         self.uppercase = uppercase
@@ -331,7 +331,7 @@ class TransformMixin(Base):
 
 
 class CacheMixin(Base):
-    """キャッシュを追加するミックスイン"""
+    """Mixin that adds caching"""
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._cache: dict[str, str] = {}
@@ -344,7 +344,7 @@ class CacheMixin(Base):
         return result
 
 
-# ミックスインの合成
+# Composing mixins
 class TextProcessor(
     LoggingMixin,
     ValidationMixin,
@@ -352,16 +352,16 @@ class TextProcessor(
     CacheMixin,
     Base,
 ):
-    """複数のミックスインを合成したテキストプロセッサ"""
+    """Text processor composed from multiple mixins"""
     pass
 
 
-# MRO の確認
+# Check the MRO
 print(TextProcessor.__mro__)
 # TextProcessor → LoggingMixin → ValidationMixin →
 # TransformMixin → CacheMixin → Base → object
 
-# 使用例
+# Usage example
 processor = TextProcessor(
     log_prefix="TXT",
     max_length=200,
@@ -373,47 +373,47 @@ print(result)        # "HELLO WORLD"
 print(processor._logs)
 # ['[TXT] Processing: hello world', '[TXT] Result: HELLO WORLD']
 
-# process の呼び出しチェーン:
-# 1. LoggingMixin.process: ログ記録 → super()
-# 2. ValidationMixin.process: バリデーション → super()
-# 3. TransformMixin.process: 大文字変換 → super()
-# 4. CacheMixin.process: キャッシュ → super()
-# 5. Base.process: データをそのまま返す
+# The process call chain:
+# 1. LoggingMixin.process: log → super()
+# 2. ValidationMixin.process: validate → super()
+# 3. TransformMixin.process: uppercase → super()
+# 4. CacheMixin.process: cache → super()
+# 5. Base.process: return the data as-is
 ```
 
 ```python
-# super() のメカニズムの詳細
+# Details of the super() mechanism
 
 class A:
     def method(self):
         print("A.method start")
-        # A は MRO の最後なので super() は object
+        # A is last in the MRO, so super() is object
         print("A.method end")
 
 class B(A):
     def method(self):
         print("B.method start")
-        super().method()  # MRO の次 → C（注: B の次は A ではない!）
+        super().method()  # next in MRO → C (Note: the next class after B is NOT A!)
         print("B.method end")
 
 class C(A):
     def method(self):
         print("C.method start")
-        super().method()  # MRO の次 → A
+        super().method()  # next in MRO → A
         print("C.method end")
 
 class D(B, C):
     def method(self):
         print("D.method start")
-        super().method()  # MRO の次 → B
+        super().method()  # next in MRO → B
         print("D.method end")
 
 d = D()
 d.method()
-# 出力:
+# Output:
 # D.method start
 # B.method start
-# C.method start    ← B の super() は C を呼ぶ！（A ではない）
+# C.method start    ← B's super() calls C! (not A)
 # A.method start
 # A.method end
 # C.method end
@@ -421,13 +421,13 @@ d.method()
 # D.method end
 
 # MRO: D → B → C → A → object
-# super() は「親クラス」ではなく「MRO の次のクラス」を呼ぶ
+# super() calls "the next class in the MRO", not "the parent class"
 ```
 
-### 2.3 Python: 実践的ミックスインパターン
+### 2.3 Python: Practical Mixin Patterns
 
 ```python
-# ミックスイン = 単独では使わない、機能を追加するためのクラス
+# Mixin = a class that is not used standalone but adds functionality
 import json
 from datetime import datetime
 from typing import Any, TypeVar, Type
@@ -436,12 +436,12 @@ T = TypeVar("T")
 
 
 class JsonMixin:
-    """JSON変換機能を追加"""
+    """Adds JSON conversion functionality"""
     def to_json(self) -> str:
         return json.dumps(self._to_dict(), default=str, ensure_ascii=False)
 
     def _to_dict(self) -> dict[str, Any]:
-        """シリアライズ対象のフィールドを返す"""
+        """Returns the fields to be serialized"""
         result = {}
         for key, value in self.__dict__.items():
             if not key.startswith("_"):
@@ -455,7 +455,7 @@ class JsonMixin:
 
 
 class TimestampMixin:
-    """タイムスタンプ機能を追加"""
+    """Adds timestamp functionality"""
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         original_init = cls.__init__
@@ -468,12 +468,12 @@ class TimestampMixin:
         cls.__init__ = new_init
 
     def touch(self) -> None:
-        """updated_at を更新"""
+        """Updates updated_at"""
         self.updated_at = datetime.now()
 
 
 class LoggableMixin:
-    """ログ出力機能を追加"""
+    """Adds logging functionality"""
     def log(self, message: str, level: str = "INFO") -> None:
         timestamp = datetime.now().isoformat()
         print(f"[{timestamp}] [{level}] [{type(self).__name__}] {message}")
@@ -486,10 +486,10 @@ class LoggableMixin:
 
 
 class ValidatableMixin:
-    """バリデーション機能を追加"""
+    """Adds validation functionality"""
 
     def validate(self) -> list[str]:
-        """バリデーションエラーのリストを返す"""
+        """Returns a list of validation errors"""
         errors = []
         for attr_name in dir(self):
             if attr_name.startswith("validate_"):
@@ -505,7 +505,7 @@ class ValidatableMixin:
 
 
 class EventEmitterMixin:
-    """イベント発行機能を追加"""
+    """Adds event emission functionality"""
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         original_init = cls.__init__
@@ -534,7 +534,7 @@ class EventEmitterMixin:
             ]
 
 
-# ミックスインを組み合わせ
+# Combining mixins
 class User(
     JsonMixin,
     TimestampMixin,
@@ -549,49 +549,49 @@ class User(
 
     def validate_name(self) -> str | None:
         if not self.name or len(self.name) < 2:
-            return "名前は2文字以上必要です"
+            return "Name must be at least 2 characters"
         return None
 
     def validate_email(self) -> str | None:
         if "@" not in self.email:
-            return "メールアドレスの形式が不正です"
+            return "Email address format is invalid"
         return None
 
     def validate_age(self) -> str | None:
         if self.age < 0 or self.age > 150:
-            return "年齢は0〜150の範囲で指定してください"
+            return "Age must be in the range 0 to 150"
         return None
 
 
-# 使用例
-user = User("田中太郎", "tanaka@example.com", age=30)
+# Usage example
+user = User("Taro Tanaka", "tanaka@example.com", age=30)
 
 # JsonMixin
 print(user.to_json())
-# {"name": "田中太郎", "email": "tanaka@example.com", "age": 30}
+# {"name": "Taro Tanaka", "email": "tanaka@example.com", "age": 30}
 
 # TimestampMixin
 print(user.created_at)
 
 # LoggableMixin
-user.log("ログインしました")
+user.log("Logged in")
 
 # ValidatableMixin
-print(user.validate())  # []（エラーなし）
+print(user.validate())  # [] (no errors)
 print(user.is_valid())  # True
 
 # EventEmitterMixin
-user.on("login", lambda: print("ログインイベント発生"))
+user.on("login", lambda: print("Login event fired"))
 user.emit("login")
 ```
 
-### 2.4 Python: __init_subclass__ を使ったメタプログラミング
+### 2.4 Python: Metaprogramming with __init_subclass__
 
 ```python
-# __init_subclass__: サブクラス定義時に自動実行されるフック
+# __init_subclass__: a hook that runs automatically when a subclass is defined
 
 class RegisterMixin:
-    """サブクラスを自動登録するミックスイン"""
+    """Mixin that auto-registers subclasses"""
     _registry: dict[str, type] = {}
 
     def __init_subclass__(cls, register_name: str = None, **kwargs):
@@ -628,7 +628,7 @@ class XMLExporter(Plugin, register_name="xml"):
         return "Exporting as XML..."
 
 
-# 自動登録されたプラグインを使用
+# Use the auto-registered plugins
 print(RegisterMixin.list_registered())
 # ['Plugin', 'csv', 'json', 'xml']
 
@@ -637,9 +637,9 @@ exporter = exporter_cls()
 print(exporter.execute())  # "Exporting as CSV..."
 
 
-# __set_name__ を使ったディスクリプタミックスイン
+# Descriptor-based mixin using __set_name__
 class TypeCheckedMixin:
-    """型チェック付きプロパティを自動定義"""
+    """Automatically defines type-checked properties"""
 
     class TypeCheckedDescriptor:
         def __init__(self, name: str, expected_type: type):
@@ -676,23 +676,23 @@ class StrictUser:
         self.email = email
 
 
-user = StrictUser("田中", 30, "tanaka@example.com")  # OK
-# StrictUser("田中", "30", "tanaka@example.com")  # TypeError
+user = StrictUser("Tanaka", 30, "tanaka@example.com")  # OK
+# StrictUser("Tanaka", "30", "tanaka@example.com")  # TypeError
 ```
 
 ---
 
-## 3. Ruby: モジュール
+## 3. Ruby: Modules
 
-### 3.1 include, extend, prepend の違い
+### 3.1 The Difference Between include, extend, and prepend
 
 ```ruby
-# Ruby: Module によるミックスイン
+# Ruby: Mixins via Module
 
-# Module の3つの取り込み方
-#   include:  インスタンスメソッドとして取り込む
-#   extend:   クラスメソッドとして取り込む
-#   prepend:  インスタンスメソッドとして取り込む（メソッド探索で先に見つかる）
+# Three ways to incorporate a Module
+#   include:  added as instance methods
+#   extend:   added as class methods
+#   prepend:  added as instance methods (found first during method lookup)
 
 module Greetable
   def greet
@@ -709,14 +709,14 @@ end
 module Logging
   def greet
     puts "[LOG] greet called"
-    super  # prepend なら元の greet が呼ばれる
+    super  # with prepend, this calls the original greet
   end
 end
 
 class Person
-  include Greetable  # インスタンスメソッドとして追加
-  extend ClassInfo   # クラスメソッドとして追加
-  prepend Logging    # greet を上書き（super で元のメソッドを呼べる）
+  include Greetable  # added as instance methods
+  extend ClassInfo   # added as class methods
+  prepend Logging    # overrides greet (super can call the original method)
 
   attr_reader :name
 
@@ -725,19 +725,19 @@ class Person
   end
 end
 
-person = Person.new("田中")
-puts person.greet      # [LOG] greet called  →  "Hello, I'm 田中"
+person = Person.new("Tanaka")
+puts person.greet      # [LOG] greet called  →  "Hello, I'm Tanaka"
 puts Person.info       # "Class: Person, Methods: 1"
 
-# メソッド探索順序
+# Method lookup order
 puts Person.ancestors
 # [Logging, Person, Greetable, Object, Kernel, BasicObject]
-# prepend は Person の前に来る
-# include は Person の後に来る
+# prepend comes before Person
+# include comes after Person
 ```
 
 ```ruby
-# Ruby: Module の高度な使い方
+# Ruby: Advanced use of Module
 
 module Serializable
   def to_json
@@ -763,7 +763,7 @@ end
 
 module Cacheable
   def self.included(base)
-    # Module が include されたときに呼ばれるフック
+    # Hook called when the Module is included
     base.instance_variable_set(:@cache, {})
     base.extend(ClassMethods)
   end
@@ -820,21 +820,21 @@ class Product
   def expensive?
     @price > 10000
   end
-  cached_method :expensive?  # Cacheable でキャッシュ化
+  cached_method :expensive?  # cached via Cacheable
 end
 
-product = Product.new("ノートPC", 89800, "electronics")
+product = Product.new("Laptop", 89800, "electronics")
 puts product.to_json        # Serializable
-product.log("在庫追加")      # Loggable
+product.log("Inventory added")      # Loggable
 puts product.cache_key      # Cacheable
-puts product > Product.new("マウス", 2980)  # Comparable → true
+puts product > Product.new("Mouse", 2980)  # Comparable → true
 ```
 
-### 3.2 Ruby: concern パターン（Rails）
+### 3.2 Ruby: The concern Pattern (Rails)
 
 ```ruby
-# ActiveSupport::Concern パターン
-# Rails で広く使われるミックスインの構造化手法
+# The ActiveSupport::Concern pattern
+# A widely-used way to structure mixins in Rails
 
 module ActiveSupport
   module Concern
@@ -861,14 +861,14 @@ module ActiveSupport
   end
 end
 
-# Concern の使用例
+# Example usage of Concern
 module Searchable
   extend ActiveSupport::Concern
 
   class_methods do
     def search(query)
       puts "Searching #{self.name} for: #{query}"
-      # 実際のRailsでは: where("name LIKE ?", "%#{query}%")
+      # In actual Rails: where("name LIKE ?", "%#{query}%")
     end
 
     def search_by_field(field, value)
@@ -877,7 +877,7 @@ module Searchable
   end
 
   def highlight(query)
-    # インスタンスメソッド
+    # instance method
     puts "Highlighting '#{query}' in #{self.class.name}"
   end
 end
@@ -935,7 +935,7 @@ end
 Article.search("Ruby")             # Searchable
 Article.find_by_tag("programming") # Taggable
 
-article = Article.new("Ruby入門", "Rubyの基礎...")
+article = Article.new("Intro to Ruby", "Ruby basics...")
 article.add_tag("ruby")           # Taggable
 article.highlight("Ruby")         # Searchable
 article.audit("created")          # Auditable
@@ -943,15 +943,15 @@ article.audit("created")          # Auditable
 
 ---
 
-## 4. TypeScript: ミックスインパターン
+## 4. TypeScript: The Mixin Pattern
 
-### 4.1 クラス式ベースのミックスイン
+### 4.1 Class-Expression-Based Mixins
 
 ```typescript
-// TypeScript: ミックスイン（クラス式を使ったパターン）
+// TypeScript: Mixins (pattern using class expressions)
 type Constructor<T = {}> = new (...args: any[]) => T;
 
-// ミックスイン関数
+// Mixin function
 function Timestamped<TBase extends Constructor>(Base: TBase) {
   return class Timestamped extends Base {
     createdAt = new Date();
@@ -982,29 +982,29 @@ function Taggable<TBase extends Constructor>(Base: TBase) {
   };
 }
 
-// ベースクラス
+// Base class
 class User {
   constructor(public name: string, public email: string) {}
 }
 
-// ミックスインを合成
+// Compose the mixins
 const EnhancedUser = Taggable(Activatable(Timestamped(User)));
 
-const user = new EnhancedUser("田中", "tanaka@example.com");
+const user = new EnhancedUser("Tanaka", "tanaka@example.com");
 user.activate();          // Activatable
 user.addTag("premium");   // Taggable
 user.touch();             // Timestamped
 ```
 
-### 4.2 型安全なミックスイン（高度なパターン）
+### 4.2 Type-Safe Mixins (Advanced Pattern)
 
 ```typescript
-// TypeScript: 型安全なミックスインの実装
+// TypeScript: Implementing type-safe mixins
 
-// より厳密な型定義
+// More strict type definitions
 type GConstructor<T = {}> = new (...args: any[]) => T;
 
-// インターフェースで各ミックスインの型を定義
+// Define the type of each mixin via an interface
 interface HasId {
   id: string;
 }
@@ -1013,7 +1013,7 @@ interface HasName {
   name: string;
 }
 
-// 制約付きミックスイン: HasId を持つクラスにのみ適用可能
+// Constrained mixin: applicable only to classes with HasId
 function Persistable<TBase extends GConstructor<HasId>>(Base: TBase) {
   return class Persistable extends Base {
     isPersisted = false;
@@ -1030,7 +1030,7 @@ function Persistable<TBase extends GConstructor<HasId>>(Base: TBase) {
   };
 }
 
-// 制約付きミックスイン: HasName を持つクラスにのみ適用可能
+// Constrained mixin: applicable only to classes with HasName
 function Searchable<TBase extends GConstructor<HasName>>(Base: TBase) {
   return class Searchable extends Base {
     matches(query: string): boolean {
@@ -1039,7 +1039,7 @@ function Searchable<TBase extends GConstructor<HasName>>(Base: TBase) {
   };
 }
 
-// Serializable: 任意のクラスに適用可能
+// Serializable: applicable to any class
 function Serializable<TBase extends GConstructor>(Base: TBase) {
   return class Serializable extends Base {
     toJSON(): Record<string, unknown> {
@@ -1059,7 +1059,7 @@ function Serializable<TBase extends GConstructor>(Base: TBase) {
   };
 }
 
-// Validatable: バリデーションルールを追加
+// Validatable: adds validation rules
 function Validatable<TBase extends GConstructor>(Base: TBase) {
   return class Validatable extends Base {
     private _validationRules: Map<string, (value: any) => string | null> =
@@ -1085,12 +1085,12 @@ function Validatable<TBase extends GConstructor>(Base: TBase) {
   };
 }
 
-// ベースクラス
+// Base class
 class Entity {
   constructor(public id: string, public name: string) {}
 }
 
-// ミックスインを合成
+// Compose the mixins
 const EnhancedEntity = Validatable(
   Serializable(
     Searchable(
@@ -1099,7 +1099,7 @@ const EnhancedEntity = Validatable(
   )
 );
 
-// 使用例
+// Usage example
 const entity = new EnhancedEntity("1", "Product A");
 entity.addRule("name", (v) =>
   v.length < 2 ? "Name must be at least 2 characters" : null,
@@ -1111,12 +1111,12 @@ console.log(entity.toJSON());             // { id: "1", name: "Product A" }
 await entity.save();                      // "Saving entity with id: 1"
 ```
 
-### 4.3 デコレータベースのミックスイン
+### 4.3 Decorator-Based Mixins
 
 ```typescript
-// TypeScript 5.0+ デコレータを使ったミックスイン
+// Mixins using TypeScript 5.0+ decorators
 
-// メソッドデコレータ: ログを追加
+// Method decorator: adds logging
 function logged(
   target: any,
   context: ClassMethodDecoratorContext,
@@ -1130,7 +1130,7 @@ function logged(
   };
 }
 
-// メソッドデコレータ: キャッシュを追加
+// Method decorator: adds caching
 function cached(
   target: any,
   context: ClassMethodDecoratorContext,
@@ -1147,7 +1147,7 @@ function cached(
   };
 }
 
-// メソッドデコレータ: リトライを追加
+// Method decorator: adds retry
 function retry(maxAttempts: number) {
   return function (
     target: any,
@@ -1170,7 +1170,7 @@ function retry(maxAttempts: number) {
   };
 }
 
-// クラスデコレータ: タイムスタンプを追加
+// Class decorator: adds timestamps
 function withTimestamps<T extends Constructor>(Base: T) {
   return class extends Base {
     createdAt = new Date();
@@ -1182,7 +1182,7 @@ function withTimestamps<T extends Constructor>(Base: T) {
   };
 }
 
-// 使用例
+// Usage example
 @withTimestamps
 class ApiClient {
   constructor(private baseUrl: string) {}
@@ -1198,7 +1198,7 @@ class ApiClient {
   @logged
   @cached
   computeExpensiveResult(input: number): number {
-    // 重い計算のシミュレーション
+    // Simulating an expensive computation
     let result = 0;
     for (let i = 0; i < input * 1000; i++) {
       result += Math.sin(i);
@@ -1210,14 +1210,14 @@ class ApiClient {
 
 ---
 
-## 5. Rust: トレイト合成
+## 5. Rust: Trait Composition
 
 ```rust
-// Rust: トレイトによる振る舞いの合成
+// Rust: Composing behavior with traits
 
 use std::fmt;
 
-// トレイト定義
+// Trait definitions
 trait Displayable {
     fn display_name(&self) -> String;
 }
@@ -1239,7 +1239,7 @@ trait Auditable {
     fn audit_log(&self) -> String;
 }
 
-// 複数トレイトを実装
+// Implementing multiple traits
 struct Product {
     id: u64,
     name: String,
@@ -1281,12 +1281,12 @@ impl Auditable for Product {
     }
 }
 
-// トレイト境界で複数のトレイトを要求
+// Require multiple traits via trait bounds
 fn process_entity<T>(entity: &T)
 where
     T: Displayable + Serializable + Validatable + Auditable,
 {
-    // バリデーション
+    // Validation
     match entity.validate() {
         Ok(()) => println!("✓ Validation passed"),
         Err(errors) => {
@@ -1297,22 +1297,22 @@ where
         }
     }
 
-    // 表示
+    // Display
     println!("Name: {}", entity.display_name());
 
-    // シリアライズ
+    // Serialize
     println!("JSON: {}", entity.serialize());
 
-    // 監査ログ
+    // Audit log
     println!("Audit: {}", entity.audit_log());
 }
 
-// トレイトオブジェクトとしてまとめる
-// 注: 複数のトレイトをトレイトオブジェクトとして使う場合は
-//     スーパートレイトを定義する
+// Combine as a trait object
+// Note: To use multiple traits as a trait object,
+//       define a super-trait.
 trait FullyFeatured: Displayable + Serializable + Validatable + Auditable {}
 
-// ブランケット実装: 4つすべてを実装する型は自動的に FullyFeatured
+// Blanket implementation: any type that implements all four is automatically FullyFeatured
 impl<T> FullyFeatured for T
 where
     T: Displayable + Serializable + Validatable + Auditable,
@@ -1325,22 +1325,22 @@ fn process_any(entity: &dyn FullyFeatured) {
 ```
 
 ```rust
-// Rust: Derive マクロによる自動ミックスイン
+// Rust: Automatic mixins via Derive macros
 
-// 標準の Derive マクロ
+// Standard derive macros
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct Point {
     x: i32,
     y: i32,
 }
 
-// カスタム Derive マクロ（procedural macro）の使用例
-// 注: 実際にはproc-macroクレートが必要
+// Example usage of custom derive macros (procedural macros)
+// Note: in practice a proc-macro crate is required
 // #[derive(Serialize, Deserialize)]  // serde
 // #[derive(Builder)]                  // derive_builder
 // #[derive(Display)]                  // derive_more
 
-// Deref と DerefMut でニュータイプパターン
+// Newtype pattern with Deref and DerefMut
 use std::ops::{Deref, DerefMut};
 
 struct Email(String);
@@ -1362,22 +1362,22 @@ impl Deref for Email {
     }
 }
 
-// Email は String のすべてのメソッドを使える
+// Email can use all String methods
 let email = Email::new("user@example.com").unwrap();
 println!("Length: {}", email.len());       // String::len()
 println!("Upper: {}", email.to_uppercase()); // String::to_uppercase()
 
-// ただし、暗黙の型変換は起きない
-// let s: String = email;  // ❌ コンパイルエラー
+// However, implicit type conversion does not occur
+// let s: String = email;  // ❌ compile error
 let s: &str = &email;     // ✅ Deref coercion
 ```
 
 ---
 
-## 6. Java: デフォルトメソッドとインターフェースの合成
+## 6. Java: Default Methods and Interface Composition
 
 ```java
-// Java: インターフェースのデフォルトメソッドによるミックスイン的パターン
+// Java: A mixin-like pattern using default methods in interfaces
 
 public interface Identifiable {
     String getId();
@@ -1427,7 +1427,7 @@ public interface Validatable {
 
 public interface Serializable {
     default String toJson() {
-        // リフレクションを使った簡易実装
+        // Simple implementation using reflection
         var sb = new StringBuilder("{");
         var fields = getClass().getDeclaredFields();
         for (int i = 0; i < fields.length; i++) {
@@ -1446,7 +1446,7 @@ public interface Serializable {
     }
 }
 
-// 複数のインターフェースを実装
+// Implement multiple interfaces
 public class User implements
         Identifiable, Timestamped, Loggable,
         Validatable, Serializable {
@@ -1483,25 +1483,25 @@ public class User implements
     public List<String> validate() {
         var errors = new ArrayList<String>();
         if (name == null || name.length() < 2) {
-            errors.add("名前は2文字以上必要です");
+            errors.add("Name must be at least 2 characters");
         }
         if (email == null || !email.contains("@")) {
-            errors.add("メールアドレスが不正です");
+            errors.add("Email address is invalid");
         }
         return errors;
     }
 }
 
-// 使用例
-var user = new User("1", "田中", "tanaka@example.com");
-user.logInfo("ログイン");        // Loggable
+// Usage example
+var user = new User("1", "Tanaka", "tanaka@example.com");
+user.logInfo("Logged in");        // Loggable
 user.touch();                    // Timestamped
 System.out.println(user.isValid());  // Validatable
 System.out.println(user.toJson());   // Serializable
 ```
 
 ```java
-// Java: デフォルトメソッドの衝突解決
+// Java: Resolving default method conflicts
 
 interface Flyable {
     default String move() { return "Flying"; }
@@ -1515,15 +1515,15 @@ interface Walkable {
     default String move() { return "Walking"; }
 }
 
-// 3つの move() が衝突 → 明示的にオーバーライドが必要
+// Three move() methods conflict → explicit override is required
 class Duck implements Flyable, Swimmable, Walkable {
     @Override
     public String move() {
-        // 特定のインターフェースのデフォルト実装を選択可能
+        // A specific interface's default implementation can be selected
         return Flyable.super.move();
     }
 
-    // 状況に応じて切り替え
+    // Switch based on context
     public String move(String context) {
         return switch (context) {
             case "air" -> Flyable.super.move();
@@ -1542,10 +1542,10 @@ System.out.println(duck.move("land"));    // "Walking"
 
 ---
 
-## 7. Kotlin: デリゲーションによるミックスイン
+## 7. Kotlin: Mixins via Delegation
 
 ```kotlin
-// Kotlin: by キーワードによるインターフェース委譲
+// Kotlin: Interface delegation with the by keyword
 
 interface Logger {
     fun log(message: String)
@@ -1559,7 +1559,7 @@ interface Cache<K, V> {
     fun clear()
 }
 
-// 具象実装
+// Concrete implementations
 class ConsoleLogger : Logger {
     override fun log(message: String) {
         println("[INFO] $message")
@@ -1579,14 +1579,14 @@ class InMemoryCache<K, V> : Cache<K, V> {
     override fun clear() { store.clear() }
 }
 
-// by キーワードで委譲（コンポジションだが、インターフェースを満たす）
+// Delegate with the by keyword (composition that satisfies the interfaces)
 class UserService(
     private val logger: Logger = ConsoleLogger(),
     private val cache: Cache<String, User> = InMemoryCache(),
 ) : Logger by logger, Cache<String, User> by cache {
 
     fun findUser(id: String): User? {
-        // Cache.get を直接呼べる（by で委譲されているため）
+        // Cache.get can be called directly (because it is delegated via `by`)
         val cached = get(id)
         if (cached != null) {
             log("Cache hit for user: $id")
@@ -1594,39 +1594,39 @@ class UserService(
         }
 
         log("Cache miss for user: $id")
-        // DB から取得
+        // Fetch from the DB
         val user = fetchFromDb(id) ?: return null
-        put(id, user)  // Cache.put を直接呼べる
+        put(id, user)  // Cache.put can be called directly
         return user
     }
 
     private fun fetchFromDb(id: String): User? {
         log("Fetching user $id from database")
-        return User(id, "田中太郎", "tanaka@example.com")
+        return User(id, "Taro Tanaka", "tanaka@example.com")
     }
 }
 
 data class User(val id: String, val name: String, val email: String)
 
-// 使用例
+// Usage example
 val service = UserService()
 val user = service.findUser("user-1")
 
-// UserService は Logger と Cache の両方のインターフェースを満たす
+// UserService satisfies both the Logger and Cache interfaces
 val logger: Logger = service
 val cache: Cache<String, User> = service
 ```
 
 ```kotlin
-// Kotlin: 拡張関数によるミックスイン的パターン
+// Kotlin: A mixin-like pattern using extension functions
 
-// インターフェース + 拡張関数で横断的な機能を追加
+// Add cross-cutting functionality via interfaces + extension functions
 interface HasTimestamp {
     val createdAt: Long
     val updatedAt: Long
 }
 
-// 拡張関数: HasTimestamp を実装する全ての型に適用
+// Extension function: applies to any type that implements HasTimestamp
 fun HasTimestamp.formatCreatedAt(): String {
     val sdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
     return sdf.format(java.util.Date(createdAt))
@@ -1647,7 +1647,7 @@ fun HasName.initials(): String {
         .joinToString("")
 }
 
-// データクラスで複数のインターフェースを実装
+// A data class implementing multiple interfaces
 data class Article(
     val id: String,
     override val name: String,
@@ -1656,20 +1656,20 @@ data class Article(
     override val updatedAt: Long = System.currentTimeMillis(),
 ) : HasTimestamp, HasName
 
-// 使用例
-val article = Article("1", "Kotlin入門", "Kotlinの基礎を学びます")
-println(article.formatCreatedAt())  // HasTimestamp 拡張
-println(article.isOlderThan(30))    // HasTimestamp 拡張
-println(article.initials())          // HasName 拡張 → "K"
+// Usage example
+val article = Article("1", "Intro to Kotlin", "Learn the basics of Kotlin")
+println(article.formatCreatedAt())  // HasTimestamp extension
+println(article.isOlderThan(30))    // HasTimestamp extension
+println(article.initials())          // HasName extension → "I"
 ```
 
 ---
 
-## 8. PHP: トレイト
+## 8. PHP: Traits
 
 ```php
 <?php
-// PHP: trait によるミックスイン
+// PHP: Mixins via trait
 
 trait Timestampable {
     private DateTime $createdAt;
@@ -1723,7 +1723,7 @@ trait HasSlug {
     }
 }
 
-// トレイトの合成
+// Composing traits
 class Article {
     use Timestampable;
     use SoftDeletable;
@@ -1738,7 +1738,7 @@ class Article {
     }
 }
 
-// トレイトの衝突解決
+// Resolving trait conflicts
 trait A {
     public function hello(): string {
         return "Hello from A";
@@ -1753,8 +1753,8 @@ trait B {
 
 class C {
     use A, B {
-        A::hello insteadof B;  // A の hello を優先
-        B::hello as helloB;    // B の hello を別名で使用
+        A::hello insteadof B;  // prefer A's hello
+        B::hello as helloB;    // use B's hello under an alias
     }
 }
 
@@ -1762,7 +1762,7 @@ $c = new C();
 echo $c->hello();    // "Hello from A"
 echo $c->helloB();   // "Hello from B"
 
-// トレイトの要求（abstract メソッド）
+// Trait requirements (abstract methods)
 trait Loggable {
     abstract protected function getLogPrefix(): string;
 
@@ -1782,10 +1782,10 @@ class UserService {
 
 ---
 
-## 9. Scala: トレイトの線形化
+## 9. Scala: Trait Linearization
 
 ```scala
-// Scala: トレイトのスタック可能な修正（Stackable Modification）
+// Scala: Stackable Modification with traits
 
 trait IntQueue {
   def get(): Int
@@ -1800,7 +1800,7 @@ class BasicIntQueue extends IntQueue {
   def put(x: Int): Unit = buf += x
 }
 
-// スタック可能な修正: 各トレイトが振る舞いを追加
+// Stackable modifications: each trait adds behavior
 trait Doubling extends IntQueue {
   abstract override def put(x: Int): Unit = super.put(2 * x)
 }
@@ -1812,13 +1812,13 @@ trait Incrementing extends IntQueue {
 trait Filtering extends IntQueue {
   abstract override def put(x: Int): Unit = {
     if (x >= 0) super.put(x)
-    // 負の数は無視
+    // negative numbers are ignored
   }
 }
 
-// トレイトの合成: 右から左の順で適用
+// Trait composition: applied from right to left
 val queue1 = new BasicIntQueue with Incrementing with Filtering
-queue1.put(-1)  // Filtering: x >= 0 → 無視
+queue1.put(-1)  // Filtering: x >= 0 → ignored
 queue1.put(0)   // Filtering: x >= 0 → Incrementing: put(0 + 1) → put(1)
 queue1.put(1)   // Filtering: x >= 0 → Incrementing: put(1 + 1) → put(2)
 // queue1 contains: [1, 2]
@@ -1828,12 +1828,12 @@ queue2.put(-1)  // Incrementing: put(-1 + 1) → Filtering: 0 >= 0 → put(0)
 queue2.put(0)   // Incrementing: put(0 + 1) → Filtering: 1 >= 0 → put(1)
 // queue2 contains: [0, 1]
 
-// 線形化の順序が結果を変える！
-// with Incrementing with Filtering: 先にFiltering → Incrementing
-// with Filtering with Incrementing: 先にIncrementing → Filtering
+// The linearization order changes the result!
+// with Incrementing with Filtering: Filtering first → then Incrementing
+// with Filtering with Incrementing: Incrementing first → then Filtering
 
 
-// Scala: Self-type による依存関係の宣言
+// Scala: Declaring dependencies with Self-type
 trait UserRepository {
   def findUser(id: String): Option[User]
   def saveUser(user: User): Unit
@@ -1843,19 +1843,19 @@ trait EmailService {
   def sendEmail(to: String, subject: String, body: String): Unit
 }
 
-// Self-type: UserRepository と EmailService が必要
+// Self-type: requires both UserRepository and EmailService
 trait UserRegistration {
   self: UserRepository with EmailService =>
 
   def register(name: String, email: String): User = {
     val user = User(java.util.UUID.randomUUID().toString, name, email)
-    saveUser(user)  // UserRepository のメソッド
-    sendEmail(email, "Welcome!", s"Welcome, $name!")  // EmailService のメソッド
+    saveUser(user)  // method from UserRepository
+    sendEmail(email, "Welcome!", s"Welcome, $name!")  // method from EmailService
     user
   }
 }
 
-// 実装時にすべての依存を満たす必要がある
+// When implementing, all dependencies must be satisfied
 class ProductionApp
     extends UserRegistration
     with UserRepository
@@ -1877,10 +1877,10 @@ case class User(id: String, name: String, email: String)
 
 ---
 
-## 10. Swift: プロトコル拡張によるミックスイン
+## 10. Swift: Mixins via Protocol Extensions
 
 ```swift
-// Swift: Protocol Extension によるミックスイン的パターン
+// Swift: A mixin-like pattern via Protocol Extension
 
 protocol Identifiable {
     var id: String { get }
@@ -1891,7 +1891,7 @@ protocol Timestamped {
     var updatedAt: Date { get set }
 }
 
-// Protocol Extension でデフォルト実装を提供
+// Provide default implementations via Protocol Extension
 extension Timestamped {
     mutating func touch() {
         updatedAt = Date()
@@ -1902,7 +1902,7 @@ extension Timestamped {
     }
 
     var isRecent: Bool {
-        return age < 86400  // 24時間以内
+        return age < 86400  // within 24 hours
     }
 }
 
@@ -1927,7 +1927,7 @@ enum ValidationError: Error {
 }
 
 protocol JSONConvertible: Codable {
-    // Codable を要求するだけ
+    // Just requires Codable
 }
 
 extension JSONConvertible {
@@ -1945,7 +1945,7 @@ extension JSONConvertible {
     }
 }
 
-// プロトコルの合成
+// Protocol composition
 struct Article: Identifiable, Timestamped, Validatable, JSONConvertible, Codable {
     let id: String
     var title: String
@@ -1961,11 +1961,11 @@ struct Article: Identifiable, Timestamped, Validatable, JSONConvertible, Codable
     }
 }
 
-// 使用例
+// Usage example
 var article = Article(
     id: "1",
-    title: "Swift入門",
-    body: "Swiftの基礎を学びます。プロトコルは強力です。",
+    title: "Intro to Swift",
+    body: "Learn the basics of Swift. Protocols are powerful.",
     createdAt: Date(),
     updatedAt: Date()
 )
@@ -1979,90 +1979,90 @@ print(json)
 
 ---
 
-## 11. ミックスイン設計の原則とアンチパターン
+## 11. Mixin Design Principles and Anti-Patterns
 
-### 11.1 設計原則
+### 11.1 Design Principles
 
 ```
-ミックスインの設計原則:
+Mixin design principles:
 
-  1. 単一責任の原則（SRP）
-     → 各ミックスインは1つの横断的関心事のみを扱う
+  1. Single Responsibility Principle (SRP)
+     → Each mixin addresses only one cross-cutting concern
      → ❌ LoggingAndCachingMixin → ✅ LoggingMixin + CachingMixin
 
-  2. ステートレス優先
-     → 状態を持たないミックスインは副作用が少なく安全
-     → 状態を持つ場合は、初期化の順序に注意
-     → 命名規則: 状態を持つ場合は明示的に（StatefulXxxMixin）
+  2. Prefer Stateless
+     → Stateless mixins have fewer side effects and are safer
+     → If state is needed, be careful about initialization order
+     → Naming convention: mark stateful mixins explicitly (StatefulXxxMixin)
 
-  3. 明示的な依存関係
-     → 暗黙の依存（他のミックスインのメソッドを前提）は避ける
-     → 必要なら抽象メソッドで要求を明示する
+  3. Explicit Dependencies
+     → Avoid implicit dependencies (assuming methods of other mixins exist)
+     → If needed, declare requirements via abstract methods
      → Python: Protocol, Ruby: abstract method, Rust: trait bounds
 
-  4. 浅い継承チェーン
-     → ミックスインの継承は1段まで（ミックスインがミックスインを継承しない）
-     → 合成で解決できないかを先に検討
+  4. Shallow Inheritance Chain
+     → Limit mixin inheritance to one level (a mixin should not inherit from another mixin)
+     → Consider whether the problem can be solved with composition first
 
-  5. 命名規則
-     → Python: XxxMixin サフィックス
-     → Ruby: 形容詞的な名前（Serializable, Loggable, Cacheable）
-     → TypeScript: ミックスイン関数は動詞的（withTimestamp, makeLoggable）
-     → PHP: XxxTrait サフィックス（またはXxxable）
+  5. Naming Conventions
+     → Python: XxxMixin suffix
+     → Ruby: adjective-like names (Serializable, Loggable, Cacheable)
+     → TypeScript: verb-like mixin functions (withTimestamp, makeLoggable)
+     → PHP: XxxTrait suffix (or Xxxable)
 ```
 
-### 11.2 アンチパターン
+### 11.2 Anti-Patterns
 
 ```
-アンチパターン 1: God Mixin
-  問題: 1つのミックスインに大量の機能を詰め込む
-  症状:
-    → 100行以上のミックスイン
-    → 無関係な複数の責務
-    → 部分的にしか使わないクラスが多い
-  解決: 責務ごとに分割
+Anti-pattern 1: God Mixin
+  Problem: cramming many features into a single mixin
+  Symptoms:
+    → mixins over 100 lines
+    → multiple unrelated responsibilities
+    → many classes that only use part of the mixin
+  Solution: split by responsibility
 
-アンチパターン 2: 暗黙の依存
-  問題: ミックスインが他のミックスインや特定のフィールドの存在を前提とする
-  症状:
-    → self.name のようなフィールドへのアクセスが型チェックされない
-    → ミックスインの順序を変えると壊れる
-  解決: 抽象メソッドで依存を明示、またはプロトコルで型チェック
+Anti-pattern 2: Implicit Dependencies
+  Problem: a mixin assumes other mixins or specific fields exist
+  Symptoms:
+    → accesses to fields like self.name are not type-checked
+    → breaks when mixin order is changed
+  Solution: declare dependencies via abstract methods or type-check via protocols
 
-アンチパターン 3: ミックスインの乱用
-  問題: あらゆる機能をミックスインで追加し、クラスの本質が見えなくなる
-  症状:
+Anti-pattern 3: Mixin Abuse
+  Problem: adding every feature as a mixin, obscuring the essence of the class
+  Symptoms:
     → class User(A, B, C, D, E, F, G, H, I, J): ...
-    → メソッドの出所が追跡困難
-    → IDE がメソッドの型を推論できない
-  解決: 5個以下に制限、コンポジションを検討
+    → method origins are hard to trace
+    → IDEs cannot infer method types
+  Solution: limit to 5 or fewer; consider composition
 
-アンチパターン 4: 状態の衝突
-  問題: 複数のミックスインが同名のフィールドを追加する
-  症状:
-    → self._cache が2つのミックスインで別の意味
-    → 初期化の順序で結果が変わる
-  解決: プレフィックスで名前空間を分ける（_logging_cache, _http_cache）
+Anti-pattern 4: State Collision
+  Problem: multiple mixins add fields with the same name
+  Symptoms:
+    → self._cache has different meanings across two mixins
+    → the result changes based on initialization order
+  Solution: use prefixes to namespace them (_logging_cache, _http_cache)
 
-アンチパターン 5: ダイヤモンドミックスイン
-  問題: 複数のミックスインが共通のベースミックスインを継承
-  症状:
-    → MRO が予期しない順序になる
-    → super() チェーンが複雑化
-  解決: ミックスインの継承を避け、フラットな構造にする
+Anti-pattern 5: Diamond Mixin
+  Problem: multiple mixins inherit from a common base mixin
+  Symptoms:
+    → MRO ends up in an unexpected order
+    → the super() chain becomes complicated
+  Solution: avoid mixin inheritance; keep the structure flat
 ```
 
 ```python
-# アンチパターンの具体例と修正
+# Concrete examples of anti-patterns and their fixes
 
-# ❌ アンチパターン: 暗黙の依存
+# ❌ Anti-pattern: implicit dependencies
 class BadLoggingMixin:
     def log(self, message: str) -> None:
-        # self.name の存在を暗黙的に仮定している
+        # Implicitly assumes self.name exists
         print(f"[{self.name}] {message}")  # type: ignore
 
 
-# ✅ 修正: プロトコルで依存を明示
+# ✅ Fix: declare the dependency with a Protocol
 from typing import Protocol
 
 
@@ -2071,28 +2071,28 @@ class HasName(Protocol):
 
 
 class GoodLoggingMixin:
-    """HasName を実装するクラスで使用"""
+    """Use with a class that implements HasName"""
     def log(self: "HasName", message: str) -> None:
         print(f"[{self.name}] {message}")
 
-    # または抽象メソッドで要求を明示
+    # Or declare the requirement via an abstract method
     # def get_log_prefix(self) -> str:
     #     raise NotImplementedError
 
 
-# ❌ アンチパターン: 状態の衝突
+# ❌ Anti-pattern: state collision
 class CacheMixin1:
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self._cache = {}  # HTTP キャッシュ
+        self._cache = {}  # HTTP cache
 
 class CacheMixin2:
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self._cache = {}  # 計算結果キャッシュ（衝突!）
+        self._cache = {}  # cache of computation results (collision!)
 
 
-# ✅ 修正: 名前空間で分離
+# ✅ Fix: separate by namespace
 class HttpCacheMixin:
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -2104,39 +2104,39 @@ class ComputeCacheMixin:
         self._compute_cache: dict[str, any] = {}
 
 
-# ❌ アンチパターン: ミックスインの乱用
+# ❌ Anti-pattern: mixin abuse
 class OverMixedUser(
-    JsonMixin, XmlMixin, CsvMixin,       # シリアライズ3つも要らない
-    LoggingMixin, TracingMixin,           # ログとトレース両方？
-    CacheMixin, MemcacheMixin, RedisMixin,  # キャッシュ3つ？
+    JsonMixin, XmlMixin, CsvMixin,       # don't need three serializers
+    LoggingMixin, TracingMixin,           # both logging and tracing?
+    CacheMixin, MemcacheMixin, RedisMixin,  # three caches?
     ValidatableMixin, SanitizableMixin,
 ):
-    pass  # クラスの本質が完全に見えない
+    pass  # the essence of the class is completely invisible
 
 
-# ✅ 修正: 必要最小限のミックスイン + コンポジション
+# ✅ Fix: minimum necessary mixins + composition
 class CleanUser(JsonMixin, LoggableMixin, ValidatableMixin):
     def __init__(self, name: str, email: str):
         self.name = name
         self.email = email
-        # キャッシュはコンポジションで
+        # Caching is handled via composition
         self._cache = CacheService()
 ```
 
 ---
 
-## 12. テスト戦略
+## 12. Testing Strategies
 
-### 12.1 ミックスインの単体テスト
+### 12.1 Unit Testing Mixins
 
 ```python
-# ミックスインの単体テスト戦略
+# Unit testing strategy for mixins
 
 import pytest
 from datetime import datetime
 
 
-# テスト対象のミックスイン
+# Mixins under test
 class SerializableMixin:
     def to_dict(self) -> dict:
         return {
@@ -2159,7 +2159,7 @@ class ValidatableMixin:
         return len(self.validate()) == 0
 
 
-# テスト用のホストクラス（ミックスインをテストするための最小クラス）
+# Host classes for testing (minimal classes to exercise the mixin)
 class SerializableHost(SerializableMixin):
     def __init__(self, name: str, value: int):
         self.name = name
@@ -2183,7 +2183,7 @@ class ValidatableHost(ValidatableMixin):
         return None
 
 
-# テスト
+# Tests
 class TestSerializableMixin:
     def test_to_dict_includes_public_attrs(self):
         obj = SerializableHost("test", 42)
@@ -2204,7 +2204,7 @@ class TestSerializableMixin:
 
 class TestValidatableMixin:
     def test_valid_object(self):
-        obj = ValidatableHost("田中", 30)
+        obj = ValidatableHost("Tanaka", 30)
         assert obj.is_valid()
         assert obj.validate() == []
 
@@ -2215,7 +2215,7 @@ class TestValidatableMixin:
         assert "Name is required" in errors
 
     def test_invalid_age(self):
-        obj = ValidatableHost("田中", -1)
+        obj = ValidatableHost("Tanaka", -1)
         assert not obj.is_valid()
         errors = obj.validate()
         assert "Age must be non-negative" in errors
@@ -2226,7 +2226,7 @@ class TestValidatableMixin:
         assert len(errors) == 2
 
 
-# 複数ミックスインの結合テスト
+# Integration test for multiple mixins
 class TestMixinComposition:
     def test_serializable_and_validatable(self):
         class ComposedHost(SerializableMixin, ValidatableMixin):
@@ -2243,14 +2243,14 @@ class TestMixinComposition:
         assert obj.to_dict() == {"name": "test"}
 ```
 
-### 12.2 MRO のテスト
+### 12.2 Testing the MRO
 
 ```python
-# MRO の順序が正しいことをテストする
+# Verify that the MRO order is correct
 
 class TestMROOrder:
     def test_diamond_mro(self):
-        """ダイヤモンド継承のMRO順序を検証"""
+        """Verify the MRO order for diamond inheritance"""
         class A:
             def method(self): return "A"
 
@@ -2263,13 +2263,13 @@ class TestMROOrder:
         class D(B, C):
             pass
 
-        # MROの順序を検証
+        # Verify the MRO order
         assert D.__mro__ == (D, B, C, A, object)
-        # 最初に見つかるのは B
+        # The first one found is B
         assert D().method() == "B"
 
     def test_cooperative_super_chain(self):
-        """協調的super()チェーンの順序を検証"""
+        """Verify the order of the cooperative super() chain"""
         call_order = []
 
         class Base:
@@ -2295,7 +2295,7 @@ class TestMROOrder:
         assert call_order == ["Combined", "MixinA", "MixinB", "Base"]
 
     def test_mixin_initialization_order(self):
-        """ミックスインの初期化順序を検証"""
+        """Verify the mixin initialization order"""
         init_order = []
 
         class Base:
@@ -2322,7 +2322,7 @@ class TestMROOrder:
 ```
 
 ```typescript
-// TypeScript: ミックスインのテスト
+// TypeScript: testing mixins
 
 describe("Timestamped mixin", () => {
   type Constructor<T = {}> = new (...args: any[]) => T;
@@ -2351,7 +2351,7 @@ describe("Timestamped mixin", () => {
     const entity = new TimestampedEntity("1");
     const original = entity.updatedAt;
 
-    // 少し待ってから touch
+    // Wait a bit, then touch
     jest.advanceTimersByTime(1000);
     entity.touch();
 
@@ -2376,7 +2376,7 @@ describe("Timestamped mixin", () => {
     const FullEntity = Activatable(Timestamped(BaseEntity));
     const entity = new FullEntity("1");
 
-    // 両方のミックスインが機能する
+    // Both mixins work
     expect(entity.createdAt).toBeInstanceOf(Date);
     expect(entity.isActive).toBe(false);
     entity.activate();
@@ -2387,89 +2387,89 @@ describe("Timestamped mixin", () => {
 
 ---
 
-## 13. 言語横断比較と選択指針
+## 13. Cross-Language Comparison and Selection Guidelines
 
 ```
-ミックスイン / 多重継承の比較まとめ:
+Summary of mixin / multiple-inheritance comparisons:
 
   Python:
-    手法: 多重継承 + MRO + super()
-    利点: 柔軟、協調的多重継承が可能
-    欠点: MRO の理解が必要、実行時エラーのリスク
-    推奨: ミックスインは5個以下、XxxMixin 命名規則
+    Approach: multiple inheritance + MRO + super()
+    Pros: flexible, enables cooperative multiple inheritance
+    Cons: requires understanding MRO, risk of runtime errors
+    Recommendation: 5 or fewer mixins, XxxMixin naming convention
 
   Ruby:
-    手法: Module の include / extend / prepend
-    利点: 自然な構文、衝突時の柔軟な解決
-    欠点: 型チェックがない、prepend の挙動が直感的でない場合
-    推奨: Module は1つの責務に、respond_to? で安全にアクセス
+    Approach: Module include / extend / prepend
+    Pros: natural syntax, flexible conflict resolution
+    Cons: no type checking, prepend behavior can be non-intuitive
+    Recommendation: one responsibility per Module, safe access with respond_to?
 
   TypeScript:
-    手法: クラス式ミックスイン / デコレータ
-    利点: 型安全、合成の柔軟さ
-    欠点: 型の推論が複雑になることがある
-    推奨: 制約付きミックスイン（GConstructor パターン）
+    Approach: class-expression mixins / decorators
+    Pros: type-safe, flexible composition
+    Cons: type inference can become complex
+    Recommendation: constrained mixins (GConstructor pattern)
 
   Rust:
-    手法: トレイト + ブランケット実装
-    利点: コンパイル時の安全性、ゼロコスト抽象
-    欠点: 柔軟性は低い（動的な合成は限定的）
-    推奨: トレイト境界で制約を明示、Derive で自動実装
+    Approach: traits + blanket implementations
+    Pros: compile-time safety, zero-cost abstraction
+    Cons: less flexible (dynamic composition is limited)
+    Recommendation: declare constraints with trait bounds, use Derive for auto-impl
 
   Java:
-    手法: インターフェースのデフォルトメソッド
-    利点: 後方互換、型安全
-    欠点: 状態を持てない、衝突解決が煩雑
-    推奨: デフォルトメソッドはユーティリティ的な使い方に限定
+    Approach: default methods on interfaces
+    Pros: backward compatible, type-safe
+    Cons: cannot hold state, conflict resolution is cumbersome
+    Recommendation: restrict default methods to utility-style use
 
   Kotlin:
-    手法: by キーワードによるデリゲーション
-    利点: コンポジションの簡潔な構文
-    欠点: 委譲先のフィールドが必要
-    推奨: 委譲 + 拡張関数の組み合わせ
+    Approach: delegation via the `by` keyword
+    Pros: concise syntax for composition
+    Cons: requires a field for the delegate
+    Recommendation: combine delegation + extension functions
 
   Scala:
-    手法: トレイトの線形化 + Self-type
-    利点: 状態を持てる、スタック可能な修正パターン
-    欠点: 線形化の順序が直感的でない場合がある
-    推奨: Self-type で依存を明示、ケーキパターンはDIコンテナで代替可能
+    Approach: trait linearization + Self-type
+    Pros: can hold state, stackable modification pattern
+    Cons: linearization order can be non-intuitive
+    Recommendation: declare dependencies with Self-type; the cake pattern can be replaced by DI containers
 
   PHP:
-    手法: trait + insteadof / as
-    利点: 明示的な衝突解決、シンプル
-    欠点: 型チェックが弱い
-    推奨: abstract メソッドで要求を明示
+    Approach: trait + insteadof / as
+    Pros: explicit conflict resolution, simple
+    Cons: weak type checking
+    Recommendation: declare requirements with abstract methods
 
   Swift:
-    手法: Protocol Extension
-    利点: 型安全、Value Type対応、条件付き適合
-    欠点: 状態を持てない（Protocol Extension自体は）
-    推奨: Protocol合成 + Extension でデフォルト実装
+    Approach: Protocol Extension
+    Pros: type-safe, works with value types, conditional conformance
+    Cons: cannot hold state (Protocol Extension itself)
+    Recommendation: Protocol composition + Extension with default implementations
 ```
 
 ```
-選択判断フローチャート:
+Selection flowchart:
 
-  Q1: 「コードの再利用が必要か？」
+  Q1: "Do you need code reuse?"
   │
-  ├── No → 通常のクラス設計で十分
+  ├── No → a regular class design is enough
   │
   └── Yes
       │
-      Q2: 「再利用したい機能は横断的関心事か？」
-      │    （ログ、キャッシュ、認証、バリデーション等）
+      Q2: "Is the functionality you want to reuse a cross-cutting concern?"
+      │    (logging, caching, authentication, validation, etc.)
       │
-      ├── Yes → ミックスイン / トレイト
-      │         Q2a: 「状態を持つ必要があるか？」
+      ├── Yes → mixin / trait
+      │         Q2a: "Does it need to hold state?"
       │         ├── Yes → Python Mixin, Scala Trait, PHP Trait
-      │         └── No → インターフェース + デフォルト実装
+      │         └── No → interface + default implementation
       │
       └── No
           │
-          Q3: 「is-a 関係が成り立つか？」
+          Q3: "Is an is-a relationship appropriate?"
           │
-          ├── Yes → 継承
-          └── No → コンポジション（委譲）
+          ├── Yes → inheritance
+          └── No → composition (delegation)
 ```
 
 ---
@@ -2477,72 +2477,72 @@ describe("Timestamped mixin", () => {
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Beyond theory, understanding deepens by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What mistakes do beginners commonly make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. It is recommended that you firmly understand the basic concepts explained in this guide before proceeding to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently used in day-to-day development work. It becomes especially important during code reviews and architectural design.
 
 ---
 
-## まとめ
+## Summary
 
-| 言語 | 手法 | 特徴 |
+| Language | Approach | Characteristics |
 |------|------|------|
-| Python | 多重継承 + MRO | C3線形化で順序解決 |
-| Ruby | Module include | 最も自然なミックスイン |
-| TypeScript | クラス式合成 | 型安全なミックスイン |
-| Rust | トレイト | 多重継承なし。トレイトで合成 |
-| Java | デフォルトメソッド | インターフェースに実装を追加 |
-| Kotlin | by デリゲーション | コンポジションの簡潔な構文 |
-| Scala | トレイト線形化 | スタック可能な修正パターン |
-| PHP | trait | 明示的な衝突解決（insteadof/as） |
-| Swift | Protocol Extension | 型安全なプロトコル指向 |
+| Python | Multiple inheritance + MRO | Order resolved by C3 linearization |
+| Ruby | Module include | The most natural mixin |
+| TypeScript | Class-expression composition | Type-safe mixins |
+| Rust | Traits | No multiple inheritance. Composition via traits |
+| Java | Default methods | Adds implementations to interfaces |
+| Kotlin | by delegation | Concise syntax for composition |
+| Scala | Trait linearization | Stackable modification pattern |
+| PHP | trait | Explicit conflict resolution (insteadof/as) |
+| Swift | Protocol Extension | Type-safe protocol-oriented style |
 
 ```
-実践的な指針:
+Practical guidelines:
 
-  1. ミックスインは5個以下
-     → それ以上必要なら設計を見直す
-     → クラスの本質的な責務が見えなくなる
+  1. Use 5 or fewer mixins
+     → If you need more, rethink the design
+     → The essential responsibility of the class becomes obscured
 
-  2. 各ミックスインは単一の責任を持つ
-     → LoggingMixin + CachingMixin（個別） ✅
-     → LoggingAndCachingMixin（混合） ❌
+  2. Each mixin should have a single responsibility
+     → LoggingMixin + CachingMixin (separate) ✅
+     → LoggingAndCachingMixin (combined) ❌
 
-  3. 状態を持つミックスインは最小限に
-     → ステートレスなミックスインは安全で予測可能
-     → 状態が必要ならコンポジションを検討
+  3. Minimize mixins that hold state
+     → Stateless mixins are safer and more predictable
+     → If state is needed, consider composition
 
-  4. 依存関係を明示する
-     → 暗黙の依存は避ける
-     → 抽象メソッドやプロトコルで要求を明確に
+  4. Make dependencies explicit
+     → Avoid implicit dependencies
+     → Make requirements clear via abstract methods or protocols
 
-  5. テスタビリティを確保する
-     → 各ミックスインは独立してテスト可能に
-     → テスト用のホストクラスを用意
-     → MRO や合成順序のテストも忘れずに
+  5. Ensure testability
+     → Each mixin should be independently testable
+     → Prepare host classes for testing
+     → Don't forget to test MRO and composition order too
 
-  6. 命名規則を統一する
+  6. Standardize naming conventions
      → Python: XxxMixin
-     → Ruby: -able サフィックス
-     → TypeScript: with/make プレフィックス
+     → Ruby: -able suffix
+     → TypeScript: with/make prefix
      → PHP: XxxTrait or -able
 ```
 
 ---
 
-## 次に読むべきガイド
+## Guides to Read Next
 
 ---
 
-## 参考文献
+## References
 1. Barrett, S. "C3 Linearization." 1996.
 2. Bracha, G. "The Programming Language Jigsaw." 1992.
 3. Gamma, E. et al. "Design Patterns." Addison-Wesley, 1994.
