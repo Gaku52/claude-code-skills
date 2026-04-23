@@ -1,56 +1,56 @@
-# OOPにおけるジェネリクス
+# Generics in OOP
 
-> ジェネリクスは「型をパラメータ化する」仕組み。型安全性を保ちながら汎用的なコードを書くための必須技術。共変性・反変性・型消去など、深い概念を理解する。
+> Generics are a mechanism for "parameterizing types." They are an essential technique for writing generic code while maintaining type safety. Understand deep concepts such as covariance, contravariance, and type erasure.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] ジェネリクスの基本と各言語での実装を理解する
-- [ ] 共変性・反変性・不変性の違いを把握する
-- [ ] 型消去と単相化のトレードオフを学ぶ
-- [ ] 高度なジェネリクスパターン（高カインド型、型レベルプログラミング）を知る
-- [ ] 実務でジェネリクスを適切に活用する設計判断ができるようになる
+- [ ] Understand the fundamentals of generics and their implementations across languages
+- [ ] Grasp the differences between covariance, contravariance, and invariance
+- [ ] Learn the trade-offs between type erasure and monomorphization
+- [ ] Know advanced generics patterns (higher-kinded types, type-level programming)
+- [ ] Be able to make design decisions that appropriately leverage generics in practice
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Your understanding will be deeper if you have the following knowledge before reading this guide:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [ミックスインと多重継承](./02-mixins-and-multiple-inheritance.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related fundamental concepts
+- Understanding of [Mixins and Multiple Inheritance](./02-mixins-and-multiple-inheritance.md)
 
 ---
 
-## 1. ジェネリクスの基本
+## 1. Fundamentals of Generics
 
-### 1.1 なぜジェネリクスが必要か
+### 1.1 Why Generics Are Necessary
 
 ```
-ジェネリクスなし:
-  → Object型で汎用化 → キャスト必須 → 実行時エラーのリスク
+Without generics:
+  -> Generalize with Object type -> casting required -> risk of runtime errors
 
-ジェネリクスあり:
-  → 型パラメータで汎用化 → キャスト不要 → コンパイル時に型チェック
+With generics:
+  -> Generalize with type parameters -> no casting -> compile-time type checking
 ```
 
-ジェネリクスが解決する問題は「型安全性と再利用性の両立」である。ジェネリクスがない時代、汎用的なコードを書くためには Object 型（Java）や void* ポインタ（C）を使う必要があった。これは実行時にキャストエラーを引き起こすリスクがあり、バグの温床となっていた。
+The problem generics solve is "balancing type safety and reusability." Before generics existed, you had to use Object types (Java) or void* pointers (C) to write generic code. This carried the risk of causing cast errors at runtime and was a hotbed for bugs.
 
 ```typescript
-// TypeScript: ジェネリクスの基本
-// ❌ any を使う（型安全性なし）
+// TypeScript: basics of generics
+// Bad: using any (no type safety)
 function firstAny(arr: any[]): any {
   return arr[0];
 }
-const val = firstAny([1, 2, 3]); // val: any（型情報が失われる）
+const val = firstAny([1, 2, 3]); // val: any (type information is lost)
 
-// ✅ ジェネリクスを使う
+// Good: using generics
 function first<T>(arr: T[]): T | undefined {
   return arr[0];
 }
 const num = first([1, 2, 3]);      // num: number
 const str = first(["a", "b"]);     // str: string
 
-// ジェネリッククラス
+// Generic class
 class Stack<T> {
   private items: T[] = [];
 
@@ -63,20 +63,20 @@ class Stack<T> {
 const numStack = new Stack<number>();
 numStack.push(1);
 numStack.push(2);
-// numStack.push("hello"); // コンパイルエラー!
+// numStack.push("hello"); // compile error!
 ```
 
-### 1.2 各言語でのジェネリクス構文
+### 1.2 Generics Syntax in Various Languages
 
 ```java
-// Java: ジェネリクスの基本構文
-// ジェネリックメソッド
+// Java: basic generics syntax
+// Generic method
 public <T> T firstElement(List<T> list) {
     if (list.isEmpty()) return null;
     return list.get(0);
 }
 
-// ジェネリッククラス
+// Generic class
 public class Pair<A, B> {
     private final A first;
     private final B second;
@@ -89,13 +89,13 @@ public class Pair<A, B> {
     public A getFirst() { return first; }
     public B getSecond() { return second; }
 
-    // ジェネリックメソッド内でさらに型パラメータを定義
+    // Define additional type parameters within a generic method
     public <C> Triple<A, B, C> withThird(C third) {
         return new Triple<>(first, second, third);
     }
 }
 
-// ジェネリックインターフェース
+// Generic interface
 public interface Repository<T, ID> {
     T findById(ID id);
     List<T> findAll();
@@ -103,7 +103,7 @@ public interface Repository<T, ID> {
     void deleteById(ID id);
 }
 
-// 具象クラスが型を固定
+// Concrete class fixes the types
 public class UserRepository implements Repository<User, Long> {
     @Override
     public User findById(Long id) { /* ... */ }
@@ -120,8 +120,8 @@ public class UserRepository implements Repository<User, Long> {
 ```
 
 ```csharp
-// C#: ジェネリクスの基本構文
-// ジェネリッククラス
+// C#: basic generics syntax
+// Generic class
 public class Result<T>
 {
     public bool IsSuccess { get; }
@@ -141,7 +141,7 @@ public class Result<T>
     public static Result<T> Failure(string error) =>
         new Result<T>(false, default, error);
 
-    // ジェネリックメソッド
+    // Generic method
     public Result<U> Map<U>(Func<T, U> mapper)
     {
         if (!IsSuccess) return Result<U>.Failure(Error);
@@ -149,14 +149,14 @@ public class Result<T>
     }
 }
 
-// 使用例
+// Usage example
 Result<int> parsed = Result<int>.Success(42);
 Result<string> formatted = parsed.Map(n => $"Value: {n}");
 ```
 
 ```rust
-// Rust: ジェネリクスの基本構文
-// ジェネリック構造体
+// Rust: basic generics syntax
+// Generic struct
 struct Pair<T, U> {
     first: T,
     second: U,
@@ -167,7 +167,7 @@ impl<T, U> Pair<T, U> {
         Pair { first, second }
     }
 
-    // 異なる型パラメータを持つメソッド
+    // Method with different type parameters
     fn zip_with<V, W>(self, other: Pair<V, W>) -> Pair<Pair<T, V>, Pair<U, W>> {
         Pair {
             first: Pair::new(self.first, other.first),
@@ -176,7 +176,7 @@ impl<T, U> Pair<T, U> {
     }
 }
 
-// ジェネリック列挙型（Option と Result は標準ライブラリ）
+// Generic enum (Option and Result are in the standard library)
 enum MyOption<T> {
     Some(T),
     None,
@@ -200,13 +200,13 @@ impl<T> MyOption<T> {
 ```
 
 ```python
-# Python: typing モジュールによるジェネリクス（Python 3.12+）
+# Python: generics via the typing module (Python 3.12+)
 from typing import TypeVar, Generic, Protocol
 
 T = TypeVar('T')
 U = TypeVar('U')
 
-# ジェネリッククラス
+# Generic class
 class Stack(Generic[T]):
     def __init__(self) -> None:
         self._items: list[T] = []
@@ -228,7 +228,7 @@ class Stack(Generic[T]):
     def size(self) -> int:
         return len(self._items)
 
-# Python 3.12+ の新構文
+# New syntax in Python 3.12+
 class Pair[T, U]:
     def __init__(self, first: T, second: U) -> None:
         self.first = first
@@ -237,20 +237,20 @@ class Pair[T, U]:
     def map_firstV -> 'Pair[V, U]':
         return Pair(f(self.first), self.second)
 
-# 型ヒントによる静的チェック（mypyなど）
+# Static checking via type hints (mypy, etc.)
 stack: Stack[int] = Stack()
 stack.push(1)
 stack.push(2)
-# stack.push("hello")  # mypy エラー
+# stack.push("hello")  # mypy error
 ```
 
-### 1.3 複数の型パラメータ
+### 1.3 Multiple Type Parameters
 
-複数の型パラメータを持つジェネリクスは、異なる型間の関係を表現するのに役立つ。
+Generics with multiple type parameters are useful for expressing relationships between different types.
 
 ```typescript
-// TypeScript: 複数型パラメータ
-// マップ（辞書）の型安全な操作
+// TypeScript: multiple type parameters
+// Type-safe operations on a map (dictionary)
 class TypedMap<K extends string | number, V> {
   private data = new Map<K, V>();
 
@@ -266,7 +266,7 @@ class TypedMap<K extends string | number, V> {
     return [...this.data.entries()];
   }
 
-  // 値の型を変換する map メソッド
+  // map method that transforms the value type
   mapValues<U>(fn: (value: V, key: K) => U): TypedMap<K, U> {
     const result = new TypedMap<K, U>();
     for (const [key, value] of this.data) {
@@ -276,7 +276,7 @@ class TypedMap<K extends string | number, V> {
   }
 }
 
-// Either型: 2つの型のどちらかを保持
+// Either type: holds one of two types
 class Either<L, R> {
   private constructor(
     private readonly left?: L,
@@ -307,19 +307,19 @@ class Either<L, R> {
   }
 }
 
-// 使用例: バリデーション
+// Usage example: validation
 type ValidationError = { field: string; message: string };
 
 function validateAge(age: number): Either<ValidationError, number> {
   if (age < 0 || age > 150) {
-    return Either.left({ field: "age", message: "年齢は0-150の範囲" });
+    return Either.left({ field: "age", message: "Age must be in the range 0-150" });
   }
   return Either.right(age);
 }
 
 function validateName(name: string): Either<ValidationError, string> {
   if (name.length === 0) {
-    return Either.left({ field: "name", message: "名前は必須" });
+    return Either.left({ field: "name", message: "Name is required" });
   }
   return Either.right(name);
 }
@@ -327,40 +327,40 @@ function validateName(name: string): Either<ValidationError, string> {
 
 ---
 
-## 2. 制約付きジェネリクス（Bounded）
+## 2. Bounded Generics
 
-### 2.1 上限境界（Upper Bound）
+### 2.1 Upper Bound
 
-型パラメータに制約を付けることで、特定のインターフェースやクラスの機能を利用できるようになる。
+By placing constraints on type parameters, you gain access to the functionality of specific interfaces or classes.
 
 ```typescript
-// TypeScript: 型パラメータに制約を付ける
+// TypeScript: applying constraints to type parameters
 interface HasLength {
   length: number;
 }
 
-// T は length プロパティを持つ型に制約
+// T is constrained to types that have a length property
 function longest<T extends HasLength>(a: T, b: T): T {
   return a.length >= b.length ? a : b;
 }
 
-longest("hello", "world!");     // OK: string は length を持つ
-longest([1, 2], [1, 2, 3]);    // OK: Array は length を持つ
-// longest(10, 20);             // エラー: number は length を持たない
+longest("hello", "world!");     // OK: string has length
+longest([1, 2], [1, 2, 3]);    // OK: Array has length
+// longest(10, 20);             // error: number does not have length
 ```
 
 ```typescript
-// TypeScript: オブジェクトの特定プロパティへのアクセスを型安全に
+// TypeScript: type-safe access to specific object properties
 function getProperty<T, K extends keyof T>(obj: T, key: K): T[K] {
   return obj[key];
 }
 
-const person = { name: "太郎", age: 30, email: "taro@example.com" };
-const name = getProperty(person, "name");   // string 型
-const age = getProperty(person, "age");     // number 型
-// getProperty(person, "address");           // エラー: "address" は keyof typeof person に含まれない
+const person = { name: "Taro", age: 30, email: "taro@example.com" };
+const name = getProperty(person, "name");   // string type
+const age = getProperty(person, "age");     // number type
+// getProperty(person, "address");           // error: "address" is not in keyof typeof person
 
-// 複数の制約を組み合わせる
+// Combining multiple constraints
 interface Serializable {
   serialize(): string;
 }
@@ -369,7 +369,7 @@ interface Validatable {
   validate(): boolean;
 }
 
-// T は Serializable かつ Validatable
+// T is both Serializable and Validatable
 function processAndSave<T extends Serializable & Validatable>(entity: T): boolean {
   if (!entity.validate()) {
     console.error("Validation failed");
@@ -382,7 +382,7 @@ function processAndSave<T extends Serializable & Validatable>(entity: T): boolea
 ```
 
 ```rust
-// Rust: トレイト境界
+// Rust: trait bounds
 fn largest<T: PartialOrd>(list: &[T]) -> &T {
     let mut largest = &list[0];
     for item in &list[1..] {
@@ -393,7 +393,7 @@ fn largest<T: PartialOrd>(list: &[T]) -> &T {
     largest
 }
 
-// 複数のトレイト境界
+// Multiple trait bounds
 fn print_and_compare<T: std::fmt::Display + PartialOrd>(a: T, b: T) {
     if a > b {
         println!("{} is larger", a);
@@ -402,7 +402,7 @@ fn print_and_compare<T: std::fmt::Display + PartialOrd>(a: T, b: T) {
     }
 }
 
-// where 句による可読性の向上
+// Improved readability with where clauses
 fn complex_function<T, U>(t: T, u: U) -> String
 where
     T: std::fmt::Display + Clone + Send + 'static,
@@ -411,7 +411,7 @@ where
     format!("t={}, u={:?}", t, u)
 }
 
-// 関連型（Associated Types）を持つトレイト境界
+// Trait bounds with associated types
 fn sum_collection<C>(collection: &C) -> C::Item
 where
     C: IntoIterator,
@@ -425,66 +425,66 @@ where
 }
 ```
 
-### 2.2 下限境界（Lower Bound）
+### 2.2 Lower Bound
 
-Java では `super` キーワードを使って下限境界を指定できる。これは主にコレクションへの書き込み操作で使用する。
+In Java, you can specify a lower bound using the `super` keyword. This is mainly used in write operations to collections.
 
 ```java
-// Java: 上限境界と下限境界
-// 上限境界: T は Number のサブクラス
+// Java: upper bound and lower bound
+// Upper bound: T is a subclass of Number
 public <T extends Number> double sum(List<T> list) {
     return list.stream().mapToDouble(Number::doubleValue).sum();
 }
 
-// 下限境界: T は Integer のスーパークラス
+// Lower bound: T is a superclass of Integer
 public void addIntegers(List<? super Integer> list) {
     list.add(1);
     list.add(2);
 }
 
-// 上限境界の応用: Comparable による制約
+// Applying upper bound: constraint via Comparable
 public <T extends Comparable<T>> T max(T a, T b) {
     return a.compareTo(b) >= 0 ? a : b;
 }
 
-// 再帰的型境界（Recursive Type Bounds）
-// T は自身を比較できる型でなければならない
+// Recursive type bounds
+// T must be a type that can be compared with itself
 public <T extends Comparable<T>> void sort(List<T> list) {
     Collections.sort(list);
 }
 
-// 複数の上限境界
+// Multiple upper bounds
 public <T extends Serializable & Comparable<T>> void saveOrdered(List<T> list) {
     Collections.sort(list);
     // serialize list...
 }
 ```
 
-### 2.3 条件付き型（Conditional Types）
+### 2.3 Conditional Types
 
-TypeScript には条件付き型という高度な機能があり、型レベルでの条件分岐が可能になる。
+TypeScript has an advanced feature called conditional types, which enables conditional branching at the type level.
 
 ```typescript
-// TypeScript: 条件付き型
-// T が配列なら要素型を抽出、そうでなければそのまま
+// TypeScript: conditional types
+// If T is an array, extract the element type; otherwise return it as-is
 type Unwrap<T> = T extends Array<infer U> ? U : T;
 
 type A = Unwrap<string[]>;   // string
 type B = Unwrap<number>;     // number
 type C = Unwrap<boolean[]>;  // boolean
 
-// Promise のネストを解除
+// Unwrap nested Promises
 type UnwrapPromise<T> = T extends Promise<infer U> ? UnwrapPromise<U> : T;
 
 type D = UnwrapPromise<Promise<Promise<string>>>;  // string
 
-// 関数の戻り値型を抽出
+// Extract the return type of a function
 type ReturnOf<T> = T extends (...args: any[]) => infer R ? R : never;
 
 type E = ReturnOf<() => number>;           // number
 type F = ReturnOf<(x: string) => boolean>; // boolean
 
-// 条件付き型を使ったユーティリティ
+// Utility using conditional types
 type NonNullableProperties<T> = {
   [K in keyof T]: T[K] extends null | undefined ? never : K;
 }[keyof T];
@@ -497,9 +497,9 @@ interface User {
 }
 
 type RequiredUserKeys = NonNullableProperties<User>;
-// "id" | "name" のみ
+// Only "id" | "name"
 
-// マッピング型との組み合わせ
+// Combined with mapped types
 type ReadonlyDeep<T> = {
   readonly [K in keyof T]: T[K] extends object
     ? T[K] extends Function
@@ -521,125 +521,125 @@ interface Config {
 }
 
 type ImmutableConfig = ReadonlyDeep<Config>;
-// 全てのネストされたプロパティが readonly になる
+// All nested properties become readonly
 ```
 
 ---
 
-## 3. 共変性・反変性・不変性
+## 3. Covariance, Contravariance, and Invariance
 
-### 3.1 基本概念
+### 3.1 Basic Concepts
 
 ```
-共変性（Covariance）: 型パラメータの継承方向が同じ
+Covariance: type parameters inherit in the same direction
   Dog extends Animal
-  → List<Dog> を List<Animal> として使えるか？
+  -> Can List<Dog> be used as List<Animal>?
 
-反変性（Contravariance）: 型パラメータの継承方向が逆
-  → Consumer<Animal> を Consumer<Dog> として使えるか？
+Contravariance: type parameters inherit in the opposite direction
+  -> Can Consumer<Animal> be used as Consumer<Dog>?
 
-不変性（Invariance）: どちらも不可
-  → List<Dog> は List<Animal> ではない
+Invariance: neither is allowed
+  -> List<Dog> is not List<Animal>
 
-  共変: Producer<Dog> → Producer<Animal>  （生産: 出力のみ）
-  反変: Consumer<Animal> → Consumer<Dog>  （消費: 入力のみ）
-  不変: Mutable<Dog> ≠ Mutable<Animal>   （両方）
+  Covariance: Producer<Dog> -> Producer<Animal>  (produces: output only)
+  Contravariance: Consumer<Animal> -> Consumer<Dog>  (consumes: input only)
+  Invariance: Mutable<Dog> != Mutable<Animal>   (both)
 ```
 
-### 3.2 TypeScript での変性
+### 3.2 Variance in TypeScript
 
 ```typescript
-// TypeScript: 共変性の例（配列は共変）
+// TypeScript: covariance example (arrays are covariant)
 class Animal { name: string = ""; }
 class Dog extends Animal { breed: string = ""; }
 
-// 読み取り専用なら共変で安全
+// Safe with covariance if read-only
 function printNames(animals: readonly Animal[]): void {
   animals.forEach(a => console.log(a.name));
 }
 
-const dogs: Dog[] = [{ name: "ポチ", breed: "柴犬" }];
-printNames(dogs); // OK: Dog[] を readonly Animal[] として使える
+const dogs: Dog[] = [{ name: "Pochi", breed: "Shiba" }];
+printNames(dogs); // OK: Dog[] can be used as readonly Animal[]
 ```
 
 ```typescript
-// TypeScript 4.7+: in/out キーワードで明示的な変性宣言
-// out = 共変（出力位置のみ）
+// TypeScript 4.7+: explicit variance declarations with in/out keywords
+// out = covariant (output position only)
 interface Producer<out T> {
   produce(): T;
 }
 
-// in = 反変（入力位置のみ）
+// in = contravariant (input position only)
 interface Consumer<in T> {
   consume(value: T): void;
 }
 
-// in/out = 不変（入力・出力の両方）
+// in/out = invariant (both input and output)
 interface Transform<in out T> {
   transform(value: T): T;
 }
 
-// 共変の具体例
+// Covariance concrete example
 class DogProducer implements Producer<Dog> {
   produce(): Dog {
-    return { name: "ポチ", breed: "柴犬" };
+    return { name: "Pochi", breed: "Shiba" };
   }
 }
 
-// Dog は Animal のサブタイプなので、Producer<Dog> は Producer<Animal> のサブタイプ
-const animalProducer: Producer<Animal> = new DogProducer(); // OK（共変）
+// Since Dog is a subtype of Animal, Producer<Dog> is a subtype of Producer<Animal>
+const animalProducer: Producer<Animal> = new DogProducer(); // OK (covariant)
 
-// 反変の具体例
+// Contravariance concrete example
 class AnimalConsumer implements Consumer<Animal> {
   consume(value: Animal): void {
     console.log(`Consuming animal: ${value.name}`);
   }
 }
 
-// Animal は Dog のスーパータイプなので、Consumer<Animal> は Consumer<Dog> のサブタイプ
-const dogConsumer: Consumer<Dog> = new AnimalConsumer(); // OK（反変）
+// Since Animal is a supertype of Dog, Consumer<Animal> is a subtype of Consumer<Dog>
+const dogConsumer: Consumer<Dog> = new AnimalConsumer(); // OK (contravariant)
 ```
 
-### 3.3 Java での変性（PECS原則）
+### 3.3 Variance in Java (PECS Principle)
 
 ```java
-// Java: PECS（Producer Extends, Consumer Super）
-// Producer: 値を取り出す → extends（共変）
+// Java: PECS (Producer Extends, Consumer Super)
+// Producer: reads values out -> extends (covariant)
 public double sumOfList(List<? extends Number> list) {
     double sum = 0;
-    for (Number n : list) { // 読み取りのみ
+    for (Number n : list) { // read only
         sum += n.doubleValue();
     }
     return sum;
 }
 
-// Consumer: 値を入れる → super（反変）
+// Consumer: puts values in -> super (contravariant)
 public void addNumbers(List<? super Integer> list) {
-    list.add(1);  // 書き込みのみ
+    list.add(1);  // write only
     list.add(2);
 }
 
-// PECS の実践例: Collections.copy
-// src は Producer（読み取り） → extends
-// dest は Consumer（書き込み） → super
+// Practical example of PECS: Collections.copy
+// src is a Producer (read) -> extends
+// dest is a Consumer (write) -> super
 public static <T> void copy(List<? super T> dest, List<? extends T> src) {
     for (int i = 0; i < src.size(); i++) {
         dest.set(i, src.get(i));
     }
 }
 
-// 使用例
+// Usage example
 List<Integer> ints = Arrays.asList(1, 2, 3);
 List<Number> nums = new ArrayList<>(Arrays.asList(0.0, 0.0, 0.0));
 Collections.copy(nums, ints); // Integer extends Number
 ```
 
 ```java
-// Java: ワイルドカードの使い分け詳細
+// Java: detailed use cases for wildcards
 public class WildcardExamples {
 
-    // extends: 読み取り専用（共変）
-    // 「少なくとも T 型のものが出てくる」
+    // extends: read-only (covariant)
+    // "At least a T-typed value comes out"
     public static double average(List<? extends Number> list) {
         double sum = 0;
         for (Number n : list) {
@@ -648,24 +648,24 @@ public class WildcardExamples {
         return sum / list.size();
     }
 
-    // super: 書き込み用（反変）
-    // 「少なくとも T 型のものを入れられる」
+    // super: for writing (contravariant)
+    // "At least a T-typed value can be put in"
     public static void fillWithInts(List<? super Integer> list, int count) {
         for (int i = 0; i < count; i++) {
             list.add(i);
         }
     }
 
-    // 非境界ワイルドカード: 型を気にしない操作
+    // Unbounded wildcard: operations indifferent to the type
     public static int size(List<?> list) {
         return list.size();
     }
 
-    // 複合的な例: 変換メソッド
+    // Compound example: transformation method
     public static <T> void transform(
-        List<? extends T> src,      // Producer: T のサブタイプを読む
-        List<? super T> dest,       // Consumer: T のスーパータイプに書く
-        Function<? super T, ? extends T> mapper  // 関数も PECS
+        List<? extends T> src,      // Producer: reads subtypes of T
+        List<? super T> dest,       // Consumer: writes supertypes of T
+        Function<? super T, ? extends T> mapper  // function is also PECS
     ) {
         for (T item : src) {
             dest.add(mapper.apply(item));
@@ -674,133 +674,133 @@ public class WildcardExamples {
 }
 ```
 
-### 3.4 Kotlin での変性（宣言サイト変性）
+### 3.4 Variance in Kotlin (Declaration-Site Variance)
 
 ```kotlin
-// Kotlin: 宣言サイト変性（declaration-site variance）
-// out = 共変（Java の ? extends に相当）
+// Kotlin: declaration-site variance
+// out = covariant (equivalent to Java's ? extends)
 interface Source<out T> {
-    fun nextT(): T  // T は出力位置のみ
-    // fun consume(t: T)  // コンパイルエラー: T を入力位置で使えない
+    fun nextT(): T  // T is in output position only
+    // fun consume(t: T)  // compile error: T cannot be used in input position
 }
 
-// in = 反変（Java の ? super に相当）
+// in = contravariant (equivalent to Java's ? super)
 interface Comparable<in T> {
-    fun compareTo(other: T): Int  // T は入力位置のみ
-    // fun produce(): T  // コンパイルエラー: T を出力位置で使えない
+    fun compareTo(other: T): Int  // T is in input position only
+    // fun produce(): T  // compile error: T cannot be used in output position
 }
 
-// 使用サイト変性（use-site variance）も可能
+// Use-site variance is also possible
 fun copy(from: Array<out Any>, to: Array<Any>) {
     for (i in from.indices) {
         to[i] = from[i]
     }
 }
 
-// Kotlin の具体例: 共変リスト
-// List<out E> は共変（読み取り専用）
-// MutableList<E> は不変（読み書き両方）
+// Kotlin concrete example: covariant list
+// List<out E> is covariant (read-only)
+// MutableList<E> is invariant (both read and write)
 fun printAnimals(animals: List<Animal>) {  // List<out Animal>
     animals.forEach { println(it.name) }
 }
 
-val dogs: List<Dog> = listOf(Dog("ポチ"))
-printAnimals(dogs)  // OK: List<Dog> は List<Animal> のサブタイプ
+val dogs: List<Dog> = listOf(Dog("Pochi"))
+printAnimals(dogs)  // OK: List<Dog> is a subtype of List<Animal>
 ```
 
-### 3.5 C# での変性
+### 3.5 Variance in C#
 
 ```csharp
-// C#: インターフェースの変性宣言
-// out = 共変
+// C#: variance declarations on interfaces
+// out = covariant
 public interface IReadOnlyList<out T>
 {
     T this[int index] { get; }
     int Count { get; }
 }
 
-// in = 反変
+// in = contravariant
 public interface IComparer<in T>
 {
     int Compare(T x, T y);
 }
 
-// .NET 標準ライブラリの例
-// IEnumerable<out T>  → 共変
-// IComparable<in T>   → 反変
-// IList<T>            → 不変
+// Examples from the .NET standard library
+// IEnumerable<out T>  -> covariant
+// IComparable<in T>   -> contravariant
+// IList<T>            -> invariant
 
-// Func と Action の変性
-// Func<in T, out TResult>  → T は反変、TResult は共変
-// Action<in T>             → T は反変
+// Variance of Func and Action
+// Func<in T, out TResult>  -> T is contravariant, TResult is covariant
+// Action<in T>             -> T is contravariant
 
-// 実践例
+// Practical example
 IEnumerable<Dog> dogs = new List<Dog>();
-IEnumerable<Animal> animals = dogs;  // OK: 共変
+IEnumerable<Animal> animals = dogs;  // OK: covariant
 
 IComparer<Animal> animalComparer = new AnimalComparer();
-IComparer<Dog> dogComparer = animalComparer;  // OK: 反変
+IComparer<Dog> dogComparer = animalComparer;  // OK: contravariant
 ```
 
-### 3.6 変性の安全性と注意点
+### 3.6 Variance Safety and Considerations
 
 ```typescript
-// 変性の安全性に関する注意点
+// Notes on variance safety
 
-// ❌ 配列の共変性は危険な場合がある（Java の配列）
+// Bad: array covariance can be dangerous (Java arrays)
 // Java:
 // String[] strings = new String[3];
-// Object[] objects = strings;  // コンパイルOK（配列は共変）
-// objects[0] = 42;             // 実行時エラー! ArrayStoreException
+// Object[] objects = strings;  // compiles OK (arrays are covariant)
+// objects[0] = 42;             // runtime error! ArrayStoreException
 
-// TypeScript での安全でない例
+// Unsafe example in TypeScript
 class Animal { name = ""; }
 class Dog extends Animal { breed = ""; }
 class Cat extends Animal { indoor = true; }
 
-// TypeScript は構造的型付けなので、意図しない共変が起きうる
+// Since TypeScript uses structural typing, unintended covariance can occur
 function addCat(animals: Animal[]): void {
-  animals.push(new Cat());  // Dog[] に Cat が入る可能性
+  animals.push(new Cat());  // a Cat may end up inside a Dog[]
 }
 
 const dogs: Dog[] = [new Dog()];
-addCat(dogs);  // TypeScript はこれを許す（構造的型付けのため）
-// dogs[1] は実際には Cat だが、Dog[] と信じている
+addCat(dogs);  // TypeScript allows this (due to structural typing)
+// dogs[1] is actually a Cat, but believed to be a Dog[]
 
-// ✅ readonly にすることで安全に
+// Good: make it safe with readonly
 function safePrint(animals: readonly Animal[]): void {
-  // animals.push(new Cat());  // エラー: readonly なので push できない
+  // animals.push(new Cat());  // error: cannot push because it's readonly
   animals.forEach(a => console.log(a.name));
 }
 ```
 
 ---
 
-## 4. 型消去 vs 単相化
+## 4. Type Erasure vs Monomorphization
 
-### 4.1 型消去（Type Erasure）
+### 4.1 Type Erasure
 
 ```
-型消去（Type Erasure）: Java, TypeScript
-  → コンパイル後にジェネリクスの型情報が消える
-  → List<String> と List<Integer> は実行時に同じ List
-  → 利点: バイナリサイズが小さい、後方互換性
-  → 欠点: 実行時に型情報にアクセスできない
+Type Erasure: Java, TypeScript
+  -> Generic type information is erased after compilation
+  -> List<String> and List<Integer> are the same List at runtime
+  -> Advantages: smaller binary size, backward compatibility
+  -> Disadvantages: type information is not accessible at runtime
 ```
 
 ```java
-// Java: 型消去の制限
+// Java: limitations of type erasure
 List<String> strings = new ArrayList<>();
 List<Integer> ints = new ArrayList<>();
 
-// 実行時には型情報がない
+// No type information at runtime
 System.out.println(strings.getClass() == ints.getClass()); // true!
 
-// 型消去により不可能な操作
-// if (obj instanceof List<String>) {} // コンパイルエラー
-// T[] array = new T[10];             // コンパイルエラー
+// Operations made impossible by type erasure
+// if (obj instanceof List<String>) {} // compile error
+// T[] array = new T[10];             // compile error
 
-// 型消去の回避策: Class<T> を渡す
+// Workaround for type erasure: pass Class<T>
 public class TypeSafeContainer<T> {
     private final Class<T> type;
     private final List<T> items = new ArrayList<>();
@@ -825,47 +825,47 @@ public class TypeSafeContainer<T> {
         return items.toArray(array);
     }
 
-    // 実行時型チェックが可能
+    // Runtime type check is possible
     public boolean isTypeOf(Object obj) {
         return type.isInstance(obj);
     }
 }
 
-// 使用例
+// Usage example
 TypeSafeContainer<String> container = new TypeSafeContainer<>(String.class);
 container.add("hello");
 // container.add(42);  // ClassCastException
 ```
 
 ```java
-// Java: 型消去のより詳細な制限と回避策
+// Java: more detailed restrictions of type erasure and workarounds
 
-// 制限1: ジェネリック型の instanceof チェック不可
+// Restriction 1: instanceof checks on generic types are not allowed
 public <T> boolean isStringList(List<T> list) {
-    // ❌ コンパイルエラー
+    // Bad: compile error
     // return list instanceof List<String>;
 
-    // ✅ ワイルドカードなら OK
+    // Good: OK with a wildcard
     return list instanceof List<?>;
 }
 
-// 制限2: ジェネリック配列の生成不可
+// Restriction 2: creation of generic arrays is not allowed
 public <T> T[] createArray(int size) {
-    // ❌ コンパイルエラー
+    // Bad: compile error
     // return new T[size];
 
-    // ✅ 回避策: Object 配列をキャスト（安全ではない）
+    // Good: workaround: cast an Object array (not safe)
     @SuppressWarnings("unchecked")
     T[] array = (T[]) new Object[size];
     return array;
 }
 
-// 制限3: ジェネリック型の静的フィールド
+// Restriction 3: static fields of generic types
 public class GenericSingleton<T> {
-    // ❌ 型消去後、全ての型で同じ静的フィールドになる
-    // private static T instance;  // コンパイルエラー
+    // Bad: after type erasure, the same static field is shared across all types
+    // private static T instance;  // compile error
 
-    // ✅ 回避策: Map で管理
+    // Good: workaround: manage with a Map
     private static final Map<Class<?>, Object> instances = new HashMap<>();
 
     @SuppressWarnings("unchecked")
@@ -874,47 +874,47 @@ public class GenericSingleton<T> {
     }
 }
 
-// 制限4: オーバーロードの衝突
+// Restriction 4: overload collisions
 public class OverloadProblem {
-    // ❌ 型消去後、両方とも process(List) になる
+    // Bad: after type erasure, both become process(List)
     // public void process(List<String> strings) {}
     // public void process(List<Integer> ints) {}
 
-    // ✅ 回避策: メソッド名を変える
+    // Good: workaround: change method names
     public void processStrings(List<String> strings) {}
     public void processInts(List<Integer> ints) {}
 }
 ```
 
-### 4.2 単相化（Monomorphization）
+### 4.2 Monomorphization
 
 ```
-単相化（Monomorphization）: Rust, C++
-  → 使用される型ごとに専用のコードを生成
-  → Vec<i32> と Vec<String> は別々のコードに
-  → 利点: ゼロコスト抽象化、インライン化可能
-  → 欠点: バイナリサイズが大きくなる
+Monomorphization: Rust, C++
+  -> Generate dedicated code for each type used
+  -> Vec<i32> and Vec<String> become separate code
+  -> Advantages: zero-cost abstractions, can be inlined
+  -> Disadvantages: larger binary size
 ```
 
 ```rust
-// Rust: 単相化の仕組み
-// このジェネリック関数は...
+// Rust: how monomorphization works
+// This generic function...
 fn max_of<T: PartialOrd>(a: T, b: T) -> T {
     if a >= b { a } else { b }
 }
 
-// 以下のように使うと...
+// When used as follows...
 let int_max = max_of(10i32, 20i32);
 let float_max = max_of(3.14f64, 2.72f64);
 let str_max = max_of("hello", "world");
 
-// コンパイラが以下のような専用関数を生成する:
+// The compiler generates dedicated functions like the following:
 // fn max_of_i32(a: i32, b: i32) -> i32 { ... }
 // fn max_of_f64(a: f64, b: f64) -> f64 { ... }
 // fn max_of_str(a: &str, b: &str) -> &str { ... }
 
-// ゼロコスト抽象化の証明
-// ジェネリック版とハンドコード版は全く同じ機械語になる
+// Proof of zero-cost abstraction
+// The generic version and the hand-written version produce identical machine code
 fn generic_sum<I: Iterator<Item = i32>>(iter: I) -> i32 {
     let mut total = 0;
     for item in iter {
@@ -931,39 +931,39 @@ fn manual_sum(slice: &[i32]) -> i32 {
     total
 }
 
-// 両者は同一の最適化された機械語に
+// Both produce identical optimized machine code
 ```
 
 ```rust
-// Rust: 動的ディスパッチとの比較
-// 静的ディスパッチ（単相化）
+// Rust: comparison with dynamic dispatch
+// Static dispatch (monomorphization)
 fn print_all_static<T: std::fmt::Display>(items: &[T]) {
     for item in items {
         println!("{}", item);
     }
 }
-// → 型ごとにコードが複製される
-// → インライン化可能
-// → バイナリサイズ増大
+// -> Code is duplicated per type
+// -> Can be inlined
+// -> Binary size grows
 
-// 動的ディスパッチ（トレイトオブジェクト）
+// Dynamic dispatch (trait object)
 fn print_all_dynamic(items: &[&dyn std::fmt::Display]) {
     for item in items {
         println!("{}", item);
     }
 }
-// → コードは1つだけ
-// → vtable 経由の間接呼び出し
-// → バイナリサイズ小さい
+// -> Only one piece of code
+// -> Indirect calls via vtable
+// -> Smaller binary size
 
-// 使い分けの指針
-// - パフォーマンス重視 → 静的（単相化）
-// - バイナリサイズ重視 → 動的（トレイトオブジェクト）
-// - 異なる型の混在コレクション → 動的のみ可能
+// Guidelines for choosing between them
+// - Performance priority -> static (monomorphization)
+// - Binary size priority -> dynamic (trait object)
+// - Mixed-type collections -> only dynamic is possible
 ```
 
 ```cpp
-// C++: テンプレートの単相化
+// C++: template monomorphization
 template<typename T>
 class Vector {
     T* data;
@@ -994,18 +994,18 @@ public:
     ~Vector() { delete[] data; }
 };
 
-// 使用するとコンパイラが Vector<int>, Vector<string>, Vector<double> を
-// それぞれ独立した型として生成する
+// When used, the compiler generates Vector<int>, Vector<string>, and Vector<double>
+// as independent types respectively
 Vector<int> ints;
 Vector<std::string> strings;
 Vector<double> doubles;
 ```
 
-### 4.3 C# の具体化ジェネリクス（Reified Generics）
+### 4.3 C# Reified Generics
 
 ```csharp
-// C#: 実行時に型情報が保持される（Reified Generics）
-// Java の型消去とは異なり、実行時にも型情報にアクセス可能
+// C#: type information is retained at runtime (reified generics)
+// Unlike Java's type erasure, type information can be accessed at runtime as well
 
 public class TypeAwareContainer<T>
 {
@@ -1013,38 +1013,38 @@ public class TypeAwareContainer<T>
 
     public void Add(T item) => items.Add(item);
 
-    // 実行時の型情報を活用
+    // Leverage runtime type information
     public Type GetContainedType() => typeof(T);
 
     public bool IsContaining<U>() => typeof(T) == typeof(U);
 
-    // ジェネリック制約でインスタンス生成
+    // Instance creation with generic constraints
     public static T CreateDefault() where T : new()
     {
-        return new T();  // Java では不可能
+        return new T();  // impossible in Java
     }
 }
 
-// 使用例
+// Usage example
 var container = new TypeAwareContainer<string>();
 Console.WriteLine(container.GetContainedType());  // System.String
 Console.WriteLine(container.IsContaining<string>());  // True
 Console.WriteLine(container.IsContaining<int>());     // False
 
-// 値型の最適化
-// C# では List<int> は実際に int を直接格納（ボクシングなし）
-// Java では List<Integer> はラッパー型を使う必要がある
+// Value type optimization
+// In C#, List<int> actually stores int directly (no boxing)
+// In Java, List<Integer> must use a wrapper type
 ```
 
 ---
 
-## 5. 高度なジェネリクスパターン
+## 5. Advanced Generics Patterns
 
-### 5.1 再帰的ジェネリクス（F-bounded Polymorphism）
+### 5.1 Recursive Generics (F-bounded Polymorphism)
 
 ```typescript
-// TypeScript: 再帰的型境界
-// 自身の型を返すメソッドを持つ基底クラス
+// TypeScript: recursive type bounds
+// Base class with a method that returns its own type
 abstract class Builder<T extends Builder<T>> {
   protected data: Record<string, unknown> = {};
 
@@ -1072,21 +1072,21 @@ class UserBuilder extends Builder<UserBuilder> {
   }
 }
 
-// メソッドチェーンで正しい型が返る
+// The correct type is returned from method chaining
 const user = new UserBuilder()
-  .setName("太郎")   // UserBuilder が返る（Builder<UserBuilder> ではなく）
-  .setAge(30)         // UserBuilder が返る
+  .setName("Taro")    // returns UserBuilder (not Builder<UserBuilder>)
+  .setAge(30)         // returns UserBuilder
   .build();
 ```
 
 ```java
-// Java: 再帰的型境界（Curiously Recurring Template Pattern に似た手法）
-// Comparable の定義
+// Java: recursive type bounds (technique similar to Curiously Recurring Template Pattern)
+// Definition of Comparable
 public interface Comparable<T> {
     int compareTo(T o);
 }
 
-// 自身の型で比較可能
+// Comparable with its own type
 public class Money implements Comparable<Money> {
     private final BigDecimal amount;
     private final Currency currency;
@@ -1100,17 +1100,17 @@ public class Money implements Comparable<Money> {
     }
 }
 
-// Enum の定義（Java の Enum は再帰的型境界を使っている）
+// Enum definition (Java's Enum uses recursive type bounds)
 // public abstract class Enum<E extends Enum<E>> implements Comparable<E>
-// これにより各列挙型は自身の型でのみ比較可能
+// This allows each enum type to be compared only with its own type
 ```
 
-### 5.2 型レベルプログラミング
+### 5.2 Type-Level Programming
 
 ```typescript
-// TypeScript: 型レベルプログラミング
+// TypeScript: type-level programming
 
-// タプル型の操作
+// Tuple type operations
 type Head<T extends any[]> = T extends [infer H, ...any[]] ? H : never;
 type Tail<T extends any[]> = T extends [any, ...infer R] ? R : [];
 type Last<T extends any[]> = T extends [...any[], infer L] ? L : never;
@@ -1121,7 +1121,7 @@ type T2 = Tail<[1, 2, 3]>;    // [2, 3]
 type L = Last<[1, 2, 3]>;     // 3
 type Len = Length<[1, 2, 3]>;  // 3
 
-// 型レベルでの文字列操作
+// String manipulation at the type level
 type Split<S extends string, D extends string> =
   S extends `${infer Head}${D}${infer Tail}`
     ? [Head, ...Split<Tail, D>]
@@ -1129,7 +1129,7 @@ type Split<S extends string, D extends string> =
 
 type Parts = Split<"a.b.c", ".">;  // ["a", "b", "c"]
 
-// 型安全な深いプロパティアクセス
+// Type-safe deep property access
 type DeepGet<T, Path extends string> =
   Path extends `${infer Key}.${infer Rest}`
     ? Key extends keyof T
@@ -1157,7 +1157,7 @@ type DBHost = DeepGet<AppConfig, "database.host">;           // string
 type DBPort = DeepGet<AppConfig, "database.port">;           // number
 type DBUser = DeepGet<AppConfig, "database.credentials.username">; // string
 
-// 型安全な get 関数
+// Type-safe get function
 function deepGet<T, P extends string>(obj: T, path: P): DeepGet<T, P> {
   const keys = path.split('.');
   let current: any = obj;
@@ -1172,16 +1172,16 @@ const config: AppConfig = {
   server: { port: 3000 },
 };
 
-const host = deepGet(config, "database.host");  // string 型
-const port = deepGet(config, "server.port");    // number 型
+const host = deepGet(config, "database.host");  // string type
+const port = deepGet(config, "server.port");    // number type
 ```
 
-### 5.3 ジェネリクスと依存性注入（DI）
+### 5.3 Generics and Dependency Injection (DI)
 
 ```typescript
-// TypeScript: ジェネリクスを活用した型安全なDIコンテナ
+// TypeScript: type-safe DI container leveraging generics
 
-// サービスキーの型定義
+// Service key type definition
 interface ServiceMap {
   logger: Logger;
   database: Database;
@@ -1194,7 +1194,7 @@ class TypedContainer {
   private services = new Map<string, unknown>();
   private factories = new Map<string, () => unknown>();
 
-  // 登録: 型安全
+  // Registration: type-safe
   register<K extends keyof ServiceMap>(
     key: K,
     factory: () => ServiceMap[K]
@@ -1202,7 +1202,7 @@ class TypedContainer {
     this.factories.set(key as string, factory);
   }
 
-  // 解決: 型安全
+  // Resolution: type-safe
   resolve<K extends keyof ServiceMap>(key: K): ServiceMap[K] {
     if (this.services.has(key as string)) {
       return this.services.get(key as string) as ServiceMap[K];
@@ -1219,7 +1219,7 @@ class TypedContainer {
   }
 }
 
-// 使用例
+// Usage example
 const container = new TypedContainer();
 
 container.register("logger", () => new ConsoleLogger());
@@ -1228,28 +1228,28 @@ container.register("userRepository", () =>
   new UserRepository(container.resolve("database"))
 );
 
-const logger = container.resolve("logger");     // Logger 型
-const db = container.resolve("database");       // Database 型
-const repo = container.resolve("userRepository"); // UserRepository 型
-// container.resolve("unknown");                 // コンパイルエラー
+const logger = container.resolve("logger");     // Logger type
+const db = container.resolve("database");       // Database type
+const repo = container.resolve("userRepository"); // UserRepository type
+// container.resolve("unknown");                 // compile error
 ```
 
-### 5.4 ジェネリクスとモナドパターン
+### 5.4 Generics and the Monad Pattern
 
 ```typescript
-// TypeScript: モナド的なパターンをジェネリクスで実装
+// TypeScript: implementing monad-like patterns with generics
 
-// Functor（map を持つ）
+// Functor (has map)
 interface Functor<T> {
   map<U>(fn: (value: T) => U): Functor<U>;
 }
 
-// Monad（flatMap/bind を持つ）
+// Monad (has flatMap/bind)
 interface Monad<T> extends Functor<T> {
   flatMap<U>(fn: (value: T) => Monad<U>): Monad<U>;
 }
 
-// Maybe モナド（null安全な計算チェーン）
+// Maybe monad (null-safe computation chain)
 class Maybe<T> implements Monad<T> {
   private constructor(private readonly value: T | null) {}
 
@@ -1289,7 +1289,7 @@ class Maybe<T> implements Monad<T> {
   }
 }
 
-// 使用例: null安全な深いプロパティアクセス
+// Usage example: null-safe deep property access
 interface Company {
   ceo?: {
     name: string;
@@ -1307,7 +1307,7 @@ function getCeoCity(company: Company): string {
     .getOrElse("Unknown");
 }
 
-// 使用例: バリデーションチェーン
+// Usage example: validation chain
 function validateAndProcess(input: string): Maybe<number> {
   return Maybe.of(input)
     .filter(s => s.length > 0)
@@ -1320,12 +1320,12 @@ function validateAndProcess(input: string): Maybe<number> {
 
 ---
 
-## 6. 実践パターン
+## 6. Practical Patterns
 
-### 6.1 Result型
+### 6.1 Result Type
 
 ```typescript
-// Result型: ジェネリクスの実践例
+// Result type: a practical example of generics
 class Result<T, E> {
   private constructor(
     private readonly value?: T,
@@ -1364,7 +1364,7 @@ class Result<T, E> {
     return this.isOk ? handlers.ok(this.value!) : handlers.err(this.error!);
   }
 
-  // 複数の Result を合成
+  // Compose multiple Results
   static all<T, E>(results: Result<T, E>[]): Result<T[], E> {
     const values: T[] = [];
     for (const result of results) {
@@ -1375,7 +1375,7 @@ class Result<T, E> {
   }
 }
 
-// 使用例
+// Usage example
 function parseNumber(s: string): Result<number, string> {
   const n = Number(s);
   if (isNaN(n)) return Result.err(`"${s}" is not a number`);
@@ -1387,7 +1387,7 @@ function divide(a: number, b: number): Result<number, string> {
   return Result.ok(a / b);
 }
 
-// チェーンで合成
+// Compose via chaining
 const result = parseNumber("42")
   .flatMap(n => divide(n, 7))
   .map(n => n.toFixed(2))
@@ -1398,10 +1398,10 @@ const result = parseNumber("42")
 // "Result: 6.00"
 ```
 
-### 6.2 型安全なイベントシステム
+### 6.2 Type-Safe Event System
 
 ```typescript
-// ジェネリクスを活用した型安全なイベントバス
+// Type-safe event bus leveraging generics
 interface EventDefinitions {
   "user:created": { userId: string; email: string; createdAt: Date };
   "user:deleted": { userId: string; reason: string };
@@ -1437,7 +1437,7 @@ class TypedEventBus<Events extends Record<string, any>> {
   }
 
   async emit<K extends keyof Events>(event: K, data: Events[K]): Promise<void> {
-    // ミドルウェアを適用
+    // Apply middlewares
     let processedData = data;
     for (const middleware of this.middlewares) {
       processedData = middleware(event as string, processedData) ?? processedData;
@@ -1450,7 +1450,7 @@ class TypedEventBus<Events extends Record<string, any>> {
     await Promise.all(promises);
   }
 
-  // 型安全な待機
+  // Type-safe waiting
   waitFor<K extends keyof Events>(
     event: K,
     timeout?: number
@@ -1468,15 +1468,15 @@ class TypedEventBus<Events extends Record<string, any>> {
   }
 }
 
-// 使用例
+// Usage example
 const bus = new TypedEventBus<EventDefinitions>();
 
 bus.on("user:created", (data) => {
-  console.log(`New user: ${data.email}`);  // 型安全: email は string
+  console.log(`New user: ${data.email}`);  // type-safe: email is string
 });
 
 bus.on("order:placed", (data) => {
-  console.log(`Order ${data.orderId}: ¥${data.total}`);  // total は number
+  console.log(`Order ${data.orderId}: ¥${data.total}`);  // total is number
 });
 
 await bus.emit("user:created", {
@@ -1486,10 +1486,10 @@ await bus.emit("user:created", {
 });
 ```
 
-### 6.3 型安全なビルダーパターン（Phantom Types）
+### 6.3 Type-Safe Builder Pattern (Phantom Types)
 
 ```typescript
-// Phantom Types を使った型安全なビルダー
+// Type-safe builder using phantom types
 interface BuilderState {
   hasName: boolean;
   hasEmail: boolean;
@@ -1523,7 +1523,7 @@ class UserBuilder<State extends BuilderState = {
     return new UserBuilder({ ...this.data, age }) as any;
   }
 
-  // build は全てのフィールドが設定された場合のみ呼べる
+  // build can only be called when all fields have been set
   build(
     this: UserBuilder<{ hasName: true; hasEmail: true; hasAge: true }>
   ): User {
@@ -1531,22 +1531,22 @@ class UserBuilder<State extends BuilderState = {
   }
 }
 
-// 使用例
+// Usage example
 const user = UserBuilder.create()
-  .setName("太郎")
+  .setName("Taro")
   .setEmail("taro@example.com")
   .setAge(30)
-  .build();  // OK: 全フィールド設定済み
+  .build();  // OK: all fields have been set
 
 // const incomplete = UserBuilder.create()
-//   .setName("太郎")
-//   .build();  // コンパイルエラー: email と age が未設定
+//   .setName("Taro")
+//   .build();  // compile error: email and age are not set
 ```
 
-### 6.4 ジェネリクスとリポジトリパターン
+### 6.4 Generics and the Repository Pattern
 
 ```typescript
-// 型安全なジェネリックリポジトリ
+// Type-safe generic repository
 interface Entity {
   id: string;
   createdAt: Date;
@@ -1569,7 +1569,7 @@ interface Repository<T extends Entity> {
   count(where?: Partial<T>): Promise<number>;
 }
 
-// 汎用的な実装
+// Generic implementation
 class InMemoryRepository<T extends Entity> implements Repository<T> {
   private items = new Map<string, T>();
   private idCounter = 0;
@@ -1581,7 +1581,7 @@ class InMemoryRepository<T extends Entity> implements Repository<T> {
   async findAll(options?: QueryOptions<T>): Promise<T[]> {
     let results = [...this.items.values()];
 
-    // フィルタリング
+    // Filtering
     if (options?.where) {
       results = results.filter(item =>
         Object.entries(options.where!).every(
@@ -1590,7 +1590,7 @@ class InMemoryRepository<T extends Entity> implements Repository<T> {
       );
     }
 
-    // ソート
+    // Sorting
     if (options?.orderBy) {
       const { field, direction } = options.orderBy;
       results.sort((a, b) => {
@@ -1601,7 +1601,7 @@ class InMemoryRepository<T extends Entity> implements Repository<T> {
       });
     }
 
-    // ページネーション
+    // Pagination
     if (options?.offset) results = results.slice(options.offset);
     if (options?.limit) results = results.slice(0, options.limit);
 
@@ -1642,7 +1642,7 @@ class InMemoryRepository<T extends Entity> implements Repository<T> {
   }
 }
 
-// 具体的なエンティティ
+// Concrete entities
 interface UserEntity extends Entity {
   name: string;
   email: string;
@@ -1655,11 +1655,11 @@ interface OrderEntity extends Entity {
   status: "pending" | "confirmed" | "shipped" | "delivered";
 }
 
-// 型安全なリポジトリのインスタンス
+// Type-safe repository instances
 const userRepo = new InMemoryRepository<UserEntity>();
 const orderRepo = new InMemoryRepository<OrderEntity>();
 
-// 完全に型安全
+// Fully type-safe
 const users = await userRepo.findAll({
   where: { role: "admin" },
   orderBy: { field: "createdAt", direction: "desc" },
@@ -1668,92 +1668,92 @@ const users = await userRepo.findAll({
 
 const orders = await orderRepo.findAll({
   where: { status: "pending" },
-  // where: { unknownField: "value" },  // コンパイルエラー
+  // where: { unknownField: "value" },  // compile error
 });
 ```
 
 ---
 
-## 7. ジェネリクスのベストプラクティス
+## 7. Generics Best Practices
 
-### 7.1 命名規約
+### 7.1 Naming Conventions
 
 ```
-一般的な型パラメータ名:
-  T       → Type（一般的な型）
-  E       → Element（コレクションの要素）
-  K       → Key（マップのキー）
-  V       → Value（マップの値）
-  R       → Return（戻り値の型）
-  S, U    → 2番目、3番目の型パラメータ
-  N       → Number
-  P       → Parameter / Props
+Common type parameter names:
+  T       -> Type (generic type)
+  E       -> Element (element of a collection)
+  K       -> Key (key of a map)
+  V       -> Value (value of a map)
+  R       -> Return (return type)
+  S, U    -> second, third type parameter
+  N       -> Number
+  P       -> Parameter / Props
 
-良い命名:
+Good naming:
   Repository<Entity>
   Converter<From, To>
   Handler<Request, Response>
   Mapper<Input, Output>
   Validator<T>
 
-避けるべき命名:
-  Repository<A>（意味不明）
-  Handler<X, Y, Z>（何がなんだかわからない）
+Naming to avoid:
+  Repository<A> (meaningless)
+  Handler<X, Y, Z> (unclear what's what)
 ```
 
-### 7.2 ジェネリクスの使いすぎに注意
+### 7.2 Beware of Overusing Generics
 
 ```typescript
-// ❌ 過剰なジェネリクス
+// Bad: excessive generics
 function add<T extends number>(a: T, b: T): T {
-  return (a + b) as T;  // キャスト必要 = 意味がない
+  return (a + b) as T;  // cast required = meaningless
 }
 
-// ✅ ジェネリクスが不要な場合
+// Good: when generics are not needed
 function add(a: number, b: number): number {
   return a + b;
 }
 
-// ❌ 1回しか使わない型パラメータ
+// Bad: a type parameter that is used only once
 function logValue<T>(value: T): void {
   console.log(value);
 }
 
-// ✅ unknown で十分
+// Good: unknown is sufficient
 function logValue(value: unknown): void {
   console.log(value);
 }
 
-// ✅ ジェネリクスが必要な場合: 入力と出力の型関係を表現
+// Good: when generics are needed: expressing the type relationship between input and output
 function identity<T>(value: T): T {
-  return value;  // 入力と同じ型が返ることを保証
+  return value;  // guarantees that the same type as the input is returned
 }
 
-// ✅ ジェネリクスが必要な場合: 複数の引数間の型関係を表現
+// Good: when generics are needed: expressing the type relationship between multiple arguments
 function merge<T, U>(obj1: T, obj2: U): T & U {
   return { ...obj1, ...obj2 };
 }
 ```
 
-### 7.3 制約は最小限に
+### 7.3 Keep Constraints Minimal
 
 ```typescript
-// ❌ 不必要に厳しい制約
+// Bad: unnecessarily strict constraints
 function getName<T extends { name: string; age: number; email: string }>(obj: T): string {
-  return obj.name;  // age と email は使っていない
+  return obj.name;  // age and email are not used
 }
 
-// ✅ 必要最小限の制約
+// Good: minimal necessary constraints
 function getName<T extends { name: string }>(obj: T): string {
   return obj.name;
 }
 
-// ❌ 具象クラスで制約
+// Bad: constraining with a concrete class
 function process<T extends UserService>(service: T): void {
   service.getUsers();
 }
 
-// ✅ インターフェースで制約
+// Good: constraining with an interface
 interface HasGetUsers {
   getUsers(): User[];
 }
@@ -1767,54 +1767,54 @@ function process<T extends HasGetUsers>(service: T): void {
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Your understanding deepens through not only theory but also by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What mistakes do beginners commonly make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping into advanced topics. We recommend firmly understanding the basic concepts described in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is it used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge on this topic is frequently leveraged in day-to-day development work. It becomes especially important during code reviews and architectural design.
 
 ---
 
-## まとめ
+## Summary
 
-| 概念 | ポイント |
+| Concept | Key Point |
 |------|---------|
-| ジェネリクス | 型をパラメータ化して汎用コード |
-| 制約 | extends/super で型パラメータを制限 |
-| 共変 | 出力（Producer）→ extends |
-| 反変 | 入力（Consumer）→ super |
-| 型消去 | Java/TS。実行時に型情報なし |
-| 単相化 | Rust/C++。型ごとにコード生成 |
-| 具体化 | C#。実行時にも型情報保持 |
-| 条件付き型 | TypeScript の型レベルプログラミング |
-| F-bounded | 再帰的型境界（自身の型を返す） |
-| Phantom Types | 型パラメータで状態を表現 |
+| Generics | Parameterize types to write generic code |
+| Constraints | Restrict type parameters with extends/super |
+| Covariance | Output (Producer) -> extends |
+| Contravariance | Input (Consumer) -> super |
+| Type erasure | Java/TS. No type information at runtime |
+| Monomorphization | Rust/C++. Code is generated per type |
+| Reification | C#. Type information is retained at runtime as well |
+| Conditional types | Type-level programming in TypeScript |
+| F-bounded | Recursive type bounds (return one's own type) |
+| Phantom Types | Represent state via type parameters |
 
-### 言語ごとのジェネリクス比較
+### Comparison of Generics Across Languages
 
-| 特徴 | Java | TypeScript | Rust | C# | C++ | Python |
+| Feature | Java | TypeScript | Rust | C# | C++ | Python |
 |------|------|-----------|------|-----|-----|--------|
-| 実装方式 | 型消去 | 型消去 | 単相化 | 具体化 | 単相化 | 型ヒント |
-| 実行時型情報 | なし | なし | なし | あり | なし | あり（動的） |
-| 値型サポート | なし | N/A | あり | あり | あり | N/A |
-| 変性宣言 | 使用サイト | 宣言サイト | なし | 宣言サイト | なし | なし |
-| 条件付き型 | なし | あり | なし | なし | あり(C++20) | なし |
-| 高カインド型 | なし | 制限的 | なし | なし | あり | なし |
-| デフォルト型 | なし | あり | あり | あり | あり | あり |
+| Implementation method | Type erasure | Type erasure | Monomorphization | Reification | Monomorphization | Type hints |
+| Runtime type info | None | None | None | Yes | None | Yes (dynamic) |
+| Value type support | None | N/A | Yes | Yes | Yes | N/A |
+| Variance declaration | Use-site | Declaration-site | None | Declaration-site | None | None |
+| Conditional types | None | Yes | None | None | Yes (C++20) | None |
+| Higher-kinded types | None | Limited | None | None | Yes | None |
+| Default types | None | Yes | Yes | Yes | Yes | Yes |
 
 ---
 
-## 次に読むべきガイド
+## Guides to Read Next
 
 ---
 
-## 参考文献
+## References
 1. Wadler, P. "Theorems for Free!" ICFP, 1989.
 2. Bloch, J. "Effective Java." Item 31: Use bounded wildcards. 2018.
 3. Pierce, B. "Types and Programming Languages." MIT Press, 2002.
