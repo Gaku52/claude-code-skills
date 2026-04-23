@@ -1,52 +1,52 @@
-# 継承
+# Inheritance
 
-> 継承は「既存クラスの機能を引き継いで新しいクラスを作る」仕組み。強力だが誤用しやすく、モダンOOPでは「継承よりコンポジション」が原則となっている。
+> Inheritance is a mechanism that "creates a new class by taking over the functionality of an existing class." It is powerful but easy to misuse, and in modern OOP, the principle "prefer composition over inheritance" has become the norm.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] 継承の仕組みとメモリ上の表現を理解する
-- [ ] 継承の適切な使い方と落とし穴を把握する
-- [ ] 抽象クラスとインターフェースの違いを学ぶ
-- [ ] 多重継承の問題と各言語での解決策を理解する
-- [ ] コンポジションとの使い分け基準を実践的に把握する
-- [ ] テンプレートメソッドパターンの活用方法を学ぶ
+- [ ] Understand the mechanism of inheritance and its representation in memory
+- [ ] Grasp appropriate uses of inheritance and its pitfalls
+- [ ] Learn the differences between abstract classes and interfaces
+- [ ] Understand the problems with multiple inheritance and the solutions in each language
+- [ ] Practically grasp the criteria for choosing between inheritance and composition
+- [ ] Learn how to utilize the Template Method pattern
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Reading this guide will be easier if you have the following knowledge:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [カプセル化](./00-encapsulation.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related fundamental concepts
+- Understanding the content of [Encapsulation](./00-encapsulation.md)
 
 ---
 
-## 1. 継承の基本
+## 1. The Basics of Inheritance
 
 ```
-継承（Inheritance）:
-  → 親クラス（スーパークラス）のフィールドとメソッドを
-    子クラス（サブクラス）が引き継ぐ仕組み
+Inheritance:
+  -> A mechanism where a child class (subclass)
+    takes over the fields and methods of a parent class (superclass)
 
-  Animal（親クラス）
-  ├── name: string
-  ├── sound(): string
-  └── move(): void
-       ↑ 継承
-  ┌─────┴──────┐
+  Animal (parent class)
+  |-- name: string
+  |-- sound(): string
+  +-- move(): void
+       ^ inheritance
+  +-----+------+
   Dog          Cat
-  ├── breed    ├── indoor
-  └── fetch()  └── purr()
+  |-- breed    |-- indoor
+  +-- fetch()  +-- purr()
 
-  Dog は Animal の name, sound(), move() を自動的に持つ
-  + 独自の breed, fetch() を追加
+  Dog automatically has Animal's name, sound(), move()
+  + adds its own breed, fetch()
 ```
 
-### 1.1 継承の基本構文（各言語比較）
+### 1.1 Basic Inheritance Syntax (Comparison Across Languages)
 
 ```typescript
-// TypeScript: 基本的な継承
+// TypeScript: basic inheritance
 class Animal {
   constructor(
     protected name: string,
@@ -54,43 +54,43 @@ class Animal {
   ) {}
 
   speak(): string {
-    return `${this.name}が鳴いています`;
+    return `${this.name} is making a sound`;
   }
 
   toString(): string {
-    return `${this.name} (${this.age}歳)`;
+    return `${this.name} (${this.age} years old)`;
   }
 }
 
 class Dog extends Animal {
   constructor(name: string, age: number, private breed: string) {
-    super(name, age); // 親のコンストラクタ呼び出し
+    super(name, age); // Call the parent's constructor
   }
 
-  // オーバーライド（親のメソッドを上書き）
+  // Override (overwrite the parent's method)
   speak(): string {
-    return `${this.name}「ワン！」`;
+    return `${this.name} "Woof!"`;
   }
 
   fetch(): string {
-    return `${this.name}がボールを取ってきた`;
+    return `${this.name} fetched the ball`;
   }
 }
 
 class Cat extends Animal {
   speak(): string {
-    return `${this.name}「ニャー」`;
+    return `${this.name} "Meow"`;
   }
 }
 
 const dog = new Dog("ポチ", 3, "柴犬");
 const cat = new Cat("タマ", 5);
-console.log(dog.speak()); // ポチ「ワン！」
-console.log(cat.speak()); // タマ「ニャー」
+console.log(dog.speak()); // ポチ "Woof!"
+console.log(cat.speak()); // タマ "Meow"
 ```
 
 ```java
-// Java: 基本的な継承
+// Java: basic inheritance
 public abstract class Vehicle {
     protected String name;
     protected int year;
@@ -102,27 +102,27 @@ public abstract class Vehicle {
         this.fuelLevel = 100.0;
     }
 
-    // 共通メソッド
+    // Common method
     public String getInfo() {
-        return String.format("%s (%d年式) 燃料: %.1f%%", name, year, fuelLevel);
+        return String.format("%s (%d model) fuel: %.1f%%", name, year, fuelLevel);
     }
 
-    // 抽象メソッド（サブクラスで実装必須）
+    // Abstract method (must be implemented in subclass)
     public abstract double getFuelEfficiency();
 
-    // テンプレートメソッド
+    // Template method
     public final void startEngine() {
         if (fuelLevel <= 0) {
-            System.out.println("燃料がありません");
+            System.out.println("No fuel");
             return;
         }
         performPreCheck();
         ignite();
-        System.out.println(name + " のエンジンが始動しました");
+        System.out.println(name + "'s engine has started");
     }
 
     protected void performPreCheck() {
-        System.out.println("基本チェック実行中...");
+        System.out.println("Performing basic check...");
     }
 
     protected abstract void ignite();
@@ -143,13 +143,13 @@ public class Car extends Vehicle {
 
     @Override
     protected void ignite() {
-        System.out.println("セルモーター始動");
+        System.out.println("Starter motor engaged");
     }
 
     @Override
     protected void performPreCheck() {
-        super.performPreCheck(); // 親の処理も実行
-        System.out.println("ドアロック確認: " + doorCount + "ドア");
+        super.performPreCheck(); // Also run the parent's processing
+        System.out.println("Door lock check: " + doorCount + " doors");
     }
 }
 
@@ -168,43 +168,43 @@ public class Motorcycle extends Vehicle {
 
     @Override
     protected void ignite() {
-        System.out.println("キックスタート");
+        System.out.println("Kick start");
     }
 }
 
-// 使用例
-Vehicle car = new Car("トヨタ カローラ", 2024, 4);
-Vehicle bike = new Motorcycle("ホンダ CB400", 2023, false);
+// Usage example
+Vehicle car = new Car("Toyota Corolla", 2024, 4);
+Vehicle bike = new Motorcycle("Honda CB400", 2023, false);
 
 car.startEngine();
-// 基本チェック実行中...
-// ドアロック確認: 4ドア
-// セルモーター始動
-// トヨタ カローラ のエンジンが始動しました
+// Performing basic check...
+// Door lock check: 4 doors
+// Starter motor engaged
+// Toyota Corolla's engine has started
 
 bike.startEngine();
-// 基本チェック実行中...
-// キックスタート
-// ホンダ CB400 のエンジンが始動しました
+// Performing basic check...
+// Kick start
+// Honda CB400's engine has started
 ```
 
 ```python
-# Python: 基本的な継承
+# Python: basic inheritance
 class Employee:
-    """従業員の基底クラス"""
+    """Base class for employees"""
 
     def __init__(self, name: str, employee_id: str, base_salary: float):
         self.name = name
         self.employee_id = employee_id
         self.base_salary = base_salary
-        self._benefits: list[str] = ["健康保険", "厚生年金"]
+        self._benefits: list[str] = ["Health insurance", "Welfare pension"]
 
     def calculate_pay(self) -> float:
-        """月額給与を計算"""
+        """Calculate monthly salary"""
         return self.base_salary
 
     def get_benefits(self) -> list[str]:
-        """福利厚生一覧を取得"""
+        """Get the list of benefits"""
         return self._benefits.copy()
 
     def __str__(self) -> str:
@@ -215,57 +215,57 @@ class Employee:
 
 
 class FullTimeEmployee(Employee):
-    """正社員"""
+    """Full-time employee"""
 
     def __init__(self, name: str, employee_id: str, base_salary: float,
                  bonus_rate: float = 0.2):
         super().__init__(name, employee_id, base_salary)
         self.bonus_rate = bonus_rate
-        self._benefits.extend(["退職金", "住宅手当"])
+        self._benefits.extend(["Retirement allowance", "Housing allowance"])
 
     def calculate_pay(self) -> float:
-        """基本給 + ボーナス分"""
+        """Base salary + bonus portion"""
         return self.base_salary * (1 + self.bonus_rate)
 
     def calculate_annual_bonus(self) -> float:
-        """年間ボーナス"""
-        return self.base_salary * self.bonus_rate * 2  # 夏冬
+        """Annual bonus"""
+        return self.base_salary * self.bonus_rate * 2  # summer and winter
 
 
 class PartTimeEmployee(Employee):
-    """パートタイム従業員"""
+    """Part-time employee"""
 
     def __init__(self, name: str, employee_id: str,
                  hourly_rate: float, hours_per_month: float):
-        # base_salary は時給 × 時間で計算
+        # base_salary is calculated as hourly rate x hours
         super().__init__(name, employee_id, hourly_rate * hours_per_month)
         self.hourly_rate = hourly_rate
         self.hours_per_month = hours_per_month
-        # パートタイムは福利厚生が限定的
-        self._benefits = ["健康保険"]
+        # Part-time employees have limited benefits
+        self._benefits = ["Health insurance"]
 
     def calculate_pay(self) -> float:
-        """時給 × 時間"""
+        """Hourly rate x hours"""
         return self.hourly_rate * self.hours_per_month
 
 
 class Manager(FullTimeEmployee):
-    """管理職（正社員からさらに継承）"""
+    """Manager (further inherited from full-time employee)"""
 
     def __init__(self, name: str, employee_id: str, base_salary: float,
                  bonus_rate: float = 0.3, team_size: int = 0):
         super().__init__(name, employee_id, base_salary, bonus_rate)
         self.team_size = team_size
-        self._benefits.append("管理職手当")
+        self._benefits.append("Managerial allowance")
 
     def calculate_pay(self) -> float:
-        """基本給 + ボーナス + 管理手当"""
+        """Base salary + bonus + management allowance"""
         base_pay = super().calculate_pay()
-        management_allowance = 50000 * (self.team_size // 5)  # 5人ごとに5万円
+        management_allowance = 50000 * (self.team_size // 5)  # 50,000 yen per 5 people
         return base_pay + management_allowance
 
 
-# 使用例: ポリモーフィズムとの連携
+# Usage example: working with polymorphism
 employees: list[Employee] = [
     FullTimeEmployee("田中太郎", "FT001", 350000),
     PartTimeEmployee("鈴木花子", "PT001", 1200, 80),
@@ -279,53 +279,53 @@ for emp in employees:
 # 佐藤部長 (ID: MG001): ¥750,000
 ```
 
-### 1.2 継承のメモリレイアウト
+### 1.2 Memory Layout of Inheritance
 
 ```
-メモリ上での継承オブジェクトの表現:
+Representation of inherited objects in memory:
 
-  Manager オブジェクトのメモリレイアウト:
-  ┌──────────────────────────────────────┐
-  │ vptr → Manager の vtable             │ ← 仮想関数テーブルポインタ
-  ├──────────────────────────────────────┤
-  │ name: "佐藤部長"                     │ ← Employee のフィールド
-  │ employee_id: "MG001"                 │
-  │ base_salary: 500000                  │
-  │ _benefits: [...]                     │
-  ├──────────────────────────────────────┤
-  │ bonus_rate: 0.3                      │ ← FullTimeEmployee のフィールド
-  ├──────────────────────────────────────┤
-  │ team_size: 12                        │ ← Manager のフィールド
-  └──────────────────────────────────────┘
+  Memory layout of a Manager object:
+  +--------------------------------------+
+  | vptr -> Manager's vtable             | <- virtual function table pointer
+  +--------------------------------------+
+  | name: "佐藤部長"                     | <- Employee's fields
+  | employee_id: "MG001"                 |
+  | base_salary: 500000                  |
+  | _benefits: [...]                     |
+  +--------------------------------------+
+  | bonus_rate: 0.3                      | <- FullTimeEmployee's field
+  +--------------------------------------+
+  | team_size: 12                        | <- Manager's field
+  +--------------------------------------+
 
-  継承チェーン:
-  Employee → FullTimeEmployee → Manager
+  Inheritance chain:
+  Employee -> FullTimeEmployee -> Manager
 
-  各レベルのフィールドが連続して配置される
-  → 継承が深いほどオブジェクトサイズが大きくなる
+  Fields at each level are laid out contiguously
+  -> The deeper the inheritance, the larger the object size
 ```
 
 ---
 
-## 2. メソッドオーバーライドと super
+## 2. Method Override and super
 
 ```
-オーバーライド（Override）:
-  → 親クラスのメソッドを子クラスで再定義
-  → 動的ディスパッチ: 実行時に実際の型のメソッドが呼ばれる
+Override:
+  -> Redefining a parent class method in a child class
+  -> Dynamic dispatch: the method of the actual type is called at runtime
 
-super の役割:
-  → 親クラスのコンストラクタ/メソッドを明示的に呼ぶ
-  → 「親の処理 + 追加の処理」パターン
+Role of super:
+  -> Explicitly calls the parent class's constructor/method
+  -> "Parent's processing + additional processing" pattern
 
-オーバーライドの3つのパターン:
-  1. 完全置換: 親のメソッドを完全に新しい実装に置き換え
-  2. 拡張: super() を呼んだ上で追加処理
-  3. 条件分岐: 条件に応じて親の実装を使うか独自実装を使うか切り替え
+Three override patterns:
+  1. Complete replacement: Entirely replace the parent's method with a new implementation
+  2. Extension: Call super() and then add extra processing
+  3. Conditional branching: Use the parent's implementation or your own depending on conditions
 ```
 
 ```python
-# Python: super() の使い方と3つのオーバーライドパターン
+# Python: How to use super() and three override patterns
 class Shape:
     def __init__(self, color: str = "black"):
         self.color = color
@@ -334,26 +334,26 @@ class Shape:
         raise NotImplementedError
 
     def describe(self) -> str:
-        return f"{self.color}の{type(self).__name__}"
+        return f"A {self.color} {type(self).__name__}"
 
     def validate(self) -> bool:
-        """形状が有効かどうかを検証"""
+        """Validate whether the shape is valid"""
         return True
 
 class Circle(Shape):
     def __init__(self, radius: float, color: str = "black"):
-        super().__init__(color)  # 親の初期化
+        super().__init__(color)  # Initialize parent
         self.radius = radius
 
-    # パターン1: 完全置換
+    # Pattern 1: Complete replacement
     def area(self) -> float:
         return 3.14159 * self.radius ** 2
 
-    # パターン2: 拡張（super() + 追加処理）
+    # Pattern 2: Extension (super() + additional processing)
     def describe(self) -> str:
-        return f"{super().describe()}, 半径{self.radius}"
+        return f"{super().describe()}, radius {self.radius}"
 
-    # パターン3: 条件分岐
+    # Pattern 3: Conditional branching
     def validate(self) -> bool:
         if self.radius <= 0:
             return False
@@ -369,7 +369,7 @@ class Rectangle(Shape):
         return self.width * self.height
 
     def describe(self) -> str:
-        return f"{super().describe()}, {self.width}×{self.height}"
+        return f"{super().describe()}, {self.width}x{self.height}"
 
     def validate(self) -> bool:
         if self.width <= 0 or self.height <= 0:
@@ -377,21 +377,21 @@ class Rectangle(Shape):
         return super().validate()
 
 class Square(Rectangle):
-    """正方形は長方形の特殊ケース（ただし注意が必要）"""
+    """A square is a special case of rectangle (but caution is required)"""
     def __init__(self, side: float, color: str = "black"):
         super().__init__(side, side, color)
 
     def describe(self) -> str:
-        # 親の describe を完全に置き換え
-        return f"{self.color}の正方形, 一辺{self.width}"
+        # Completely replace the parent's describe
+        return f"A {self.color} square, side {self.width}"
 ```
 
-### 2.1 super() の高度な使い方
+### 2.1 Advanced Usage of super()
 
 ```python
-# Python: 協調的多重継承での super()
+# Python: super() in cooperative multiple inheritance
 class Loggable:
-    """ログ機能を提供するMixin"""
+    """Mixin that provides logging functionality"""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._log: list[str] = []
@@ -406,7 +406,7 @@ class Loggable:
 
 
 class Validatable:
-    """バリデーション機能を提供するMixin"""
+    """Mixin that provides validation functionality"""
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._errors: list[str] = []
@@ -420,48 +420,48 @@ class Validatable:
         return len(self._errors) == 0
 
     def validate(self) -> None:
-        """サブクラスでオーバーライドしてバリデーションルールを追加"""
+        """Override in subclass to add validation rules"""
         pass
 
 
 class Product(Loggable, Validatable):
-    """商品クラス（複数のMixinを継承）"""
+    """Product class (inherits from multiple Mixins)"""
     def __init__(self, name: str, price: float):
-        super().__init__()  # MRO に従って全ての __init__ が呼ばれる
+        super().__init__()  # All __init__ are called according to MRO
         self.name = name
         self.price = price
-        self.log(f"商品作成: {name}")
+        self.log(f"Product created: {name}")
 
     def validate(self) -> None:
-        super().validate()  # Validatable.validate() を呼ぶ
+        super().validate()  # Call Validatable.validate()
         if not self.name:
-            self.add_error("商品名は必須です")
+            self.add_error("Product name is required")
         if self.price < 0:
-            self.add_error("価格は0以上である必要があります")
+            self.add_error("Price must be 0 or more")
         if self.price > 10_000_000:
-            self.add_error("価格が上限を超えています")
+            self.add_error("Price exceeds the upper limit")
 
     def update_price(self, new_price: float) -> None:
         old_price = self.price
         self.price = new_price
-        self.log(f"価格変更: {old_price} → {new_price}")
+        self.log(f"Price changed: {old_price} -> {new_price}")
 
 
-# 使用例
-product = Product("ノートPC", 150000)
+# Usage example
+product = Product("Laptop PC", 150000)
 print(product.is_valid())    # True
-print(product.get_log())     # ['[2024-...] 商品作成: ノートPC']
+print(product.get_log())     # ['[2024-...] Product created: Laptop PC']
 
 product.update_price(-100)
-print(product.is_valid())    # False（価格が負）
+print(product.is_valid())    # False (price is negative)
 
-# MRO の確認
+# Check the MRO
 print(Product.__mro__)
 # (Product, Loggable, Validatable, object)
 ```
 
 ```typescript
-// TypeScript: super の高度な活用パターン
+// TypeScript: advanced patterns for using super
 
 abstract class Component {
   protected children: Component[] = [];
@@ -474,7 +474,7 @@ abstract class Component {
     this.children.push(child);
   }
 
-  // テンプレートメソッド
+  // Template method
   render(): string {
     const self = this.renderSelf();
     const children = this.children.map(c => c.render()).join("\n");
@@ -483,7 +483,7 @@ abstract class Component {
 
   protected abstract renderSelf(): string;
 
-  // ライフサイクルフック
+  // Lifecycle hooks
   mount(): void {
     this.onBeforeMount();
     this.children.forEach(c => c.mount());
@@ -517,10 +517,10 @@ class Button extends Component {
     return `<button id="${this.id}">${this.label}</button>`;
   }
 
-  // super.mount() を呼んだ上でイベントハンドラを追加
+  // Call super.mount() and then add an event handler
   mount(): void {
     super.mount();
-    console.log(`Button "${this.label}" にクリックハンドラを登録`);
+    console.log(`Registered click handler for Button "${this.label}"`);
   }
 }
 
@@ -535,7 +535,7 @@ class Form extends Panel {
     this.fields.set(name, defaultValue);
   }
 
-  // 親の renderSelf を拡張
+  // Extend the parent's renderSelf
   protected renderSelf(): string {
     const base = super.renderSelf();
     const fieldsHtml = Array.from(this.fields.entries())
@@ -545,114 +545,114 @@ class Form extends Panel {
   }
 
   protected onMounted(): void {
-    super.onMounted(); // Panel.onMounted() を呼ぶ
-    console.log(`Form fields: ${this.fields.size}個`);
+    super.onMounted(); // Call Panel.onMounted()
+    console.log(`Form fields: ${this.fields.size}`);
   }
 }
 
-// 使用例
-const form = new Form("login-form", "ログイン");
+// Usage example
+const form = new Form("login-form", "Login");
 form.addField("username");
 form.addField("password");
-form.addChild(new Button("submit-btn", "ログイン", () => {}));
+form.addChild(new Button("submit-btn", "Login", () => {}));
 form.mount();
-// Panel "ログイン" mounted
-// Form fields: 2個
-// Button "ログイン" にクリックハンドラを登録
+// Panel "Login" mounted
+// Form fields: 2
+// Registered click handler for Button "Login"
 ```
 
 ---
 
-## 3. 継承の種類
+## 3. Kinds of Inheritance
 
 ```
-単一継承（Single Inheritance）:
-  → 1つの親クラスのみ継承可能
-  → Java, C#, Swift, Kotlin, Ruby
-  → シンプルだが表現力に制限
+Single Inheritance:
+  -> Only one parent class can be inherited
+  -> Java, C#, Swift, Kotlin, Ruby
+  -> Simple, but expressiveness is limited
 
-多重継承（Multiple Inheritance）:
-  → 複数の親クラスを継承可能
-  → C++, Python
-  → 強力だがダイヤモンド問題が発生
+Multiple Inheritance:
+  -> Multiple parent classes can be inherited
+  -> C++, Python
+  -> Powerful, but the diamond problem arises
 
-  ┌─────────┐
-  │ Animal  │ ← ダイヤモンド問題
-  └────┬────┘
-  ┌────┴────┐
-  ▼         ▼
-┌─────┐  ┌──────┐
-│ Fly │  │ Swim │
-└──┬──┘  └──┬───┘
-   └────┬───┘
-        ▼
-  ┌──────────┐
-  │ FlyFish  │ ← Animal のメソッドをどちらから継承？
-  └──────────┘
+  +---------+
+  | Animal  | <- diamond problem
+  +----+----+
+  +----+----+
+  v         v
++-----+  +------+
+| Fly |  | Swim |
++--+--+  +--+---+
+   +----+---+
+        v
+  +----------+
+  | FlyFish  | <- From which should Animal's methods be inherited?
+  +----------+
 
-インターフェースによる多重実装:
-  → Java, C#, TypeScript, Kotlin, Swift
-  → 実装を持たない（Java 8+ の default メソッドは例外）
-  → ダイヤモンド問題を部分的に回避
+Multiple implementation via interfaces:
+  -> Java, C#, TypeScript, Kotlin, Swift
+  -> Do not carry implementations (Java 8+ default methods are an exception)
+  -> Partially avoids the diamond problem
 
 Mixin / Trait:
-  → Ruby (module), Scala (trait), Rust (trait), Kotlin (interface + default)
-  → 実装を含むが、状態（フィールド）は制限的
-  → 多重継承の利点を安全に提供
+  -> Ruby (module), Scala (trait), Rust (trait), Kotlin (interface + default)
+  -> Contains implementations, but state (fields) is restricted
+  -> Safely provides the benefits of multiple inheritance
 ```
 
-### 3.1 Python の MRO（Method Resolution Order）
+### 3.1 Python's MRO (Method Resolution Order)
 
 ```python
-# Python: MRO（Method Resolution Order）でダイヤモンド問題を解決
+# Python: solving the diamond problem with MRO (Method Resolution Order)
 class Animal:
     def move(self):
-        return "移動"
+        return "Move"
 
     def breathe(self):
-        return "呼吸する"
+        return "Breathe"
 
 class Flyer(Animal):
     def move(self):
-        return "飛ぶ"
+        return "Fly"
 
     def take_off(self):
-        return "離陸"
+        return "Take off"
 
 class Swimmer(Animal):
     def move(self):
-        return "泳ぐ"
+        return "Swim"
 
     def dive(self):
-        return "潜水"
+        return "Dive"
 
 class FlyingFish(Flyer, Swimmer):
     pass
 
 fish = FlyingFish()
-print(fish.move())      # "飛ぶ"（MRO: FlyingFish → Flyer → Swimmer → Animal）
-print(fish.breathe())   # "呼吸する"（Animal から継承）
-print(fish.take_off())  # "離陸"（Flyer から継承）
-print(fish.dive())      # "潜水"（Swimmer から継承）
+print(fish.move())      # "Fly" (MRO: FlyingFish -> Flyer -> Swimmer -> Animal)
+print(fish.breathe())   # "Breathe" (inherited from Animal)
+print(fish.take_off())  # "Take off" (inherited from Flyer)
+print(fish.dive())      # "Dive" (inherited from Swimmer)
 
-# MROの確認
+# Check the MRO
 print(FlyingFish.__mro__)
 # (FlyingFish, Flyer, Swimmer, Animal, object)
-# → C3線形化アルゴリズムで順序を決定
+# -> The order is determined by the C3 linearization algorithm
 ```
 
-### 3.2 C3線形化アルゴリズムの詳細
+### 3.2 Details of the C3 Linearization Algorithm
 
 ```
-C3線形化（C3 Linearization）:
-  Python が MRO を決定するために使用するアルゴリズム
+C3 Linearization:
+  The algorithm Python uses to determine MRO
 
-ルール:
-  1. 子クラスは常に親クラスより先
-  2. 複数の親がある場合、定義順序を維持
-  3. 矛盾する順序は許可しない（TypeError が発生）
+Rules:
+  1. A child class always comes before parent classes
+  2. When there are multiple parents, preserve the declaration order
+  3. Contradictory orderings are not allowed (TypeError is raised)
 
-例: class D(B, C) で B(A), C(A) の場合
+Example: For class D(B, C) where B(A), C(A)
   L[D] = D + merge(L[B], L[C], [B, C])
   L[B] = B, A, object
   L[C] = C, A, object
@@ -661,30 +661,30 @@ C3線形化（C3 Linearization）:
   = B, C + merge([A, object], [A, object])
   = B, C, A + merge([object], [object])
   = B, C, A, object
-  → D の MRO = [D, B, C, A, object]
+  -> D's MRO = [D, B, C, A, object]
 ```
 
 ```python
-# 矛盾するMROの例（TypeError が発生）
+# Example of contradictory MRO (TypeError is raised)
 class A:
     pass
 
 class B(A):
     pass
 
-class C(A, B):  # A が B より先だが、B は A を継承している
+class C(A, B):  # A comes before B, but B inherits from A
     pass
 # TypeError: Cannot create a consistent method resolution order (MRO)
-# → A と B の順序が矛盾するため
+# -> because the ordering of A and B contradicts
 ```
 
-### 3.3 各言語の多重継承への対処
+### 3.3 How Each Language Handles Multiple Inheritance
 
 ```java
-// Java: インターフェースの default メソッドによる多重実装
+// Java: multiple implementation via default methods in interfaces
 interface Flyable {
     default String move() {
-        return "飛ぶ";
+        return "Fly";
     }
 
     String altitude();
@@ -692,19 +692,19 @@ interface Flyable {
 
 interface Swimmable {
     default String move() {
-        return "泳ぐ";
+        return "Swim";
     }
 
     String depth();
 }
 
-// 両方のインターフェースを実装する場合、
-// 同名の default メソッドは明示的にオーバーライドが必要
+// When implementing both interfaces,
+// default methods with the same name must be explicitly overridden
 class Duck implements Flyable, Swimmable {
     @Override
     public String move() {
-        // どちらかを選ぶ、または独自実装
-        return Flyable.super.move() + "ことも" + Swimmable.super.move() + "こともできる";
+        // Choose one, or write your own implementation
+        return "Can " + Flyable.super.move() + " and also " + Swimmable.super.move();
     }
 
     @Override
@@ -719,11 +719,11 @@ class Duck implements Flyable, Swimmable {
 }
 
 Duck duck = new Duck();
-System.out.println(duck.move()); // "飛ぶことも泳ぐこともできる"
+System.out.println(duck.move()); // "Can Fly and also Swim"
 ```
 
 ```kotlin
-// Kotlin: インターフェースの default 実装
+// Kotlin: default implementations in interfaces
 interface Logger {
     fun log(message: String) {
         println("[LOG] $message")
@@ -741,20 +741,20 @@ interface Auditable {
 }
 
 class UserService : Logger, Auditable {
-    // 同名メソッドが衝突するため、明示的にオーバーライド
+    // Methods with the same name collide, so we must explicitly override
     override fun log(message: String) {
-        super<Logger>.log(message)      // Logger の実装を呼ぶ
-        super<Auditable>.audit(message) // Auditable の audit も呼ぶ
+        super<Logger>.log(message)      // Call Logger's implementation
+        super<Auditable>.audit(message) // Also call Auditable's audit
     }
 
     fun createUser(name: String) {
-        log("ユーザー作成: $name")
+        log("User created: $name")
     }
 }
 ```
 
 ```ruby
-# Ruby: Module（Mixin）による多重継承の代替
+# Ruby: alternative to multiple inheritance using Modules (Mixins)
 module Serializable
   def serialize
     instance_variables.each_with_object({}) do |var, hash|
@@ -821,52 +821,52 @@ puts user.cache_key      # "User:12345"
 user.update_email("new@example.com")
 puts user.audit_trail    # [{field: :email, old: "tanaka@...", new: "new@...", ...}]
 
-# 継承チェーンの確認
+# Check the inheritance chain
 puts User.ancestors
 # [User, Auditable, Cacheable, Serializable, Object, Kernel, BasicObject]
 ```
 
 ---
 
-## 4. 継承の落とし穴
+## 4. Pitfalls of Inheritance
 
 ```
-問題1: 脆い基底クラス問題（Fragile Base Class）
-  → 親クラスの変更が子クラスを壊す
+Problem 1: Fragile Base Class Problem
+  -> A change to the parent class breaks child classes
 
-問題2: 不適切な is-a 関係
-  → 正方形 is-a 長方形？（リスコフの置換原則に違反）
+Problem 2: Inappropriate is-a relationships
+  -> Is a square is-a rectangle? (violates the Liskov Substitution Principle)
 
-問題3: 深い継承階層
-  → 3段階以上の継承は理解困難
-  → Entity → LivingEntity → Animal → Mammal → Dog → GuideDog
-  → 各レイヤーの変更が下位全てに影響
+Problem 3: Deep inheritance hierarchies
+  -> Inheritance of 3 or more levels is hard to understand
+  -> Entity -> LivingEntity -> Animal -> Mammal -> Dog -> GuideDog
+  -> Changes at each layer affect everything below
 
-問題4: 継承によるカプセル化の破壊
-  → 子クラスが親の実装詳細に依存
-  → protected フィールドへの直接アクセス
+Problem 4: Breakdown of encapsulation by inheritance
+  -> A child class depends on the parent's implementation details
+  -> Direct access to protected fields
 
-問題5: ゴリラ・バナナ問題
-  「バナナが欲しいだけなのに、バナナを持ったゴリラと
-   ジャングル全体がついてきた」
-  → 継承すると不要な機能も全てついてくる
+Problem 5: The Gorilla-Banana problem
+  "All I wanted was a banana, but I got a gorilla holding the banana
+   and the entire jungle along with it."
+  -> When you inherit, all unnecessary functionality comes along
 ```
 
-### 4.1 脆い基底クラス問題
+### 4.1 The Fragile Base Class Problem
 
 ```java
-// 脆い基底クラス問題の例（Effective Java Item 18より）
+// Example of the fragile base class problem (from Effective Java Item 18)
 public class HashSet<E> {
     private int addCount = 0;
 
     public boolean add(E e) {
         addCount++;
-        // ... 実際の追加処理
+        // ... actual addition processing
         return true;
     }
 
     public boolean addAll(Collection<E> c) {
-        // 内部で add() を呼ぶ実装
+        // Implementation that calls add() internally
         for (E e : c) add(e);
         return true;
     }
@@ -874,7 +874,7 @@ public class HashSet<E> {
     public int getAddCount() { return addCount; }
 }
 
-// 問題のあるサブクラス
+// A problematic subclass
 public class InstrumentedHashSet<E> extends HashSet<E> {
     private int addCount = 0;
 
@@ -887,17 +887,17 @@ public class InstrumentedHashSet<E> extends HashSet<E> {
     @Override
     public boolean addAll(Collection<E> c) {
         addCount += c.size();
-        return super.addAll(c); // super.addAll() が add() を呼ぶ！
+        return super.addAll(c); // super.addAll() calls add()!
     }
-    // addAll({a, b, c}) → addCount = 6（期待は3）
-    // → super.addAll() が内部で add() を呼び、二重カウント
+    // addAll({a, b, c}) -> addCount = 6 (expected 3)
+    // -> super.addAll() internally calls add(), resulting in double counting
 }
 ```
 
 ```java
-// 解決策: コンポジションを使う（Effective Java推奨）
+// Solution: use composition (recommended by Effective Java)
 public class InstrumentedSet<E> {
-    private final Set<E> set;  // コンポジション
+    private final Set<E> set;  // composition
     private int addCount = 0;
 
     public InstrumentedSet(Set<E> set) {
@@ -906,32 +906,32 @@ public class InstrumentedSet<E> {
 
     public boolean add(E e) {
         addCount++;
-        return set.add(e);  // 委譲（delegation）
+        return set.add(e);  // delegation
     }
 
     public boolean addAll(Collection<E> c) {
         addCount += c.size();
-        return set.addAll(c);  // set 内部の実装に依存しない
+        return set.addAll(c);  // does not depend on set's internal implementation
     }
 
     public int getAddCount() { return addCount; }
 
-    // 必要な Set のメソッドを委譲
+    // Delegate the necessary Set methods
     public boolean contains(Object o) { return set.contains(o); }
     public int size() { return set.size(); }
     public Iterator<E> iterator() { return set.iterator(); }
 }
 
-// 使用例: どの Set 実装でも使える
+// Usage example: works with any Set implementation
 InstrumentedSet<String> s1 = new InstrumentedSet<>(new HashSet<>());
 InstrumentedSet<String> s2 = new InstrumentedSet<>(new TreeSet<>());
 InstrumentedSet<String> s3 = new InstrumentedSet<>(new LinkedHashSet<>());
 ```
 
-### 4.2 不適切な is-a 関係（正方形-長方形問題）
+### 4.2 Inappropriate is-a Relationships (The Square-Rectangle Problem)
 
 ```typescript
-// ❌ 正方形 extends 長方形: LSP 違反の典型例
+// BAD: Square extends Rectangle: a classic LSP violation
 class Rectangle {
   constructor(protected width: number, protected height: number) {}
 
@@ -953,26 +953,26 @@ class Square extends Rectangle {
     super(side, side);
   }
 
-  // 正方形は幅を変えたら高さも変わる（親と異なる振る舞い）
+  // For a square, changing the width also changes the height (different behavior from parent)
   setWidth(w: number): void {
     this.width = w;
-    this.height = w; // ← 親クラスにない副作用
+    this.height = w; // <- side effect not present in parent class
   }
 
   setHeight(h: number): void {
     this.width = h;
-    this.height = h; // ← 親クラスにない副作用
+    this.height = h; // <- side effect not present in parent class
   }
 }
 
-// 問題: Rectangle として使うと期待通りに動かない
+// Problem: when used as a Rectangle, it does not behave as expected
 function doubleWidth(rect: Rectangle): void {
-  const originalHeight = rect.area() / rect.area(); // 元の高さを保持
-  rect.setWidth(rect.area() / 10); // 幅だけ変えたつもり
-  // Square だと高さも変わってしまう！
+  const originalHeight = rect.area() / rect.area(); // preserve original height
+  rect.setWidth(rect.area() / 10); // intended to change only the width
+  // For a Square, the height changes too!
 }
 
-// ✅ 解決策: 共通インターフェースで抽象化
+// GOOD: abstract via a common interface
 interface Shape {
   area(): number;
   perimeter(): number;
@@ -991,33 +991,33 @@ class ImmutableSquare implements Shape {
 }
 ```
 
-### 4.3 深い継承階層の問題
+### 4.3 The Problem of Deep Inheritance Hierarchies
 
 ```
-深い継承階層のリスク:
+Risks of deep inheritance hierarchies:
 
   Level 0: Entity
-  Level 1: └── LivingEntity
-  Level 2:     └── Animal
-  Level 3:         └── Mammal
-  Level 4:             └── Canine
-  Level 5:                 └── Dog
-  Level 6:                     └── GuideDog
+  Level 1: +-- LivingEntity
+  Level 2:     +-- Animal
+  Level 3:         +-- Mammal
+  Level 4:             +-- Canine
+  Level 5:                 +-- Dog
+  Level 6:                     +-- GuideDog
 
-  問題:
-  1. Level 2 (Animal) を変更 → Level 3-6 全てに影響
-  2. GuideDog のバグ原因が Level 1 にある可能性
-  3. 新しい種類の犬を追加するとき、どのレベルに追加すべきか不明
-  4. テスト時に全レベルのセットアップが必要
+  Problems:
+  1. Changing Level 2 (Animal) -> affects all of Levels 3-6
+  2. A bug in GuideDog may have its root cause at Level 1
+  3. When adding a new kind of dog, it's unclear at which level to add it
+  4. Testing requires setup for all levels
 
-  推奨: 最大2-3レベルまで
-  → それ以上はコンポジションに切り替える
+  Recommendation: up to 2-3 levels maximum
+  -> Beyond that, switch to composition
 ```
 
 ```python
-# 深い継承階層をコンポジションで改善する例
+# Example of improving a deep inheritance hierarchy with composition
 
-# ❌ 深い継承階層
+# BAD: deep inheritance hierarchy
 class Entity:
     def __init__(self, id: str):
         self.id = id
@@ -1039,7 +1039,7 @@ class Pet(Animal):
 
 class Dog(Pet):
     def __init__(self, id: str, health: float, owner: str, breed: str):
-        super().__init__(id, health, "犬", owner)
+        super().__init__(id, health, "Dog", owner)
         self.breed = breed
 
 class GuideDog(Dog):
@@ -1050,7 +1050,7 @@ class GuideDog(Dog):
         self.certification = certification
 
 
-# ✅ コンポジションで改善（浅い継承 + 機能を部品として組み立て）
+# GOOD: improved with composition (shallow inheritance + functions as components)
 from dataclasses import dataclass
 from typing import Optional
 
@@ -1083,7 +1083,7 @@ class GuideDogCertification:
     expires_at: str
 
 class AnimalV2:
-    """浅い構造: コンポジションで機能を組み立て"""
+    """Shallow structure: assemble functionality through composition"""
     def __init__(self, identity: Identity, species: str, breed: str):
         self.identity = identity
         self.species = species
@@ -1099,11 +1099,11 @@ class AnimalV2:
         return self.owner is not None
 
 
-# 使用例
+# Usage example
 guide_dog = AnimalV2(
     identity=Identity(id="GD-001"),
-    species="犬",
-    breed="ラブラドール",
+    species="Dog",
+    breed="Labrador",
 )
 guide_dog.health = HealthStatus(current_hp=100, max_hp=100)
 guide_dog.owner = OwnerInfo(owner_name="佐藤", owner_contact="090-XXXX")
@@ -1116,33 +1116,33 @@ guide_dog.guide_cert = GuideDogCertification(
 
 ---
 
-## 5. 抽象クラス
+## 5. Abstract Classes
 
 ```
-抽象クラス:
-  → インスタンス化できないクラス
-  → 共通の実装 + サブクラスへの実装義務を定義
-  → 「テンプレートメソッドパターン」の基盤
+Abstract class:
+  -> A class that cannot be instantiated
+  -> Defines common implementation + implementation obligations for subclasses
+  -> Foundation for the "Template Method pattern"
 
-用途:
-  - 共通のフィールドと一部のメソッド実装を提供
-  - サブクラスが実装すべきメソッドを強制
-  - is-a 関係が明確な場合
+Uses:
+  - Provides common fields and some method implementations
+  - Forces subclasses to implement specific methods
+  - When the is-a relationship is clear
 
-抽象クラス vs インターフェース:
-  抽象クラス: 「何であるか」+ 共通実装
-  インターフェース: 「何ができるか」のみ
+Abstract class vs interface:
+  Abstract class: "what it is" + common implementation
+  Interface: only "what it can do"
 ```
 
-### 5.1 抽象クラスの基本
+### 5.1 Basics of Abstract Classes
 
 ```typescript
-// TypeScript: 抽象クラス
+// TypeScript: abstract classes
 abstract class DatabaseConnection {
   protected connected: boolean = false;
   protected queryCount: number = 0;
 
-  // 共通実装
+  // Common implementation
   async query(sql: string): Promise<any[]> {
     if (!this.connected) {
       await this.connect();
@@ -1155,7 +1155,7 @@ abstract class DatabaseConnection {
     return result;
   }
 
-  // トランザクション管理（テンプレートメソッド）
+  // Transaction management (template method)
   async withTransaction<T>(fn: () => Promise<T>): Promise<T> {
     await this.beginTransaction();
     try {
@@ -1168,7 +1168,7 @@ abstract class DatabaseConnection {
     }
   }
 
-  // サブクラスが実装すべき抽象メソッド
+  // Abstract methods that subclasses must implement
   abstract connect(): Promise<void>;
   abstract disconnect(): Promise<void>;
   protected abstract executeQuery(sql: string): Promise<any[]>;
@@ -1181,23 +1181,23 @@ class PostgresConnection extends DatabaseConnection {
   private client: any; // pg.Client
 
   async connect(): Promise<void> {
-    // PostgreSQL固有の接続処理
+    // PostgreSQL-specific connection handling
     this.client = {}; // new pg.Client(connectionString)
     // await this.client.connect();
     this.connected = true;
-    console.log("PostgreSQL に接続しました");
+    console.log("Connected to PostgreSQL");
   }
 
   async disconnect(): Promise<void> {
     // await this.client.end();
     this.connected = false;
-    console.log("PostgreSQL から切断しました");
+    console.log("Disconnected from PostgreSQL");
   }
 
   protected async executeQuery(sql: string): Promise<any[]> {
     // const result = await this.client.query(sql);
     // return result.rows;
-    console.log(`PostgreSQL 実行: ${sql}`);
+    console.log(`PostgreSQL exec: ${sql}`);
     return [];
   }
 
@@ -1218,10 +1218,10 @@ class SQLiteConnection extends DatabaseConnection {
   private db: any;
 
   async connect(): Promise<void> {
-    // SQLite固有の接続処理
+    // SQLite-specific connection handling
     this.db = {}; // new sqlite3.Database(path)
     this.connected = true;
-    console.log("SQLite に接続しました");
+    console.log("Connected to SQLite");
   }
 
   async disconnect(): Promise<void> {
@@ -1230,7 +1230,7 @@ class SQLiteConnection extends DatabaseConnection {
   }
 
   protected async executeQuery(sql: string): Promise<any[]> {
-    console.log(`SQLite 実行: ${sql}`);
+    console.log(`SQLite exec: ${sql}`);
     return [];
   }
 
@@ -1248,39 +1248,39 @@ class SQLiteConnection extends DatabaseConnection {
 }
 ```
 
-### 5.2 テンプレートメソッドパターン
+### 5.2 The Template Method Pattern
 
 ```python
-# Python: テンプレートメソッドパターンの実践例
+# Python: a practical example of the Template Method pattern
 from abc import ABC, abstractmethod
 from typing import Any
 import time
 
 
 class DataPipeline(ABC):
-    """データ処理パイプラインの抽象基底クラス"""
+    """Abstract base class for a data processing pipeline"""
 
     def run(self, source: str) -> dict[str, Any]:
-        """テンプレートメソッド: 処理の流れを定義"""
+        """Template method: defines the flow of processing"""
         start_time = time.time()
 
-        # 1. データ取得
+        # 1. Data acquisition
         raw_data = self.extract(source)
-        print(f"  取得: {len(raw_data)} 件")
+        print(f"  acquired: {len(raw_data)} items")
 
-        # 2. バリデーション
+        # 2. Validation
         valid_data = self.validate(raw_data)
-        print(f"  有効: {len(valid_data)} 件")
+        print(f"  valid: {len(valid_data)} items")
 
-        # 3. データ変換
+        # 3. Data transformation
         transformed = self.transform(valid_data)
-        print(f"  変換完了")
+        print(f"  transformation complete")
 
-        # 4. データ保存
+        # 4. Data saving
         result = self.load(transformed)
-        print(f"  保存完了")
+        print(f"  save complete")
 
-        # 5. 後処理（オプショナル: フック）
+        # 5. Post-processing (optional: hook)
         self.on_complete(result)
 
         elapsed = time.time() - start_time
@@ -1292,34 +1292,34 @@ class DataPipeline(ABC):
             "result": result,
         }
 
-    # 必須: サブクラスが実装する
+    # Required: subclasses must implement
     @abstractmethod
     def extract(self, source: str) -> list[dict]:
-        """データソースからデータを取得"""
+        """Acquire data from the data source"""
         ...
 
     @abstractmethod
     def transform(self, data: list[dict]) -> list[dict]:
-        """データを変換"""
+        """Transform the data"""
         ...
 
     @abstractmethod
     def load(self, data: list[dict]) -> Any:
-        """データを保存先に書き込む"""
+        """Write data to the destination"""
         ...
 
-    # オプショナル: デフォルト実装あり（オーバーライド可能）
+    # Optional: has a default implementation (can be overridden)
     def validate(self, data: list[dict]) -> list[dict]:
-        """デフォルトのバリデーション（None/空を除外）"""
+        """Default validation (excludes None/empty)"""
         return [d for d in data if d]
 
     def on_complete(self, result: Any) -> None:
-        """処理完了時のフック（デフォルトは何もしない）"""
+        """Hook at completion (by default, does nothing)"""
         pass
 
 
 class CsvToJsonPipeline(DataPipeline):
-    """CSVファイルを読み込んでJSONに変換するパイプライン"""
+    """Pipeline that reads a CSV file and converts it to JSON"""
 
     def __init__(self, output_path: str):
         self.output_path = output_path
@@ -1331,12 +1331,12 @@ class CsvToJsonPipeline(DataPipeline):
             return list(reader)
 
     def validate(self, data: list[dict]) -> list[dict]:
-        # 親のバリデーション + 追加ルール
+        # Parent's validation + additional rules
         valid = super().validate(data)
         return [d for d in valid if all(v.strip() for v in d.values())]
 
     def transform(self, data: list[dict]) -> list[dict]:
-        # 文字列の数値フィールドを変換
+        # Convert numeric string fields
         for row in data:
             for key, value in row.items():
                 try:
@@ -1355,11 +1355,11 @@ class CsvToJsonPipeline(DataPipeline):
         return self.output_path
 
     def on_complete(self, result: Any) -> None:
-        print(f"  → {result} に保存しました")
+        print(f"  -> saved to {result}")
 
 
 class ApiToDbPipeline(DataPipeline):
-    """REST APIからデータを取得してDBに保存するパイプライン"""
+    """Pipeline that fetches data from a REST API and saves it to a DB"""
 
     def __init__(self, db_connection: Any):
         self.db = db_connection
@@ -1371,7 +1371,7 @@ class ApiToDbPipeline(DataPipeline):
             return json.loads(response.read())
 
     def transform(self, data: list[dict]) -> list[dict]:
-        # APIレスポンスをDBスキーマにマッピング
+        # Map the API response to the DB schema
         return [
             {
                 "external_id": item.get("id"),
@@ -1383,7 +1383,7 @@ class ApiToDbPipeline(DataPipeline):
         ]
 
     def load(self, data: list[dict]) -> int:
-        # DBに一括保存
+        # Bulk save to the DB
         count = 0
         for row in data:
             # self.db.insert("users", row)
@@ -1391,37 +1391,37 @@ class ApiToDbPipeline(DataPipeline):
         return count
 
     def on_complete(self, result: Any) -> None:
-        print(f"  → {result} 件をDBに保存しました")
+        print(f"  -> saved {result} rows to the DB")
 ```
 
 ---
 
-## 6. 継承とコンポジションの比較
+## 6. Inheritance vs. Composition
 
 ```
-継承を使うべき場面:
-  ✓ 明確な is-a 関係がある
-  ✓ サブクラスが親のインターフェースを完全に満たす（LSP）
-  ✓ フレームワークが継承を要求する（Androidの Activity等）
-  ✓ テンプレートメソッドパターン
+When to use inheritance:
+  OK Clear is-a relationship
+  OK Subclass fully satisfies the parent's interface (LSP)
+  OK Framework requires inheritance (Android's Activity, etc.)
+  OK Template Method pattern
 
-継承を避けるべき場面:
-  ✗ コードの再利用だけが目的
-  ✗ has-a 関係（コンポジションを使う）
-  ✗ 3段階以上の継承が必要
-  ✗ 親クラスの一部のメソッドだけ使いたい
+When to avoid inheritance:
+  NG The only goal is code reuse
+  NG has-a relationships (use composition)
+  NG Requires 3 or more levels of inheritance
+  NG You only want to use some of the parent class's methods
 
-判断基準:
-  「このサブクラスは、親クラスが使える全ての場面で
-   代替として使えるか？」
-  → Yes → 継承が適切
-  → No  → コンポジションを使う
+Decision criterion:
+  "Can this subclass be used as a replacement in every place
+   the parent class is used?"
+  -> Yes -> inheritance is appropriate
+  -> No  -> use composition
 ```
 
-### 6.1 継承 vs コンポジション 実践比較
+### 6.1 Practical Comparison: Inheritance vs. Composition
 
 ```typescript
-// ❌ 継承の誤用: コードの再利用のための継承
+// BAD: misuse of inheritance - inheritance for code reuse
 class ArrayList<T> {
   protected items: T[] = [];
 
@@ -1442,8 +1442,8 @@ class ArrayList<T> {
   }
 }
 
-// Stack は ArrayList ではない（is-a 関係がない）
-// Stack は「先頭への追加/削除」のみ、ランダムアクセスは不要
+// Stack is not an ArrayList (there is no is-a relationship)
+// A Stack only supports "add/remove at the top"; random access is unnecessary
 class Stack<T> extends ArrayList<T> {
   push(item: T): void {
     this.add(item);
@@ -1459,14 +1459,14 @@ class Stack<T> extends ArrayList<T> {
     return this.get(this.size() - 1);
   }
 
-  // 問題: get(), remove() 等が公開されてしまう
-  // stack.get(0) や stack.remove(3) が可能 = Stack の契約を破る
+  // Problem: get(), remove() etc. become publicly exposed
+  // stack.get(0) or stack.remove(3) are possible = breaks the Stack contract
 }
 
 
-// ✅ コンポジションで実装
+// GOOD: implement with composition
 class StackV2<T> {
-  private items: T[] = []; // 内部実装を隠蔽
+  private items: T[] = []; // hide the internal implementation
 
   push(item: T): void {
     this.items.push(item);
@@ -1488,42 +1488,42 @@ class StackV2<T> {
     return this.items.length === 0;
   }
 
-  // get(), remove() は公開しない = Stack の契約を守る
+  // get(), remove() are not exposed = the Stack contract is preserved
 }
 ```
 
 ```python
-# 継承 vs コンポジション: ゲームキャラクターの設計
+# Inheritance vs. composition: designing a game character
 
-# ❌ 継承: 組み合わせが爆発する
+# BAD: inheritance - combinations explode
 class Character:
     pass
 
 class Warrior(Character):
     def attack(self):
-        return "剣で攻撃"
+        return "Attack with sword"
 
 class Mage(Character):
     def cast_spell(self):
-        return "魔法を唱える"
+        return "Cast a spell"
 
 class Archer(Character):
     def shoot(self):
-        return "弓で攻撃"
+        return "Attack with bow"
 
-# 魔法戦士が欲しい → WarriorMage？ どう継承する？
-# 弓を使う魔法使い → MageArcher？
-# 全部できるキャラ → WarriorMageArcher？？
-# → 組み合わせが 2^n で爆発する
+# I want a magic warrior -> WarriorMage? How do I inherit?
+# A mage who uses a bow -> MageArcher?
+# A character who can do everything -> WarriorMageArcher??
+# -> Combinations explode as 2^n
 
 
-# ✅ コンポジション: 能力を部品として組み立て
+# GOOD: composition - assemble abilities as parts
 from abc import ABC, abstractmethod
 from typing import Optional
 
 
 class Ability(ABC):
-    """能力の抽象基底クラス"""
+    """Abstract base class for an ability"""
     @abstractmethod
     def use(self, user_name: str) -> str:
         ...
@@ -1538,10 +1538,10 @@ class SwordSkill(Ability):
         self.damage = damage
 
     def use(self, user_name: str) -> str:
-        return f"{user_name}が剣で攻撃！ {self.damage}ダメージ"
+        return f"{user_name} attacks with a sword! {self.damage} damage"
 
     def get_name(self) -> str:
-        return "剣術"
+        return "Swordsmanship"
 
 
 class MagicSkill(Ability):
@@ -1549,10 +1549,10 @@ class MagicSkill(Ability):
         self.mana_cost = mana_cost
 
     def use(self, user_name: str) -> str:
-        return f"{user_name}が魔法を唱えた！ MP-{self.mana_cost}"
+        return f"{user_name} cast a spell! MP-{self.mana_cost}"
 
     def get_name(self) -> str:
-        return "魔法"
+        return "Magic"
 
 
 class ArcherySkill(Ability):
@@ -1560,10 +1560,10 @@ class ArcherySkill(Ability):
         self.range_bonus = range_bonus
 
     def use(self, user_name: str) -> str:
-        return f"{user_name}が弓で攻撃！ 射程+{self.range_bonus}"
+        return f"{user_name} attacks with a bow! Range+{self.range_bonus}"
 
     def get_name(self) -> str:
-        return "弓術"
+        return "Archery"
 
 
 class HealingSkill(Ability):
@@ -1571,14 +1571,14 @@ class HealingSkill(Ability):
         self.heal_amount = heal_amount
 
     def use(self, user_name: str) -> str:
-        return f"{user_name}が回復！ HP+{self.heal_amount}"
+        return f"{user_name} heals! HP+{self.heal_amount}"
 
     def get_name(self) -> str:
-        return "回復"
+        return "Healing"
 
 
 class GameCharacter:
-    """コンポジションベースのキャラクター"""
+    """A composition-based character"""
     def __init__(self, name: str, hp: int = 100, mp: int = 50):
         self.name = name
         self.hp = hp
@@ -1586,14 +1586,14 @@ class GameCharacter:
         self._abilities: list[Ability] = []
 
     def add_ability(self, ability: Ability) -> "GameCharacter":
-        """メソッドチェーン対応"""
+        """Supports method chaining"""
         self._abilities.append(ability)
         return self
 
     def use_ability(self, index: int) -> str:
         if 0 <= index < len(self._abilities):
             return self._abilities[index].use(self.name)
-        return f"能力 {index} は存在しません"
+        return f"Ability {index} does not exist"
 
     def list_abilities(self) -> list[str]:
         return [a.get_name() for a in self._abilities]
@@ -1603,28 +1603,28 @@ class GameCharacter:
         return f"{self.name} (HP:{self.hp} MP:{self.mp}) [{abilities}]"
 
 
-# 自由に組み合わせ可能
-warrior = GameCharacter("戦士", hp=150).add_ability(SwordSkill(damage=15))
-mage = GameCharacter("魔法使い", mp=100).add_ability(MagicSkill()).add_ability(HealingSkill())
-magic_warrior = (GameCharacter("魔法戦士", hp=120, mp=70)
+# Can be freely combined
+warrior = GameCharacter("Warrior", hp=150).add_ability(SwordSkill(damage=15))
+mage = GameCharacter("Mage", mp=100).add_ability(MagicSkill()).add_ability(HealingSkill())
+magic_warrior = (GameCharacter("Magic Warrior", hp=120, mp=70)
     .add_ability(SwordSkill(damage=12))
     .add_ability(MagicSkill(mana_cost=8)))
-all_rounder = (GameCharacter("万能者", hp=100, mp=80)
+all_rounder = (GameCharacter("All-rounder", hp=100, mp=80)
     .add_ability(SwordSkill())
     .add_ability(MagicSkill())
     .add_ability(ArcherySkill())
     .add_ability(HealingSkill()))
 
 print(all_rounder)
-# 万能者 (HP:100 MP:80) [剣術, 魔法, 弓術, 回復]
+# All-rounder (HP:100 MP:80) [Swordsmanship, Magic, Archery, Healing]
 print(all_rounder.use_ability(1))
-# 万能者が魔法を唱えた！ MP-5
+# All-rounder cast a spell! MP-5
 ```
 
-### 6.2 Delegation（委譲）パターン
+### 6.2 The Delegation Pattern
 
 ```kotlin
-// Kotlin: by キーワードによる委譲
+// Kotlin: delegation via the by keyword
 interface Printer {
     fun print(content: String)
 }
@@ -1635,23 +1635,23 @@ interface Scanner {
 
 class LaserPrinter : Printer {
     override fun print(content: String) {
-        println("レーザー印刷: $content")
+        println("Laser print: $content")
     }
 }
 
 class FlatbedScanner : Scanner {
     override fun scan(): String {
-        return "スキャンデータ"
+        return "Scanned data"
     }
 }
 
-// Kotlin の by キーワードで委譲を簡潔に記述
+// Kotlin's by keyword lets you write delegation concisely
 class MultiFunctionDevice(
     printer: Printer,
     scanner: Scanner
 ) : Printer by printer, Scanner by scanner {
-    // print() と scan() は自動的に委譲される
-    // 必要に応じてオーバーライドも可能
+    // print() and scan() are automatically delegated
+    // They can also be overridden as needed
 
     fun copyDocument() {
         val data = scan()
@@ -1660,50 +1660,50 @@ class MultiFunctionDevice(
 }
 
 val device = MultiFunctionDevice(LaserPrinter(), FlatbedScanner())
-device.print("Hello")    // レーザー印刷: Hello
-device.scan()             // スキャンデータ
-device.copyDocument()     // スキャン → 印刷
+device.print("Hello")    // Laser print: Hello
+device.scan()             // Scanned data
+device.copyDocument()     // scan -> print
 ```
 
 ---
 
-## 7. 継承のベストプラクティス
+## 7. Best Practices for Inheritance
 
-### 7.1 継承を使う際のチェックリスト
+### 7.1 Checklist When Using Inheritance
 
 ```
-継承を導入する前のチェックリスト:
+Checklist before introducing inheritance:
 
-□ is-a 関係が自然に成立するか？
-  「Dog is-a Animal」→ ✓
-  「Stack is-a ArrayList」→ ✗
+[] Does an is-a relationship hold naturally?
+  "Dog is-a Animal" -> OK
+  "Stack is-a ArrayList" -> NG
 
-□ リスコフの置換原則を満たすか？
-  「親クラスが使われる全ての場所で、サブクラスに置き換えても正しく動くか？」
-  → Square extends Rectangle は ✗（setWidth の副作用が異なる）
+[] Does it satisfy the Liskov Substitution Principle?
+  "In every place the parent class is used, can the subclass be substituted and still work correctly?"
+  -> Square extends Rectangle is NG (the side effects of setWidth differ)
 
-□ 親クラスの全てのメソッドがサブクラスで意味を持つか？
-  → 「ゴリラ・バナナ問題」の回避
+[] Do all parent-class methods make sense in the subclass?
+  -> Avoiding the "Gorilla-Banana problem"
 
-□ 継承階層は3レベル以内に収まるか？
-  → 3レベル以上 → コンポジションを検討
+[] Does the inheritance hierarchy fit within 3 levels?
+  -> 3 or more levels -> consider composition
 
-□ 親クラスは安定しているか？
-  → 頻繁に変更される親クラス → 脆い基底クラス問題のリスク
+[] Is the parent class stable?
+  -> Frequently changed parent class -> risk of fragile base class problem
 
-□ テストは容易か？
-  → 親クラスの巨大なセットアップが必要 → コンポジション推奨
+[] Is it easy to test?
+  -> Requires huge setup of the parent class -> composition is recommended
 ```
 
-### 7.2 sealed / final による継承の制御
+### 7.2 Controlling Inheritance with sealed / final
 
 ```typescript
-// TypeScript: 継承を制限するパターン
+// TypeScript: patterns for restricting inheritance
 
-// 意図的に継承を禁止する（TypeScript には final がないため慣習的に）
+// Intentionally prohibit inheritance (since TypeScript has no final, done by convention)
 class Configuration {
-  // @final のようなデコレータは存在しないが、コメントで意図を示す
-  /** @final このクラスは継承しないでください */
+  // There is no @final decorator, so indicate intent via a comment
+  /** @final Please do not inherit from this class */
   private constructor(private readonly settings: Map<string, string>) {}
 
   static create(settings: Record<string, string>): Configuration {
@@ -1717,9 +1717,9 @@ class Configuration {
 ```
 
 ```java
-// Java: final と sealed による継承制御
+// Java: inheritance control via final and sealed
 
-// final: 継承を完全に禁止
+// final: completely prohibits inheritance
 public final class ImmutablePoint {
     private final double x;
     private final double y;
@@ -1739,9 +1739,9 @@ public final class ImmutablePoint {
         );
     }
 }
-// class ExtendedPoint extends ImmutablePoint {} // コンパイルエラー！
+// class ExtendedPoint extends ImmutablePoint {} // compile error!
 
-// sealed（Java 17+）: 許可されたクラスのみ継承可能
+// sealed (Java 17+): only permitted classes can inherit
 public sealed class Shape permits Circle, Rectangle, Triangle {
     public abstract double area();
 }
@@ -1770,19 +1770,19 @@ public final class Triangle extends Shape {
     public double area() { return 0.5 * base * height; }
 }
 
-// パターンマッチング（Java 21+）で安全に分岐
+// Safely branch with pattern matching (Java 21+)
 public String describeShape(Shape shape) {
     return switch (shape) {
-        case Circle c    -> "円（半径: " + c.getRadius() + "）";
-        case Rectangle r -> "長方形（" + r.getWidth() + " × " + r.getHeight() + "）";
-        case Triangle t  -> "三角形（底辺: " + t.getBase() + "）";
-        // sealed なので全パターンを網羅 → default 不要
+        case Circle c    -> "Circle (radius: " + c.getRadius() + ")";
+        case Rectangle r -> "Rectangle (" + r.getWidth() + " x " + r.getHeight() + ")";
+        case Triangle t  -> "Triangle (base: " + t.getBase() + ")";
+        // Since it's sealed, all patterns are covered -> default is unnecessary
     };
 }
 ```
 
 ```kotlin
-// Kotlin: sealed class（ADT: 代数的データ型の実現）
+// Kotlin: sealed class (implementing ADT: Algebraic Data Type)
 sealed class Result<out T> {
     data class Success<T>(val value: T) : Result<T>()
     data class Failure(val error: Throwable) : Result<Nothing>()
@@ -1791,32 +1791,32 @@ sealed class Result<out T> {
 
 fun <T> handleResult(result: Result<T>) {
     when (result) {
-        is Result.Success -> println("成功: ${result.value}")
-        is Result.Failure -> println("失敗: ${result.error.message}")
-        is Result.Loading -> println("読み込み中...")
-        // sealed なので全パターン網羅 → else 不要
+        is Result.Success -> println("Success: ${result.value}")
+        is Result.Failure -> println("Failure: ${result.error.message}")
+        is Result.Loading -> println("Loading...")
+        // Since it's sealed, all patterns are covered -> else is unnecessary
     }
 }
 
-// 使用例
-val result: Result<String> = Result.Success("データ取得完了")
-handleResult(result) // 成功: データ取得完了
+// Usage example
+val result: Result<String> = Result.Success("Data fetch complete")
+handleResult(result) // Success: Data fetch complete
 ```
 
 ---
 
-## 8. 実践ケーススタディ: Webフレームワークでの継承
+## 8. Practical Case Study: Inheritance in a Web Framework
 
 ```python
-# Django のクラスベースビュー: フレームワークが求める継承
+# Django's class-based views: inheritance required by the framework
 from django.views import View
 from django.views.generic import ListView, CreateView, DetailView
 from django.http import JsonResponse
 
 
-# パターン1: 基本的な View の継承
+# Pattern 1: basic View inheritance
 class HealthCheckView(View):
-    """ヘルスチェックAPI"""
+    """Health check API"""
 
     def get(self, request):
         return JsonResponse({
@@ -1825,16 +1825,16 @@ class HealthCheckView(View):
         })
 
 
-# パターン2: ジェネリックビューの活用
+# Pattern 2: using generic views
 class ArticleListView(ListView):
-    """記事一覧（テンプレートメソッドパターンの活用）"""
-    model = Article               # テンプレート変数
+    """Article list (using the Template Method pattern)"""
+    model = Article               # template variable
     template_name = "articles/list.html"
     paginate_by = 20
     ordering = ["-created_at"]
 
     def get_queryset(self):
-        """フック: クエリセットをカスタマイズ"""
+        """Hook: customize the queryset"""
         qs = super().get_queryset()
         category = self.request.GET.get("category")
         if category:
@@ -1842,27 +1842,27 @@ class ArticleListView(ListView):
         return qs
 
     def get_context_data(self, **kwargs):
-        """フック: テンプレートコンテキストを追加"""
+        """Hook: add to the template context"""
         context = super().get_context_data(**kwargs)
         context["categories"] = Category.objects.all()
         return context
 
 
-# パターン3: Mixin の活用
+# Pattern 3: using Mixins
 class LoginRequiredMixin:
-    """ログイン必須Mixin"""
+    """Login-required Mixin"""
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
-            return JsonResponse({"error": "認証が必要です"}, status=401)
+            return JsonResponse({"error": "Authentication required"}, status=401)
         return super().dispatch(request, *args, **kwargs)
 
 
 class RateLimitMixin:
-    """レートリミットMixin"""
-    rate_limit = 100  # リクエスト/分
+    """Rate-limit Mixin"""
+    rate_limit = 100  # requests/minute
 
     def dispatch(self, request, *args, **kwargs):
-        # レートリミットチェック（簡略化）
+        # Rate limit check (simplified)
         client_ip = request.META.get("REMOTE_ADDR")
         # if is_rate_limited(client_ip, self.rate_limit):
         #     return JsonResponse({"error": "Too many requests"}, status=429)
@@ -1870,24 +1870,24 @@ class RateLimitMixin:
 
 
 class ProtectedArticleCreateView(LoginRequiredMixin, RateLimitMixin, CreateView):
-    """保護された記事作成ビュー（複数のMixinを組み合わせ）"""
+    """Protected article creation view (combining multiple Mixins)"""
     model = Article
     fields = ["title", "content", "category"]
     template_name = "articles/create.html"
     success_url = "/articles/"
 
-    # MRO: ProtectedArticleCreateView → LoginRequiredMixin
-    #   → RateLimitMixin → CreateView → ...
-    # dispatch() の呼び出し順:
-    # 1. LoginRequiredMixin.dispatch() → ログインチェック
-    # 2. RateLimitMixin.dispatch() → レートリミットチェック
-    # 3. CreateView.dispatch() → 実際のリクエスト処理
+    # MRO: ProtectedArticleCreateView -> LoginRequiredMixin
+    #   -> RateLimitMixin -> CreateView -> ...
+    # Order of dispatch() calls:
+    # 1. LoginRequiredMixin.dispatch() -> login check
+    # 2. RateLimitMixin.dispatch() -> rate limit check
+    # 3. CreateView.dispatch() -> actual request processing
 ```
 
 ```typescript
-// React コンポーネント: クラスベース → 関数ベースへの移行
+// React components: migrating from class-based to function-based
 
-// 古い: クラスベースコンポーネント（継承ベース）
+// Old: class-based component (inheritance-based)
 class UserProfile extends React.Component<UserProfileProps, UserProfileState> {
   constructor(props: UserProfileProps) {
     super(props);
@@ -1914,9 +1914,9 @@ class UserProfile extends React.Component<UserProfileProps, UserProfileState> {
   }
 }
 
-// モダン: 関数コンポーネント（コンポジションベース）
+// Modern: function component (composition-based)
 function UserProfileV2({ userId }: { userId: string }) {
-  // カスタムフック = コンポジションによるロジックの再利用
+  // Custom hook = logic reuse through composition
   const { data: user, loading, error } = useUser(userId);
 
   if (loading) return <div>Loading...</div>;
@@ -1924,7 +1924,7 @@ function UserProfileV2({ userId }: { userId: string }) {
   return <div>{user?.name}</div>;
 }
 
-// カスタムフック: 継承なしでロジックを再利用
+// Custom hook: reuse logic without inheritance
 function useUser(userId: string) {
   const [data, setData] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1940,31 +1940,31 @@ function useUser(userId: string) {
 
   return { data, loading, error };
 }
-// → 継承なしで、どのコンポーネントでも useUser() を呼ぶだけで再利用可能
+// -> With no inheritance, any component can reuse logic by simply calling useUser()
 ```
 
 ---
 
-## 9. 言語別・継承機能の比較表
+## 9. Comparison Table of Inheritance Features by Language
 
 ```
-┌─────────────┬──────┬──────┬────────┬────────┬────────┬───────┐
-│ 機能         │ Java │ C#   │ Python │ C++    │ Kotlin │ Rust  │
-├─────────────┼──────┼──────┼────────┼────────┼────────┼───────┤
-│ 単一継承     │  ✓   │  ✓   │  ✓     │  ✓     │  ✓     │  ✗*  │
-│ 多重継承     │  ✗   │  ✗   │  ✓     │  ✓     │  ✗     │  ✗   │
-│ Interface    │  ✓   │  ✓   │ ABC    │ 純粋仮想│  ✓     │ trait │
-│ default実装  │  ✓   │  ✓   │  -     │  -     │  ✓     │  ✓   │
-│ Mixin        │  ✗   │  ✗   │  ✓     │  ✗     │  ✗     │  ✗   │
-│ abstract     │  ✓   │  ✓   │ ABC    │  ✓     │  ✓     │  -   │
-│ final class  │  ✓   │sealed│  -     │  -     │ 既定   │  -   │
-│ sealed class │  ✓*  │  ✓   │  -     │  -     │  ✓     │  -   │
-│ 委譲(by)     │  ✗   │  ✗   │  ✗     │  ✗     │  ✓     │  ✗   │
-│ 仮想デフォルト│  ✗   │ ✓(virtual) │ ✓ │ ✓(virtual)│ ✓(open)│  -   │
-└─────────────┴──────┴──────┴────────┴────────┴────────┴───────┘
++-------------+------+------+--------+--------+--------+-------+
+| Feature      | Java | C#   | Python | C++    | Kotlin | Rust  |
++-------------+------+------+--------+--------+--------+-------+
+| Single inh.  |  OK  |  OK  |  OK    |  OK    |  OK    |  NG* |
+| Multiple inh.|  NG  |  NG  |  OK    |  OK    |  NG    |  NG  |
+| Interface    |  OK  |  OK  | ABC    | pure virt| OK  | trait |
+| default impl |  OK  |  OK  |  -     |  -     |  OK    |  OK  |
+| Mixin        |  NG  |  NG  |  OK    |  NG    |  NG    |  NG  |
+| abstract     |  OK  |  OK  | ABC    |  OK    |  OK    |  -   |
+| final class  |  OK  |sealed|  -     |  -     | default|  -   |
+| sealed class |  OK* |  OK  |  -     |  -     |  OK    |  -   |
+| delegation(by)| NG  |  NG  |  NG    |  NG    |  OK    |  NG  |
+| virtual dflt |  NG  | OK(virtual) | OK | OK(virtual)| OK(open)|  -   |
++-------------+------+------+--------+--------+--------+-------+
 
-* Rust は継承を持たず、trait による型合成が基本
-* Java の sealed は 17+
+* Rust has no inheritance; type composition via trait is the norm
+* Java's sealed is 17+
 ```
 
 ---
@@ -1972,40 +1972,40 @@ function useUser(userId: string) {
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point in learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is most important. Rather than just theory, your understanding deepens by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are the common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping into applied topics. It's recommended to firmly understand the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is it utilized in practical work?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently utilized in day-to-day development work. It is especially important during code reviews and architecture design.
 
 ---
 
-## まとめ
+## Summary
 
-| 概念 | ポイント |
+| Concept | Key Point |
 |------|---------|
-| 継承 | 親の機能を引き継いで拡張 |
-| オーバーライド | 親メソッドの再定義（3パターン: 完全置換/拡張/条件分岐） |
-| 多重継承 | ダイヤモンド問題に注意。MRO/Interface/Mixin で解決 |
-| 抽象クラス | 共通実装 + 実装義務。テンプレートメソッドパターンの基盤 |
-| コンポジション | has-a 関係。継承より柔軟で安全 |
-| 原則 | 「継承よりコンポジション」。is-a 関係が明確な場合のみ継承 |
-| sealed/final | 継承を制限して安全性を高める |
-| テスト | コンポジションの方がモック差し替えが容易 |
+| Inheritance | Take over and extend the parent's functionality |
+| Override | Redefine parent methods (3 patterns: complete replacement/extension/conditional branching) |
+| Multiple inheritance | Beware of the diamond problem. Solved via MRO/Interface/Mixin |
+| Abstract class | Common implementation + implementation obligation. The foundation of the Template Method pattern |
+| Composition | has-a relationship. More flexible and safer than inheritance |
+| Principle | "Composition over inheritance." Use inheritance only when the is-a relationship is clear |
+| sealed/final | Restrict inheritance to increase safety |
+| Testing | Composition makes it easier to swap in mocks |
 
 ---
 
-## 次に読むべきガイド
+## Guides to Read Next
 
 ---
 
-## 参考文献
+## References
 1. Bloch, J. "Effective Java." Item 18: Favor composition over inheritance. 2018.
 2. Gamma, E. et al. "Design Patterns." Addison-Wesley, 1994.
 3. Martin, R. "Clean Architecture." Prentice Hall, 2017.
