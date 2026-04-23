@@ -1,103 +1,103 @@
-# SRP（単一責任の原則）+ OCP（開放閉鎖の原則）
+# SRP (Single Responsibility Principle) + OCP (Open/Closed Principle)
 
-> SRPは「変更する理由を1つに」、OCPは「変更せずに拡張する」。この2つの原則が、保守性の高い設計の土台を作る。
+> SRP says "there should be only one reason to change," OCP says "extend without modifying." Together, these two principles form the foundation of maintainable design.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] SRP の「責任」の正しい定義を理解する
-- [ ] OCP をポリモーフィズムで実現する方法を把握する
-- [ ] 実践的なリファクタリング手法を学ぶ
-- [ ] SRP と OCP の違反パターンを検出できるようになる
-- [ ] 多言語での SRP/OCP 適用パターンを習得する
-- [ ] 現実のプロジェクトでの段階的な適用方法を学ぶ
+- [ ] Understand the correct definition of "responsibility" in SRP
+- [ ] Grasp how to achieve OCP through polymorphism
+- [ ] Learn practical refactoring techniques
+- [ ] Be able to detect SRP and OCP violation patterns
+- [ ] Master SRP/OCP application patterns across multiple languages
+- [ ] Learn how to apply them incrementally in real-world projects
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, you will gain a deeper understanding if you already have the following knowledge:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [SOLID原則概要](./00-solid-overview.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Familiarity with the content of [SOLID Principles Overview](./00-solid-overview.md)
 
 ---
 
-## 1. SRP: 単一責任の原則
+## 1. SRP: Single Responsibility Principle
 
 ```
-定義（Robert C. Martin）:
-  「クラスを変更する理由は1つだけであるべき」
+Definition (Robert C. Martin):
+  "A class should have only one reason to change."
 
-より正確な定義:
-  「クラスは1つのアクター（利害関係者）に対してのみ責任を持つ」
+More precise definition:
+  "A class should be responsible to only one actor (stakeholder)."
 
-  例:
-    Employee クラスが以下を持つ場合:
-    - calculatePay()    → CFO（経理部門）の責任
-    - reportHours()     → COO（業務部門）の責任
-    - save()            → CTO（技術部門）の責任
+  Example:
+    If an Employee class has:
+    - calculatePay()    -> Responsibility of the CFO (Accounting)
+    - reportHours()     -> Responsibility of the COO (Operations)
+    - save()            -> Responsibility of the CTO (Engineering)
 
-    → 3つのアクターに依存 = SRP 違反
-    → 経理部門の要求変更が業務部門のコードに影響する可能性
+    -> Depends on 3 actors = SRP violation
+    -> A change request from Accounting may affect Operations code
 ```
 
-### 1.1 SRP の「責任」とは何か
+### 1.1 What "Responsibility" Means in SRP
 
 ```
-「責任」の誤解と正しい理解:
+Common misconceptions vs. correct understanding:
 
-  ❌ 誤解: 「1つのメソッドだけ持つべき」
-    → メソッド数で判断するのは間違い
-    → 100メソッドでも「1つの責任」ならSRP準拠
+  [Wrong] "A class should only have one method"
+    -> Judging by method count is incorrect
+    -> Even with 100 methods, if the "responsibility is one," SRP is satisfied
 
-  ❌ 誤解: 「1つのことだけする」
-    → 抽象度によって「1つのこと」の粒度が変わる
-    → 何をもって「1つ」とするかが曖昧
+  [Wrong] "Do only one thing"
+    -> The granularity of "one thing" varies with abstraction level
+    -> What counts as "one" is ambiguous
 
-  ✅ 正しい理解: 「変更する理由が1つだけ」
-    → 「このクラスを変更したい人（アクター）は誰か？」
-    → アクターが1人だけなら SRP 準拠
+  [Correct] "There should be only one reason to change"
+    -> "Who (which actor) wants to change this class?"
+    -> If only one actor -> SRP is satisfied
 
-  ✅ より実践的な理解: 「1つのアクターに対する責任」
-    → アクター = ビジネス上の利害関係者
-    → 経理部門、人事部門、技術部門など
-    → 同じアクターの要求変更は1つのクラスに閉じるべき
+  [More practical] "Responsibility to a single actor"
+    -> Actor = business stakeholder
+    -> Accounting, HR, Engineering, etc.
+    -> Change requests from the same actor should be contained in one class
 
-  責任の粒度の判断基準:
-    1. 「このクラスが変更される場面を3つ挙げてみる」
-    2. その3つが同じアクターの要求なら → SRP準拠
-    3. 異なるアクターの要求なら → SRP違反の可能性
+  Criteria for judging responsibility granularity:
+    1. "List three scenarios in which this class would be modified"
+    2. If all three come from the same actor -> SRP satisfied
+    3. If they come from different actors -> possible SRP violation
 ```
 
-### 1.2 SRP リファクタリング
+### 1.2 SRP Refactoring
 
 ```typescript
-// ❌ SRP違反: 複数の責任を持つクラス
+// [Bad] SRP violation: a class with multiple responsibilities
 class UserService {
-  // 責任1: ユーザーの作成ロジック
+  // Responsibility 1: user creation logic
   createUser(data: CreateUserDto): User {
-    // バリデーション
+    // Validation
     if (!data.email.includes("@")) throw new Error("Invalid email");
     if (data.password.length < 8) throw new Error("Password too short");
 
-    // パスワードハッシュ化
+    // Password hashing
     const hashedPassword = bcrypt.hashSync(data.password, 10);
 
-    // DB保存
+    // DB persistence
     const user = db.users.create({ ...data, password: hashedPassword });
 
-    // メール送信
+    // Email delivery
     const html = `<h1>Welcome ${data.name}!</h1>`;
     emailClient.send(data.email, "Welcome", html);
 
-    // ログ
+    // Logging
     logger.info(`User created: ${user.id}`);
 
     return user;
   }
 }
 
-// ✅ SRP適用: 各クラスが1つの責任を持つ
+// [Good] SRP applied: each class has a single responsibility
 class UserValidator {
   validate(data: CreateUserDto): void {
     if (!data.email.includes("@")) throw new ValidationError("Invalid email");
@@ -124,7 +124,7 @@ class WelcomeEmailSender {
   }
 }
 
-// オーケストレーター
+// Orchestrator
 class UserRegistrationService {
   constructor(
     private validator: UserValidator,
@@ -143,31 +143,31 @@ class UserRegistrationService {
 }
 ```
 
-### 1.3 SRP の多言語実践例
+### 1.3 SRP Across Multiple Languages
 
 ```python
-# Python: SRP の実践例 - EC サイトの注文処理
+# Python: SRP in practice - e-commerce order processing
 
-# ❌ SRP違反: 1つのクラスが注文に関する全てを担当
+# [Bad] SRP violation: one class handles everything about orders
 class OrderManager:
     def __init__(self):
         self.db = psycopg2.connect("dbname=shop")
 
     def create_order(self, customer_id: int, items: list[dict]) -> dict:
-        # バリデーション（責任1）
+        # Validation (responsibility 1)
         if not items:
             raise ValueError("Order must have at least one item")
         for item in items:
             if item["quantity"] <= 0:
                 raise ValueError(f"Invalid quantity for {item['name']}")
 
-        # 価格計算（責任2）
+        # Price calculation (responsibility 2)
         subtotal = sum(i["price"] * i["quantity"] for i in items)
-        tax = subtotal * 0.10  # 消費税
+        tax = subtotal * 0.10  # consumption tax
         shipping = 500 if subtotal < 5000 else 0
         total = subtotal + tax + shipping
 
-        # 在庫チェック（責任3）
+        # Inventory check (responsibility 3)
         cursor = self.db.cursor()
         for item in items:
             cursor.execute(
@@ -178,7 +178,7 @@ class OrderManager:
             if stock < item["quantity"]:
                 raise ValueError(f"Insufficient stock for {item['name']}")
 
-        # DB保存（責任4）
+        # DB persistence (responsibility 4)
         cursor.execute(
             "INSERT INTO orders (customer_id, total) VALUES (%s, %s) RETURNING id",
             (customer_id, total)
@@ -186,7 +186,7 @@ class OrderManager:
         order_id = cursor.fetchone()[0]
         self.db.commit()
 
-        # メール送信（責任5）
+        # Email delivery (responsibility 5)
         import smtplib
         server = smtplib.SMTP("smtp.example.com")
         server.sendmail(
@@ -198,7 +198,7 @@ class OrderManager:
         return {"order_id": order_id, "total": total}
 
 
-# ✅ SRP適用: 各クラスが1つの責任のみ持つ
+# [Good] SRP applied: each class has exactly one responsibility
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -222,7 +222,7 @@ class Order:
 
 
 class OrderValidator:
-    """注文データのバリデーションのみ"""
+    """Validates order data only"""
     def validate(self, customer_id: int, items: list[OrderItem]) -> None:
         if not items:
             raise ValueError("Order must have at least one item")
@@ -234,7 +234,7 @@ class OrderValidator:
 
 
 class PriceCalculator:
-    """価格計算のみ"""
+    """Price calculation only"""
     TAX_RATE = 0.10
     FREE_SHIPPING_THRESHOLD = 5000
     SHIPPING_FEE = 500
@@ -248,7 +248,7 @@ class PriceCalculator:
 
 
 class InventoryChecker:
-    """在庫確認のみ"""
+    """Inventory availability check only"""
     def __init__(self, db_connection):
         self._db = db_connection
 
@@ -267,7 +267,7 @@ class InventoryChecker:
 
 
 class OrderRepository:
-    """注文のDB永続化のみ"""
+    """Order persistence only"""
     def __init__(self, db_connection):
         self._db = db_connection
 
@@ -289,20 +289,20 @@ class OrderRepository:
 
 
 class OrderConfirmationNotifier:
-    """注文確認通知のみ"""
+    """Order confirmation notification only"""
     def __init__(self, email_sender):
         self._sender = email_sender
 
     def notify(self, order: Order) -> None:
         self._sender.send(
             to=f"customer_{order.customer_id}@example.com",
-            subject=f"注文確認 #{order.id}",
-            body=f"ご注文ありがとうございます。合計: ¥{order.total}"
+            subject=f"Order confirmation #{order.id}",
+            body=f"Thank you for your order. Total: ¥{order.total}"
         )
 
 
 class CreateOrderUseCase:
-    """オーケストレーション（各責任を組み合わせるだけ）"""
+    """Orchestration (just composes each responsibility)"""
     def __init__(
         self,
         validator: OrderValidator,
@@ -318,16 +318,16 @@ class CreateOrderUseCase:
         self._notifier = notifier
 
     def execute(self, customer_id: int, items: list[OrderItem]) -> Order:
-        # 1. バリデーション
+        # 1. Validation
         self._validator.validate(customer_id, items)
 
-        # 2. 在庫確認
+        # 2. Inventory check
         self._inventory.check_availability(items)
 
-        # 3. 価格計算
+        # 3. Price calculation
         subtotal, tax, shipping, total = self._calculator.calculate(items)
 
-        # 4. 注文作成・保存
+        # 4. Create and persist the order
         order = Order(
             id=None,
             customer_id=customer_id,
@@ -339,16 +339,16 @@ class CreateOrderUseCase:
         )
         order.id = self._repository.save(order)
 
-        # 5. 通知
+        # 5. Notification
         self._notifier.notify(order)
 
         return order
 ```
 
 ```java
-// Java: SRP の実践例 - ログ処理
+// Java: SRP in practice - logging
 
-// ❌ SRP違反: ログの取得・整形・出力が1クラスに集約
+// [Bad] SRP violation: formatting, writing, and alerting all in one class
 public class Logger {
     private final String logFile;
     private final String dbUrl;
@@ -359,19 +359,19 @@ public class Logger {
     }
 
     public void log(String level, String message) {
-        // 責任1: メッセージのフォーマット
+        // Responsibility 1: message formatting
         String timestamp = LocalDateTime.now()
             .format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
         String formatted = String.format("[%s] %s: %s", timestamp, level, message);
 
-        // 責任2: ファイルへの出力
+        // Responsibility 2: writing to file
         try (FileWriter fw = new FileWriter(logFile, true)) {
             fw.write(formatted + "\n");
         } catch (IOException e) {
             System.err.println("Failed to write log: " + e.getMessage());
         }
 
-        // 責任3: DBへの出力
+        // Responsibility 3: writing to DB
         try (Connection conn = DriverManager.getConnection(dbUrl)) {
             PreparedStatement ps = conn.prepareStatement(
                 "INSERT INTO logs (level, message, created_at) VALUES (?, ?, ?)"
@@ -384,19 +384,19 @@ public class Logger {
             System.err.println("Failed to save log to DB: " + e.getMessage());
         }
 
-        // 責任4: アラート送信（ERRORレベルの場合）
+        // Responsibility 4: sending alerts (when level is ERROR)
         if ("ERROR".equals(level)) {
-            // Slack通知
+            // Slack notification
             HttpClient client = HttpClient.newHttpClient();
-            // ... Slack API呼び出し
+            // ... call the Slack API
         }
     }
 }
 
 
-// ✅ SRP適用: 各クラスが1つの責任
+// [Good] SRP applied: each class has one responsibility
 
-// フォーマット責任
+// Formatting responsibility
 public interface LogFormatter {
     String format(String level, String message);
 }
@@ -420,7 +420,7 @@ public class JsonLogFormatter implements LogFormatter {
     }
 }
 
-// 出力先責任（インターフェースで抽象化 → OCPにもつながる）
+// Output destination responsibility (abstracted via interface -> also enables OCP)
 public interface LogWriter {
     void write(String formattedMessage);
 }
@@ -463,7 +463,7 @@ public class DatabaseLogWriter implements LogWriter {
     }
 }
 
-// アラート責任
+// Alerting responsibility
 public interface AlertNotifier {
     void notify(String level, String message);
     boolean shouldNotify(String level);
@@ -477,11 +477,11 @@ public class SlackAlertNotifier implements AlertNotifier {
 
     @Override
     public void notify(String level, String message) {
-        // Slack API 呼び出し
+        // Call the Slack API
     }
 }
 
-// オーケストレーター
+// Orchestrator
 public class Logger {
     private final LogFormatter formatter;
     private final List<LogWriter> writers;
@@ -514,9 +514,9 @@ public class Logger {
 ```
 
 ```kotlin
-// Kotlin: SRP の実践例 - バリデーション
+// Kotlin: SRP in practice - validation
 
-// ❌ SRP違反: バリデーションクラスが全ドメインのルールを知っている
+// [Bad] SRP violation: a single validator class knows about every domain rule
 class Validator {
     fun validateUser(user: UserDto): List<String> {
         val errors = mutableListOf<String>()
@@ -543,25 +543,25 @@ class Validator {
 }
 
 
-// ✅ SRP適用: ドメインごとにバリデーターを分離
+// [Good] SRP applied: separate validators per domain
 
-// 汎用的なバリデーション結果
+// Generic validation result
 sealed class ValidationResult {
     object Valid : ValidationResult()
     data class Invalid(val errors: List<String>) : ValidationResult()
 }
 
-// バリデーターインターフェース
+// Validator interface
 interface Validator<T> {
     fun validate(target: T): ValidationResult
 }
 
-// ルールベースのバリデーション
+// Rule-based validation
 interface ValidationRule<T> {
-    fun check(target: T): String?  // null = 問題なし、非null = エラーメッセージ
+    fun check(target: T): String?  // null = OK, non-null = error message
 }
 
-// ユーザーバリデーション
+// User validation
 class UserNameRule : ValidationRule<UserDto> {
     override fun check(target: UserDto): String? =
         if (target.name.isBlank()) "Name is required" else null
@@ -591,7 +591,7 @@ class UserValidator(
     }
 }
 
-// 商品バリデーション（独立した責任）
+// Product validation (independent responsibility)
 class ProductValidator(
     private val rules: List<ValidationRule<ProductDto>> = listOf(
         ProductNameRule(),
@@ -606,51 +606,51 @@ class ProductValidator(
     }
 }
 
-// 新しいバリデーションルールは ValidationRule を追加するだけ
-// → OCP にもつながる
+// New validation rules just require adding a new ValidationRule
+// -> this also aligns with OCP
 ```
 
-### 1.4 SRP 違反の検出方法
+### 1.4 How to Detect SRP Violations
 
 ```
-SRP違反を検出する5つのヒューリスティック:
+Five heuristics for detecting SRP violations:
 
-  1. クラス名テスト:
-     → クラス名に「And」「Or」「Manager」「Handler」が含まれる
-     → 例: UserAndOrderManager → SRP違反の疑い
-     → 対策: 責任ごとに名前を分ける
+  1. Class-name test:
+     -> Class name contains "And", "Or", "Manager", or "Handler"
+     -> Example: UserAndOrderManager -> likely SRP violation
+     -> Remedy: separate names per responsibility
 
-  2. 変更理由テスト:
-     → 「このクラスを変更する理由を3つ挙げる」
-     → 異なるビジネスドメインの理由が混在 → SRP違反
-     → 例: "UIの変更" と "DBの変更" が同じクラス
+  2. Reason-to-change test:
+     -> "List three reasons this class might change"
+     -> Reasons span different business domains -> SRP violation
+     -> Example: "UI change" and "DB change" in the same class
 
-  3. 説明テスト:
-     → クラスの目的を1文で説明できない → SRP違反の疑い
-     → 「〜と〜と〜をする」→ 責任が3つ
-     → 「〜をする」→ 責任が1つ（SRP準拠）
+  3. Description test:
+     -> If you cannot describe the class purpose in one sentence -> likely SRP violation
+     -> "Does A, and B, and C" -> three responsibilities
+     -> "Does A" -> one responsibility (SRP satisfied)
 
-  4. インポートテスト:
-     → import文が多様なライブラリを参照 → SRP違反の疑い
-     → 例: DB, HTTP, Email, ファイルシステム全てをimport
-     → 各ライブラリの変更が影響する = 変更理由が複数
+  4. Import test:
+     -> Imports reference many different libraries -> likely SRP violation
+     -> Example: imports DB, HTTP, Email, filesystem
+     -> Changes in each library can affect it = multiple change reasons
 
-  5. コンストラクタテスト:
-     → 依存注入のパラメータが5つ以上 → SRP違反の疑い
-     → 多くの依存 = 多くの責任を持っている可能性
-     → ただし、オーケストレーターは例外
+  5. Constructor test:
+     -> More than 5 dependency-injection parameters -> likely SRP violation
+     -> Many dependencies = possibly many responsibilities
+     -> Orchestrators are exceptions, however
 ```
 
 ```typescript
-// SRP違反検出の具体例
+// Concrete examples of SRP violation detection
 
-// 🔍 クラス名テスト
-class UserRegistrationAndNotificationService { } // ❌ And
-class DataProcessingManager { }                   // ❌ Manager（曖昧すぎる）
-class UserRegistrationService { }                 // ✅ 1つの責任
+// [Check] Class-name test
+class UserRegistrationAndNotificationService { } // [Bad] contains "And"
+class DataProcessingManager { }                   // [Bad] "Manager" is too vague
+class UserRegistrationService { }                 // [Good] one responsibility
 
-// 🔍 インポートテスト
-// ❌ 多様すぎるインポート → SRP違反の兆候
+// [Check] Import test
+// [Bad] too many diverse imports -> sign of SRP violation
 import { Database } from './database';
 import { SmtpClient } from './email';
 import { S3Client } from 'aws-sdk';
@@ -660,17 +660,17 @@ import { PdfGenerator } from './pdf';
 
 class ReportService {
   constructor(
-    private db: Database,        // DB依存
-    private smtp: SmtpClient,    // メール依存
-    private s3: S3Client,        // ストレージ依存
-    private redis: RedisClient,  // キャッシュ依存
-    private slack: SlackWebhook, // 通知依存
-    private pdf: PdfGenerator,   // PDF生成依存
+    private db: Database,        // DB dependency
+    private smtp: SmtpClient,    // email dependency
+    private s3: S3Client,        // storage dependency
+    private redis: RedisClient,  // cache dependency
+    private slack: SlackWebhook, // notification dependency
+    private pdf: PdfGenerator,   // PDF generation dependency
   ) {}
-  // → 6つの異なる関心事に依存 = 6つの変更理由
+  // -> depends on 6 different concerns = 6 reasons to change
 }
 
-// ✅ SRP適用後
+// [Good] After applying SRP
 class ReportDataFetcher {
   constructor(private db: Database, private redis: RedisClient) {}
 }
@@ -690,70 +690,70 @@ class ReportNotifier {
 
 ---
 
-## 2. OCP: 開放閉鎖の原則
+## 2. OCP: Open/Closed Principle
 
 ```
-定義:
-  「ソフトウェアの構成要素は、拡張に対して開き（Open）、
-   修正に対して閉じている（Closed）べき」
+Definition:
+  "Software entities should be open for extension
+   but closed for modification."
 
-つまり:
-  → 新しい機能を追加するとき、既存のコードを変更しない
-  → ポリモーフィズム（インターフェース + 実装クラス）で実現
+In other words:
+  -> When adding new functionality, do not modify existing code
+  -> Achieved through polymorphism (interface + implementation classes)
 
-なぜ重要か:
-  → 既存コードを変更するとリグレッションのリスク
-  → テスト済みのコードに触らずに済む
-  → チーム開発でのコンフリクト減少
+Why it matters:
+  -> Modifying existing code risks regressions
+  -> You do not have to touch tested code
+  -> Fewer conflicts in team development
 ```
 
-### 2.1 OCP の実現方法
+### 2.1 How to Achieve OCP
 
 ```
-OCP を実現する4つのパターン:
+Four patterns for achieving OCP:
 
-  1. Strategy パターン（最も基本的）:
-     → インターフェースを定義し、実装クラスを追加
-     → 利用側は switch/if を使わずインターフェースを呼ぶ
+  1. Strategy pattern (most fundamental):
+     -> Define an interface and add implementation classes
+     -> Callers invoke the interface instead of using switch/if
 
-  2. Template Method パターン:
-     → 基底クラスでアルゴリズムの骨格を定義
-     → サブクラスで詳細をオーバーライド
+  2. Template Method pattern:
+     -> Define the algorithmic skeleton in a base class
+     -> Override the details in subclasses
 
-  3. Decorator パターン:
-     → 既存クラスをラップして機能を追加
-     → 元のクラスのコードは一切変更しない
+  3. Decorator pattern:
+     -> Wrap an existing class to add functionality
+     -> No changes to the original class
 
-  4. Plugin / Registry パターン:
-     → 実行時に実装を動的に登録
-     → 新しい実装はプラグインとして追加
+  4. Plugin / Registry pattern:
+     -> Register implementations dynamically at runtime
+     -> New implementations are added as plugins
 
-  適用基準:
-    変更が発生していない箇所 → まだOCPは不要（YAGNI）
-    同じ種類の変更が2-3回発生 → OCPを適用する時期
+  Criteria for application:
+    No change has happened yet -> OCP is not needed (YAGNI)
+    The same kind of change occurs 2-3 times -> time to apply OCP
 ```
 
-### 2.2 OCP リファクタリング
+### 2.2 OCP Refactoring
 
 ```typescript
-// ❌ OCP違反: 新しい通知手段を追加するたびに修正が必要
+// [Bad] OCP violation: must be modified every time a new channel is added
 class NotificationService {
   send(type: string, message: string, recipient: string): void {
     if (type === "email") {
-      // メール送信処理
+      // Email delivery
       emailClient.send(recipient, message);
     } else if (type === "sms") {
-      // SMS送信処理
+      // SMS delivery
       smsClient.send(recipient, message);
     } else if (type === "slack") {
-      // Slack送信処理（新規追加するたびにここを修正）
+      // Slack delivery (this must be modified whenever a new channel is added)
       slackClient.post(recipient, message);
     }
-    // LINE追加？ Discord追加？ → ここを修正し続ける...
+    // Add LINE? Add Discord? -> keep modifying here...
   }
 }
 
-// ✅ OCP適用: 新しい通知手段はクラスを追加するだけ
+// [Good] OCP applied: a new channel just requires adding a class
 interface NotificationChannel {
   send(message: string, recipient: string): Promise<void>;
 }
@@ -776,8 +776,8 @@ class SlackChannel implements NotificationChannel {
   }
 }
 
-// LINE追加 → LineChannel クラスを追加するだけ
-// NotificationService は一切変更不要
+// Adding LINE -> just add a LineChannel class
+// NotificationService does not need to change at all
 
 class NotificationService {
   constructor(private channels: NotificationChannel[]) {}
@@ -790,21 +790,21 @@ class NotificationService {
 }
 ```
 
-### 2.3 OCP の多言語実践例
+### 2.3 OCP Across Multiple Languages
 
 ```python
-# Python: OCP の実践例 - レポートエンジン
+# Python: OCP in practice - report engine
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
 
-# ❌ OCP違反: 新しいデータソースやフォーマットで修正が必要
+# [Bad] OCP violation: modifications needed for new data sources or formats
 class ReportEngine:
     def generate(
         self, source: str, format_type: str, filters: dict
     ) -> str:
-        # データ取得（ソースの種類で分岐）
+        # Data fetching (branches by source type)
         if source == "mysql":
             data = self._fetch_from_mysql(filters)
         elif source == "mongodb":
@@ -814,7 +814,7 @@ class ReportEngine:
         else:
             raise ValueError(f"Unknown source: {source}")
 
-        # フォーマット（形式の種類で分岐）
+        # Formatting (branches by format type)
         if format_type == "pdf":
             return self._format_as_pdf(data)
         elif format_type == "excel":
@@ -824,7 +824,7 @@ class ReportEngine:
         else:
             raise ValueError(f"Unknown format: {format_type}")
 
-    # source ごとに private メソッドが増え続ける...
+    # Private methods keep multiplying per source...
     def _fetch_from_mysql(self, filters): ...
     def _fetch_from_mongodb(self, filters): ...
     def _fetch_from_api(self, filters): ...
@@ -833,18 +833,18 @@ class ReportEngine:
     def _format_as_html(self, data): ...
 
 
-# ✅ OCP適用: データソースとフォーマッターを拡張可能に
+# [Good] OCP applied: data sources and formatters are extensible
 
 @dataclass
 class ReportData:
-    """レポートデータの共通表現"""
+    """Common representation of report data"""
     headers: list[str]
     rows: list[list[Any]]
     metadata: dict[str, Any]
 
 
 class DataSource(ABC):
-    """データソース抽象"""
+    """Data source abstraction"""
     @abstractmethod
     def fetch(self, filters: dict) -> ReportData: ...
 
@@ -854,7 +854,7 @@ class MySQLDataSource(DataSource):
         self._conn_str = connection_string
 
     def fetch(self, filters: dict) -> ReportData:
-        # MySQL からデータ取得
+        # Fetch data from MySQL
         import mysql.connector
         conn = mysql.connector.connect(self._conn_str)
         cursor = conn.cursor()
@@ -865,7 +865,7 @@ class MySQLDataSource(DataSource):
         return ReportData(headers=headers, rows=rows, metadata={"source": "mysql"})
 
     def _build_query(self, filters: dict) -> str:
-        # クエリ構築
+        # Build query
         return "SELECT * FROM reports"
 
 
@@ -887,7 +887,7 @@ class MongoDBDataSource(DataSource):
 
 
 class RestApiDataSource(DataSource):
-    """REST API からデータ取得 - 新規追加でも既存コード変更なし"""
+    """Fetch data from a REST API - adding it requires no change to existing code"""
     def __init__(self, base_url: str, api_key: str):
         self._base_url = base_url
         self._api_key = api_key
@@ -906,7 +906,7 @@ class RestApiDataSource(DataSource):
 
 
 class ReportFormatter(ABC):
-    """フォーマッター抽象"""
+    """Formatter abstraction"""
     @abstractmethod
     def format(self, data: ReportData) -> bytes: ...
 
@@ -921,7 +921,7 @@ class PdfFormatter(ReportFormatter):
     def format(self, data: ReportData) -> bytes:
         from reportlab.lib.pagesizes import A4
         from reportlab.platypus import SimpleDocTemplate, Table
-        # PDF生成ロジック
+        # PDF generation logic
         return b"<pdf content>"
 
     def content_type(self) -> str:
@@ -939,7 +939,7 @@ class ExcelFormatter(ReportFormatter):
         ws.append(data.headers)
         for row in data.rows:
             ws.append(row)
-        # Excel生成ロジック
+        # Excel generation logic
         return b"<excel content>"
 
     def content_type(self) -> str:
@@ -967,7 +967,7 @@ class HtmlFormatter(ReportFormatter):
 
 
 class ReportEngine:
-    """このクラスは新しいデータソースやフォーマットが追加されても変更不要"""
+    """This class needs no change when new data sources or formats are added"""
     def __init__(self, source: DataSource, formatter: ReportFormatter):
         self._source = source
         self._formatter = formatter
@@ -984,14 +984,14 @@ class ReportEngine:
         return filepath
 
 
-# 使用例: 組み合わせ自由
+# Usage: compose freely
 engine = ReportEngine(
     source=MySQLDataSource("mysql://localhost/mydb"),
     formatter=PdfFormatter(),
 )
 engine.generate_to_file("monthly_report")
 
-# 新しい組み合わせも既存コード変更なし
+# A new combination needs no changes to existing code
 engine2 = ReportEngine(
     source=RestApiDataSource("https://api.example.com", "key123"),
     formatter=ExcelFormatter(),
@@ -999,23 +999,23 @@ engine2 = ReportEngine(
 ```
 
 ```java
-// Java: OCP の実践例 - 認証パイプライン
+// Java: OCP in practice - authentication pipeline
 
-// ❌ OCP違反
+// [Bad] OCP violation
 public class AuthService {
     public boolean authenticate(String method, String credentials) {
         if ("password".equals(method)) {
-            // パスワード認証
+            // Password authentication
             String[] parts = credentials.split(":");
             return checkPassword(parts[0], parts[1]);
         } else if ("oauth".equals(method)) {
-            // OAuth認証
+            // OAuth authentication
             return verifyOAuthToken(credentials);
         } else if ("api_key".equals(method)) {
-            // APIキー認証
+            // API key authentication
             return validateApiKey(credentials);
         } else if ("certificate".equals(method)) {
-            // 証明書認証（追加のたびにここを修正）
+            // Certificate authentication (this must be modified every time one is added)
             return verifyCertificate(credentials);
         }
         throw new IllegalArgumentException("Unknown method: " + method);
@@ -1023,7 +1023,7 @@ public class AuthService {
 }
 
 
-// ✅ OCP適用: 認証方法はプラグインとして追加
+// [Good] OCP applied: add authentication methods as plugins
 
 public interface AuthenticationStrategy {
     boolean authenticate(AuthRequest request);
@@ -1088,7 +1088,7 @@ public class ApiKeyAuthentication implements AuthenticationStrategy {
     }
 }
 
-// 認証サービス: 新しい認証方法が追加されても変更不要
+// Authentication service: no changes required when new methods are added
 public class AuthService {
     private final List<AuthenticationStrategy> strategies;
 
@@ -1107,7 +1107,7 @@ public class AuthService {
     }
 }
 
-// Spring Boot での設定例
+// Example configuration for Spring Boot
 @Configuration
 public class AuthConfig {
     @Bean
@@ -1121,12 +1121,12 @@ public class AuthConfig {
 }
 ```
 
-### 2.4 OCP のもう一つの実現方法: デコレータ
+### 2.4 Another Way to Achieve OCP: Decorators
 
 ```python
-# Python: デコレータによるOCP
+# Python: OCP via decorators
 class Logger:
-    """既存クラスを変更せずにログ機能を追加"""
+    """Add logging without modifying the existing class"""
     def __init__(self, wrapped):
         self._wrapped = wrapped
 
@@ -1145,7 +1145,7 @@ class Calculator:
     def add(self, a: int, b: int) -> int:
         return a + b
 
-# Calculator を変更せずにログ機能を追加
+# Add logging without modifying Calculator
 calc = Logger(Calculator())
 calc.add(1, 2)
 # [LOG] add called with (1, 2)
@@ -1153,15 +1153,15 @@ calc.add(1, 2)
 ```
 
 ```typescript
-// TypeScript: デコレータパターンによるOCP
+// TypeScript: OCP via the Decorator pattern
 
-// 基本インターフェース
+// Base interface
 interface HttpClient {
   get(url: string): Promise<Response>;
   post(url: string, body: any): Promise<Response>;
 }
 
-// 基本実装
+// Base implementation
 class FetchHttpClient implements HttpClient {
   async get(url: string): Promise<Response> {
     return fetch(url);
@@ -1176,7 +1176,7 @@ class FetchHttpClient implements HttpClient {
   }
 }
 
-// デコレータ1: ログ追加（FetchHttpClient を変更しない）
+// Decorator 1: add logging (without modifying FetchHttpClient)
 class LoggingHttpClient implements HttpClient {
   constructor(private inner: HttpClient) {}
 
@@ -1184,7 +1184,7 @@ class LoggingHttpClient implements HttpClient {
     console.log(`[GET] ${url}`);
     const start = Date.now();
     const response = await this.inner.get(url);
-    console.log(`[GET] ${url} → ${response.status} (${Date.now() - start}ms)`);
+    console.log(`[GET] ${url} -> ${response.status} (${Date.now() - start}ms)`);
     return response;
   }
 
@@ -1192,12 +1192,12 @@ class LoggingHttpClient implements HttpClient {
     console.log(`[POST] ${url}`, body);
     const start = Date.now();
     const response = await this.inner.post(url, body);
-    console.log(`[POST] ${url} → ${response.status} (${Date.now() - start}ms)`);
+    console.log(`[POST] ${url} -> ${response.status} (${Date.now() - start}ms)`);
     return response;
   }
 }
 
-// デコレータ2: リトライ追加（FetchHttpClient を変更しない）
+// Decorator 2: add retry (without modifying FetchHttpClient)
 class RetryHttpClient implements HttpClient {
   constructor(
     private inner: HttpClient,
@@ -1222,7 +1222,7 @@ class RetryHttpClient implements HttpClient {
           lastError = new Error(`Server error: ${response.status}`);
           continue;
         }
-        return response; // 4xx はリトライしない
+        return response; // do not retry 4xx
       } catch (error) {
         lastError = error as Error;
       }
@@ -1231,7 +1231,7 @@ class RetryHttpClient implements HttpClient {
   }
 }
 
-// デコレータ3: キャッシュ追加
+// Decorator 3: add caching
 class CachingHttpClient implements HttpClient {
   private cache = new Map<string, { response: Response; expiry: number }>();
 
@@ -1251,13 +1251,13 @@ class CachingHttpClient implements HttpClient {
   }
 
   async post(url: string, body: any): Promise<Response> {
-    // POST はキャッシュしない
+    // Do not cache POST
     return this.inner.post(url, body);
   }
 }
 
-// 使用例: デコレータを組み合わせて機能を追加
-// 既存の FetchHttpClient は一切変更していない
+// Usage: compose decorators to add features
+// The existing FetchHttpClient was not modified at all
 const client: HttpClient = new CachingHttpClient(
   new RetryHttpClient(
     new LoggingHttpClient(
@@ -1268,12 +1268,12 @@ const client: HttpClient = new CachingHttpClient(
   30_000,
 );
 
-// リクエスト → Caching → Retry → Logging → Fetch の順に処理
+// Request -> Caching -> Retry -> Logging -> Fetch (processed in that order)
 await client.get("https://api.example.com/data");
 ```
 
 ```python
-# Python: デコレータパターン - ミドルウェアパイプライン
+# Python: Decorator pattern - middleware pipeline
 
 from abc import ABC, abstractmethod
 from typing import Callable, Any
@@ -1297,7 +1297,7 @@ class Response:
     headers: dict[str, str] = field(default_factory=dict)
 
 
-# ミドルウェアインターフェース
+# Middleware interface
 class Middleware(ABC):
     @abstractmethod
     def process(
@@ -1306,7 +1306,7 @@ class Middleware(ABC):
         ...
 
 
-# 認証ミドルウェア
+# Authentication middleware
 class AuthMiddleware(Middleware):
     def __init__(self, token_verifier):
         self._verifier = token_verifier
@@ -1318,18 +1318,18 @@ class AuthMiddleware(Middleware):
         return next_handler(request)
 
 
-# ログミドルウェア
+# Logging middleware
 class LoggingMiddleware(Middleware):
     def process(self, request: Request, next_handler):
         start = time.time()
-        print(f"→ {request.method} {request.path}")
+        print(f"-> {request.method} {request.path}")
         response = next_handler(request)
         elapsed = time.time() - start
-        print(f"← {response.status} ({elapsed:.3f}s)")
+        print(f"<- {response.status} ({elapsed:.3f}s)")
         return response
 
 
-# レート制限ミドルウェア
+# Rate-limiting middleware
 class RateLimitMiddleware(Middleware):
     def __init__(self, max_requests: int, window_seconds: int):
         self._max = max_requests
@@ -1350,7 +1350,7 @@ class RateLimitMiddleware(Middleware):
         return next_handler(request)
 
 
-# CORS ミドルウェア
+# CORS middleware
 class CorsMiddleware(Middleware):
     def __init__(self, allowed_origins: list[str]):
         self._origins = allowed_origins
@@ -1364,9 +1364,9 @@ class CorsMiddleware(Middleware):
         return response
 
 
-# パイプライン: ミドルウェアを組み合わせ（OCP達成）
+# Pipeline: compose middleware (OCP achieved)
 class MiddlewarePipeline:
-    """新しいミドルウェアは Middleware クラスを追加するだけ"""
+    """Adding new middleware only requires a new Middleware class"""
     def __init__(self, handler: Callable[[Request], Response]):
         self._handler = handler
         self._middlewares: list[Middleware] = []
@@ -1385,7 +1385,7 @@ class MiddlewarePipeline:
         return build_chain(0)(request)
 
 
-# 使用例
+# Usage
 def app_handler(request: Request) -> Response:
     return Response(status=200, body={"message": "Hello!"})
 
@@ -1400,60 +1400,60 @@ pipeline = (
 response = pipeline.handle(Request(method="GET", path="/api/data"))
 ```
 
-### 2.5 OCP 違反の検出方法
+### 2.5 How to Detect OCP Violations
 
 ```
-OCP違反を検出する4つのヒューリスティック:
+Four heuristics for detecting OCP violations:
 
-  1. switch/if-else チェーン:
-     → 同じ変数に対する type チェックが複数箇所に散在
-     → 新しい type を追加するとき、全ての switch を修正する必要がある
-     → Shotgun Surgery（散弾銃手術）の兆候
+  1. switch / if-else chains:
+     -> Type checks against the same variable scattered in multiple places
+     -> Adding a new type requires modifying every switch
+     -> A sign of Shotgun Surgery
 
-  2. instanceof / type チェック:
-     → if (obj instanceof SomeClass) が頻出
-     → ポリモーフィズムで解決すべき箇所
+  2. instanceof / type checks:
+     -> Frequent `if (obj instanceof SomeClass)`
+     -> A place that should be resolved with polymorphism
 
-  3. 変更履歴の分析:
-     → git log で「同じファイルが異なる機能追加で繰り返し修正」
-     → → OCP適用の候補
+  3. Change-history analysis:
+     -> In git log: "the same file is repeatedly modified for different features"
+     -> -> candidate for applying OCP
 
-  4. コメント「// 新しい〜を追加する場合はここに追記」:
-     → 修正箇所をコメントで示す必要がある = OCP違反
-     → 本来は「クラスを追加するだけ」であるべき
+  4. Comments like "// Add new ~ here":
+     -> If a comment has to flag the spot to modify = OCP violation
+     -> Ideally, "just add a class" should be enough
 
-  検出コマンド例:
-    # 同じファイルが頻繁に変更されている箇所を特定
+  Example detection command:
+    # Identify files modified most frequently
     git log --format=format: --name-only --since="6 months ago" | \
       sort | uniq -c | sort -rn | head -20
 ```
 
 ---
 
-## 3. SRP と OCP の関係
+## 3. The Relationship Between SRP and OCP
 
 ```
-SRP → クラスを小さく分割
-  ↓
-OCP → 小さなクラスをインターフェースで接続
-  ↓
-結果: 拡張が容易で変更の影響が局所的な設計
+SRP -> break classes into small pieces
+  v
+OCP -> connect the small classes via interfaces
+  v
+Result: a design where extension is easy and the impact of changes is localized
 
-実践の流れ:
-  1. SRP で責任を分離
-  2. 変化しやすい部分を特定
-  3. OCP でインターフェースを設計
-  4. 新しい要件はクラスを追加して対応
+Practical flow:
+  1. Separate responsibilities with SRP
+  2. Identify the parts that are likely to change
+  3. Design interfaces with OCP
+  4. Handle new requirements by adding classes
 ```
 
-### 3.1 SRP + OCP の連携パターン
+### 3.1 SRP + OCP Collaboration Patterns
 
 ```typescript
-// SRP と OCP が連携する実践例: 請求書システム
+// A practical example where SRP and OCP work together: invoice system
 
-// Step 1: SRP で責任を分離する
+// Step 1: separate responsibilities with SRP
 
-// 請求書データ
+// Invoice data
 interface Invoice {
   id: string;
   items: InvoiceItem[];
@@ -1462,33 +1462,33 @@ interface Invoice {
   dueDate: Date;
 }
 
-// 税金計算（SRP: 税金計算のみ）
+// Tax calculation (SRP: tax calculation only)
 interface TaxCalculator {
   calculate(items: InvoiceItem[]): number;
 }
 
-// 割引適用（SRP: 割引計算のみ）
+// Discount application (SRP: discount calculation only)
 interface DiscountPolicy {
   apply(subtotal: number, customer: Customer): number;
 }
 
-// フォーマット（SRP: フォーマットのみ）
+// Formatting (SRP: formatting only)
 interface InvoiceFormatter {
   format(invoice: Invoice, total: number): string;
 }
 
-// 送信（SRP: 送信のみ）
+// Sending (SRP: sending only)
 interface InvoiceSender {
   send(invoice: Invoice, formatted: string): Promise<void>;
 }
 
-// Step 2: OCP で各責任を拡張可能にする
+// Step 2: make each responsibility extensible with OCP
 
-// 税金計算: 国ごとの税制に対応
+// Tax calculation: support tax systems by country
 class JapaneseTaxCalculator implements TaxCalculator {
   calculate(items: InvoiceItem[]): number {
     const subtotal = items.reduce((sum, i) => sum + i.amount, 0);
-    return Math.floor(subtotal * 0.10); // 消費税10%
+    return Math.floor(subtotal * 0.10); // 10% consumption tax
   }
 }
 
@@ -1500,10 +1500,10 @@ class USStateTaxCalculator implements TaxCalculator {
   }
 }
 
-// 割引: ビジネスルールに応じた割引
+// Discounts: driven by business rules
 class VolumeDiscount implements DiscountPolicy {
   apply(subtotal: number, customer: Customer): number {
-    if (subtotal > 100000) return subtotal * 0.05; // 5%割引
+    if (subtotal > 100000) return subtotal * 0.05; // 5% discount
     return 0;
   }
 }
@@ -1525,10 +1525,10 @@ class CompositeDiscount implements DiscountPolicy {
   }
 }
 
-// フォーマット: 出力形式
+// Formatting: output formats
 class PdfInvoiceFormatter implements InvoiceFormatter {
   format(invoice: Invoice, total: number): string {
-    // PDF生成ロジック
+    // PDF generation logic
     return `<pdf-data>Invoice ${invoice.id}: ¥${total}</pdf-data>`;
   }
 }
@@ -1539,7 +1539,7 @@ class HtmlInvoiceFormatter implements InvoiceFormatter {
   }
 }
 
-// 送信: 送信手段
+// Sending: delivery channels
 class EmailInvoiceSender implements InvoiceSender {
   async send(invoice: Invoice, formatted: string): Promise<void> {
     await emailClient.send(invoice.customer.email, "Invoice", formatted);
@@ -1552,7 +1552,7 @@ class FaxInvoiceSender implements InvoiceSender {
   }
 }
 
-// Step 3: オーケストレーター（SRP: 調整のみ）
+// Step 3: orchestrator (SRP: coordination only)
 class InvoiceService {
   constructor(
     private taxCalc: TaxCalculator,
@@ -1572,7 +1572,7 @@ class InvoiceService {
   }
 }
 
-// 使用例: 日本の顧客向け、PDF形式、メール送信
+// Usage: Japanese customer, PDF format, email delivery
 const jpService = new InvoiceService(
   new JapaneseTaxCalculator(),
   new CompositeDiscount([new VolumeDiscount(), new LoyaltyDiscount()]),
@@ -1580,7 +1580,7 @@ const jpService = new InvoiceService(
   new EmailInvoiceSender(),
 );
 
-// 使用例: US顧客向け、HTML形式、FAX送信
+// Usage: US customer, HTML format, fax delivery
 const usService = new InvoiceService(
   new USStateTaxCalculator(0.08),
   new VolumeDiscount(),
@@ -1588,25 +1588,25 @@ const usService = new InvoiceService(
   new FaxInvoiceSender(),
 );
 
-// 新しい税制・割引・フォーマット・送信手段 → クラスを追加するだけ
-// InvoiceService は一切変更不要
+// New taxes, discounts, formats, or delivery channels -> just add classes
+// InvoiceService requires no changes
 ```
 
-### 3.2 テスト容易性の向上
+### 3.2 Improved Testability
 
 ```typescript
-// SRP + OCP がテストを劇的に簡単にする
+// SRP + OCP drastically simplify testing
 
-// テスト用モック
+// Test doubles
 class MockTaxCalculator implements TaxCalculator {
   calculate(items: InvoiceItem[]): number {
-    return 1000; // 固定値で予測可能に
+    return 1000; // fixed value for predictability
   }
 }
 
 class MockDiscountPolicy implements DiscountPolicy {
   apply(subtotal: number, customer: Customer): number {
-    return 0; // 割引なし
+    return 0; // no discount
   }
 }
 
@@ -1629,7 +1629,7 @@ class MockInvoiceSender implements InvoiceSender {
   }
 }
 
-// テストコード
+// Test code
 describe("InvoiceService", () => {
   let service: InvoiceService;
   let mockFormatter: MockInvoiceFormatter;
@@ -1668,7 +1668,7 @@ describe("InvoiceService", () => {
   });
 });
 
-// 各コンポーネントも独立してテスト可能
+// Each component can be tested independently
 describe("JapaneseTaxCalculator", () => {
   const calc = new JapaneseTaxCalculator();
 
@@ -1695,54 +1695,54 @@ describe("VolumeDiscount", () => {
 
 ---
 
-## 4. アンチパターンと注意点
+## 4. Anti-Patterns and Caveats
 
 ```
-SRP の過剰適用:
-  → 1メソッドだけのクラスが大量発生
-  → ファイル数が爆発してナビゲーション困難
-  → 対策: 「変更する理由」で分割。メソッド数ではない
+Over-applying SRP:
+  -> Huge numbers of classes with only one method
+  -> File count explodes, navigation becomes difficult
+  -> Remedy: split by "reasons to change," not by method count
 
-OCP の過剰適用:
-  → 変更されない部分まで抽象化
-  → 不要なインターフェースだらけ
-  → 対策: 「実際に変更が発生してから」抽象化する
+Over-applying OCP:
+  -> Abstracting parts that never change
+  -> Codebase is overrun with unnecessary interfaces
+  -> Remedy: abstract only after the change actually occurs
 
-判断基準:
-  「このクラスが変更される理由は何か？」
-  → 理由が複数ある → SRP で分割
-  「この部分は今後変更される可能性があるか？」
-  → ある → OCP でインターフェースを導入
-  → ない → そのままでよい（YAGNI）
+Judgment criteria:
+  "What are the reasons this class would change?"
+  -> Multiple reasons -> split with SRP
+  "Is this part likely to change in the future?"
+  -> Yes -> introduce interfaces via OCP
+  -> No -> leave it alone (YAGNI)
 ```
 
-### 4.1 SRP の過剰適用例
+### 4.1 Over-Applying SRP
 
 ```typescript
-// ❌ SRP の過剰適用: 不必要な分割
+// [Bad] Over-applied SRP: unnecessary fragmentation
 
-// 1文字列の結合のためだけにクラスを作る必要はない
+// No need for a class just to concatenate two strings
 class StringConcatenator {
   concatenate(a: string, b: string): string {
     return a + b;
   }
 }
 
-// 加算のためだけにクラスを作る必要はない
+// No need for a class just to add numbers
 class NumberAdder {
   add(a: number, b: number): number {
     return a + b;
   }
 }
 
-// nullチェックのためだけにクラスを作る必要はない
+// No need for a class just to null-check
 class NullChecker {
   isNull(value: any): boolean {
     return value === null || value === undefined;
   }
 }
 
-// ✅ 適切な粒度: 関連する操作をまとめたクラス
+// [Good] Appropriate granularity: a class that groups related operations
 class MathUtils {
   static add(a: number, b: number): number { return a + b; }
   static subtract(a: number, b: number): number { return a - b; }
@@ -1752,25 +1752,25 @@ class MathUtils {
     return a / b;
   }
 }
-// → 変更理由: 「数学計算のルール変更」→ 1つのアクター
-// → メソッドは4つだが責任は1つ = SRP準拠
+// -> Reason to change: "rules for mathematical computation" -> one actor
+// -> 4 methods but 1 responsibility = SRP satisfied
 ```
 
-### 4.2 OCP の過剰適用例
+### 4.2 Over-Applying OCP
 
 ```typescript
-// ❌ OCP の過剰適用: 変更が発生しない部分まで抽象化
+// [Bad] Over-applied OCP: abstracting parts that do not change
 
-// 環境設定の読み取り: 変更される可能性が低い
+// Reading configuration: unlikely to change
 interface ConfigReader { read(): Config; }
 interface ConfigParser { parse(raw: string): Config; }
 interface ConfigValidator { validate(config: Config): void; }
 interface ConfigMerger { merge(base: Config, override: Config): Config; }
 
-// → 設定ファイルの読み取り方法が頻繁に変わることはない
-// → 4つのインターフェースは過剰
+// -> How a config file is loaded rarely changes
+// -> Four interfaces is overkill
 
-// ✅ 適切な抽象化レベル
+// [Good] Appropriate level of abstraction
 class ConfigLoader {
   load(path: string): Config {
     const raw = fs.readFileSync(path, "utf-8");
@@ -1784,71 +1784,71 @@ class ConfigLoader {
     if (!config.dbUrl) throw new Error("dbUrl is required");
   }
 }
-// → 設定の読み取りが変更される頻度は低い
-// → シンプルなクラスで十分
-// → 将来変更が必要になったら、その時に抽象化する
+// -> Configuration loading changes infrequently
+// -> A simple class is enough
+// -> When a change is actually needed, abstract at that time
 ```
 
-### 4.3 実務での判断フローチャート
+### 4.3 A Decision Flowchart for Real-World Work
 
 ```
-SRP 適用の判断フロー:
+SRP decision flow:
 
-  クラスの行数 > 300?
-    │
-    ├── Yes → 変更理由を分析
-    │         │
-    │         ├── 変更理由が複数 → SRP適用（分割する）
-    │         └── 変更理由が1つ → 大きくてもOK（責任は1つ）
-    │
-    └── No → 複数のドメインを混在させていないか？
-              │
-              ├── Yes → SRP適用（小さくても分割すべき）
-              └── No → 現状維持でOK
+  Class length > 300 lines?
+    |
+    +-- Yes -> Analyze reasons to change
+    |          |
+    |          +-- Multiple reasons -> apply SRP (split)
+    |          +-- Single reason    -> large is OK (one responsibility)
+    |
+    +-- No  -> Does it mix multiple domains?
+               |
+               +-- Yes -> apply SRP (split even if small)
+               +-- No  -> keep as is
 
 
-OCP 適用の判断フロー:
+OCP decision flow:
 
-  同じ種類の変更が2回以上発生した？
-    │
-    ├── Yes → switch/if-elseの分岐が増えている？
-    │         │
-    │         ├── Yes → OCP適用（インターフェース導入）
-    │         └── No → もう1回変更が来たら適用を検討
-    │
-    └── No → 変更されていない
-              → 現状維持（YAGNI）
-              → 抽象化は「投機的」にしない
+  Has the same kind of change happened 2+ times?
+    |
+    +-- Yes -> Are switch / if-else branches growing?
+    |          |
+    |          +-- Yes -> apply OCP (introduce interface)
+    |          +-- No  -> wait for one more change before applying
+    |
+    +-- No  -> No change has occurred
+               -> keep as is (YAGNI)
+               -> do not abstract "speculatively"
 ```
 
 ---
 
-## 5. フレームワークにおけるSRP + OCP
+## 5. SRP + OCP in Frameworks
 
 ```
-主要フレームワークでの SRP + OCP の活用例:
+Examples of SRP + OCP usage in major frameworks:
 
   NestJS (TypeScript):
-    SRP → Controller, Service, Repository の分離
-    OCP → @Injectable() による DI、Guard / Interceptor / Pipe
+    SRP -> separation of Controller, Service, Repository
+    OCP -> DI via @Injectable(), Guards / Interceptors / Pipes
 
   Spring Boot (Java):
-    SRP → @Controller, @Service, @Repository アノテーション
-    OCP → @Bean 定義、@Profile による環境切り替え
+    SRP -> @Controller, @Service, @Repository annotations
+    OCP -> @Bean definitions, environment switching via @Profile
 
   Django (Python):
-    SRP → views.py, models.py, serializers.py の分離
-    OCP → Middleware クラス、カスタム Backend
+    SRP -> separation of views.py, models.py, serializers.py
+    OCP -> Middleware classes, custom authentication Backends
 
   Rails (Ruby):
-    SRP → Model, Controller, Service Object パターン
-    OCP → Concern モジュール、ActiveSupport::Concern
+    SRP -> Model, Controller, Service Object pattern
+    OCP -> Concern modules, ActiveSupport::Concern
 ```
 
 ```typescript
-// NestJS: SRP + OCP の実践例
+// NestJS: SRP + OCP in practice
 
-// Controller（SRP: HTTPリクエスト処理のみ）
+// Controller (SRP: HTTP request handling only)
 @Controller("orders")
 class OrderController {
   constructor(private readonly orderService: OrderService) {}
@@ -1864,7 +1864,7 @@ class OrderController {
   }
 }
 
-// Service（SRP: ビジネスロジックのみ）
+// Service (SRP: business logic only)
 @Injectable()
 class OrderService {
   constructor(
@@ -1882,7 +1882,7 @@ class OrderService {
   }
 }
 
-// Module（OCP: 依存の差し替えが容易）
+// Module (OCP: easy to swap dependencies)
 @Module({
   providers: [
     OrderService,
@@ -1902,7 +1902,7 @@ class OrderService {
 })
 class OrderModule {}
 
-// Guard（OCP: 認証ロジックをプラグイン的に追加）
+// Guard (OCP: add authentication as a plugin)
 @Injectable()
 class AuthGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
@@ -1911,7 +1911,7 @@ class AuthGuard implements CanActivate {
   }
 }
 
-// Interceptor（OCP: 横断的関心事をデコレータ的に追加）
+// Interceptor (OCP: add cross-cutting concerns like a decorator)
 @Injectable()
 class LoggingInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
@@ -1922,7 +1922,7 @@ class LoggingInterceptor implements NestInterceptor {
   }
 }
 
-// Pipe（OCP: バリデーションをプラグイン的に追加）
+// Pipe (OCP: add validation as a plugin)
 @Injectable()
 class OrderValidationPipe implements PipeTransform {
   transform(value: any): CreateOrderDto {
@@ -1941,49 +1941,49 @@ class OrderValidationPipe implements PipeTransform {
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Your understanding deepens when, in addition to theory, you actually write code and verify its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What mistakes do beginners commonly make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend firmly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in real-world work?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+The knowledge of this topic is used frequently in day-to-day development work. It becomes especially important during code reviews and when designing architecture.
 
 ---
 
-## まとめ
+## Summary
 
-| 原則 | 核心 | 実現手段 | 注意 | 検出方法 |
-|------|------|---------|------|---------|
-| SRP | 1クラス1責任 | 責任の分離、委譲 | 過剰分割に注意 | クラス名・インポートテスト |
-| OCP | 拡張は開、修正は閉 | インターフェース、ポリモーフィズム | 必要になってから抽象化 | switch/if-else連鎖の検出 |
+| Principle | Core idea | How to achieve it | Caveat | How to detect |
+|-----------|-----------|-------------------|--------|---------------|
+| SRP | One class, one responsibility | Separation of responsibilities, delegation | Avoid over-splitting | Class-name / import tests |
+| OCP | Open for extension, closed for modification | Interfaces, polymorphism | Abstract only when needed | Detect switch / if-else chains |
 
-### SRP + OCP 適用チェックリスト
+### SRP + OCP Application Checklist
 
 ```
-□ クラスの変更理由が1つだけか（SRP）
-□ クラス名が1つの責任を表しているか（SRP）
-□ import/依存が1つのドメインに限定されているか（SRP）
-□ コンストラクタの引数が5つ以下か（SRP）
-□ 同じ種類の分岐が複数箇所に散在していないか（OCP）
-□ 新しい種類の追加でコメント「ここに追記」が必要ないか（OCP）
-□ テスト時にモックに差し替え可能か（SRP + OCP）
-□ 各クラスが独立してテスト可能か（SRP）
-□ 変更が1クラスに閉じるか（SRP + OCP）
-□ git log で同じファイルが頻繁に修正されていないか（OCP）
+[ ] The class has exactly one reason to change (SRP)
+[ ] The class name expresses a single responsibility (SRP)
+[ ] Imports/dependencies are limited to one domain (SRP)
+[ ] The constructor takes 5 or fewer arguments (SRP)
+[ ] The same kind of branching is not scattered in multiple places (OCP)
+[ ] No "add here" comment is needed when adding a new variant (OCP)
+[ ] Components can be swapped with mocks during testing (SRP + OCP)
+[ ] Each class can be tested independently (SRP)
+[ ] Changes are contained within one class (SRP + OCP)
+[ ] The same file is not modified frequently in git log (OCP)
 ```
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Reading
 
 ---
 
-## 参考文献
+## References
 1. Martin, R. "Clean Architecture: A Craftsman's Guide to Software Structure and Design." Chapter 7-8, Prentice Hall, 2017.
 2. Martin, R. "The Single Responsibility Principle." The Clean Coder Blog, 2014.
 3. Martin, R. "Agile Software Development, Principles, Patterns, and Practices." Prentice Hall, 2003.
