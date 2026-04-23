@@ -1,46 +1,46 @@
-# DIP（依存性逆転の原則）
+# DIP (Dependency Inversion Principle)
 
-> DIPは「上位モジュールは下位モジュールに依存すべきでない。どちらも抽象に依存すべき」。依存性注入（DI）と IoC コンテナを通じて、テスト容易で疎結合なシステムを実現する。
+> DIP states that "high-level modules should not depend on low-level modules. Both should depend on abstractions." Through dependency injection (DI) and IoC containers, achieve testable and loosely coupled systems.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] 依存性逆転の「逆転」が何を意味するか理解する
-- [ ] 依存性注入の3つのパターンを把握する
-- [ ] IoC コンテナの仕組みと実践的な使い方を学ぶ
-- [ ] DIP を活用したアーキテクチャ設計を習得する
-- [ ] 実務でのDIPの適用判断基準を身につける
+- [ ] Understand what the "inversion" in dependency inversion means
+- [ ] Grasp the three patterns of dependency injection
+- [ ] Learn the mechanism and practical usage of IoC containers
+- [ ] Master architectural design leveraging DIP
+- [ ] Acquire criteria for judging when to apply DIP in practice
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [LSP（リスコフの置換原則）+ ISP（インターフェース分離の原則）](./02-lsp-and-isp.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding the content of [LSP (Liskov Substitution Principle) + ISP (Interface Segregation Principle)](./02-lsp-and-isp.md)
 
 ---
 
-## 1. 依存性逆転とは
+## 1. What Is Dependency Inversion
 
 ```
-従来の依存関係（上位が下位に依存）:
+Traditional dependency relationship (high-level depends on low-level):
 
   ┌──────────────┐
-  │ OrderService │ ← 上位モジュール（ビジネスロジック）
+  │ OrderService │ ← High-level module (business logic)
   └──────┬───────┘
-         │ 依存（直接参照）
+         │ Depends on (direct reference)
          ▼
   ┌──────────────┐
-  │ MySQLDatabase│ ← 下位モジュール（インフラ）
+  │ MySQLDatabase│ ← Low-level module (infrastructure)
   └──────────────┘
 
-  問題: MySQLをPostgreSQLに変更すると OrderService も変更が必要
+  Problem: Changing MySQL to PostgreSQL requires changes to OrderService
 
-依存性逆転後（どちらも抽象に依存）:
+After dependency inversion (both depend on abstractions):
 
   ┌──────────────┐     ┌────────────┐
-  │ OrderService │────→│ Database   │ ← 抽象（インターフェース）
+  │ OrderService │────→│ Database   │ ← Abstraction (interface)
   └──────────────┘     └────────────┘
                              ↑
                        ┌─────┴──────┐
@@ -49,73 +49,73 @@
                 │ MySQL    │  │ Postgres │
                 └──────────┘  └──────────┘
 
-  「逆転」の意味:
-  → 従来: 上位 → 下位
-  → DIP:  上位 → 抽象 ← 下位
-  → 下位モジュールが抽象に依存する方向に「逆転」
+  Meaning of "inversion":
+  → Traditional: high-level → low-level
+  → DIP:         high-level → abstraction ← low-level
+  → Dependencies are "inverted" so that low-level modules depend on abstractions
 ```
 
-### 1.1 DIPの歴史的背景
+### 1.1 Historical Background of DIP
 
 ```
-1996年:
-  Robert C. Martin が "The Dependency Inversion Principle" を発表
-  SOLID原則の最後の "D" として整理
+1996:
+  Robert C. Martin published "The Dependency Inversion Principle"
+  Organized as the final "D" of the SOLID principles
 
-なぜ「逆転（Inversion）」か:
-  従来の手続き型プログラミング:
-    上位モジュール → 下位モジュール（直接呼び出し）
-    上位が下位の実装詳細に依存
+Why "Inversion":
+  Traditional procedural programming:
+    High-level module → Low-level module (direct call)
+    High-level depends on low-level implementation details
 
-  DIP適用後:
-    上位モジュール → 抽象（インターフェース）
-    下位モジュール → 抽象（インターフェース）
-    下位モジュールが「抽象に合わせる」方向に依存が逆転
+  After applying DIP:
+    High-level module → Abstraction (interface)
+    Low-level module → Abstraction (interface)
+    Dependency is inverted so that low-level modules "conform to the abstraction"
 
-DIPの2つのルール:
-  1. 上位モジュールは下位モジュールに依存してはならない。
-     どちらも抽象に依存すべきである。
-  2. 抽象は詳細に依存してはならない。
-     詳細が抽象に依存すべきである。
+The Two Rules of DIP:
+  1. High-level modules should not depend on low-level modules.
+     Both should depend on abstractions.
+  2. Abstractions should not depend on details.
+     Details should depend on abstractions.
 
-「抽象」= インターフェース、抽象クラス
-「詳細」= 具象クラス、具体的な実装
+"Abstraction" = interface, abstract class
+"Detail"      = concrete class, concrete implementation
 ```
 
-### 1.2 DIPなしとありの比較
+### 1.2 Comparison: With and Without DIP
 
 ```typescript
-// ❌ DIP違反: 上位が下位の具象クラスに直接依存
+// ❌ DIP violation: high-level directly depends on low-level concrete classes
 class OrderService {
-  // MySQLDatabase の具体的な実装に直接依存
+  // Directly depends on the concrete MySQLDatabase implementation
   private db = new MySQLDatabase("localhost", 3306, "orders_db");
-  // SendGrid の具体的な実装に直接依存
+  // Directly depends on the concrete SendGrid implementation
   private mailer = new SendGridMailer("api-key-xxx");
-  // Stripe の具体的な実装に直接依存
+  // Directly depends on the concrete Stripe implementation
   private payment = new StripePayment("sk_live_xxx");
 
   async createOrder(dto: CreateOrderDto): Promise<Order> {
     const order = new Order(dto);
-    // MySQLの固有メソッド
+    // MySQL-specific method
     await this.db.mysqlQuery("INSERT INTO orders ...", order);
-    // SendGridの固有メソッド
+    // SendGrid-specific method
     await this.mailer.sendViaSendGrid(order.email, "注文確認");
-    // Stripeの固有メソッド
+    // Stripe-specific method
     await this.payment.stripeCharge(order.total, dto.stripeToken);
     return order;
   }
 }
 
-// 問題点:
-// 1. MySQLをPostgreSQLに変更 → OrderService を書き換え
-// 2. SendGridをAWS SESに変更 → OrderService を書き換え
-// 3. テスト時に外部APIを呼んでしまう
-// 4. OrderService のテストにDB接続が必要
+// Problems:
+// 1. Changing MySQL to PostgreSQL → rewrite OrderService
+// 2. Changing SendGrid to AWS SES → rewrite OrderService
+// 3. External APIs are called during tests
+// 4. OrderService tests require a DB connection
 ```
 
 ```typescript
-// ✅ DIP準拠: 上位も下位も抽象に依存
-// --- 抽象（インターフェース）---
+// ✅ DIP compliant: both high-level and low-level depend on abstractions
+// --- Abstractions (interfaces) ---
 interface OrderRepository {
   save(order: Order): Promise<void>;
   findById(id: string): Promise<Order | null>;
@@ -129,7 +129,7 @@ interface PaymentService {
   charge(amount: number, token: string): Promise<PaymentResult>;
 }
 
-// --- 上位モジュール: 抽象にのみ依存 ---
+// --- High-level module: depends only on abstractions ---
 class OrderService {
   constructor(
     private readonly repo: OrderRepository,
@@ -149,16 +149,16 @@ class OrderService {
   }
 }
 
-// --- 下位モジュール: 抽象を実装 ---
+// --- Low-level modules: implement the abstractions ---
 class MySQLOrderRepository implements OrderRepository {
   constructor(private db: MySQLConnection) {}
-  async save(order: Order): Promise<void> { /* MySQL固有の実装 */ }
+  async save(order: Order): Promise<void> { /* MySQL-specific implementation */ }
   async findById(id: string): Promise<Order | null> { /* ... */ }
 }
 
 class PostgresOrderRepository implements OrderRepository {
   constructor(private db: PgPool) {}
-  async save(order: Order): Promise<void> { /* Postgres固有の実装 */ }
+  async save(order: Order): Promise<void> { /* Postgres-specific implementation */ }
   async findById(id: string): Promise<Order | null> { /* ... */ }
 }
 
@@ -180,27 +180,27 @@ class StripePaymentService implements PaymentService {
 
 ---
 
-## 2. 依存性注入（Dependency Injection）
+## 2. Dependency Injection
 
 ```
-DI = オブジェクトの依存関係を外部から注入する技術
+DI = A technique for injecting object dependencies from outside
 
-3つのパターン:
-  1. コンストラクタ注入（推奨）
-  2. セッター注入
-  3. インターフェース注入
+Three patterns:
+  1. Constructor injection (recommended)
+  2. Setter injection
+  3. Interface injection
 
-DIの利点:
-  → テスト時にモックを注入できる
-  → 実装の差し替えが容易
-  → 依存関係が明示的（コンストラクタを見れば分かる）
-  → 循環依存の検出が容易
+Benefits of DI:
+  → Mocks can be injected during testing
+  → Implementations can be swapped easily
+  → Dependencies are explicit (visible from the constructor)
+  → Circular dependencies can be detected easily
 ```
 
-### 2.1 コンストラクタ注入（推奨）
+### 2.1 Constructor Injection (Recommended)
 
 ```typescript
-// === コンストラクタ注入（推奨）===
+// === Constructor injection (recommended) ===
 interface Logger {
   log(message: string): void;
 }
@@ -215,7 +215,7 @@ interface EmailService {
 }
 
 class UserService {
-  // 全ての依存をコンストラクタで受け取る
+  // All dependencies received via the constructor
   constructor(
     private readonly repo: UserRepository,
     private readonly email: EmailService,
@@ -231,7 +231,7 @@ class UserService {
   }
 }
 
-// テスト: モックを注入
+// Test: inject mocks
 class MockUserRepository implements UserRepository {
   private users: User[] = [];
   async findById(id: string) { return this.users.find(u => u.id === id) ?? null; }
@@ -243,7 +243,7 @@ class MockEmailService implements EmailService {
   async send(to: string, subject: string) { this.sent.push({ to, subject }); }
 }
 
-// テストではモックを注入
+// Inject mocks for testing
 const service = new UserService(
   new MockUserRepository(),
   new MockEmailService(),
@@ -251,14 +251,14 @@ const service = new UserService(
 );
 ```
 
-### 2.2 セッター注入
+### 2.2 Setter Injection
 
 ```typescript
-// === セッター注入 ===
+// === Setter injection ===
 class ReportService {
   private formatter?: ReportFormatter;
 
-  // セッターで注入（オプショナルな依存に適する）
+  // Inject via setter (suitable for optional dependencies)
   setFormatter(formatter: ReportFormatter): void {
     this.formatter = formatter;
   }
@@ -269,22 +269,22 @@ class ReportService {
   }
 }
 
-// セッター注入の使いどころ:
-// - オプショナルな依存（デフォルト実装がある場合）
-// - 実行時に依存を差し替えたい場合
-// - フレームワークが要求する場合
+// When to use setter injection:
+// - Optional dependencies (when a default implementation exists)
+// - When you want to swap dependencies at runtime
+// - When required by a framework
 
-// セッター注入の注意点:
-// - 必須依存にはコンストラクタ注入を使うべき
-// - 呼び忘れのリスクがある
-// - 不完全な状態のオブジェクトが存在しうる
+// Caveats for setter injection:
+// - Use constructor injection for required dependencies
+// - Risk of forgetting to call the setter
+// - Objects may exist in an incomplete state
 ```
 
-### 2.3 インターフェース注入
+### 2.3 Interface Injection
 
 ```typescript
-// === インターフェース注入 ===
-// 注入用のインターフェースを定義
+// === Interface injection ===
+// Define interfaces for injection
 interface LoggerAware {
   setLogger(logger: Logger): void;
 }
@@ -293,7 +293,7 @@ interface DatabaseAware {
   setDatabase(db: Database): void;
 }
 
-// 注入用インターフェースを実装
+// Implement the injection interfaces
 class UserService implements LoggerAware, DatabaseAware {
   private logger!: Logger;
   private db!: Database;
@@ -312,7 +312,7 @@ class UserService implements LoggerAware, DatabaseAware {
   }
 }
 
-// インジェクター
+// Injector
 class Injector {
   private logger = new FileLogger();
   private db = new PostgresDatabase();
@@ -336,70 +336,70 @@ class Injector {
 }
 ```
 
-### 2.4 DIパターンの比較
+### 2.4 Comparison of DI Patterns
 
 ```
 ┌──────────────────┬──────────────┬──────────────┬──────────────┐
-│                  │ コンストラクタ│ セッター     │ IF注入       │
+│                  │ Constructor  │ Setter       │ IF injection │
 ├──────────────────┼──────────────┼──────────────┼──────────────┤
-│ 必須依存         │ ○ 最適      │ △ 危険      │ △ 危険      │
+│ Required deps    │ ○ Optimal   │ △ Risky     │ △ Risky     │
 ├──────────────────┼──────────────┼──────────────┼──────────────┤
-│ オプショナル依存 │ △ 可能      │ ○ 最適      │ △ 可能      │
+│ Optional deps    │ △ Possible  │ ○ Optimal   │ △ Possible  │
 ├──────────────────┼──────────────┼──────────────┼──────────────┤
-│ 不変性保証       │ ○ readonly  │ ×           │ ×           │
+│ Immutability     │ ○ readonly  │ ×           │ ×           │
 ├──────────────────┼──────────────┼──────────────┼──────────────┤
-│ 依存の明示性     │ ○ 明確      │ △ 分散      │ △ 分散      │
+│ Explicit deps    │ ○ Clear     │ △ Scattered │ △ Scattered │
 ├──────────────────┼──────────────┼──────────────┼──────────────┤
-│ テスト容易性     │ ○           │ ○           │ ○           │
+│ Testability      │ ○           │ ○           │ ○           │
 ├──────────────────┼──────────────┼──────────────┼──────────────┤
-│ 循環依存検出     │ ○ 即座      │ ×           │ ×           │
+│ Circular detect  │ ○ Immediate │ ×           │ ×           │
 ├──────────────────┼──────────────┼──────────────┼──────────────┤
-│ 推奨度           │ ★★★        │ ★★          │ ★            │
+│ Recommendation   │ ★★★        │ ★★          │ ★            │
 └──────────────────┴──────────────┴──────────────┴──────────────┘
 
-結論: コンストラクタ注入を基本とし、
-      オプショナル依存にのみセッター注入を使う
+Conclusion: Use constructor injection as the default
+            and use setter injection only for optional dependencies
 ```
 
 ---
 
-## 3. IoC コンテナ
+## 3. IoC Container
 
 ```
-IoC（Inversion of Control）コンテナ:
-  → 依存関係の解決を自動化するフレームワーク
-  → クラスの登録と依存グラフの自動解決
+IoC (Inversion of Control) Container:
+  → A framework that automates dependency resolution
+  → Registers classes and automatically resolves the dependency graph
 
-  手動DI:
+  Manual DI:
     const logger = new FileLogger();
     const db = new PostgresDatabase(config);
     const repo = new UserRepository(db);
     const email = new SmtpEmailService(smtpConfig);
     const service = new UserService(repo, email, logger);
-    // 依存が深くなると手動では管理困難
+    // Deep dependencies become hard to manage manually
 
-  IoCコンテナ:
+  IoC container:
     container.register(Logger, FileLogger);
     container.register(Database, PostgresDatabase);
     container.register(UserRepository);
     container.register(EmailService, SmtpEmailService);
     container.register(UserService);
     const service = container.resolve(UserService);
-    // コンテナが依存グラフを自動解決
+    // The container automatically resolves the dependency graph
 
-IoCコンテナのライフサイクル管理:
-  Singleton:  アプリケーション全体で1つのインスタンス
-  Transient:  resolve のたびに新しいインスタンスを作成
-  Scoped:     リクエストごとに1つのインスタンス（Webアプリケーション）
+IoC container lifecycle management:
+  Singleton:  A single instance for the entire application
+  Transient:  A new instance is created on each resolve
+  Scoped:     One instance per request (web applications)
 ```
 
-### 3.1 NestJS での IoC コンテナ
+### 3.1 IoC Container in NestJS
 
 ```typescript
-// NestJS: IoC コンテナの実践例
+// NestJS: a practical IoC container example
 import { Injectable, Module, Inject } from "@nestjs/common";
 
-// @Injectable() でコンテナに登録
+// Register with the container via @Injectable()
 @Injectable()
 class UserRepository {
   constructor(private readonly db: DatabaseService) {}
@@ -409,12 +409,12 @@ class UserRepository {
 @Injectable()
 class UserService {
   constructor(
-    private readonly repo: UserRepository, // 自動注入
-    private readonly email: EmailService,  // 自動注入
+    private readonly repo: UserRepository, // Automatically injected
+    private readonly email: EmailService,  // Automatically injected
   ) {}
 }
 
-// Module で依存関係を宣言
+// Declare dependencies in the module
 @Module({
   providers: [
     UserRepository,
@@ -428,9 +428,9 @@ class UserModule {}
 ```
 
 ```typescript
-// NestJS: 高度な依存注入パターン
+// NestJS: advanced dependency injection patterns
 
-// 1. カスタムプロバイダー（値の注入）
+// 1. Custom provider (value injection)
 @Module({
   providers: [
     {
@@ -449,7 +449,7 @@ class ApiService {
   constructor(@Inject("CONFIG") private config: AppConfig) {}
 }
 
-// 2. ファクトリープロバイダー
+// 2. Factory provider
 @Module({
   providers: [
     {
@@ -467,7 +467,7 @@ class ApiService {
 })
 class LoggingModule {}
 
-// 3. 非同期プロバイダー
+// 3. Async provider
 @Module({
   providers: [
     {
@@ -487,7 +487,7 @@ class LoggingModule {}
 })
 class DatabaseModule {}
 
-// 4. スコープ付きプロバイダー
+// 4. Scoped provider
 @Injectable({ scope: Scope.REQUEST })
 class RequestContextService {
   private userId: string;
@@ -502,10 +502,10 @@ class RequestContextService {
 }
 ```
 
-### 3.2 Python での DIコンテナ実装
+### 3.2 Implementing a DI Container in Python
 
 ```python
-# Python: シンプルなDIコンテナの実装
+# Python: implementing a simple DI container
 from typing import Type, TypeVar, Dict, Any, Callable
 import inspect
 
@@ -513,7 +513,7 @@ T = TypeVar("T")
 
 
 class Container:
-    """シンプルなDIコンテナ"""
+    """A simple DI container"""
 
     def __init__(self):
         self._registry: Dict[type, type] = {}
@@ -522,36 +522,36 @@ class Container:
         self._scoped: Dict[str, Dict[type, Any]] = {}
 
     def register(self, interface: type, implementation: type) -> None:
-        """インターフェースと実装のマッピングを登録"""
+        """Register the mapping between interface and implementation"""
         self._registry[interface] = implementation
 
     def register_singleton(self, interface: type, implementation: type) -> None:
-        """シングルトンとして登録"""
+        """Register as a singleton"""
         self._registry[interface] = implementation
-        # 最初の resolve 時にインスタンスを作成してキャッシュ
+        # Create and cache the instance on first resolve
 
     def register_factory(self, interface: type, factory: Callable) -> None:
-        """ファクトリー関数を登録"""
+        """Register a factory function"""
         self._factories[interface] = factory
 
     def register_instance(self, interface: type, instance: Any) -> None:
-        """既存のインスタンスを登録"""
+        """Register an existing instance"""
         self._singletons[interface] = instance
 
     def resolve(self, interface: Type[T]) -> T:
-        """依存関係を解決してインスタンスを返す"""
-        # シングルトンチェック
+        """Resolve dependencies and return an instance"""
+        # Check singletons
         if interface in self._singletons:
             return self._singletons[interface]
 
-        # ファクトリーチェック
+        # Check factories
         if interface in self._factories:
             return self._factoriesinterface
 
-        # 登録済み実装の取得
+        # Get registered implementation
         impl = self._registry.get(interface, interface)
 
-        # コンストラクタの引数を自動解決
+        # Automatically resolve constructor arguments
         params = inspect.signature(impl.__init__).parameters
         deps = {}
         for name, param in params.items():
@@ -565,7 +565,7 @@ class Container:
         return instance
 
 
-# 使い方
+# Usage
 from abc import ABC, abstractmethod
 
 
@@ -602,7 +602,7 @@ class PostgresUserRepository(UserRepository):
 
     async def find_by_id(self, user_id: str):
         self.logger.log(f"Finding user: {user_id}")
-        # Postgres固有の実装
+        # Postgres-specific implementation
 
     async def save(self, user) -> None:
         self.logger.log(f"Saving user: {user.id}")
@@ -635,13 +635,13 @@ class UserService:
         return user
 
 
-# コンテナの構築
+# Build the container
 container = Container()
 container.register(Logger, ConsoleLogger)
 container.register(UserRepository, PostgresUserRepository)
 container.register(EmailService, SmtpEmailService)
 
-# 依存が自動解決される
+# Dependencies are resolved automatically
 user_service = container.resolve(UserService)
 # UserService(
 #   repo=PostgresUserRepository(logger=ConsoleLogger()),
@@ -650,27 +650,27 @@ user_service = container.resolve(UserService)
 # )
 ```
 
-### 3.3 Python: dependency-injector ライブラリ
+### 3.3 Python: dependency-injector Library
 
 ```python
-# dependency-injector: 本番利用に適したDIコンテナ
+# dependency-injector: a production-ready DI container
 from dependency_injector import containers, providers
 from dependency_injector.wiring import Provide, inject
 
 
 class AppContainer(containers.DeclarativeContainer):
-    """アプリケーションのDIコンテナ"""
+    """Application DI container"""
 
-    # 設定
+    # Configuration
     config = providers.Configuration()
 
-    # ロガー（シングルトン）
+    # Logger (singleton)
     logger = providers.Singleton(
         FileLogger,
         filepath=config.log_file,
     )
 
-    # データベース接続（シングルトン）
+    # Database connection (singleton)
     database = providers.Singleton(
         PostgresDatabase,
         host=config.db.host,
@@ -678,14 +678,14 @@ class AppContainer(containers.DeclarativeContainer):
         name=config.db.name,
     )
 
-    # リポジトリ（ファクトリー: 毎回新規作成）
+    # Repository (factory: creates new instance every time)
     user_repository = providers.Factory(
         PostgresUserRepository,
         db=database,
         logger=logger,
     )
 
-    # メールサービス（シングルトン）
+    # Email service (singleton)
     email_service = providers.Singleton(
         SmtpEmailService,
         host=config.smtp.host,
@@ -693,7 +693,7 @@ class AppContainer(containers.DeclarativeContainer):
         logger=logger,
     )
 
-    # ユーザーサービス（ファクトリー）
+    # User service (factory)
     user_service = providers.Factory(
         UserService,
         repo=user_repository,
@@ -702,20 +702,20 @@ class AppContainer(containers.DeclarativeContainer):
     )
 
 
-# 使い方
+# Usage
 container = AppContainer()
 container.config.from_yaml("config.yml")
 
-# テスト時のオーバーライド
+# Override for testing
 with container.email_service.override(MockEmailService()):
     service = container.user_service()
-    # MockEmailService が注入される
+    # MockEmailService is injected
 ```
 
-### 3.4 Java Spring での DI
+### 3.4 DI in Java Spring
 
 ```java
-// Spring Framework: IoC コンテナ
+// Spring Framework: IoC container
 import org.springframework.stereotype.Service;
 import org.springframework.stereotype.Repository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -724,7 +724,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 
-// インターフェース定義
+// Interface definitions
 public interface OrderRepository {
     Order save(Order order);
     Optional<Order> findById(String id);
@@ -735,7 +735,7 @@ public interface NotificationService {
     void notify(String userId, String message);
 }
 
-// 実装: @Repository アノテーションでコンテナに登録
+// Implementation: register with container via @Repository annotation
 @Repository
 public class JpaOrderRepository implements OrderRepository {
     @Autowired
@@ -760,13 +760,13 @@ public class JpaOrderRepository implements OrderRepository {
     }
 }
 
-// 複数実装の切り替え: Profile
+// Switching multiple implementations: Profile
 @Service
 @Profile("production")
 public class SlackNotificationService implements NotificationService {
     @Override
     public void notify(String userId, String message) {
-        // Slack API 呼び出し
+        // Call Slack API
     }
 }
 
@@ -779,14 +779,14 @@ public class ConsoleNotificationService implements NotificationService {
     }
 }
 
-// サービス: コンストラクタ注入（推奨）
+// Service: constructor injection (recommended)
 @Service
 public class OrderService {
     private final OrderRepository repository;
     private final NotificationService notification;
     private final Logger logger;
 
-    // Spring はコンストラクタが1つなら @Autowired 不要
+    // Spring does not require @Autowired when there is only one constructor
     public OrderService(
         OrderRepository repository,
         NotificationService notification,
@@ -806,7 +806,7 @@ public class OrderService {
     }
 }
 
-// テスト
+// Test
 @SpringBootTest
 class OrderServiceTest {
     @MockBean
@@ -820,13 +820,13 @@ class OrderServiceTest {
 
     @Test
     void shouldCreateOrder() {
-        // モックの設定
+        // Set up mock
         when(mockRepository.save(any())).thenReturn(new Order("order-1"));
 
-        // テスト実行
+        // Execute test
         Order result = orderService.createOrder(new CreateOrderRequest("user-1"));
 
-        // 検証
+        // Verify
         assertNotNull(result);
         verify(mockRepository).save(any());
         verify(mockNotification).notify(eq("user-1"), anyString());
@@ -834,14 +834,14 @@ class OrderServiceTest {
 }
 ```
 
-### 3.5 Go での DI（手動ワイヤリング）
+### 3.5 DI in Go (Manual Wiring)
 
 ```go
 package main
 
 import "context"
 
-// インターフェース定義（Go では暗黙的に実装）
+// Interface definitions (implemented implicitly in Go)
 type UserRepository interface {
     FindByID(ctx context.Context, id string) (*User, error)
     Save(ctx context.Context, user *User) error
@@ -856,7 +856,7 @@ type Logger interface {
     Error(msg string, args ...any)
 }
 
-// サービス: コンストラクタ注入
+// Service: constructor injection
 type UserService struct {
     repo   UserRepository
     email  EmailSender
@@ -882,13 +882,13 @@ func (s *UserService) Register(ctx context.Context, name, emailAddr string) (*Us
 
     if err := s.email.Send(ctx, emailAddr, "Welcome!", "ご登録ありがとうございます。"); err != nil {
         s.logger.Error("failed to send welcome email", "error", err)
-        // メール送信失敗は致命的ではないのでエラーを返さない
+        // Email failure is non-fatal, so do not return an error
     }
 
     return user, nil
 }
 
-// 実装
+// Implementation
 type PostgresUserRepository struct {
     db *sql.DB
 }
@@ -915,20 +915,20 @@ func (r *PostgresUserRepository) Save(ctx context.Context, user *User) error {
     return err
 }
 
-// 手動ワイヤリング（main関数）
+// Manual wiring (main function)
 func main() {
-    // インフラストラクチャの初期化
+    // Initialize infrastructure
     db, _ := sql.Open("postgres", "postgres://localhost/mydb")
     defer db.Close()
 
     logger := NewZapLogger()
 
-    // 手動で依存グラフを構築
+    // Build the dependency graph manually
     repo := NewPostgresUserRepository(db)
     emailSender := NewSmtpEmailSender("smtp.example.com", 587)
     userService := NewUserService(repo, emailSender, logger)
 
-    // テスト時
+    // For testing
     // mockRepo := &MockUserRepository{}
     // mockEmail := &MockEmailSender{}
     // testService := NewUserService(mockRepo, mockEmail, logger)
@@ -936,14 +936,14 @@ func main() {
 ```
 
 ```go
-// Go: Wire を使った自動ワイヤリング
+// Go: automated wiring using Wire
 // +build wireinject
 
 package main
 
 import "github.com/google/wire"
 
-// プロバイダセット
+// Provider set
 var UserSet = wire.NewSet(
     NewPostgresUserRepository,
     wire.Bind(new(UserRepository), new(*PostgresUserRepository)),
@@ -952,37 +952,37 @@ var UserSet = wire.NewSet(
     NewUserService,
 )
 
-// ワイヤリング関数
+// Wiring function
 func InitializeUserService(db *sql.DB, smtpConfig SmtpConfig) *UserService {
     wire.Build(UserSet, NewZapLogger)
-    return nil // wire が生成する
+    return nil // generated by wire
 }
 ```
 
 ---
 
-## 4. DIP の実践パターン
+## 4. Practical Patterns of DIP
 
 ```
-パターン1: リポジトリパターン
-  ドメイン層 → Repository（インターフェース）← インフラ層
+Pattern 1: Repository pattern
+  Domain layer → Repository (interface) ← Infrastructure layer
 
-パターン2: ポート&アダプター（ヘキサゴナル）
-  アプリケーション → Port（インターフェース）← Adapter（実装）
+Pattern 2: Ports & Adapters (Hexagonal)
+  Application → Port (interface) ← Adapter (implementation)
 
-パターン3: プラグインアーキテクチャ
-  コア → Plugin API ← 各プラグイン
+Pattern 3: Plugin architecture
+  Core → Plugin API ← Individual plugins
 
-共通点:
-  → ビジネスロジック（上位）はインターフェース（抽象）のみに依存
-  → インフラ（下位）がインターフェースを実装
-  → インフラの差し替えがビジネスロジックに影響しない
+Common points:
+  → Business logic (high-level) depends only on interfaces (abstractions)
+  → Infrastructure (low-level) implements the interfaces
+  → Swapping infrastructure does not affect business logic
 ```
 
-### 4.1 ヘキサゴナルアーキテクチャ
+### 4.1 Hexagonal Architecture
 
 ```
-ヘキサゴナルアーキテクチャ:
+Hexagonal Architecture:
 
          ┌──── Adapter ────┐
          │   REST API      │
@@ -994,7 +994,7 @@ func InitializeUserService(db *sql.DB, smtpConfig SmtpConfig) *UserService {
                ↓
   ┌──── Application ────────┐
   │    UserService          │
-  │    (ビジネスロジック)    │
+  │    (business logic)     │
   └──────────┬──────────────┘
              ↓
     ┌──────── Port ─────────┐
@@ -1007,10 +1007,10 @@ func InitializeUserService(db *sql.DB, smtpConfig SmtpConfig) *UserService {
 ```
 
 ```typescript
-// ヘキサゴナルアーキテクチャの実装例
+// Implementation example of hexagonal architecture
 
-// === Port（インターフェース）===
-// Driving Port（入力ポート）: ユースケースを定義
+// === Ports (interfaces) ===
+// Driving ports (input ports): define use cases
 interface CreateOrderUseCase {
   execute(command: CreateOrderCommand): Promise<OrderDto>;
 }
@@ -1023,7 +1023,7 @@ interface CancelOrderUseCase {
   execute(command: CancelOrderCommand): Promise<void>;
 }
 
-// Driven Port（出力ポート）: 外部依存を抽象化
+// Driven ports (output ports): abstract external dependencies
 interface OrderPersistencePort {
   save(order: Order): Promise<void>;
   findById(id: string): Promise<Order | null>;
@@ -1040,7 +1040,7 @@ interface NotificationPort {
   sendCancellationNotice(order: Order): Promise<void>;
 }
 
-// === Application（ドメインサービス）===
+// === Application (domain service) ===
 class CreateOrderService implements CreateOrderUseCase {
   constructor(
     private readonly persistence: OrderPersistencePort,
@@ -1049,11 +1049,11 @@ class CreateOrderService implements CreateOrderUseCase {
   ) {}
 
   async execute(command: CreateOrderCommand): Promise<OrderDto> {
-    // ドメインロジック
+    // Domain logic
     const order = Order.create(command);
     order.validate();
 
-    // 決済処理（Driven Port 経由）
+    // Payment processing (via driven port)
     const paymentResult = await this.payment.processPayment(
       order.id, order.totalAmount
     );
@@ -1062,18 +1062,18 @@ class CreateOrderService implements CreateOrderUseCase {
     }
     order.markAsPaid(paymentResult.transactionId);
 
-    // 永続化（Driven Port 経由）
+    // Persistence (via driven port)
     await this.persistence.save(order);
 
-    // 通知（Driven Port 経由）
+    // Notification (via driven port)
     await this.notification.sendOrderConfirmation(order);
 
     return OrderDto.fromDomain(order);
   }
 }
 
-// === Adapter（具体的な実装）===
-// Driving Adapter: REST API
+// === Adapters (concrete implementations) ===
+// Driving adapter: REST API
 class OrderRestController {
   constructor(
     private readonly createOrder: CreateOrderUseCase,
@@ -1094,7 +1094,7 @@ class OrderRestController {
   }
 }
 
-// Driven Adapter: PostgreSQL
+// Driven adapter: PostgreSQL
 class PostgresOrderAdapter implements OrderPersistencePort {
   constructor(private readonly pool: Pool) {}
 
@@ -1120,14 +1120,14 @@ class PostgresOrderAdapter implements OrderPersistencePort {
   }
 }
 
-// Driven Adapter: Stripe
+// Driven adapter: Stripe
 class StripePaymentAdapter implements PaymentPort {
   constructor(private readonly stripe: Stripe) {}
 
   async processPayment(orderId: string, amount: number): Promise<PaymentResult> {
     try {
       const charge = await this.stripe.charges.create({
-        amount: amount * 100, // Stripeはセント単位
+        amount: amount * 100, // Stripe uses cents
         currency: "jpy",
         metadata: { orderId },
       });
@@ -1143,7 +1143,7 @@ class StripePaymentAdapter implements PaymentPort {
   }
 }
 
-// Driven Adapter: AWS SES
+// Driven adapter: AWS SES
 class SesNotificationAdapter implements NotificationPort {
   constructor(private readonly ses: SESClient) {}
 
@@ -1159,15 +1159,15 @@ class SesNotificationAdapter implements NotificationPort {
   }
 
   async sendCancellationNotice(order: Order): Promise<void> {
-    // キャンセル通知の実装
+    // Implementation of cancellation notice
   }
 }
 ```
 
-### 4.2 クリーンアーキテクチャとDIP
+### 4.2 Clean Architecture and DIP
 
 ```
-クリーンアーキテクチャの層構造:
+Layered structure of Clean Architecture:
 
   ┌─────────────────────────────────────────┐
   │         Frameworks & Drivers            │
@@ -1188,21 +1188,21 @@ class SesNotificationAdapter implements NotificationPort {
   │  └─────────────────────────────────┘    │
   └─────────────────────────────────────────┘
 
-依存の方向: 外側 → 内側（常に内向き）
+Direction of dependency: outer → inner (always inward)
 
   Frameworks  →  Adapters  →  Use Cases  →  Entities
-  (具象)         (具象)        (抽象+具象)    (純粋ドメイン)
+  (concrete)     (concrete)    (abstract+concrete)  (pure domain)
 
-DIPの役割:
-  内側の層は外側の層を知らない
-  外側の層が内側のインターフェースを実装する
-  → 依存の方向が常に内向き
+Role of DIP:
+  Inner layers know nothing about outer layers
+  Outer layers implement the inner layer's interfaces
+  → Dependency direction is always inward
 ```
 
 ```python
-# クリーンアーキテクチャの実装例（Python）
+# Implementation example of Clean Architecture (Python)
 
-# === Entities（最内層）===
+# === Entities (innermost layer) ===
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -1220,7 +1220,7 @@ class OrderStatus(Enum):
 
 @dataclass
 class Order:
-    """注文エンティティ（ビジネスルール）"""
+    """Order entity (business rules)"""
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str = ""
     items: list = field(default_factory=list)
@@ -1230,7 +1230,7 @@ class Order:
     transaction_id: Optional[str] = None
 
     def confirm(self, transaction_id: str) -> None:
-        """注文を確認する（ビジネスルール）"""
+        """Confirm the order (business rule)"""
         if self.status != OrderStatus.PENDING:
             raise ValueError(f"注文 {self.id} は確認できる状態ではありません")
         if self.total_amount <= 0:
@@ -1239,7 +1239,7 @@ class Order:
         self.transaction_id = transaction_id
 
     def cancel(self) -> None:
-        """注文をキャンセルする（ビジネスルール）"""
+        """Cancel the order (business rule)"""
         if self.status in (OrderStatus.SHIPPED, OrderStatus.DELIVERED):
             raise ValueError("出荷済み・配達済みの注文はキャンセルできません")
         self.status = OrderStatus.CANCELLED
@@ -1248,12 +1248,12 @@ class Order:
         return self.status in (OrderStatus.PENDING, OrderStatus.CONFIRMED)
 
 
-# === Use Cases（アプリケーションビジネスルール）===
+# === Use Cases (application business rules) ===
 from abc import ABC, abstractmethod
 
 
 class OrderRepository(ABC):
-    """出力ポート: 永続化"""
+    """Output port: persistence"""
     @abstractmethod
     async def save(self, order: Order) -> None: ...
 
@@ -1262,7 +1262,7 @@ class OrderRepository(ABC):
 
 
 class PaymentGateway(ABC):
-    """出力ポート: 決済"""
+    """Output port: payment"""
     @abstractmethod
     async def charge(self, amount: float, user_id: str) -> str: ...
 
@@ -1271,7 +1271,7 @@ class PaymentGateway(ABC):
 
 
 class NotificationSender(ABC):
-    """出力ポート: 通知"""
+    """Output port: notification"""
     @abstractmethod
     async def send_order_confirmation(self, order: Order) -> None: ...
 
@@ -1291,7 +1291,7 @@ class CreateOrderOutput:
 
 
 class CreateOrderUseCase:
-    """ユースケース: 注文作成"""
+    """Use case: create order"""
 
     def __init__(
         self,
@@ -1304,25 +1304,25 @@ class CreateOrderUseCase:
         self._notification = notification
 
     async def execute(self, input_data: CreateOrderInput) -> CreateOrderOutput:
-        # エンティティの作成（ビジネスルール適用）
+        # Create entity (apply business rules)
         order = Order(
             user_id=input_data.user_id,
             items=input_data.items,
             total_amount=input_data.total_amount,
         )
 
-        # 決済（出力ポート経由）
+        # Payment (via output port)
         transaction_id = await self._payment.charge(
             order.total_amount, order.user_id
         )
 
-        # ビジネスルール: 注文確認
+        # Business rule: confirm order
         order.confirm(transaction_id)
 
-        # 永続化（出力ポート経由）
+        # Persistence (via output port)
         await self._order_repo.save(order)
 
-        # 通知（出力ポート経由）
+        # Notification (via output port)
         await self._notification.send_order_confirmation(order)
 
         return CreateOrderOutput(
@@ -1332,7 +1332,7 @@ class CreateOrderUseCase:
         )
 
 
-# === Interface Adapters（アダプター層）===
+# === Interface Adapters (adapter layer) ===
 class PostgresOrderRepository(OrderRepository):
     def __init__(self, db_pool):
         self._pool = db_pool
@@ -1385,41 +1385,41 @@ class StripePaymentGateway(PaymentGateway):
 
 ---
 
-## 5. DIP のアンチパターン
+## 5. Anti-patterns of DIP
 
 ```
-1. サービスロケータ:
-   → グローバルなコンテナから直接取得
-   → 依存関係が暗黙的（コンストラクタを見ても分からない）
-   → テストが困難
+1. Service Locator:
+   → Directly retrieve from a global container
+   → Dependencies are implicit (cannot be seen from the constructor)
+   → Difficult to test
 
    ❌ const repo = ServiceLocator.get(UserRepository);
    ✅ constructor(private repo: UserRepository) {}
 
-2. 過剰な抽象化:
-   → 実装が1つしかないのにインターフェースを作る
-   → 「将来変わるかも」で不要な抽象化
-   → 実際に変更が必要になってから抽象化する
+2. Over-abstraction:
+   → Creating interfaces when there is only one implementation
+   → Unnecessary abstraction "in case it changes in the future"
+   → Abstract only when change actually becomes necessary
 
-3. 循環依存:
-   → A → B → C → A の依存ループ
-   → インターフェースの導入位置を見直す
+3. Circular dependency:
+   → Dependency loop A → B → C → A
+   → Reconsider where the interface is introduced
 
-4. コンテナへの依存:
-   → コンテナ自体を注入してしまう
+4. Dependency on the container:
+   → Injecting the container itself
    → ❌ constructor(private container: Container) {}
-   → 何でも取得できる = 依存が不明確
+   → "Anything can be obtained" = dependencies are unclear
 
-5. 抽象の漏れ:
-   → インターフェースが特定の実装に依存
+5. Leaky abstraction:
+   → Interface depends on a specific implementation
    → ❌ interface Database { mysqlQuery(...): ... }
    → ✅ interface Database { query(...): ... }
 ```
 
-### 5.1 サービスロケータのアンチパターン詳細
+### 5.1 Details of the Service Locator Anti-pattern
 
 ```typescript
-// ❌ サービスロケータパターン（アンチパターン）
+// ❌ Service Locator pattern (anti-pattern)
 class ServiceLocator {
   private static instances = new Map<string, any>();
 
@@ -1432,91 +1432,91 @@ class ServiceLocator {
   }
 }
 
-// 使う側: 依存が暗黙的
+// Consumer side: dependencies are implicit
 class OrderService {
   async createOrder(dto: CreateOrderDto): Promise<Order> {
-    // どこにも依存が宣言されていない
+    // Dependencies are declared nowhere
     const repo = ServiceLocator.get<OrderRepository>("orderRepo");
     const email = ServiceLocator.get<EmailService>("emailService");
     const logger = ServiceLocator.get<Logger>("logger");
 
-    // 問題点:
-    // 1. コンストラクタを見ても依存が分からない
-    // 2. テスト前に ServiceLocator のセットアップが必要
-    // 3. 依存の欠落がコンパイル時ではなく実行時に判明
-    // 4. 静的メソッドなのでモック困難
+    // Problems:
+    // 1. Cannot tell dependencies by looking at the constructor
+    // 2. ServiceLocator must be set up before testing
+    // 3. Missing dependencies are discovered at runtime, not compile time
+    // 4. Difficult to mock because they are static methods
   }
 }
 
-// ✅ コンストラクタ注入（推奨）
+// ✅ Constructor injection (recommended)
 class OrderService {
   constructor(
-    private readonly repo: OrderRepository,     // 依存が明示的
-    private readonly email: EmailService,        // 依存が明示的
-    private readonly logger: Logger,             // 依存が明示的
+    private readonly repo: OrderRepository,     // Explicit dependency
+    private readonly email: EmailService,        // Explicit dependency
+    private readonly logger: Logger,             // Explicit dependency
   ) {}
 
-  // メリット:
-  // 1. コンストラクタを見れば依存が一目瞭然
-  // 2. テスト時にモックを直接渡せる
-  // 3. 依存の欠落はコンパイル時に検出
-  // 4. 循環依存もコンパイル時に検出
+  // Benefits:
+  // 1. Dependencies are immediately obvious from the constructor
+  // 2. Mocks can be passed directly during testing
+  // 3. Missing dependencies are detected at compile time
+  // 4. Circular dependencies are also detected at compile time
 }
 ```
 
-### 5.2 過剰な抽象化の回避
+### 5.2 Avoiding Over-abstraction
 
 ```typescript
-// ❌ 過剰な抽象化: 実装が1つしかない
+// ❌ Over-abstraction: only one implementation
 interface IUserValidator {
   validate(user: User): ValidationResult;
 }
 
 class UserValidator implements IUserValidator {
   validate(user: User): ValidationResult {
-    // 唯一の実装
+    // The only implementation
   }
 }
 
-// 「I」プレフィックスのインターフェースが大量に...
+// Many interfaces with the "I" prefix...
 // interface IUserService → class UserService
 // interface IOrderService → class OrderService
 // interface IProductService → class ProductService
 
-// ✅ インターフェースが有益な場合:
-// 1. 外部サービスとの境界
+// ✅ When interfaces are beneficial:
+// 1. Boundaries with external services
 interface PaymentGateway {
   charge(amount: number): Promise<Result>;
 }
-// → StripeGateway, MockGateway の2つの実装がある
+// → Two implementations exist: StripeGateway, MockGateway
 
-// 2. テスト時のモックが必要
+// 2. Mocking needed for testing
 interface Clock {
   now(): Date;
 }
-// → SystemClock, FakeClock の2つの実装
+// → Two implementations: SystemClock, FakeClock
 
-// 3. 異なる永続化戦略
+// 3. Different persistence strategies
 interface CacheStore {
   get(key: string): Promise<string | null>;
   set(key: string, value: string, ttl: number): Promise<void>;
 }
 // → RedisStore, MemoryStore, DynamoDBStore
 
-// ✅ インターフェースが不要な場合:
-// 純粋な計算ロジック、ユーティリティ関数
+// ✅ When interfaces are not needed:
+// Pure computation logic, utility functions
 class TaxCalculator {
   calculate(amount: number, rate: number): number {
     return Math.floor(amount * rate);
   }
 }
-// → インターフェース不要。直接使って問題ない
+// → No interface needed. Using it directly is fine
 ```
 
-### 5.3 循環依存の解消
+### 5.3 Resolving Circular Dependencies
 
 ```typescript
-// ❌ 循環依存: A → B → C → A
+// ❌ Circular dependency: A → B → C → A
 class UserService {
   constructor(private orderService: OrderService) {} // UserService → OrderService
 }
@@ -1526,10 +1526,10 @@ class OrderService {
 }
 
 class PaymentService {
-  constructor(private userService: UserService) {} // PaymentService → UserService ← 循環!
+  constructor(private userService: UserService) {} // PaymentService → UserService ← cycle!
 }
 
-// ✅ 解決策1: インターフェースの導入
+// ✅ Solution 1: introduce an interface
 interface UserLookup {
   findById(id: string): Promise<User | null>;
 }
@@ -1540,11 +1540,11 @@ class UserService implements UserLookup {
 }
 
 class PaymentService {
-  // 具象クラスではなくインターフェースに依存
+  // Depend on an interface rather than a concrete class
   constructor(private userLookup: UserLookup) {}
 }
 
-// ✅ 解決策2: イベントによる疎結合
+// ✅ Solution 2: loose coupling through events
 interface EventBus {
   publish(event: DomainEvent): void;
   subscribe(eventType: string, handler: EventHandler): void;
@@ -1554,23 +1554,23 @@ class UserService {
   constructor(private eventBus: EventBus) {}
 
   async updateUser(userId: string, data: UpdateUserDto): Promise<void> {
-    // 直接 OrderService を呼ばず、イベントを発行
+    // Publish an event instead of calling OrderService directly
     this.eventBus.publish(new UserUpdatedEvent(userId, data));
   }
 }
 
 class OrderService {
   constructor(private eventBus: EventBus) {
-    // イベントを購読
+    // Subscribe to the event
     this.eventBus.subscribe("UserUpdated", this.handleUserUpdated.bind(this));
   }
 
   private async handleUserUpdated(event: UserUpdatedEvent): Promise<void> {
-    // ユーザー更新に伴う注文の処理
+    // Handle orders affected by the user update
   }
 }
 
-// ✅ 解決策3: メディエーターパターン
+// ✅ Solution 3: mediator pattern
 interface Mediator {
   send<T>(request: Request<T>): Promise<T>;
 }
@@ -1583,21 +1583,21 @@ class PaymentService {
   constructor(private mediator: Mediator) {}
 
   async processPayment(userId: string, amount: number): Promise<void> {
-    // 直接 UserService を呼ばず、メディエーター経由
+    // Go through the mediator instead of calling UserService directly
     const user = await this.mediator.send(new GetUserQuery(userId));
-    // 決済処理...
+    // Payment processing...
   }
 }
 ```
 
 ---
 
-## 6. テストとDIP
+## 6. Testing and DIP
 
 ```typescript
-// DIP が テスト容易性を飛躍的に向上させる例
+// Example of how DIP dramatically improves testability
 
-// === テスト対象 ===
+// === Target under test ===
 class NotificationService {
   constructor(
     private readonly emailSender: EmailSender,
@@ -1631,7 +1631,7 @@ class NotificationService {
   }
 }
 
-// === テスト: モックを注入 ===
+// === Test: inject mocks ===
 describe("NotificationService", () => {
   let service: NotificationService;
   let mockEmail: jest.Mocked<EmailSender>;
@@ -1652,7 +1652,7 @@ describe("NotificationService", () => {
     );
   });
 
-  it("メール通知のみ有効な場合、メールだけ送信する", async () => {
+  it("sends only email when only email notification is enabled", async () => {
     mockPrefs.getByUserId.mockResolvedValue({
       email: "test@example.com",
       emailEnabled: true,
@@ -1670,7 +1670,7 @@ describe("NotificationService", () => {
     expect(result.channels).toEqual(["email"]);
   });
 
-  it("全チャネルが有効な場合、全て送信する", async () => {
+  it("sends to all channels when all are enabled", async () => {
     mockPrefs.getByUserId.mockResolvedValue({
       email: "test@example.com",
       phone: "+81901234567",
@@ -1688,7 +1688,7 @@ describe("NotificationService", () => {
     expect(result.channels).toEqual(["email", "sms", "push"]);
   });
 
-  it("メール送信が失敗した場合、エラーが伝播する", async () => {
+  it("propagates the error when email sending fails", async () => {
     mockPrefs.getByUserId.mockResolvedValue({
       email: "test@example.com",
       emailEnabled: true,
@@ -1705,34 +1705,34 @@ describe("NotificationService", () => {
 
 ---
 
-## 7. DIPの適用判断基準
+## 7. Criteria for Applying DIP
 
 ```
-DIPを適用すべき場面:
-  ✓ 外部サービスとの境界（DB, API, メール, ファイルシステム）
-  ✓ テスト時にモックが必要な依存
-  ✓ 将来的に実装が変わる可能性がある部分
-  ✓ 複数の実装が存在する（本番, テスト, 開発）
-  ✓ ビジネスロジックとインフラの分離が重要
+Situations where DIP should be applied:
+  ✓ Boundaries with external services (DB, API, email, file system)
+  ✓ Dependencies that need to be mocked in tests
+  ✓ Parts where implementations may change in the future
+  ✓ Multiple implementations exist (production, test, development)
+  ✓ Separation of business logic and infrastructure is important
 
-DIPが不要な場面:
-  ✗ 純粋な計算ロジック（Math, 文字列操作）
-  ✗ 値オブジェクト（Money, Date, Address）
-  ✗ ユーティリティ関数
-  ✗ プロジェクトの規模が非常に小さい場合
-  ✗ プロトタイプ段階
+Situations where DIP is not necessary:
+  ✗ Pure computation logic (Math, string operations)
+  ✗ Value objects (Money, Date, Address)
+  ✗ Utility functions
+  ✗ When the project is very small
+  ✗ Prototype stage
 
-適用の段階的アプローチ:
-  1. 最初は直接依存で書く（YAGNI）
-  2. テストで困ったら → インターフェースを抽出
-  3. 実装の差し替えが必要になったら → DIを導入
-  4. 依存グラフが複雑になったら → IoCコンテナを検討
+Staged approach to adoption:
+  1. Start with direct dependencies (YAGNI)
+  2. Extract an interface when testing becomes painful
+  3. Introduce DI when implementation swaps become necessary
+  4. Consider an IoC container when the dependency graph becomes complex
 
-過剰適用の兆候:
-  → 実装が1つしかないインターフェースが大量にある
-  → コードを読むのにインターフェースと実装を行き来する
-  → 新機能追加のたびに3ファイル以上を修正する
-  → 「念のため」が理由のインターフェース
+Signs of over-application:
+  → Many interfaces with only one implementation
+  → Reading code requires jumping between interfaces and implementations
+  → More than three files must be modified for each new feature
+  → Interfaces created "just in case"
 ```
 
 ---
@@ -1740,62 +1740,62 @@ DIPが不要な場面:
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Accumulating practical experience is most important. Understanding deepens not just from theory but from actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What mistakes do beginners commonly make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the basics and jumping to applications. We recommend firmly grasping the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+The knowledge of this topic is frequently leveraged in daily development work. In particular, it becomes important during code reviews and architectural design.
 
 ---
 
-## まとめ
+## Summary
 
-| 概念 | ポイント |
+| Concept | Key Point |
 |------|---------|
-| DIP | 上位も下位も抽象に依存 |
-| DI | 依存を外部から注入 |
-| コンストラクタ注入 | 最も推奨される方法 |
-| IoC コンテナ | 依存解決の自動化 |
-| ヘキサゴナル | DIPの代表的アーキテクチャ |
-| クリーンアーキテクチャ | DIPで内向きの依存を実現 |
+| DIP | Both high-level and low-level depend on abstractions |
+| DI | Inject dependencies from outside |
+| Constructor injection | The most recommended method |
+| IoC container | Automates dependency resolution |
+| Hexagonal | Representative architecture of DIP |
+| Clean Architecture | Achieves inward dependencies via DIP |
 
 ```
-DIPの実践まとめ:
+Summary of DIP in practice:
 
-  1. 境界を見つける:
-     → ビジネスロジックとインフラの境界
-     → テスト可能にしたい境界
+  1. Find the boundary:
+     → Boundary between business logic and infrastructure
+     → Boundary you want to make testable
 
-  2. 抽象を定義する:
-     → インターフェース or 抽象クラス
-     → 上位モジュールの視点で設計
+  2. Define the abstraction:
+     → Interface or abstract class
+     → Design from the viewpoint of the high-level module
 
-  3. 依存を注入する:
-     → コンストラクタ注入を基本に
-     → IoCコンテナで自動解決
+  3. Inject the dependency:
+     → Constructor injection as the default
+     → Automate resolution with an IoC container
 
-  4. テストで検証:
-     → モックを注入して単体テスト
-     → 実装の差し替えが容易か確認
+  4. Verify with tests:
+     → Inject mocks for unit tests
+     → Confirm implementation swaps are easy
 
-  5. 過剰適用を避ける:
-     → 必要な場所にのみ適用
-     → YAGNI: 今必要でなければ後回し
+  5. Avoid over-application:
+     → Apply only where needed
+     → YAGNI: if not needed now, defer it
 ```
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
 ---
 
-## 参考文献
+## References
 1. Martin, R. "The Dependency Inversion Principle." 1996.
 2. Fowler, M. "Inversion of Control Containers and the Dependency Injection pattern." 2004.
 3. Martin, R. "Clean Architecture." Prentice Hall, 2017.
