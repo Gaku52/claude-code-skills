@@ -1,212 +1,214 @@
-# SOLID原則概要
+# SOLID Principles Overview
 
-> SOLID は Robert C. Martin（Uncle Bob）が提唱した、OOP設計の5つの基本原則。保守性・拡張性・テスト容易性の高いソフトウェアを作るための指針。
+> SOLID is a set of five fundamental OOP design principles advocated by Robert C. Martin (Uncle Bob). It serves as a guideline for creating software with high maintainability, extensibility, and testability.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] SOLID 5原則の全体像を把握する
-- [ ] なぜSOLIDが重要かを理解する
-- [ ] 各原則の適用判断基準を学ぶ
-- [ ] 各原則の実践的なコード例を多言語で確認する
-- [ ] SOLID違反の検出方法とリファクタリング手順を理解する
-- [ ] SOLIDと他の設計原則（GRASP、DRYなど）の関係を把握する
+- [ ] Grasp the overall picture of the five SOLID principles
+- [ ] Understand why SOLID is important
+- [ ] Learn the criteria for applying each principle
+- [ ] Review practical code examples of each principle in multiple languages
+- [ ] Understand how to detect SOLID violations and perform refactoring
+- [ ] Grasp the relationship between SOLID and other design principles (GRASP, DRY, etc.)
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Your understanding will be deeper if you have the following knowledge before reading this guide:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-
----
-
-## 1. SOLID の5原則
-
-```
-S — Single Responsibility Principle（単一責任の原則）
-    「クラスを変更する理由は1つだけであるべき」
-
-O — Open/Closed Principle（開放閉鎖の原則）
-    「拡張に対して開き、修正に対して閉じる」
-
-L — Liskov Substitution Principle（リスコフの置換原則）
-    「サブクラスは親クラスの代替として使えるべき」
-
-I — Interface Segregation Principle（インターフェース分離の原則）
-    「クライアントに不要なメソッドへの依存を強制しない」
-
-D — Dependency Inversion Principle（依存性逆転の原則）
-    「具象ではなく抽象に依存せよ」
-```
-
-### 1.1 SOLID の歴史的背景
-
-```
-SOLIDの成り立ち:
-
-1. 起源:
-   Robert C. Martin が2000年の論文 "Design Principles and Design Patterns" で
-   5原則を体系化。その後 Michael Feathers が "SOLID" という頭字語を提案。
-
-2. 影響を受けた先行研究:
-   - Bertrand Meyer の OCP（1988年 "Object-Oriented Software Construction"）
-   - Barbara Liskov の LSP（1987年 基調講演 "Data Abstraction and Hierarchy"）
-   - Erich Gamma 他 の GoF パターン（1994年 "Design Patterns"）
-
-3. 進化の過程:
-   2000年: 5原則の提唱
-   2003年: "Agile Software Development" で詳細解説
-   2017年: "Clean Architecture" で現代的な文脈で再解説
-   現在: マイクロサービス、関数型プログラミングとの融合
-
-4. なぜ今でも重要か:
-   - 25年以上経っても色褪せない普遍的原則
-   - フレームワーク（Spring, Angular, Rails）が SOLID を前提に設計
-   - クリーンアーキテクチャ、ヘキサゴナルアーキテクチャの基盤
-   - テスト駆動開発（TDD）との親和性が極めて高い
-```
-
-### 1.2 各原則の核心を一言で
-
-```
-各原則の覚え方（実務者向け）:
-
-S: 「このクラスを変更したい人は誰？ 1人だけか？」
-O: 「新しい種類を追加するとき、既存のif文を触るか？」
-L: 「親クラスの代わりに子クラスを渡しても壊れないか？」
-I: 「このインターフェースに、使わないメソッドが含まれていないか？」
-D: 「new キーワードで具象クラスを直接生成していないか？」
-
-→ 5つの問いを常に意識するだけで、設計品質が大幅に向上する
-```
+- Basic programming knowledge
+- Understanding of related fundamental concepts
 
 ---
 
-## 2. なぜSOLIDが重要か
+## 1. The Five SOLID Principles
 
 ```
-SOLIDなし:
+S — Single Responsibility Principle
+    "A class should have only one reason to change."
+
+O — Open/Closed Principle
+    "Open for extension, closed for modification."
+
+L — Liskov Substitution Principle
+    "Subclasses should be usable as substitutes for their parent class."
+
+I — Interface Segregation Principle
+    "Do not force clients to depend on methods they do not use."
+
+D — Dependency Inversion Principle
+    "Depend on abstractions, not on concretions."
+```
+
+### 1.1 Historical Background of SOLID
+
+```
+The origins of SOLID:
+
+1. Origin:
+   Robert C. Martin systematized the five principles in his 2000 paper
+   "Design Principles and Design Patterns." Michael Feathers later
+   proposed the acronym "SOLID."
+
+2. Influential prior research:
+   - Bertrand Meyer's OCP (1988 "Object-Oriented Software Construction")
+   - Barbara Liskov's LSP (1987 keynote "Data Abstraction and Hierarchy")
+   - GoF patterns by Erich Gamma et al. (1994 "Design Patterns")
+
+3. Evolution:
+   2000: The five principles proposed
+   2003: Detailed explanation in "Agile Software Development"
+   2017: Re-examined in a modern context in "Clean Architecture"
+   Present: Integration with microservices and functional programming
+
+4. Why it still matters today:
+   - Universal principles that remain relevant after 25+ years
+   - Frameworks (Spring, Angular, Rails) are designed with SOLID in mind
+   - Foundation of Clean Architecture and Hexagonal Architecture
+   - Extremely high affinity with Test-Driven Development (TDD)
+```
+
+### 1.2 The Essence of Each Principle in One Line
+
+```
+Mnemonics for each principle (for practitioners):
+
+S: "Who wants to change this class? Is it only one person?"
+O: "When adding a new kind, do I need to touch existing if statements?"
+L: "Can I pass a child class instead of the parent without breakage?"
+I: "Does this interface contain methods that are not used?"
+D: "Am I directly instantiating concrete classes with the new keyword?"
+
+→ Simply keeping these five questions in mind dramatically
+  improves design quality.
+```
+
+---
+
+## 2. Why SOLID Matters
+
+```
+Without SOLID:
   ┌────────────────────────────────────┐
-  │ UserService（全部入り）             │
-  │ - ユーザー登録                     │
-  │ - バリデーション                    │
-  │ - DB保存                          │
-  │ - メール送信                       │
-  │ - ログ出力                         │
-  │ - 権限チェック                     │
+  │ UserService (everything packed in) │
+  │ - User registration                │
+  │ - Validation                       │
+  │ - DB persistence                   │
+  │ - Email sending                    │
+  │ - Log output                       │
+  │ - Permission check                 │
   └────────────────────────────────────┘
-  問題:
-  → 1000行超の巨大クラス
-  → メール送信の変更がDB保存に影響する可能性
-  → テストが困難（全ての依存を用意する必要）
-  → チーム開発でコンフリクト多発
+  Problems:
+  → A huge class of over 1000 lines
+  → Changes to email sending may affect DB persistence
+  → Difficult to test (all dependencies must be prepared)
+  → Frequent conflicts in team development
 
-SOLIDあり:
+With SOLID:
   ┌──────────┐ ┌──────────┐ ┌──────────┐
   │ Validator│ │ UserRepo │ │ Mailer   │
   └──────────┘ └──────────┘ └──────────┘
   ┌──────────┐ ┌──────────┐
   │ Logger   │ │ AuthZ    │
   └──────────┘ └──────────┘
-       ↑ すべてインターフェースで接続
+       ↑ all connected through interfaces
   ┌──────────────────────────┐
   │ UserService              │
-  │ (オーケストレーションのみ)│
+  │ (orchestration only)     │
   └──────────────────────────┘
-  利点:
-  → 各クラスが小さく理解しやすい
-  → 変更の影響が局所的
-  → テストが容易（モック差し替え）
-  → チーム分担が明確
+  Benefits:
+  → Each class is small and easy to understand
+  → Changes have localized impact
+  → Easy to test (swap in mocks)
+  → Clear division of work within a team
 ```
 
-### 2.1 SOLIDがもたらす具体的なメトリクス改善
+### 2.1 Concrete Metric Improvements from SOLID
 
 ```
-コードメトリクスの変化（実プロジェクトの統計）:
+Code metric changes (statistics from real projects):
 
-SOLID適用前:
-  - 平均クラス行数: 500-800行
-  - 循環的複雑度: 15-30
-  - テストカバレッジ: 20-40%
-  - 平均変更影響範囲: 8-15ファイル
-  - バグ修正時間（平均）: 4-8時間
+Before applying SOLID:
+  - Average class size: 500-800 lines
+  - Cyclomatic complexity: 15-30
+  - Test coverage: 20-40%
+  - Average change impact scope: 8-15 files
+  - Average bug fix time: 4-8 hours
 
-SOLID適用後:
-  - 平均クラス行数: 50-150行
-  - 循環的複雑度: 3-8
-  - テストカバレッジ: 80-95%
-  - 平均変更影響範囲: 1-3ファイル
-  - バグ修正時間（平均）: 30分-2時間
+After applying SOLID:
+  - Average class size: 50-150 lines
+  - Cyclomatic complexity: 3-8
+  - Test coverage: 80-95%
+  - Average change impact scope: 1-3 files
+  - Average bug fix time: 30 minutes to 2 hours
 
-効果が特に顕著な領域:
-  1. 新機能追加速度: 2-3倍高速化
-  2. リグレッション発生率: 60-80%減少
-  3. オンボーディング時間: 50%短縮
-  4. コードレビュー時間: 40%短縮
+Areas where effects are especially pronounced:
+  1. New feature addition speed: 2-3x faster
+  2. Regression occurrence rate: 60-80% reduction
+  3. Onboarding time: 50% reduction
+  4. Code review time: 40% reduction
 ```
 
-### 2.2 SOLID違反の兆候（コードスメル）
+### 2.2 Signs of SOLID Violations (Code Smells)
 
 ```typescript
-// SOLID違反を示す典型的なコードスメル
+// Typical code smells indicating SOLID violations
 
-// 1. 巨大クラス（God Object） → SRP違反
+// 1. God Object → SRP violation
 class ApplicationManager {
-  // 500行以上のメソッドが複数...
+  // Multiple methods exceeding 500 lines...
   handleUserRegistration() { /* ... */ }
   processPayment() { /* ... */ }
   generateReport() { /* ... */ }
   sendNotification() { /* ... */ }
   manageInventory() { /* ... */ }
-  // → 変更理由が5つ以上
+  // → Five or more reasons to change
 }
 
-// 2. switch/if-else の連鎖 → OCP違反
+// 2. Chains of switch/if-else → OCP violation
 function processShape(shape: any): string {
   switch (shape.type) {
     case "circle": return `Circle: ${Math.PI * shape.r ** 2}`;
     case "rect": return `Rect: ${shape.w * shape.h}`;
     case "triangle": return `Triangle: ${0.5 * shape.b * shape.h}`;
-    // 新しい図形を追加するたびにここを修正...
+    // Must be modified every time a new shape is added...
     default: throw new Error("Unknown shape");
   }
 }
 
-// 3. instanceof チェック → LSP違反の疑い
+// 3. instanceof checks → likely LSP violation
 function fly(bird: Bird): void {
   if (bird instanceof Penguin) {
     throw new Error("Penguins can't fly!");
-    // → Penguin は Bird の契約を満たしていない
+    // → Penguin does not satisfy the contract of Bird
   }
   bird.fly();
 }
 
-// 4. 空実装メソッド → ISP違反
+// 4. Empty implementation methods → ISP violation
 class RobotWorker implements Worker {
-  work(): void { /* 実装あり */ }
-  eat(): void { /* 空実装 - ロボットは食べない */ }
-  sleep(): void { /* 空実装 - ロボットは寝ない */ }
+  work(): void { /* has implementation */ }
+  eat(): void { /* empty - robots don't eat */ }
+  sleep(): void { /* empty - robots don't sleep */ }
 }
 
-// 5. new による具象クラスの直接生成 → DIP違反
+// 5. Direct instantiation of concrete classes with new → DIP violation
 class OrderService {
   private repository = new MySQLOrderRepository();
   private mailer = new SmtpMailer();
   private logger = new FileLogger();
-  // → テスト時にモック差し替えが不可能
+  // → Impossible to swap in mocks during testing
 }
 ```
 
-### 2.3 SOLID適用のビフォー・アフター（TypeScript完全例）
+### 2.3 Before-and-After of Applying SOLID (Full TypeScript Example)
 
 ```typescript
-// ===== BEFORE: SOLID違反だらけのECサイト注文処理 =====
+// ===== BEFORE: E-commerce order processing riddled with SOLID violations =====
 
 class OrderProcessor {
   processOrder(order: any): void {
-    // バリデーション（SRP違反: バリデーションロジックが混在）
+    // Validation (SRP violation: validation logic is mixed in)
     if (!order.items || order.items.length === 0) {
       throw new Error("No items");
     }
@@ -214,13 +216,13 @@ class OrderProcessor {
       throw new Error("No payment method");
     }
 
-    // 合計計算
+    // Total calculation
     let total = 0;
     for (const item of order.items) {
       total += item.price * item.quantity;
     }
 
-    // 割引適用（OCP違反: 新しい割引タイプの追加でここを修正）
+    // Discount application (OCP violation: adding a new discount type requires modifying here)
     if (order.discountType === "percentage") {
       total *= (1 - order.discountValue / 100);
     } else if (order.discountType === "fixed") {
@@ -231,9 +233,9 @@ class OrderProcessor {
       total -= cheapest;
     }
 
-    // 支払い処理（OCP違反: 新しい支払い方法で修正）
+    // Payment processing (OCP violation: requires modification for new payment methods)
     if (order.paymentMethod === "credit") {
-      // Stripe API呼び出し
+      // Stripe API call
       console.log(`Charging credit card: $${total}`);
     } else if (order.paymentMethod === "paypal") {
       console.log(`PayPal payment: $${total}`);
@@ -241,15 +243,15 @@ class OrderProcessor {
       console.log(`Bank transfer: $${total}`);
     }
 
-    // DB保存（DIP違反: 具象に直接依存）
+    // DB persistence (DIP violation: directly depends on a concrete class)
     const mysql = new MySQLConnection();
     mysql.query(`INSERT INTO orders VALUES (${total})`);
 
-    // メール送信
+    // Email sending
     const smtp = new SmtpClient();
     smtp.send(order.email, "Order Confirmation", `Total: $${total}`);
 
-    // ログ
+    // Logging
     const fs = require("fs");
     fs.appendFileSync("orders.log", `Order processed: $${total}\n`);
   }
@@ -257,9 +259,9 @@ class OrderProcessor {
 ```
 
 ```typescript
-// ===== AFTER: SOLID原則を適用したリファクタリング =====
+// ===== AFTER: Refactored with SOLID principles applied =====
 
-// --- S: 単一責任 - 各クラスが1つの責任のみ ---
+// --- S: Single Responsibility - each class has only one responsibility ---
 
 interface OrderItem {
   name: string;
@@ -274,7 +276,7 @@ interface Order {
   discountCode?: string;
 }
 
-// バリデーション責任
+// Validation responsibility
 class OrderValidator {
   validate(order: Order): void {
     if (!order.items || order.items.length === 0) {
@@ -287,14 +289,14 @@ class OrderValidator {
   }
 }
 
-// 合計計算責任
+// Total calculation responsibility
 class OrderCalculator {
   calculateSubtotal(items: OrderItem[]): number {
     return items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   }
 }
 
-// --- O: 開放閉鎖 - 割引と支払いを拡張可能に ---
+// --- O: Open/Closed - make discounts and payments extensible ---
 
 interface DiscountStrategy {
   apply(total: number, order: Order): number;
@@ -320,9 +322,9 @@ class BuyOneGetOneFreeDiscount implements DiscountStrategy {
     return total - cheapest;
   }
 }
-// 新しい割引タイプ → クラスを追加するだけ。既存コード変更不要
+// New discount type → just add a class. No changes to existing code required.
 
-// --- D: 依存性逆転 - 抽象に依存 ---
+// --- D: Dependency Inversion - depend on abstractions ---
 
 interface PaymentGateway {
   charge(amount: number, orderId: string): Promise<PaymentResult>;
@@ -341,17 +343,17 @@ interface Logger {
   error(message: string, error: Error): void;
 }
 
-// 具象実装（交換可能）
+// Concrete implementations (interchangeable)
 class StripePaymentGateway implements PaymentGateway {
   async charge(amount: number, orderId: string): Promise<PaymentResult> {
-    // Stripe API 呼び出し
+    // Stripe API call
     return { success: true, transactionId: `stripe_${orderId}` };
   }
 }
 
 class PostgresOrderRepository implements OrderRepository {
   async save(order: Order, total: number): Promise<void> {
-    // PostgreSQL に保存
+    // Save to PostgreSQL
   }
 }
 
@@ -359,11 +361,11 @@ class EmailNotificationService implements NotificationService {
   async notifyOrderConfirmation(
     email: string, order: Order, total: number
   ): Promise<void> {
-    // SMTP 送信
+    // Send via SMTP
   }
 }
 
-// --- オーケストレーター（薄い調整役） ---
+// --- Orchestrator (thin coordinator) ---
 
 class OrderProcessor {
   constructor(
@@ -398,151 +400,154 @@ class OrderProcessor {
 
 ---
 
-## 3. 5原則の関係
+## 3. Relationships Among the Five Principles
 
 ```
-SOLIDの関係性:
+Interrelationships within SOLID:
 
-  SRP（単一責任）: クラスを小さく保つ
-    ↓ 小さいクラスが増える
-  ISP（インターフェース分離）: 細かいインターフェースで接続
-    ↓ インターフェースに依存
-  DIP（依存性逆転）: 具象ではなく抽象に依存
-    ↓ 抽象を通じて拡張
-  OCP（開放閉鎖）: 既存コードを変更せずに拡張
-    ↓ 拡張時に互換性を維持
-  LSP（リスコフ置換）: サブタイプが正しく代替可能
+  SRP (Single Responsibility): keep classes small
+    ↓ number of small classes grows
+  ISP (Interface Segregation): connect via fine-grained interfaces
+    ↓ depend on interfaces
+  DIP (Dependency Inversion): depend on abstractions, not concretions
+    ↓ extend through abstractions
+  OCP (Open/Closed): extend without modifying existing code
+    ↓ maintain compatibility during extension
+  LSP (Liskov Substitution): subtypes can correctly substitute for base types
 
-  → 5原則は相互に補完しあう
-  → 1つだけ適用しても効果は限定的
-  → 5つ全てを意識して設計する
+  → The five principles complement each other
+  → Applying only one has limited effect
+  → Design with all five in mind
 ```
 
-### 3.1 原則間の相互作用を図解
+### 3.1 Diagram of Interactions Among Principles
 
 ```
-詳細な関係マップ:
+Detailed relationship map:
 
   ┌─────────────────────────────────────────────────────────┐
-  │                   SOLID 相互関係図                      │
+  │              SOLID Interrelationship Diagram            │
   ├─────────────────────────────────────────────────────────┤
   │                                                         │
   │  SRP ─────→ ISP                                         │
-  │  │ 「責任を分離」  「インターフェースも分離」             │
+  │  │ "Separate   "Separate interfaces                     │
+  │  │ responsibilities"       too"                         │
   │  │         ↘                                            │
   │  │          DIP                                         │
-  │  │     「抽象に依存」                                    │
-  │  │         ↙  ↘                                        │
+  │  │     "Depend on abstractions"                         │
+  │  │         ↙  ↘                                         │
   │  │       OCP   LSP                                      │
-  │  │  「拡張可能」 「代替可能」                              │
+  │  │  "Extensible" "Substitutable"                        │
   │  │                                                      │
-  │  └──→ SRP が基盤: クラスが小さくなければ                 │
-  │       他の原則を適用する意味がない                       │
+  │  └──→ SRP is the foundation: if classes are not small,  │
+  │       applying the other principles is meaningless      │
   └─────────────────────────────────────────────────────────┘
 
-具体例で理解する相互作用:
+Understanding interactions through concrete examples:
 
-  1. SRP → ISP の連鎖:
-     巨大な UserService を分割（SRP）
-     → 各サービスに必要なインターフェースだけ注入（ISP）
+  1. Chain from SRP → ISP:
+     Split a massive UserService (SRP)
+     → Inject only the interfaces each service needs (ISP)
 
-  2. ISP → DIP の連鎖:
-     細かいインターフェースを定義（ISP）
-     → 上位モジュールはインターフェースに依存（DIP）
+  2. Chain from ISP → DIP:
+     Define fine-grained interfaces (ISP)
+     → Upper modules depend on interfaces (DIP)
 
-  3. DIP → OCP の連鎖:
-     インターフェースに依存（DIP）
-     → 新しい実装クラスを追加しても既存コード変更不要（OCP）
+  3. Chain from DIP → OCP:
+     Depend on interfaces (DIP)
+     → Adding new implementation classes requires no changes
+       to existing code (OCP)
 
-  4. OCP → LSP の連鎖:
-     新しいサブタイプを追加（OCP）
-     → そのサブタイプは既存のコードで正しく動作する必要がある（LSP）
+  4. Chain from OCP → LSP:
+     Add a new subtype (OCP)
+     → That subtype must work correctly with existing code (LSP)
 ```
 
-### 3.2 5原則の優先順位
+### 3.2 Priority Order of the Five Principles
 
 ```
-実務での適用優先順位:
+Priority order in practice:
 
-  第1優先: SRP（単一責任）
-    → まずクラスを小さくする。これが全ての基盤
-    → 適用コスト: 低  効果: 高
+  Priority 1: SRP (Single Responsibility)
+    → First, keep classes small. This is the foundation for everything.
+    → Application cost: low  Effect: high
 
-  第2優先: DIP（依存性逆転）
-    → テスト容易性に直結。コンストラクタインジェクションから始める
-    → 適用コスト: 中  効果: 高
+  Priority 2: DIP (Dependency Inversion)
+    → Directly tied to testability. Start with constructor injection.
+    → Application cost: medium  Effect: high
 
-  第3優先: OCP（開放閉鎖）
-    → 変更頻度の高い箇所にインターフェースを導入
-    → 適用コスト: 中  効果: 中〜高
+  Priority 3: OCP (Open/Closed)
+    → Introduce interfaces where change frequency is high.
+    → Application cost: medium  Effect: medium to high
 
-  第4優先: ISP（インターフェース分離）
-    → インターフェースが肥大化してきたら分割
-    → 適用コスト: 低  効果: 中
+  Priority 4: ISP (Interface Segregation)
+    → Split interfaces when they grow too large.
+    → Application cost: low  Effect: medium
 
-  第5優先: LSP（リスコフ置換）
-    → 継承を使う場面で意識する。違反はバグに直結
-    → 適用コスト: 低  効果: 中（ただし違反時の影響は甚大）
+  Priority 5: LSP (Liskov Substitution)
+    → Be mindful when using inheritance. Violations lead directly to bugs.
+    → Application cost: low  Effect: medium
+      (though violations have enormous impact)
 
-  注意:
-    → これは「適用開始」の優先順位
-    → 全原則を最終的に守ることが理想
-    → LSP違反は見つけにくいが影響が大きい
+  Note:
+    → This is the priority of where to "start applying"
+    → Ideally all principles should eventually be upheld
+    → LSP violations are hard to find but have large impact
 ```
 
 ---
 
-## 4. 各原則の概要と例
+## 4. Overview and Examples of Each Principle
 
-### 4.1 S: 単一責任の原則（SRP）
+### 4.1 S: Single Responsibility Principle (SRP)
 
 ```typescript
-// === S: 単一責任 ===
-// ❌ 複数の責任
+// === S: Single Responsibility ===
+// ❌ Multiple responsibilities
 class User {
-  save() { /* DB保存 */ }
-  sendEmail() { /* メール送信 */ }
-  generateReport() { /* レポート生成 */ }
+  save() { /* DB persistence */ }
+  sendEmail() { /* email sending */ }
+  generateReport() { /* report generation */ }
 }
 
-// ✅ 単一の責任
-class User { /* ユーザーデータのみ */ }
+// ✅ Single responsibility
+class User { /* user data only */ }
 class UserRepository { save(user: User) { } }
 class EmailService { send(to: string, body: string) { } }
 class ReportGenerator { generate(user: User) { } }
 ```
 
 ```python
-# Python: SRP の実践例
+# Python: Practical SRP example
 
-# ❌ SRP違反: レポート生成クラスが複数の責任を持つ
+# ❌ SRP violation: report generation class holds multiple responsibilities
 class ReportManager:
     def fetch_data(self) -> list:
-        """DBからデータ取得"""
+        """Fetch data from DB"""
         connection = psycopg2.connect("dbname=mydb")
         cursor = connection.cursor()
         cursor.execute("SELECT * FROM sales")
         return cursor.fetchall()
 
     def calculate_statistics(self, data: list) -> dict:
-        """統計計算"""
+        """Calculate statistics"""
         total = sum(row[1] for row in data)
         average = total / len(data)
         return {"total": total, "average": average}
 
     def format_as_html(self, stats: dict) -> str:
-        """HTML形式にフォーマット"""
+        """Format as HTML"""
         return f"<h1>Report</h1><p>Total: {stats['total']}</p>"
 
     def send_email(self, html: str, recipient: str) -> None:
-        """メール送信"""
+        """Send email"""
         import smtplib
         server = smtplib.SMTP("localhost")
         server.sendmail("noreply@example.com", recipient, html)
 
-# ✅ SRP適用: 各クラスが1つの責任
+# ✅ Applying SRP: each class has a single responsibility
 class SalesDataFetcher:
-    """データ取得のみ"""
+    """Data retrieval only"""
     def __init__(self, connection_string: str):
         self._conn_str = connection_string
 
@@ -554,7 +559,7 @@ class SalesDataFetcher:
 
 
 class StatisticsCalculator:
-    """統計計算のみ"""
+    """Statistics calculation only"""
     def calculate(self, data: list[dict]) -> dict:
         amounts = [d["amount"] for d in data]
         return {
@@ -566,13 +571,13 @@ class StatisticsCalculator:
 
 
 class HtmlReportFormatter:
-    """HTMLフォーマットのみ"""
+    """HTML formatting only"""
     def format(self, stats: dict) -> str:
         return f"<h1>Sales Report</h1><p>Total: {stats['total']}</p>"
 
 
 class EmailSender:
-    """メール送信のみ"""
+    """Email sending only"""
     def __init__(self, smtp_host: str):
         self._host = smtp_host
 
@@ -582,7 +587,7 @@ class EmailSender:
 
 
 class SalesReportUseCase:
-    """オーケストレーション（薄い調整役）"""
+    """Orchestration (thin coordinator)"""
     def __init__(
         self,
         fetcher: SalesDataFetcher,
@@ -603,37 +608,37 @@ class SalesReportUseCase:
 ```
 
 ```java
-// Java: SRP の実践例
+// Java: Practical SRP example
 
-// ❌ SRP違反
+// ❌ SRP violation
 public class Employee {
     private String name;
     private double salary;
 
-    // 責任1: 給与計算（経理部門が管理）
+    // Responsibility 1: payroll calculation (managed by accounting)
     public double calculatePay() {
         return salary * getOvertimeRate();
     }
 
-    // 責任2: 労働時間レポート（人事部門が管理）
+    // Responsibility 2: working hours report (managed by HR)
     public String reportHours() {
         return String.format("%s: %d hours", name, getHoursWorked());
     }
 
-    // 責任3: DB永続化（技術部門が管理）
+    // Responsibility 3: DB persistence (managed by engineering)
     public void save() {
         String sql = "UPDATE employees SET salary = ? WHERE name = ?";
-        // JDBC処理...
+        // JDBC processing...
     }
 
-    // 共通メソッド（危険: 経理の変更が人事に影響する可能性）
+    // Shared method (risk: changes from accounting may affect HR)
     private int getHoursWorked() {
-        // 経理と人事で「労働時間」の定義が異なる可能性
+        // Definition of "working hours" may differ between accounting and HR
         return 160;
     }
 }
 
-// ✅ SRP適用
+// ✅ Applying SRP
 public record Employee(String id, String name, double salary) {}
 
 public class PayCalculator {
@@ -650,38 +655,38 @@ public class HoursReporter {
 
 public class EmployeeRepository {
     public void save(Employee employee) {
-        // JPA/Hibernate で永続化
+        // Persist via JPA/Hibernate
     }
 }
 ```
 
-### 4.2 O: 開放閉鎖の原則（OCP）
+### 4.2 O: Open/Closed Principle (OCP)
 
 ```typescript
-// === O: 開放閉鎖 ===
-// ❌ 新しい形状を追加するたびに修正が必要
+// === O: Open/Closed ===
+// ❌ Requires modification each time a new shape is added
 function calculateArea(shape: any): number {
   if (shape.type === "circle") return Math.PI * shape.radius ** 2;
   if (shape.type === "rectangle") return shape.width * shape.height;
-  // 新しい形状を追加するたびにここを修正...
+  // Must be modified every time a new shape is added...
 }
 
-// ✅ 新しい形状はクラスを追加するだけ
+// ✅ Adding a new shape only requires adding a class
 interface Shape { area(): number; }
 class Circle implements Shape { area() { return Math.PI * this.radius ** 2; } }
 class Rectangle implements Shape { area() { return this.width * this.height; } }
-// Triangle を追加しても既存コードは変更不要
+// Adding Triangle requires no changes to existing code
 ```
 
 ```python
-# Python: OCP の実践例 - ファイルエクスポーター
+# Python: Practical OCP example - file exporter
 
 from abc import ABC, abstractmethod
 import json
 import csv
 import io
 
-# ❌ OCP違反: 新しいフォーマットを追加するたびに修正
+# ❌ OCP violation: must be modified every time a new format is added
 class DataExporter:
     def export(self, data: list[dict], format_type: str) -> str:
         if format_type == "json":
@@ -693,13 +698,13 @@ class DataExporter:
             writer.writerows(data)
             return output.getvalue()
         elif format_type == "xml":
-            # XML対応を追加するたびにこのクラスを修正...
+            # Must modify this class every time XML support is added...
             pass
         else:
             raise ValueError(f"Unknown format: {format_type}")
 
 
-# ✅ OCP適用: 新しいフォーマットはクラスを追加するだけ
+# ✅ Applying OCP: new formats only require adding a class
 class ExportFormatter(ABC):
     @abstractmethod
     def format(self, data: list[dict]) -> str:
@@ -741,7 +746,7 @@ class CsvFormatter(ExportFormatter):
 
 
 class XmlFormatter(ExportFormatter):
-    """新規追加 - 既存コードの修正は一切不要"""
+    """Newly added - no modification required to existing code"""
     def format(self, data: list[dict]) -> str:
         lines = ['<?xml version="1.0" encoding="UTF-8"?>', "<records>"]
         for record in data:
@@ -760,7 +765,7 @@ class XmlFormatter(ExportFormatter):
 
 
 class DataExportService:
-    """このクラスは新しいフォーマットが追加されても変更不要"""
+    """This class requires no changes when new formats are added"""
     def __init__(self, formatter: ExportFormatter):
         self._formatter = formatter
 
@@ -775,22 +780,22 @@ class DataExportService:
 ```
 
 ```java
-// Java: OCP の実践例 - 税金計算
+// Java: Practical OCP example - tax calculation
 
-// ❌ OCP違反
+// ❌ OCP violation
 public class TaxCalculator {
     public double calculate(String country, double amount) {
         switch (country) {
-            case "JP": return amount * 0.10;  // 日本の消費税
-            case "US": return amount * 0.07;  // アメリカの消費税
-            case "UK": return amount * 0.20;  // イギリスのVAT
-            // 新しい国を追加するたびにここを修正...
+            case "JP": return amount * 0.10;  // Japan consumption tax
+            case "US": return amount * 0.07;  // US sales tax
+            case "UK": return amount * 0.20;  // UK VAT
+            // Must be modified every time a new country is added...
             default: throw new IllegalArgumentException("Unknown country");
         }
     }
 }
 
-// ✅ OCP適用
+// ✅ Applying OCP
 public interface TaxPolicy {
     double calculateTax(double amount);
     String countryCode();
@@ -798,7 +803,7 @@ public interface TaxPolicy {
 
 public class JapaneseTax implements TaxPolicy {
     @Override public double calculateTax(double amount) {
-        return amount * 0.10;  // 消費税10%
+        return amount * 0.10;  // 10% consumption tax
     }
     @Override public String countryCode() { return "JP"; }
 }
@@ -817,7 +822,7 @@ public class UnitedKingdomTax implements TaxPolicy {
     @Override public String countryCode() { return "UK"; }
 }
 
-// Registry パターンで動的に管理
+// Manage dynamically with the Registry pattern
 public class TaxCalculator {
     private final Map<String, TaxPolicy> policies = new HashMap<>();
 
@@ -834,35 +839,35 @@ public class TaxCalculator {
     }
 }
 
-// 使用例: 新しい国はクラスを追加してregisterするだけ
-// TaxCalculator クラスは一切修正不要
+// Usage: for a new country, just add a class and register it
+// The TaxCalculator class requires no modification at all
 ```
 
-### 4.3 L: リスコフの置換原則（LSP）
+### 4.3 L: Liskov Substitution Principle (LSP)
 
 ```typescript
-// === L: リスコフ置換 ===
-// ❌ 正方形は長方形の代替として使えない
+// === L: Liskov Substitution ===
+// ❌ Square cannot be used as a substitute for Rectangle
 class Rectangle {
   setWidth(w: number) { this.width = w; }
   setHeight(h: number) { this.height = h; }
 }
 class Square extends Rectangle {
-  setWidth(w: number) { this.width = w; this.height = w; } // 親と異なる振る舞い!
+  setWidth(w: number) { this.width = w; this.height = w; } // Different behavior from parent!
 }
 
-// ✅ 共通インターフェースで抽象化
+// ✅ Abstract via a common interface
 interface Shape { area(): number; }
 class Rectangle implements Shape { /* ... */ }
 class Square implements Shape { /* ... */ }
 ```
 
 ```python
-# Python: LSP の詳細例
+# Python: Detailed LSP example
 
 from abc import ABC, abstractmethod
 
-# ❌ LSP違反: ReadOnlyFile が File の代替として使えない
+# ❌ LSP violation: ReadOnlyFile cannot substitute for File
 class File:
     def __init__(self, path: str):
         self.path = path
@@ -878,11 +883,11 @@ class File:
 class ReadOnlyFile(File):
     def write(self, content: str) -> None:
         raise PermissionError("Cannot write to read-only file")
-        # → 親クラスの契約「write は書き込む」を破っている
-        # → File を期待するコードに ReadOnlyFile を渡すとクラッシュ
+        # → Breaks the parent's contract that "write writes content"
+        # → Passing ReadOnlyFile where File is expected causes a crash
 
 
-# ✅ LSP適用: 読み取りと書き込みを分離
+# ✅ Applying LSP: separate reading and writing
 class Readable(ABC):
     @abstractmethod
     def read(self) -> str: ...
@@ -911,14 +916,14 @@ class ReadWriteFile(Readable, Writable):
         with open(self._path, "w") as f:
             f.write(content)
 
-# これで Readable を期待するコードに両方渡せる
-# Writable を期待するコードには ReadWriteFile のみ渡せる
+# Now both can be passed to code expecting Readable
+# Only ReadWriteFile can be passed where Writable is expected
 ```
 
 ```java
-// Java: LSP の実践例 - コレクション
+// Java: Practical LSP example - collections
 
-// ❌ LSP違反の典型例
+// ❌ Typical LSP violation
 public class FixedSizeList<E> extends ArrayList<E> {
     private final int maxSize;
 
@@ -930,15 +935,15 @@ public class FixedSizeList<E> extends ArrayList<E> {
     public boolean add(E element) {
         if (size() >= maxSize) {
             throw new IllegalStateException("List is full");
-            // → ArrayList の契約「add は常に要素を追加する」に違反
+            // → Violates ArrayList's contract that "add always appends an element"
         }
         return super.add(element);
     }
 }
 
-// ✅ LSP適用: 別のインターフェースで設計
+// ✅ Applying LSP: design with a separate interface
 public interface BoundedCollection<E> {
-    boolean add(E element);  // 契約: 容量があれば追加、なければ false
+    boolean add(E element);  // Contract: add if there is capacity, otherwise return false
     boolean isFull();
     int capacity();
     int size();
@@ -952,7 +957,7 @@ public class BoundedList<E> implements BoundedCollection<E> {
 
     @Override
     public boolean add(E element) {
-        if (isFull()) return false;  // 例外ではなく false を返す
+        if (isFull()) return false;  // Return false instead of throwing
         return items.add(element);
     }
 
@@ -962,28 +967,28 @@ public class BoundedList<E> implements BoundedCollection<E> {
 }
 ```
 
-### 4.4 I: インターフェース分離の原則（ISP）
+### 4.4 I: Interface Segregation Principle (ISP)
 
 ```typescript
-// === I: インターフェース分離 ===
-// ❌ 巨大インターフェース
+// === I: Interface Segregation ===
+// ❌ A huge interface
 interface Worker {
   work(): void;
   eat(): void;
   sleep(): void;
 }
-// ロボットは eat() と sleep() が不要!
+// Robots do not need eat() or sleep()!
 
-// ✅ 細かいインターフェースに分離
+// ✅ Split into fine-grained interfaces
 interface Workable { work(): void; }
 interface Eatable { eat(): void; }
 interface Sleepable { sleep(): void; }
 ```
 
 ```typescript
-// TypeScript: ISP の実践例 - プリンター
+// TypeScript: Practical ISP example - printers
 
-// ❌ ISP違反: 巨大なマルチ機能インターフェース
+// ❌ ISP violation: a bloated multi-function interface
 interface MultiFunctionDevice {
   print(doc: Document): void;
   scan(doc: Document): Image;
@@ -992,16 +997,16 @@ interface MultiFunctionDevice {
   copy(doc: Document): Document;
 }
 
-// シンプルなプリンターも全メソッドを実装する必要がある
+// A simple printer is forced to implement every method
 class SimplePrinter implements MultiFunctionDevice {
-  print(doc: Document): void { /* 実装あり */ }
+  print(doc: Document): void { /* has implementation */ }
   scan(doc: Document): Image { throw new Error("Not supported"); }
   fax(doc: Document): void { throw new Error("Not supported"); }
   staple(doc: Document): void { throw new Error("Not supported"); }
   copy(doc: Document): Document { throw new Error("Not supported"); }
 }
 
-// ✅ ISP適用: 機能ごとにインターフェースを分離
+// ✅ Applying ISP: separate interfaces per capability
 interface Printer {
   print(doc: Document): void;
 }
@@ -1018,14 +1023,14 @@ interface Stapler {
   staple(doc: Document): void;
 }
 
-// シンプルなプリンター: 必要な機能だけ実装
+// Simple printer: implements only what it needs
 class BasicPrinter implements Printer {
   print(doc: Document): void {
     console.log("Printing document...");
   }
 }
 
-// 高機能複合機: 複数のインターフェースを実装
+// Multi-function office printer: implements multiple interfaces
 class OfficePrinter implements Printer, Scanner, Faxer, Stapler {
   print(doc: Document): void { /* ... */ }
   scan(doc: Document): Image { /* ... */ }
@@ -1033,21 +1038,21 @@ class OfficePrinter implements Printer, Scanner, Faxer, Stapler {
   staple(doc: Document): void { /* ... */ }
 }
 
-// クライアントは必要な機能だけに依存
+// Clients depend only on the capabilities they need
 function printReport(printer: Printer): void {
-  // Printer インターフェースだけに依存
-  // Scanner や Faxer の知識は不要
+  // Depends only on the Printer interface
+  // No knowledge of Scanner or Faxer is required
   printer.print(report);
 }
 ```
 
 ```python
-# Python: ISP の実践例 - 認証プロバイダ
+# Python: Practical ISP example - authentication providers
 
 from abc import ABC, abstractmethod
 from typing import Protocol
 
-# ❌ ISP違反: 全プロバイダに不要なメソッドを強制
+# ❌ ISP violation: forces every provider to implement methods they don't need
 class AuthProvider(ABC):
     @abstractmethod
     def authenticate(self, username: str, password: str) -> bool: ...
@@ -1071,7 +1076,7 @@ class AuthProvider(ABC):
     def verify_mfa_code(self, user_id: str, code: str) -> bool: ...
 
 
-# ✅ ISP適用: 関心事ごとにプロトコルを分離
+# ✅ Applying ISP: split protocols by concern
 class Authenticator(Protocol):
     def authenticate(self, username: str, password: str) -> bool: ...
 
@@ -1090,17 +1095,17 @@ class MfaProvider(Protocol):
     def verify_mfa_code(self, user_id: str, code: str) -> bool: ...
 
 
-# 基本認証: MFAもトークン管理も不要
+# Basic authentication: no MFA or token management required
 class BasicAuthProvider:
     def authenticate(self, username: str, password: str) -> bool:
-        # パスワード検証のみ
+        # Password verification only
         return check_password(username, password)
 
     def authorize(self, user_id: str, resource: str) -> bool:
         return check_permission(user_id, resource)
 
 
-# OAuth: MFAは不要だがトークン管理は必要
+# OAuth: no MFA needed, but token management is required
 class OAuthProvider:
     def authenticate(self, username: str, password: str) -> bool: ...
     def authorize(self, user_id: str, resource: str) -> bool: ...
@@ -1109,7 +1114,7 @@ class OAuthProvider:
     def get_user_info(self, token: str) -> dict: ...
 
 
-# クライアントは必要なプロトコルだけに依存
+# Clients depend only on the protocols they need
 def login(auth: Authenticator, username: str, password: str) -> bool:
     return auth.authenticate(username, password)
 
@@ -1117,30 +1122,30 @@ def check_access(authz: Authorizer, user_id: str, resource: str) -> bool:
     return authz.authorize(user_id, resource)
 ```
 
-### 4.5 D: 依存性逆転の原則（DIP）
+### 4.5 D: Dependency Inversion Principle (DIP)
 
 ```typescript
-// === D: 依存性逆転 ===
-// ❌ 具象に依存
+// === D: Dependency Inversion ===
+// ❌ Depending on a concretion
 class OrderService {
-  private db = new MySQLDatabase(); // 具象クラスに直接依存
+  private db = new MySQLDatabase(); // Directly depends on a concrete class
   save(order: Order) { this.db.insert(order); }
 }
 
-// ✅ 抽象に依存
+// ✅ Depending on an abstraction
 interface Database { insert(data: any): void; }
 class OrderService {
-  constructor(private db: Database) {} // インターフェースに依存
+  constructor(private db: Database) {} // Depends on an interface
   save(order: Order) { this.db.insert(order); }
 }
 ```
 
 ```typescript
-// TypeScript: DIP の実践例 - 通知システム
+// TypeScript: Practical DIP example - notification system
 
-// ❌ DIP違反: 上位モジュールが下位モジュールの具象に依存
+// ❌ DIP violation: higher-level module depends on concretions of lower-level modules
 class UserRegistrationService {
-  // 具象クラスを直接生成 → テスト不可、差し替え不可
+  // Directly instantiates concrete classes → not testable, not swappable
   private emailClient = new SendGridClient("api-key-xxx");
   private userRepo = new PostgresUserRepository("postgres://...");
   private logger = new WinstonLogger("./logs/app.log");
@@ -1153,9 +1158,9 @@ class UserRegistrationService {
   }
 }
 
-// ✅ DIP適用: 上位モジュールも下位モジュールも抽象に依存
+// ✅ Applying DIP: both higher and lower modules depend on abstractions
 
-// 抽象（インターフェース）を定義
+// Define abstractions (interfaces)
 interface UserRepository {
   save(data: CreateUserDto): Promise<User>;
   findById(id: string): Promise<User | null>;
@@ -1171,7 +1176,7 @@ interface AppLogger {
   error(message: string, error?: Error): void;
 }
 
-// 上位モジュール: 抽象のみに依存
+// Higher-level module: depends only on abstractions
 class UserRegistrationService {
   constructor(
     private userRepo: UserRepository,
@@ -1187,23 +1192,23 @@ class UserRegistrationService {
   }
 }
 
-// 下位モジュール: 抽象を実装
+// Lower-level modules: implement the abstractions
 class PostgresUserRepository implements UserRepository {
-  async save(data: CreateUserDto): Promise<User> { /* Postgres実装 */ }
-  async findById(id: string): Promise<User | null> { /* Postgres実装 */ }
+  async save(data: CreateUserDto): Promise<User> { /* Postgres implementation */ }
+  async findById(id: string): Promise<User | null> { /* Postgres implementation */ }
 }
 
 class SendGridEmailClient implements EmailClient {
-  async sendWelcome(to: string): Promise<void> { /* SendGrid実装 */ }
+  async sendWelcome(to: string): Promise<void> { /* SendGrid implementation */ }
   async sendPasswordReset(to: string, token: string): Promise<void> { /* ... */ }
 }
 
 class WinstonLogger implements AppLogger {
-  info(message: string): void { /* Winston実装 */ }
-  error(message: string, error?: Error): void { /* Winston実装 */ }
+  info(message: string): void { /* Winston implementation */ }
+  error(message: string, error?: Error): void { /* Winston implementation */ }
 }
 
-// テスト用モック
+// Test mocks
 class InMemoryUserRepository implements UserRepository {
   private users: User[] = [];
   async save(data: CreateUserDto): Promise<User> {
@@ -1226,7 +1231,7 @@ class MockEmailClient implements EmailClient {
   }
 }
 
-// テスト: モックを注入して外部依存なしにテスト可能
+// Tests: inject mocks to test without external dependencies
 describe("UserRegistrationService", () => {
   it("should register a user and send welcome email", async () => {
     const repo = new InMemoryUserRepository();
@@ -1246,13 +1251,13 @@ describe("UserRegistrationService", () => {
 ```
 
 ```python
-# Python: DIP の実践例 - DIコンテナ
+# Python: Practical DIP example - DI container
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TypeVar, Type
 
-# 抽象定義
+# Abstraction definitions
 class CacheStore(ABC):
     @abstractmethod
     def get(self, key: str) -> str | None: ...
@@ -1267,21 +1272,21 @@ class MessageQueue(ABC):
     @abstractmethod
     def subscribe(self, topic: str, handler: callable) -> None: ...
 
-# 具象実装
+# Concrete implementations
 class RedisCache(CacheStore):
     def __init__(self, url: str):
         self._url = url
 
     def get(self, key: str) -> str | None:
-        # Redis実装
+        # Redis implementation
         pass
 
     def set(self, key: str, value: str, ttl: int = 300) -> None:
-        # Redis実装
+        # Redis implementation
         pass
 
 class InMemoryCache(CacheStore):
-    """テスト用 / 開発用"""
+    """For testing / development"""
     def __init__(self):
         self._store: dict[str, str] = {}
 
@@ -1296,16 +1301,16 @@ class RabbitMQQueue(MessageQueue):
         self._url = url
 
     def publish(self, topic: str, message: dict) -> None:
-        # RabbitMQ実装
+        # RabbitMQ implementation
         pass
 
     def subscribe(self, topic: str, handler: callable) -> None:
-        # RabbitMQ実装
+        # RabbitMQ implementation
         pass
 
-# シンプルなDIコンテナ
+# Simple DI container
 class Container:
-    """依存性注入コンテナ"""
+    """Dependency injection container"""
     def __init__(self):
         self._bindings: dict[type, callable] = {}
 
@@ -1318,7 +1323,7 @@ class Container:
             raise ValueError(f"No binding for {abstract}")
         return factory()
 
-# 環境に応じた設定
+# Configuration per environment
 def configure_production(container: Container) -> None:
     container.bind(CacheStore, lambda: RedisCache("redis://prod:6379"))
     container.bind(MessageQueue, lambda: RabbitMQQueue("amqp://prod:5672"))
@@ -1327,10 +1332,10 @@ def configure_testing(container: Container) -> None:
     container.bind(CacheStore, lambda: InMemoryCache())
     container.bind(MessageQueue, lambda: InMemoryQueue())
 
-# 使用例
+# Usage
 container = Container()
-configure_production(container)  # 本番環境
-# configure_testing(container)  # テスト環境
+configure_production(container)  # Production environment
+# configure_testing(container)  # Test environment
 
 cache: CacheStore = container.resolve(CacheStore)
 queue: MessageQueue = container.resolve(MessageQueue)
@@ -1338,64 +1343,64 @@ queue: MessageQueue = container.resolve(MessageQueue)
 
 ---
 
-## 5. SOLID適用の判断基準
+## 5. Criteria for Applying SOLID
 
 ```
-過剰適用の警告:
-  → 10行のスクリプトにSOLIDは不要
-  → 個人プロジェクトの初期段階で過度な抽象化は有害
-  → 「YAGNI（You Ain't Gonna Need It）」とのバランス
+Warning on over-application:
+  → SOLID is not needed for a 10-line script
+  → Excessive abstraction early in a personal project is harmful
+  → Balance with YAGNI (You Ain't Gonna Need It)
 
-適用すべき場面:
-  ✓ チーム開発のプロダクションコード
-  ✓ 長期間メンテナンスされるシステム
-  ✓ テストが重要なシステム
-  ✓ 変更が頻繁に発生する領域
+When to apply:
+  ✓ Production code in team development
+  ✓ Systems that are maintained for a long time
+  ✓ Systems where testing is important
+  ✓ Areas where changes occur frequently
 
-段階的な適用:
-  1. まずシンプルに書く
-  2. 変更が発生したら、その部分にSOLIDを適用
-  3. 「3回目の変更」で抽象化を検討（Rule of Three）
+Gradual application:
+  1. First, write it simply
+  2. When a change occurs, apply SOLID to that area
+  3. Consider abstraction on the "third change" (Rule of Three)
 ```
 
-### 5.1 プロジェクト規模別の適用ガイド
+### 5.1 Application Guide by Project Size
 
 ```
-小規模プロジェクト（〜5,000行）:
+Small projects (up to 5,000 lines):
   ┌─────────────────────────────────────────┐
-  │ 適用レベル: 最小限                        │
-  │ SRP: ファイル分割程度                     │
-  │ OCP: 不要（まだ変更パターンが見えない）    │
-  │ LSP: 継承を使う場合のみ意識                │
-  │ ISP: 不要（インターフェースが少ない）       │
-  │ DIP: 不要（テストが簡単に書ける規模）       │
+  │ Application level: minimal               │
+  │ SRP: just file splitting                 │
+  │ OCP: not needed (change patterns unclear)│
+  │ LSP: only when using inheritance         │
+  │ ISP: not needed (few interfaces)         │
+  │ DIP: not needed (tests are easy to write)│
   └─────────────────────────────────────────┘
 
-中規模プロジェクト（5,000〜50,000行）:
+Medium projects (5,000 to 50,000 lines):
   ┌─────────────────────────────────────────┐
-  │ 適用レベル: 選択的適用                     │
-  │ SRP: 積極的に適用                         │
-  │ OCP: 変更頻度の高い箇所に適用              │
-  │ LSP: 継承階層があれば必ず確認              │
-  │ ISP: 太いインターフェースが出現したら分割   │
-  │ DIP: 外部サービス連携部分に適用            │
+  │ Application level: selective             │
+  │ SRP: apply aggressively                  │
+  │ OCP: apply in high-change areas          │
+  │ LSP: always verify inheritance hierarchies│
+  │ ISP: split when fat interfaces appear    │
+  │ DIP: apply at external service boundaries│
   └─────────────────────────────────────────┘
 
-大規模プロジェクト（50,000行〜）:
+Large projects (50,000+ lines):
   ┌─────────────────────────────────────────┐
-  │ 適用レベル: 全面的適用                     │
-  │ SRP: 全クラスで厳守                       │
-  │ OCP: ドメインロジック全体に適用            │
-  │ LSP: 全サブタイプで契約を検証              │
-  │ ISP: ロール別インターフェース設計           │
-  │ DIP: DIコンテナを活用した全面的な適用       │
+  │ Application level: comprehensive         │
+  │ SRP: strictly enforce across all classes │
+  │ OCP: apply throughout domain logic       │
+  │ LSP: verify contracts in all subtypes    │
+  │ ISP: role-based interface design         │
+  │ DIP: comprehensive use with DI containers│
   └─────────────────────────────────────────┘
 ```
 
-### 5.2 SOLID違反の検出ツールとメトリクス
+### 5.2 Tools and Metrics for Detecting SOLID Violations
 
 ```
-静的解析ツール:
+Static analysis tools:
 
   TypeScript/JavaScript:
     - ESLint + @typescript-eslint/recommended
@@ -1406,12 +1411,12 @@ queue: MessageQueue = container.resolve(MessageQueue)
     - SonarQube
     - PMD
     - Checkstyle
-    - SpotBugs（旧FindBugs）
+    - SpotBugs (formerly FindBugs)
 
   Python:
     - pylint
     - flake8 + flake8-import-order
-    - mypy（型チェック = DIP/LSP の検証に有効）
+    - mypy (type checking = useful for verifying DIP/LSP)
     - SonarQube
 
   C#:
@@ -1419,25 +1424,27 @@ queue: MessageQueue = container.resolve(MessageQueue)
     - Roslyn Analyzers
     - NDepend
 
-注目すべきメトリクス:
-  ┌───────────────────┬───────────────────────────┐
-  │ メトリクス         │ SOLID違反の兆候             │
-  ├───────────────────┼───────────────────────────┤
-  │ クラス行数 > 300   │ SRP違反の可能性             │
-  │ メソッド数 > 15    │ SRP違反の可能性             │
-  │ 依存クラス数 > 8   │ SRP + DIP違反の可能性       │
-  │ 循環的複雑度 > 10  │ OCP違反の可能性（条件分岐多）│
-  │ 継承深度 > 4       │ LSP違反のリスク増大          │
-  │ インターフェース    │ ISP違反の可能性             │
-  │ メソッド数 > 10    │                            │
-  │ 結合度が高い       │ DIP違反の可能性             │
-  └───────────────────┴───────────────────────────┘
+Key metrics to watch:
+  ┌───────────────────┬────────────────────────────────┐
+  │ Metric             │ Signs of SOLID violation       │
+  ├───────────────────┼────────────────────────────────┤
+  │ Class size > 300   │ Possible SRP violation         │
+  │ Method count > 15  │ Possible SRP violation         │
+  │ Dependencies > 8   │ Possible SRP + DIP violation   │
+  │ Cyclomatic         │ Possible OCP violation         │
+  │ complexity > 10    │ (many conditional branches)    │
+  │ Inheritance        │ Increased risk of LSP violation│
+  │ depth > 4          │                                │
+  │ Interface method   │ Possible ISP violation         │
+  │ count > 10         │                                │
+  │ High coupling      │ Possible DIP violation         │
+  └───────────────────┴────────────────────────────────┘
 ```
 
-### 5.3 段階的リファクタリング手順
+### 5.3 Step-by-Step Refactoring Procedure
 
 ```typescript
-// Step 1: まずシンプルに書く（SOLID無視でOK）
+// Step 1: Start simple (ignoring SOLID is OK)
 class TodoApp {
   private todos: Todo[] = [];
 
@@ -1454,14 +1461,14 @@ class TodoApp {
     return [...this.todos];
   }
 }
-// → 小さいうちはこれで十分
+// → This is sufficient while the code is small
 ```
 
 ```typescript
-// Step 2: 変更が発生 → その部分にSRP適用
-// 要件: 「Todo をファイルに保存したい」「通知も送りたい」
+// Step 2: A change occurs → apply SRP to that area
+// Requirements: "Save Todo to a file" "Also send notifications"
 
-// SRP: 永続化を分離
+// SRP: separate persistence
 interface TodoRepository {
   save(todos: Todo[]): Promise<void>;
   load(): Promise<Todo[]>;
@@ -1478,7 +1485,7 @@ class FileTodoRepository implements TodoRepository {
 }
 
 class TodoService {
-  constructor(private repo: TodoRepository) {} // DIP: 抽象に依存
+  constructor(private repo: TodoRepository) {} // DIP: depend on abstraction
 
   async addTodo(title: string): Promise<Todo> {
     const todos = await this.repo.load();
@@ -1491,72 +1498,73 @@ class TodoService {
 ```
 
 ```typescript
-// Step 3: 3回目の変更 → OCP で拡張ポイントを設計
-// 要件: 「DB保存もしたい」「S3保存もしたい」
+// Step 3: Third change → design extension points with OCP
+// Requirements: "Also save to DB" "Also save to S3"
 
-// OCP: 新しいストレージはクラスを追加するだけ
+// OCP: new storage only requires adding a class
 class DatabaseTodoRepository implements TodoRepository {
   async save(todos: Todo[]): Promise<void> {
-    // PostgreSQL に保存
+    // Save to PostgreSQL
   }
   async load(): Promise<Todo[]> {
-    // PostgreSQL から取得
+    // Retrieve from PostgreSQL
   }
 }
 
 class S3TodoRepository implements TodoRepository {
   async save(todos: Todo[]): Promise<void> {
-    // AWS S3 に保存
+    // Save to AWS S3
   }
   async load(): Promise<Todo[]> {
-    // AWS S3 から取得
+    // Retrieve from AWS S3
   }
 }
 
-// TodoService は一切変更不要（OCP達成）
+// TodoService requires no changes at all (OCP achieved)
 ```
 
 ---
 
-## 6. SOLIDと他の設計原則の関係
+## 6. Relationship Between SOLID and Other Design Principles
 
 ```
-SOLID と GRASP の対応:
+Correspondence between SOLID and GRASP:
 
-  GRASP（General Responsibility Assignment Software Patterns）:
-  ┌────────────────────┬────────────────────────────┐
-  │ GRASP原則           │ 対応するSOLID原則            │
-  ├────────────────────┼────────────────────────────┤
-  │ Information Expert  │ SRP（責任の適切な割り当て）   │
-  │ Creator            │ DIP（生成の責任を分離）       │
-  │ Low Coupling       │ DIP + ISP（疎結合の実現）     │
-  │ High Cohesion      │ SRP（高凝集の維持）          │
-  │ Polymorphism       │ OCP + LSP                    │
-  │ Pure Fabrication   │ SRP（人工的なクラスの導入）   │
-  │ Indirection        │ DIP（間接参照の導入）         │
-  │ Protected Variations│ OCP（変更の影響を隔離）      │
-  └────────────────────┴────────────────────────────┘
+  GRASP (General Responsibility Assignment Software Patterns):
+  ┌────────────────────┬─────────────────────────────────┐
+  │ GRASP principle     │ Corresponding SOLID principle   │
+  ├────────────────────┼─────────────────────────────────┤
+  │ Information Expert  │ SRP (proper assignment of       │
+  │                    │ responsibilities)                │
+  │ Creator            │ DIP (separate creation responsibility)│
+  │ Low Coupling       │ DIP + ISP (achieving loose coupling)│
+  │ High Cohesion      │ SRP (maintaining high cohesion)  │
+  │ Polymorphism       │ OCP + LSP                        │
+  │ Pure Fabrication   │ SRP (introducing synthetic classes)│
+  │ Indirection        │ DIP (introducing indirection)    │
+  │ Protected Variations│ OCP (isolating change impact)   │
+  └────────────────────┴─────────────────────────────────┘
 
-SOLID と DRY/KISS/YAGNI:
+SOLID and DRY/KISS/YAGNI:
 
-  DRY（Don't Repeat Yourself）:
-    → SRP と補完関係: 責任を分離すると自然にDRYになる
-    → 注意: DRYを過度に追求すると不適切な抽象化（Wrong Abstraction）
+  DRY (Don't Repeat Yourself):
+    → Complementary to SRP: separating responsibilities naturally leads to DRY
+    → Caution: pursuing DRY excessively creates wrong abstractions
 
-  KISS（Keep It Simple, Stupid）:
-    → SOLIDの過剰適用を抑制する原則
-    → 10行のスクリプトに5つのクラスは KISS 違反
+  KISS (Keep It Simple, Stupid):
+    → A principle that curbs over-application of SOLID
+    → Five classes for a 10-line script violates KISS
 
-  YAGNI（You Ain't Gonna Need It）:
-    → OCP の適用タイミングを制御
-    → 「将来必要になるかも」で抽象化しない
-    → 実際に2-3回変更が発生してからインターフェースを導入
+  YAGNI (You Ain't Gonna Need It):
+    → Controls the timing of OCP application
+    → Don't abstract on the hunch "this might be needed in the future"
+    → Introduce interfaces only after 2-3 actual changes have occurred
 ```
 
-### 6.1 SOLIDとクリーンアーキテクチャ
+### 6.1 SOLID and Clean Architecture
 
 ```
-クリーンアーキテクチャにおけるSOLIDの役割:
+The role of SOLID in Clean Architecture:
 
   ┌─────────────────────────────────────────────┐
   │                Frameworks Layer               │
@@ -1571,98 +1579,100 @@ SOLID と DRY/KISS/YAGNI:
   │  └─────────────────────────────────────────┘ │
   └─────────────────────────────────────────────┘
 
-  各層とSOLIDの対応:
-    Entities（ドメイン層）:
-      → SRP: エンティティは1つのビジネスルールのみ
-      → LSP: Value Object の等価性
+  Mapping each layer to SOLID:
+    Entities (domain layer):
+      → SRP: each entity captures a single business rule
+      → LSP: equality of Value Objects
 
-    Use Cases（ユースケース層）:
-      → SRP: 1ユースケース = 1クラス
-      → OCP: ユースケースの拡張
+    Use Cases (use case layer):
+      → SRP: 1 use case = 1 class
+      → OCP: extending use cases
 
-    Interface Adapters（アダプタ層）:
-      → DIP: 外部サービスへの依存を逆転
-      → ISP: ポートを小さく分離
+    Interface Adapters (adapter layer):
+      → DIP: invert dependency on external services
+      → ISP: keep ports small and separate
 
-    Frameworks（フレームワーク層）:
-      → DIP: フレームワークの詳細に依存しない
-      → OCP: フレームワーク交換時も内側は変更不要
+    Frameworks (framework layer):
+      → DIP: inner code does not depend on framework details
+      → OCP: swapping frameworks requires no changes to inner layers
 
-  依存の方向:
-    外側 → 内側（DIPにより実現）
+  Direction of dependency:
+    Outer → Inner (achieved via DIP)
     Frameworks → Adapters → Use Cases → Entities
-    内側のコードは外側の存在を知らない
+    Inner code is unaware of the existence of outer layers
 ```
 
-### 6.2 SOLIDとマイクロサービス
+### 6.2 SOLID and Microservices
 
 ```
-マイクロサービスアーキテクチャとSOLID:
+Microservices architecture and SOLID:
 
-  SRP → サービスの境界:
-    1つのマイクロサービス = 1つのビジネスドメイン
-    ✓ UserService: ユーザー管理のみ
-    ✓ OrderService: 注文管理のみ
-    ✓ PaymentService: 決済管理のみ
-    ✗ MonolithService: 全部入り → SRP違反
+  SRP → service boundaries:
+    1 microservice = 1 business domain
+    ✓ UserService: user management only
+    ✓ OrderService: order management only
+    ✓ PaymentService: payment management only
+    ✗ MonolithService: everything → SRP violation
 
-  OCP → サービスの拡張:
-    新しいサービスを追加するとき、既存サービスを変更しない
-    → イベント駆動アーキテクチャ
-    → メッセージキューによる疎結合
+  OCP → extending services:
+    When adding a new service, do not modify existing services
+    → Event-driven architecture
+    → Loose coupling via message queues
 
-  LSP → API の後方互換性:
-    サービスのv2はv1と後方互換であるべき
-    → API バージョニング
-    → コンシューマ駆動契約テスト（CDC）
+  LSP → backward compatibility of APIs:
+    Version 2 of a service should be backward compatible with v1
+    → API versioning
+    → Consumer-Driven Contract testing (CDC)
 
-  ISP → API の粒度:
-    1つのエンドポイントに全情報を詰め込まない
-    → GraphQL: クライアントが必要なフィールドだけ取得
-    → BFF（Backend For Frontend）パターン
+  ISP → API granularity:
+    Do not cram all information into a single endpoint
+    → GraphQL: clients fetch only the fields they need
+    → BFF (Backend For Frontend) pattern
 
-  DIP → サービス間通信:
-    具体的なサービスのURLに直接依存しない
-    → サービスディスカバリ
+  DIP → inter-service communication:
+    Do not directly depend on concrete service URLs
+    → Service discovery
     → API Gateway
-    → メッセージブローカー
+    → Message broker
 ```
 
 ---
 
-## 7. SOLIDと関数型プログラミング
+## 7. SOLID and Functional Programming
 
 ```
-SOLIDは OOP 固有の原則だが、関数型プログラミングにも対応する概念がある:
+SOLID is an OOP-specific principle, but there are corresponding
+concepts in functional programming:
 
-  ┌────────────┬──────────────────────────────────┐
-  │ SOLID原則   │ 関数型での対応概念                  │
-  ├────────────┼──────────────────────────────────┤
-  │ SRP        │ 純粋関数（1つの計算のみ行う）        │
-  │ OCP        │ 高階関数（関数を渡して振る舞いを拡張）│
-  │ LSP        │ 型クラス制約（Haskellの型クラス）     │
-  │ ISP        │ 型クラスの細分化                     │
-  │ DIP        │ 関数の注入（コールバック、DI関数）     │
-  └────────────┴──────────────────────────────────┘
+  ┌────────────┬─────────────────────────────────────────┐
+  │ SOLID      │ Corresponding FP concept                 │
+  ├────────────┼─────────────────────────────────────────┤
+  │ SRP        │ Pure functions (perform only one calculation)│
+  │ OCP        │ Higher-order functions (pass functions   │
+  │            │ to extend behavior)                      │
+  │ LSP        │ Type class constraints (Haskell type classes)│
+  │ ISP        │ Granular type classes                    │
+  │ DIP        │ Function injection (callbacks, DI functions)│
+  └────────────┴─────────────────────────────────────────┘
 ```
 
 ```typescript
-// TypeScript: 関数型スタイルでのSOLID
+// TypeScript: SOLID in a functional style
 
-// SRP: 純粋関数 = 1つの責任
+// SRP: a pure function = a single responsibility
 const calculateTax = (amount: number, rate: number): number =>
   amount * rate;
 
 const formatCurrency = (amount: number): string =>
   `$${amount.toFixed(2)}`;
 
-// OCP: 高階関数で拡張
+// OCP: extend via higher-order functions
 type Middleware<T> = (data: T) => T;
 
 const applyMiddlewares = <T>(data: T, middlewares: Middleware<T>[]): T =>
   middlewares.reduce((acc, mw) => mw(acc), data);
 
-// 新しいミドルウェアを追加するだけで拡張可能
+// Extensible simply by adding new middleware
 const addTimestamp: Middleware<Request> = (req) => ({
   ...req,
   timestamp: Date.now(),
@@ -1673,21 +1683,21 @@ const addCorrelationId: Middleware<Request> = (req) => ({
   correlationId: crypto.randomUUID(),
 });
 
-// DIP: 関数を注入
+// DIP: inject functions
 type Fetcher = (url: string) => Promise<Response>;
 type Parser<T> = (data: string) => T;
 
 const loadData = async <T>(
   url: string,
-  fetch: Fetcher,      // 具象ではなく関数型を注入
-  parse: Parser<T>,    // パーサーも注入
+  fetch: Fetcher,      // Inject a function type instead of a concretion
+  parse: Parser<T>,    // Inject the parser as well
 ): Promise<T> => {
   const response = await fetch(url);
   const text = await response.text();
   return parse(text);
 };
 
-// テスト時: モック関数を渡す
+// When testing: pass mock functions
 const mockFetch: Fetcher = async () =>
   new Response('{"name":"test"}');
 
@@ -1699,14 +1709,14 @@ const result = await loadData(
 ```
 
 ```python
-# Python: 関数型スタイルでのSOLID
+# Python: SOLID in a functional style
 
 from typing import Callable, TypeVar
 from functools import reduce
 
 T = TypeVar("T")
 
-# SRP: 純粋関数
+# SRP: pure functions
 def validate_email(email: str) -> bool:
     return "@" in email and "." in email.split("@")[1]
 
@@ -1714,13 +1724,13 @@ def hash_password(password: str) -> str:
     import hashlib
     return hashlib.sha256(password.encode()).hexdigest()
 
-# OCP: 高階関数で振る舞いを拡張
+# OCP: extend behavior with higher-order functions
 Pipeline = list[Callable[[T], T]]
 
 def execute_pipeline(data: T, steps: Pipeline[T]) -> T:
     return reduce(lambda acc, step: step(acc), steps, data)
 
-# ステップを追加するだけで拡張
+# Extensible simply by adding steps
 def normalize(text: str) -> str:
     return text.strip().lower()
 
@@ -1731,14 +1741,14 @@ def remove_special_chars(text: str) -> str:
 def truncate(text: str) -> str:
     return text[:100]
 
-# パイプライン実行
+# Pipeline execution
 result = execute_pipeline(
     "  Hello, World! @#$ ",
     [normalize, remove_special_chars, truncate]
 )
 # → "hello world  "
 
-# DIP: 関数注入
+# DIP: function injection
 def process_order(
     save: Callable[[dict], None],
     notify: Callable[[str, str], None],
@@ -1747,10 +1757,10 @@ def process_order(
     save(order)
     notify(order["email"], f"Order {order['id']} confirmed")
 
-# 本番
+# Production
 process_order(save=db_save, notify=email_notify, order=order_data)
 
-# テスト
+# Testing
 calls = []
 process_order(
     save=lambda o: calls.append(("save", o)),
@@ -1762,40 +1772,40 @@ assert len(calls) == 2
 
 ---
 
-## 8. 言語別のSOLID実装パターン
+## 8. SOLID Implementation Patterns by Language
 
 ```
-各言語の特性とSOLID実装:
+Characteristics of each language and SOLID implementation:
 
   TypeScript:
-    - interface + class でSOLID実装が自然
-    - 構造的型付け（Structural Typing）で ISP が柔軟
-    - DI フレームワーク: tsyringe, inversify, NestJS
+    - interface + class enables natural SOLID implementation
+    - Structural typing makes ISP flexible
+    - DI frameworks: tsyringe, inversify, NestJS
 
   Java:
-    - interface + abstract class が言語レベルでサポート
-    - Spring Framework が DIP を標準化
-    - アノテーション（@Inject, @Autowired）で DI
+    - interface + abstract class are supported at the language level
+    - Spring Framework standardizes DIP
+    - Annotations (@Inject, @Autowired) for DI
 
   Python:
-    - Protocol（構造的サブタイピング）で ISP
-    - ABC で明示的なインターフェース
-    - Duck Typing でOCP が自然に実現
+    - Protocol (structural subtyping) for ISP
+    - ABC for explicit interfaces
+    - Duck typing naturally realizes OCP
 
   Kotlin:
-    - sealed class で LSP の安全性向上
-    - data class でイミュータブルなエンティティ
-    - Extension function で OCP
+    - sealed class improves LSP safety
+    - data class for immutable entities
+    - Extension functions for OCP
 
   Rust:
-    - trait で ISP + DIP
-    - enum + match で型安全な OCP
-    - Ownership で SRP が強制される
+    - trait for ISP + DIP
+    - enum + match for type-safe OCP
+    - Ownership forces SRP
 
   Go:
-    - 暗黙的なインターフェース実装で ISP が極めて自然
-    - 小さなインターフェースの文化（io.Reader, io.Writer）
-    - 構造体の埋め込み（Composition over Inheritance）
+    - Implicit interface implementation makes ISP extremely natural
+    - Culture of small interfaces (io.Reader, io.Writer)
+    - Struct embedding (Composition over Inheritance)
 ```
 
 ---
@@ -1803,54 +1813,54 @@ assert len(calls) == 2
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important. Understanding deepens when you not only study theory but also actually write code and observe its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend fully understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently utilized in daily development work. It is especially important during code reviews and architecture design.
 
 ---
 
-## まとめ
+## Summary
 
-| 原則 | 一言で | 効果 | 実現手段 | 注意点 |
+| Principle | In one line | Effect | Means | Caveats |
 |------|--------|------|---------|--------|
-| SRP | 1クラス1責任 | 変更の影響を局所化 | 責任の分離、委譲 | 過剰分割に注意 |
-| OCP | 拡張は開、修正は閉 | 既存コードの安定性 | インターフェース、ポリモーフィズム | YAGNIとのバランス |
-| LSP | 代替可能性 | ポリモーフィズムの正しさ | 事前/事後条件の維持 | 違反は見つけにくい |
-| ISP | インターフェースを小さく | 不要な依存の排除 | ロール別インターフェース | 過度な細分化に注意 |
-| DIP | 抽象に依存 | 疎結合・テスト容易性 | DI、コンストラクタ注入 | 小規模では不要 |
+| SRP | 1 class, 1 responsibility | Localize impact of changes | Separation of responsibilities, delegation | Beware of over-splitting |
+| OCP | Open to extension, closed to modification | Stability of existing code | Interfaces, polymorphism | Balance with YAGNI |
+| LSP | Substitutability | Correctness of polymorphism | Maintaining pre/post-conditions | Violations are hard to find |
+| ISP | Keep interfaces small | Eliminate unnecessary dependencies | Role-based interfaces | Beware of excessive fragmentation |
+| DIP | Depend on abstractions | Loose coupling and testability | DI, constructor injection | Unnecessary at small scale |
 
-### チェックリスト
+### Checklist
 
 ```
-設計レビュー時のSOLIDチェックリスト:
+SOLID checklist during design review:
 
-  □ SRP: このクラスを変更する理由は1つだけか？
-  □ SRP: このクラスの名前は1つの責任を表しているか？
-  □ OCP: 新しい種類を追加するとき、既存コードを修正するか？
-  □ OCP: switch/if-else の連鎖がないか？
-  □ LSP: サブクラスを親クラスの代わりに使っても正しく動作するか？
-  □ LSP: サブクラスで例外を投げて親の契約を破っていないか？
-  □ ISP: インターフェースに使わないメソッドが含まれていないか？
-  □ ISP: クライアントが不要な依存を持たされていないか？
-  □ DIP: 上位モジュールが具象クラスに直接依存していないか？
-  □ DIP: テスト時にモックに差し替えられるか？
+  □ SRP: Is there only one reason to change this class?
+  □ SRP: Does the class name represent a single responsibility?
+  □ OCP: Does adding a new kind require modifying existing code?
+  □ OCP: Are there chains of switch/if-else statements?
+  □ LSP: Does a subclass work correctly when used in place of its parent?
+  □ LSP: Do subclasses throw exceptions that break the parent's contract?
+  □ ISP: Does the interface contain methods that are not used?
+  □ ISP: Are clients forced to carry unnecessary dependencies?
+  □ DIP: Does a higher-level module depend directly on concrete classes?
+  □ DIP: Can mocks be swapped in during testing?
 ```
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
 ---
 
-## 参考文献
+## References
 1. Martin, R. "Agile Software Development, Principles, Patterns, and Practices." Prentice Hall, 2003.
 2. Martin, R. "Clean Architecture: A Craftsman's Guide to Software Structure and Design." Prentice Hall, 2017.
 3. Martin, R. "The Principles of OOD." butunclebob.com, 2005.
