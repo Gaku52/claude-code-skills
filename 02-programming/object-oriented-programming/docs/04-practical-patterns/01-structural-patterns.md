@@ -1,49 +1,49 @@
-# 構造パターン（Structural Patterns）
+# Structural Patterns
 
-> クラスやオブジェクトの組み合わせ方に関するパターン。Adapter、Decorator、Facade、Proxy、Composite、Bridge、Flyweight の7つを実践的に解説。
+> Patterns concerning how classes and objects are composed. A practical walkthrough of the seven structural patterns: Adapter, Decorator, Facade, Proxy, Composite, Bridge, and Flyweight.
 
-## この章で学ぶこと
+## What you will learn in this chapter
 
-- [ ] 各構造パターンの目的と適用場面を理解する
-- [ ] 各パターンのコード実装を複数言語で把握する
-- [ ] パターンの組み合わせと使い分けを学ぶ
-- [ ] 現代のフレームワーク（React、Express、NestJS等）での応用を知る
-- [ ] テスタビリティとメンテナンス性を考慮した構造設計ができるようになる
+- [ ] Understand the purpose and use cases of each structural pattern
+- [ ] Grasp the code implementation of each pattern across multiple languages
+- [ ] Learn how to combine and choose between patterns
+- [ ] Know how these patterns are applied in modern frameworks (React, Express, NestJS, etc.)
+- [ ] Be able to design structures with testability and maintainability in mind
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, the following knowledge will help deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [生成パターン（Creational Patterns）](./00-creational-patterns.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related fundamental concepts
+- Familiarity with the contents of [Creational Patterns](./00-creational-patterns.md)
 
 ---
 
-## 1. Adapter パターン
+## 1. The Adapter Pattern
 
-### 1.1 概要と目的
+### 1.1 Overview and Purpose
 
 ```
-目的: 互換性のないインターフェースを変換して接続する
+Purpose: Convert and connect incompatible interfaces
 
   ┌─────────┐     ┌─────────┐     ┌──────────┐
   │ Client  │────→│ Adapter │────→│ Adaptee  │
-  │         │     │ (変換)  │     │ (既存)   │
+  │         │     │(convert)│     │(existing)│
   └─────────┘     └─────────┘     └──────────┘
 
-いつ使うか:
-  → 既存のライブラリを自分たちのインターフェースに合わせたい
-  → レガシーコードを新しいシステムに統合したい
-  → サードパーティAPIの差異を吸収したい
-  → テスト時に外部依存を差し替えたい
+When to use:
+  → You want to adapt an existing library to your own interface
+  → You want to integrate legacy code into a new system
+  → You want to absorb differences between third-party APIs
+  → You want to swap out external dependencies during testing
 ```
 
-### 1.2 クラスアダプタとオブジェクトアダプタ
+### 1.2 Class Adapter and Object Adapter
 
 ```typescript
-// 既存のライブラリ（変更不可）
+// An existing library (cannot be modified)
 class LegacyPaymentGateway {
   processPayment(cardNumber: string, amount: number, currency: string): boolean {
     console.log(`Legacy: ${amount} ${currency} charged to ${cardNumber}`);
@@ -60,7 +60,7 @@ class LegacyPaymentGateway {
   }
 }
 
-// 新しいインターフェース（自分たちの標準）
+// A new interface (our standard)
 interface PaymentProcessor {
   pay(request: PaymentRequest): Promise<PaymentResult>;
   refund(transactionId: string, amount: number): Promise<RefundResult>;
@@ -86,7 +86,7 @@ interface RefundResult {
 
 type TransactionStatus = "pending" | "completed" | "failed" | "refunded";
 
-// Adapter: 新旧を橋渡し
+// Adapter: bridges old and new
 class LegacyPaymentAdapter implements PaymentProcessor {
   constructor(private legacy: LegacyPaymentGateway) {}
 
@@ -118,7 +118,7 @@ class LegacyPaymentAdapter implements PaymentProcessor {
 
   async getStatus(transactionId: string): Promise<TransactionStatus> {
     const legacyStatus = this.legacy.getTransactionStatus(transactionId);
-    // レガシーのステータスを新しい型にマッピング
+    // Map the legacy status to the new type
     const statusMap: Record<string, TransactionStatus> = {
       "completed": "completed",
       "pending": "pending",
@@ -129,16 +129,16 @@ class LegacyPaymentAdapter implements PaymentProcessor {
   }
 }
 
-// 利用側は PaymentProcessor のみに依存
+// Callers depend only on PaymentProcessor
 const processor: PaymentProcessor = new LegacyPaymentAdapter(
   new LegacyPaymentGateway()
 );
 ```
 
-### 1.3 複数のアダプタによるプロバイダー抽象化
+### 1.3 Abstracting Providers with Multiple Adapters
 
 ```typescript
-// 複数の外部サービスを統一インターフェースで扱う
+// Handle multiple external services through a unified interface
 interface StorageProvider {
   upload(key: string, data: Buffer): Promise<string>;
   download(key: string): Promise<Buffer>;
@@ -148,7 +148,7 @@ interface StorageProvider {
   getSignedUrl(key: string, expiresIn: number): Promise<string>;
 }
 
-// AWS S3 アダプタ
+// AWS S3 adapter
 class S3StorageAdapter implements StorageProvider {
   constructor(private s3Client: S3Client, private bucket: string) {}
 
@@ -201,7 +201,7 @@ class S3StorageAdapter implements StorageProvider {
   }
 }
 
-// ローカルファイルシステムアダプタ（テスト・開発用）
+// Local filesystem adapter (for testing and development)
 class LocalStorageAdapter implements StorageProvider {
   constructor(private basePath: string) {}
 
@@ -246,7 +246,7 @@ class LocalStorageAdapter implements StorageProvider {
   }
 }
 
-// GCS アダプタ
+// GCS adapter
 class GCSStorageAdapter implements StorageProvider {
   constructor(private gcsClient: Storage, private bucket: string) {}
 
@@ -286,7 +286,7 @@ class GCSStorageAdapter implements StorageProvider {
   }
 }
 
-// 環境に応じてアダプタを選択
+// Choose the adapter based on the environment
 function createStorage(env: string): StorageProvider {
   switch (env) {
     case "production":
@@ -299,18 +299,18 @@ function createStorage(env: string): StorageProvider {
 }
 ```
 
-### 1.4 Java での Adapter パターン
+### 1.4 The Adapter Pattern in Java
 
 ```java
-// Java: Adapter パターン
-// 既存ライブラリのインターフェース
+// Java: the Adapter pattern
+// Interface of an existing library
 public class ExternalLogService {
     public void writeLog(int severity, String component, String msg, long timestamp) {
-        // 外部ログサービスへの書き込み
+        // Write to the external log service
     }
 }
 
-// 自社標準のロガーインターフェース
+// In-house standard logger interface
 public interface AppLogger {
     void debug(String message);
     void info(String message);
@@ -353,43 +353,43 @@ public class ExternalLogAdapter implements AppLogger {
 
 ---
 
-## 2. Decorator パターン
+## 2. The Decorator Pattern
 
-### 2.1 概要と目的
+### 2.1 Overview and Purpose
 
 ```
-目的: 既存オブジェクトに動的に機能を追加する
+Purpose: Dynamically add functionality to an existing object
 
   ┌────────┐     ┌───────────┐     ┌───────────┐
   │ Client │────→│ Decorator │────→│ Component │
-  │        │     │ (機能追加)│     │ (元)      │
+  │        │     │   (adds)  │     │ (origin)  │
   └────────┘     └───────────┘     └───────────┘
 
-  複数のDecoratorを重ねられる（入れ子）
+  Multiple Decorators can be layered (nested)
 
-いつ使うか:
-  → 既存クラスを変更せずに機能を追加したい
-  → 機能の組み合わせが多く、継承では爆発する
-  → 実行時に動的に機能を着脱したい
-  → ミドルウェア・パイプライン処理
+When to use:
+  → You want to add features without modifying the existing class
+  → There are many combinations of features and inheritance explodes
+  → You want to attach/detach features dynamically at runtime
+  → Middleware and pipeline processing
 ```
 
-### 2.2 HTTPクライアントのデコレータ
+### 2.2 An HTTP Client Decorator
 
 ```typescript
-// コンポーネントインターフェース
+// The Component interface
 interface HttpClient {
   request(url: string, options?: RequestInit): Promise<Response>;
 }
 
-// 基本実装
+// The basic implementation
 class BasicHttpClient implements HttpClient {
   async request(url: string, options?: RequestInit): Promise<Response> {
     return fetch(url, options);
   }
 }
 
-// Decorator: ログ追加
+// Decorator: add logging
 class LoggingHttpClient implements HttpClient {
   constructor(private wrapped: HttpClient, private logger?: Console) {}
 
@@ -409,7 +409,7 @@ class LoggingHttpClient implements HttpClient {
   }
 }
 
-// Decorator: リトライ追加
+// Decorator: add retries
 class RetryHttpClient implements HttpClient {
   constructor(
     private wrapped: HttpClient,
@@ -440,7 +440,7 @@ class RetryHttpClient implements HttpClient {
   }
 }
 
-// Decorator: 認証ヘッダー追加
+// Decorator: add an authentication header
 class AuthHttpClient implements HttpClient {
   constructor(
     private wrapped: HttpClient,
@@ -455,7 +455,7 @@ class AuthHttpClient implements HttpClient {
   }
 }
 
-// Decorator: キャッシュ追加
+// Decorator: add caching
 class CachingHttpClient implements HttpClient {
   private cache = new Map<string, { response: Response; expiry: number }>();
 
@@ -465,7 +465,7 @@ class CachingHttpClient implements HttpClient {
   ) {}
 
   async request(url: string, options?: RequestInit): Promise<Response> {
-    // GET リクエストのみキャッシュ
+    // Cache only GET requests
     if (options?.method && options.method !== "GET") {
       return this.wrapped.request(url, options);
     }
@@ -487,7 +487,7 @@ class CachingHttpClient implements HttpClient {
   }
 }
 
-// Decorator: レートリミット追加
+// Decorator: add rate limiting
 class RateLimitHttpClient implements HttpClient {
   private requestTimes: number[] = [];
 
@@ -512,7 +512,7 @@ class RateLimitHttpClient implements HttpClient {
   }
 }
 
-// Decorator: タイムアウト追加
+// Decorator: add a timeout
 class TimeoutHttpClient implements HttpClient {
   constructor(
     private wrapped: HttpClient,
@@ -534,7 +534,7 @@ class TimeoutHttpClient implements HttpClient {
   }
 }
 
-// デコレータを重ねる
+// Stacking decorators
 const client = new LoggingHttpClient(
   new RateLimitHttpClient(
     new RetryHttpClient(
@@ -544,23 +544,23 @@ const client = new LoggingHttpClient(
             new BasicHttpClient(),
             () => "my-token"
           ),
-          60000 // 1分キャッシュ
+          60000 // cache for 1 minute
         ),
-        10000 // 10秒タイムアウト
+        10000 // 10-second timeout
       ),
-      3 // 3回リトライ
+      3 // retry 3 times
     ),
-    10, 1000 // 1秒あたり10リクエスト
+    10, 1000 // 10 requests per second
   )
 );
 
-// リクエスト → RateLimit → Retry → Timeout → Cache → Auth → 基本 の順で処理
+// Request → RateLimit → Retry → Timeout → Cache → Auth → Basic, in that order
 ```
 
-### 2.3 ストリーム処理のデコレータ
+### 2.3 A Stream Processing Decorator
 
 ```typescript
-// データ変換パイプラインのデコレータ
+// A decorator for a data transformation pipeline
 interface DataTransformer<T> {
   transform(data: T[]): T[];
 }
@@ -571,7 +571,7 @@ class BaseTransformer<T> implements DataTransformer<T> {
   }
 }
 
-// フィルタリングデコレータ
+// Filtering decorator
 class FilterTransformer<T> implements DataTransformer<T> {
   constructor(
     private wrapped: DataTransformer<T>,
@@ -583,7 +583,7 @@ class FilterTransformer<T> implements DataTransformer<T> {
   }
 }
 
-// ソートデコレータ
+// Sorting decorator
 class SortTransformer<T> implements DataTransformer<T> {
   constructor(
     private wrapped: DataTransformer<T>,
@@ -595,7 +595,7 @@ class SortTransformer<T> implements DataTransformer<T> {
   }
 }
 
-// ページネーションデコレータ
+// Pagination decorator
 class PaginationTransformer<T> implements DataTransformer<T> {
   constructor(
     private wrapped: DataTransformer<T>,
@@ -610,7 +610,7 @@ class PaginationTransformer<T> implements DataTransformer<T> {
   }
 }
 
-// マッピングデコレータ
+// Mapping decorator
 class MapTransformer<T> implements DataTransformer<T> {
   constructor(
     private wrapped: DataTransformer<T>,
@@ -622,7 +622,7 @@ class MapTransformer<T> implements DataTransformer<T> {
   }
 }
 
-// 使用例: ユーザーリストの加工パイプライン
+// Example: a user list processing pipeline
 interface User {
   id: string;
   name: string;
@@ -634,20 +634,20 @@ const pipeline = new PaginationTransformer(
   new SortTransformer(
     new FilterTransformer(
       new BaseTransformer<User>(),
-      user => user.active  // アクティブユーザーのみ
+      user => user.active  // active users only
     ),
-    (a, b) => a.name.localeCompare(b.name)  // 名前順
+    (a, b) => a.name.localeCompare(b.name)  // sort by name
   ),
-  1, 20  // 1ページ目、20件
+  1, 20  // page 1, 20 items
 );
 
 const result = pipeline.transform(allUsers);
 ```
 
-### 2.4 Python での Decorator パターン
+### 2.4 The Decorator Pattern in Python
 
 ```python
-# Python: デコレータパターン（関数デコレータとクラスデコレータ）
+# Python: the decorator pattern (function and class decorators)
 import functools
 import time
 import logging
@@ -656,7 +656,7 @@ from typing import Callable, TypeVar, ParamSpec
 P = ParamSpec('P')
 R = TypeVar('R')
 
-# 関数デコレータ: ログ
+# Function decorator: logging
 def log_calls(func: Callable[P, R]) -> Callable[P, R]:
     @functools.wraps(func)
     def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
@@ -666,7 +666,7 @@ def log_calls(func: Callable[P, R]) -> Callable[P, R]:
         return result
     return wrapper
 
-# 関数デコレータ: 実行時間計測
+# Function decorator: measure execution time
 def timed(func: Callable[P, R]) -> Callable[P, R]:
     @functools.wraps(func)
     def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
@@ -677,7 +677,7 @@ def timed(func: Callable[P, R]) -> Callable[P, R]:
         return result
     return wrapper
 
-# 関数デコレータ: リトライ
+# Function decorator: retry
 def retry(max_retries: int = 3, delay: float = 1.0):
     def decorator(func: Callable[P, R]) -> Callable[P, R]:
         @functools.wraps(func)
@@ -694,7 +694,7 @@ def retry(max_retries: int = 3, delay: float = 1.0):
         return wrapper
     return decorator
 
-# 関数デコレータ: キャッシュ（メモ化）
+# Function decorator: caching (memoization)
 def memoize(func: Callable[P, R]) -> Callable[P, R]:
     cache: dict = {}
 
@@ -706,46 +706,46 @@ def memoize(func: Callable[P, R]) -> Callable[P, R]:
         return cache[key]
     return wrapper
 
-# デコレータの重ね掛け
+# Stacking decorators
 @log_calls
 @timed
 @retry(max_retries=3, delay=0.5)
 def fetch_data(url: str) -> dict:
-    """外部APIからデータを取得"""
+    """Fetch data from an external API"""
     import requests
     response = requests.get(url)
     response.raise_for_status()
     return response.json()
 
-# 呼び出し時: retry → timed → log_calls の順で処理される
+# On call: processed in the order retry → timed → log_calls
 result = fetch_data("https://api.example.com/data")
 ```
 
 ---
 
-## 3. Facade パターン
+## 3. The Facade Pattern
 
-### 3.1 概要と目的
+### 3.1 Overview and Purpose
 
 ```
-目的: 複雑なサブシステムにシンプルなインターフェースを提供する
+Purpose: Provide a simple interface to a complex subsystem
 
   ┌────────┐     ┌──────────┐     ┌─────┐ ┌─────┐ ┌─────┐
   │ Client │────→│  Facade  │────→│ SubA│ │ SubB│ │ SubC│
-  │        │     │ (窓口)   │     └─────┘ └─────┘ └─────┘
+  │        │     │ (front)  │     └─────┘ └─────┘ └─────┘
   └────────┘     └──────────┘
 
-いつ使うか:
-  → 複雑なサブシステムの操作を簡略化したい
-  → レイヤー間の依存を減らしたい
-  → ライブラリの使い方を統一したい
-  → マイクロサービスのAPIゲートウェイ
+When to use:
+  → You want to simplify operations on a complex subsystem
+  → You want to reduce dependencies between layers
+  → You want to unify how libraries are used
+  → An API gateway for microservices
 ```
 
-### 3.2 Eコマースの注文処理
+### 3.2 E-Commerce Order Processing
 
 ```typescript
-// 複雑なサブシステム群
+// A group of complex subsystems
 class InventoryService {
   checkAvailability(productId: string, quantity: number): boolean {
     console.log(`Checking inventory for ${productId}`);
@@ -823,7 +823,7 @@ class NotificationService {
   }
 }
 
-// Facade: 注文処理の全体を1つのシンプルなAPIに
+// Facade: wrap the entire order flow in a single simple API
 class OrderFacade {
   constructor(
     private inventory: InventoryService,
@@ -834,14 +834,14 @@ class OrderFacade {
   ) {}
 
   async placeOrder(order: OrderRequest): Promise<OrderResult> {
-    // 1. 在庫チェック
+    // 1. Inventory check
     for (const item of order.items) {
       if (!this.inventory.checkAvailability(item.productId, item.quantity)) {
         return { success: false, error: `${item.productId} is out of stock` };
       }
     }
 
-    // 2. 在庫予約
+    // 2. Reserve stock
     const reservations: string[] = [];
     for (const item of order.items) {
       reservations.push(
@@ -850,7 +850,7 @@ class OrderFacade {
     }
 
     try {
-      // 3. 価格計算
+      // 3. Price calculation
       let totalPrice = 0;
       for (const item of order.items) {
         const price = this.pricing.calculatePrice(item.productId, item.quantity);
@@ -864,18 +864,18 @@ class OrderFacade {
       );
       const grandTotal = totalPrice + tax + shipping;
 
-      // 4. 決済
+      // 4. Payment
       const authId = await this.payment.authorize(grandTotal, order.paymentMethod);
       const paymentId = await this.payment.capture(authId);
 
-      // 5. 配送手配
+      // 5. Arrange shipping
       const shipmentId = await this.shipping.createShipment(
         order.shippingAddress,
         order.items,
       );
       const trackingUrl = await this.shipping.getTrackingUrl(shipmentId);
 
-      // 6. 通知
+      // 6. Notifications
       await this.notification.sendOrderConfirmation(order.customerEmail, paymentId);
       await this.notification.sendShippingNotification(order.customerEmail, trackingUrl);
 
@@ -886,7 +886,7 @@ class OrderFacade {
         trackingUrl,
       };
     } catch (error) {
-      // エラー時は在庫を解放
+      // On error, release the reserved stock
       for (const reservationId of reservations) {
         this.inventory.releaseStock(reservationId);
       }
@@ -895,7 +895,7 @@ class OrderFacade {
   }
 }
 
-// 利用側はシンプル
+// Calling side stays simple
 const orderFacade = new OrderFacade(
   new InventoryService(),
   new PricingService(),
@@ -916,10 +916,10 @@ const result = await orderFacade.placeOrder({
 });
 ```
 
-### 3.3 メディアプレイヤーのFacade
+### 3.3 A Media Player Facade
 
 ```typescript
-// 複雑なサブシステム
+// Complex subsystems
 class VideoDecoder {
   decode(file: string): Buffer {
     console.log(`Decoding video: ${file}`);
@@ -959,7 +959,7 @@ class VideoRenderer {
   }
 }
 
-// Facade: シンプルなAPI
+// Facade: a simple API
 class MediaPlayer {
   private videoDecoder = new VideoDecoder();
   private audioDecoder = new AudioDecoder();
@@ -992,7 +992,7 @@ class MediaPlayer {
   }
 }
 
-// 利用側はシンプル
+// The calling side stays simple
 const player = new MediaPlayer();
 player.setResolution(1920, 1080);
 player.setVolume(75);
@@ -1001,25 +1001,25 @@ player.play("movie.mp4", "movie.srt");
 
 ---
 
-## 4. Proxy パターン
+## 4. The Proxy Pattern
 
-### 4.1 概要と目的
+### 4.1 Overview and Purpose
 
 ```
-目的: オブジェクトへのアクセスを制御する代理を提供する
+Purpose: Provide a surrogate that controls access to an object
 
-種類:
-  → 仮想Proxy: 遅延初期化（重いオブジェクトを必要時に生成）
-  → 保護Proxy: アクセス制御（権限チェック）
-  → キャッシュProxy: 結果のキャッシュ
-  → リモートProxy: ネットワーク越しのオブジェクトアクセス
-  → ログProxy: 操作の記録
+Variants:
+  → Virtual Proxy: lazy initialization (create heavy objects on demand)
+  → Protection Proxy: access control (permission checks)
+  → Cache Proxy: cache the results
+  → Remote Proxy: access to objects across the network
+  → Log Proxy: record the operations
 ```
 
-### 4.2 キャッシュProxy
+### 4.2 Cache Proxy
 
 ```typescript
-// キャッシュProxy
+// Cache Proxy
 interface DataService {
   fetchUser(id: string): Promise<User>;
   fetchUsers(ids: string[]): Promise<User[]>;
@@ -1029,7 +1029,7 @@ interface DataService {
 class RealDataService implements DataService {
   async fetchUser(id: string): Promise<User> {
     console.log(`Fetching user ${id} from database...`);
-    // 重いDB/APIアクセスをシミュレート
+    // Simulate heavy DB/API access
     await new Promise(r => setTimeout(r, 100));
     return { id, name: "User " + id, email: `user${id}@example.com` };
   }
@@ -1057,14 +1057,14 @@ class CachingProxy implements DataService {
   async fetchUser(id: string): Promise<User> {
     const cacheKey = `user:${id}`;
 
-    // キャッシュヒット
+    // Cache hit
     const cached = this.cache.get(cacheKey);
     if (cached && cached.expiry > Date.now()) {
       console.log(`Cache hit for user ${id}`);
       return cached.data;
     }
 
-    // リクエストの重複排除（同じIDへの同時リクエストを1つにまとめる）
+    // Deduplicate requests (collapse simultaneous requests for the same ID into one)
     if (this.pendingRequests.has(cacheKey)) {
       return this.pendingRequests.get(cacheKey)!;
     }
@@ -1104,14 +1104,14 @@ class CachingProxy implements DataService {
 }
 
 const service: DataService = new CachingProxy(new RealDataService());
-await service.fetchUser("123"); // DB アクセス
-await service.fetchUser("123"); // キャッシュから
+await service.fetchUser("123"); // DB access
+await service.fetchUser("123"); // from cache
 ```
 
-### 4.3 保護Proxy（アクセス制御）
+### 4.3 Protection Proxy (Access Control)
 
 ```typescript
-// 保護Proxy: 権限チェック
+// Protection Proxy: permission checks
 interface AdminService {
   deleteUser(userId: string): Promise<void>;
   resetPassword(userId: string): Promise<string>;
@@ -1197,10 +1197,10 @@ class AdminServiceProxy implements AdminService {
 }
 ```
 
-### 4.4 仮想Proxy（遅延初期化）
+### 4.4 Virtual Proxy (Lazy Initialization)
 
 ```typescript
-// 仮想Proxy: 重いオブジェクトの遅延初期化
+// Virtual Proxy: lazy initialization of heavy objects
 interface ImageRenderer {
   render(x: number, y: number): void;
   getWidth(): number;
@@ -1211,7 +1211,7 @@ class HighResImage implements ImageRenderer {
   private pixels: Buffer;
 
   constructor(private path: string) {
-    // 重い処理: 高解像度画像の読み込み
+    // Heavy operation: load a high-resolution image
     console.log(`Loading high-res image: ${path}`);
     this.pixels = Buffer.alloc(50 * 1024 * 1024); // 50MB
   }
@@ -1240,12 +1240,12 @@ class LazyImageProxy implements ImageRenderer {
   }
 
   render(x: number, y: number): void {
-    // 実際のレンダリング時にのみ読み込む
+    // Load only when actually rendering
     this.loadImage().render(x, y);
   }
 
   getWidth(): number {
-    // メタデータはプロキシが持っていれば読み込み不要
+    // Metadata held by the proxy itself needs no load
     return 4096;
   }
 
@@ -1254,21 +1254,21 @@ class LazyImageProxy implements ImageRenderer {
   }
 }
 
-// 1000枚の画像を持つギャラリー
-// 全部ロードすると 50GB になるが、Proxy なら必要なものだけロード
+// A gallery holding 1,000 images
+// Loading them all would take 50GB; with the Proxy, only what is needed is loaded
 const gallery: ImageRenderer[] = [];
 for (let i = 0; i < 1000; i++) {
   gallery.push(new LazyImageProxy(`/images/photo_${i}.raw`));
 }
-// この時点ではメモリ消費は最小限
-// 表示する画像だけが実際にロードされる
-gallery[42].render(0, 0); // この時にだけ photo_42.raw がロードされる
+// At this point memory usage is minimal
+// Only the images that are displayed are actually loaded
+gallery[42].render(0, 0); // only now is photo_42.raw loaded
 ```
 
-### 4.5 JavaScript Proxy を使った実装
+### 4.5 An Implementation Using the JavaScript Proxy
 
 ```typescript
-// JavaScript のネイティブ Proxy を使った実装
+// An implementation using the native JavaScript Proxy
 function createValidationProxy<T extends object>(target: T, rules: ValidationRules<T>): T {
   return new Proxy(target, {
     set(obj: T, prop: string | symbol, value: any): boolean {
@@ -1285,7 +1285,7 @@ function createValidationProxy<T extends object>(target: T, rules: ValidationRul
 
     get(obj: T, prop: string | symbol): any {
       const value = (obj as any)[prop];
-      // メソッドの場合は呼び出しログを追加
+      // For methods, add a call log
       if (typeof value === "function") {
         return function (...args: any[]) {
           console.log(`Called ${String(prop)}(${args.join(", ")})`);
@@ -1297,7 +1297,7 @@ function createValidationProxy<T extends object>(target: T, rules: ValidationRul
   });
 }
 
-// 使用例
+// Example
 const user = createValidationProxy(
   { name: "", age: 0, email: "" },
   {
@@ -1315,27 +1315,27 @@ user.age = 30;         // OK
 
 ---
 
-## 5. Composite パターン
+## 5. The Composite Pattern
 
-### 5.1 概要と目的
+### 5.1 Overview and Purpose
 
 ```
-目的: 個別オブジェクトとオブジェクトの集合を同一視して扱う
+Purpose: Treat individual objects and compositions of objects uniformly
 
-  Component（共通インターフェース）
-  ├── Leaf（葉: 個別要素）
-  └── Composite（枝: 子要素を含む）
+  Component (the common interface)
+  ├── Leaf (individual element)
+  └── Composite (branch: contains child elements)
 
-いつ使うか:
-  → ツリー構造を表現したい
-  → 個と集合を区別せずに扱いたい
-  → 再帰的な構造（ファイルシステム、UIコンポーネント、組織図）
+When to use:
+  → You want to represent a tree structure
+  → You want to handle individual items and collections uniformly
+  → Recursive structures (file systems, UI components, org charts)
 ```
 
-### 5.2 ファイルシステム
+### 5.2 A File System
 
 ```typescript
-// ファイルシステムの例
+// A file system example
 interface FileSystemEntry {
   name: string;
   size(): number;
@@ -1428,7 +1428,7 @@ class Directory implements FileSystemEntry {
   }
 }
 
-// File と Directory を統一的に扱える
+// File and Directory can be handled uniformly
 const root = new Directory("src");
 const components = new Directory("components");
 components.add(new File("Button.tsx", 2048, "tsx"));
@@ -1447,15 +1447,15 @@ root.add(new File("App.tsx", 3072, "tsx"));
 console.log(root.display());
 console.log(`Total: ${root.size()}B`);
 
-// 検索: .test. を含むファイルを探す
+// Search: find files whose names contain ".test."
 const testFiles = root.find(entry => entry.name.includes(".test."));
 console.log("Test files:", testFiles.map(f => f.name));
 ```
 
-### 5.3 UIコンポーネントツリー
+### 5.3 A UI Component Tree
 
 ```typescript
-// UIコンポーネントの Composite
+// A Composite of UI components
 interface UIComponent {
   render(): string;
   getWidth(): number;
@@ -1521,7 +1521,7 @@ class Panel implements UIComponent {
   }
 }
 
-// ログインフォームの構築
+// Building a login form
 const loginForm = new Panel("vertical")
   .add(new Label("ログイン", 24))
   .add(new Panel("vertical")
@@ -1539,16 +1539,16 @@ console.log(`Form size: ${loginForm.getWidth()} x ${loginForm.getHeight()}`);
 
 ---
 
-## 6. Bridge パターン
+## 6. The Bridge Pattern
 
-### 6.1 概要と目的
+### 6.1 Overview and Purpose
 
 ```
-目的: 抽象化と実装を分離し、それぞれを独立に変更可能にする
+Purpose: Separate an abstraction from its implementation so each can vary independently
 
   ┌───────────────┐          ┌─────────────────┐
   │  Abstraction  │ ────────→│ Implementation  │
-  │  (抽象化)     │          │ (実装)          │
+  │ (abstraction) │          │ (implementation)│
   └───────┬───────┘          └────────┬────────┘
           │                           │
   ┌───────┴───────┐          ┌────────┴────────┐
@@ -1556,16 +1556,16 @@ console.log(`Form size: ${loginForm.getWidth()} x ${loginForm.getHeight()}`);
   │  Abstraction  │          │  Implementation │
   └───────────────┘          └─────────────────┘
 
-いつ使うか:
-  → 抽象化と実装の両方が拡張される可能性がある
-  → クロスプラットフォーム対応
-  → 継承の組み合わせ爆発を避けたい
+When to use:
+  → Both the abstraction and the implementation may evolve
+  → Cross-platform support
+  → You want to avoid the combinatorial explosion of inheritance
 ```
 
-### 6.2 通知システムの Bridge
+### 6.2 A Bridge for a Notification System
 
 ```typescript
-// Implementation: メッセージ送信の具体的な方法
+// Implementation: the concrete way to send messages
 interface MessageSender {
   send(to: string, title: string, body: string): Promise<boolean>;
   getName(): string;
@@ -1595,13 +1595,13 @@ class SlackSender implements MessageSender {
   getName(): string { return "Slack"; }
 }
 
-// Abstraction: 通知の種類
+// Abstraction: types of notifications
 abstract class Notification {
   constructor(protected sender: MessageSender) {}
 
   abstract notify(to: string): Promise<boolean>;
 
-  // 送信方法を動的に切り替え可能
+  // The sending method can be switched dynamically
   setSender(sender: MessageSender): void {
     this.sender = sender;
   }
@@ -1655,43 +1655,43 @@ class PromotionNotification extends Notification {
   }
 }
 
-// 使用例: 通知の種類 x 送信方法 を自由に組み合わせ
+// Example: freely combine notification type x sending method
 const emailSender = new EmailSender();
 const smsSender = new SmsSender();
 const slackSender = new SlackSender();
 
-// クリティカルアラートをSlackに
+// Critical alert to Slack
 const criticalAlert = new AlertNotification(slackSender, "critical", "サーバーダウン");
 await criticalAlert.notify("#ops-alerts");
 
-// 同じアラートをメールでも送信
+// Send the same alert via email as well
 criticalAlert.setSender(emailSender);
 await criticalAlert.notify("ops-team@example.com");
 
-// リマインダーをSMSで
+// Reminder via SMS
 const reminder = new ReminderNotification(smsSender, "レポート提出", new Date("2025-03-01"));
 await reminder.notify("090-1234-5678");
 ```
 
 ---
 
-## 7. Flyweight パターン
+## 7. The Flyweight Pattern
 
-### 7.1 概要と目的
+### 7.1 Overview and Purpose
 
 ```
-目的: 大量のオブジェクトを効率的にメモリ共有する
+Purpose: Efficiently share memory among a large number of objects
 
-いつ使うか:
-  → 同じ状態のオブジェクトが大量に必要
-  → オブジェクトの内部状態（不変）と外部状態（可変）を分離できる
-  → メモリ使用量を削減したい
+When to use:
+  → You need many objects with the same state
+  → You can separate an object's intrinsic (immutable) state from its extrinsic (mutable) state
+  → You want to reduce memory usage
 ```
 
-### 7.2 テキストエディタの文字オブジェクト
+### 7.2 Character Objects in a Text Editor
 
 ```typescript
-// Flyweight: 文字のフォント情報を共有
+// Flyweight: share font information for characters
 interface CharacterStyle {
   font: string;
   size: number;
@@ -1701,7 +1701,7 @@ interface CharacterStyle {
 }
 
 class StyleFlyweight {
-  // 不変の内部状態（共有される）
+  // Immutable intrinsic state (shared)
   constructor(
     public readonly font: string,
     public readonly size: number,
@@ -1717,7 +1717,7 @@ class StyleFlyweight {
   }
 }
 
-// Flyweight Factory: スタイルオブジェクトの管理
+// Flyweight Factory: manages the style objects
 class StyleFactory {
   private styles = new Map<string, StyleFlyweight>();
 
@@ -1738,13 +1738,13 @@ class StyleFactory {
   }
 }
 
-// テキストエディタでの使用
+// Usage inside a text editor
 class TextEditor {
   private characters: Array<{ char: string; style: StyleFlyweight; x: number; y: number }> = [];
   private styleFactory = new StyleFactory();
 
   insert(char: string, style: CharacterStyle, x: number, y: number): void {
-    // スタイルは共有される Flyweight を使う
+    // Use a shared Flyweight for the style
     const flyweight = this.styleFactory.getStyle(style);
     this.characters.push({ char, style: flyweight, x, y });
   }
@@ -1761,13 +1761,13 @@ class TextEditor {
   }
 }
 
-// 使用例: 10万文字のドキュメント
+// Example: a 100,000-character document
 const editor = new TextEditor();
 const normalStyle = { font: "Noto Sans JP", size: 14, color: "#333", bold: false, italic: false };
 const boldStyle = { font: "Noto Sans JP", size: 14, color: "#333", bold: true, italic: false };
 const headingStyle = { font: "Noto Sans JP", size: 24, color: "#000", bold: true, italic: false };
 
-// 10万文字を挿入しても、スタイルオブジェクトは3つだけ共有される
+// Even after inserting 100,000 characters, only 3 style objects are shared
 for (let i = 0; i < 100000; i++) {
   const style = i < 50 ? headingStyle : i % 10 === 0 ? boldStyle : normalStyle;
   editor.insert("あ", style, i % 80 * 14, Math.floor(i / 80) * 20);
@@ -1775,17 +1775,17 @@ for (let i = 0; i < 100000; i++) {
 
 console.log(editor.getMemoryStats());
 // { characters: 100000, uniqueStyles: 3 }
-// スタイルなしなら100000個のオブジェクトが必要だが、共有で3個に
+// Without sharing, 100,000 objects would be needed; sharing reduces it to 3
 ```
 
 ---
 
-## 8. パターンの組み合わせ
+## 8. Combining Patterns
 
 ### 8.1 Adapter + Facade
 
 ```typescript
-// 複数の外部サービスを Adapter で統一し、Facade でまとめる
+// Unify multiple external services with Adapters, then wrap them with a Facade
 class UnifiedNotificationFacade {
   private adapters: Map<string, NotificationAdapter> = new Map();
 
@@ -1826,7 +1826,7 @@ class UnifiedNotificationFacade {
 ### 8.2 Decorator + Proxy
 
 ```typescript
-// ログ付きキャッシュプロキシ = Decorator + Proxy の組み合わせ
+// A logging cache proxy = a combination of Decorator and Proxy
 function createMonitoredService<T extends object>(
   service: T,
   serviceName: string,
@@ -1852,7 +1852,7 @@ function createMonitoredService<T extends object>(
   });
 }
 
-// 使用例
+// Example
 const monitoredUserService = createMonitoredService(
   new UserService(),
   "UserService"
@@ -1867,52 +1867,52 @@ await monitoredUserService.findById("123");
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the single most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not with theory alone but by actually writing code and verifying how it behaves.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What mistakes do beginners commonly make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the basics and jumping straight into advanced topics. We recommend firmly understanding the foundational concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in real-world work?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+The knowledge from this topic is used frequently in everyday development. It becomes especially important during code review and architectural design.
 
 ---
 
-## まとめ
+## Summary
 
-| パターン | 目的 | キーワード |
+| Pattern | Purpose | Keywords |
 |---------|------|-----------|
-| Adapter | インターフェース変換 | 既存コードの統合、ラッパー |
-| Decorator | 動的な機能追加 | 重ね掛け、ミドルウェア |
-| Facade | 複雑さの隠蔽 | シンプルなAPI、窓口 |
-| Proxy | アクセス制御 | キャッシュ、遅延、権限 |
-| Composite | 個と集合の同一視 | ツリー構造、再帰 |
-| Bridge | 抽象と実装の分離 | クロスプラットフォーム |
-| Flyweight | メモリ共有 | 大量オブジェクトの最適化 |
+| Adapter | Interface conversion | Integrate existing code, wrapper |
+| Decorator | Dynamic feature addition | Stacking, middleware |
+| Facade | Hide complexity | Simple API, front door |
+| Proxy | Control access | Caching, laziness, permissions |
+| Composite | Treat individuals and collections alike | Tree structure, recursion |
+| Bridge | Decouple abstraction from implementation | Cross-platform |
+| Flyweight | Share memory | Optimization for large numbers of objects |
 
-### パターン選択の指針
+### Guidelines for Choosing a Pattern
 
 ```
-構造上の問題を解決したい
-├── 互換性のないインターフェース → Adapter
-├── 既存オブジェクトに機能を追加 → Decorator
-├── 複雑なサブシステムを簡略化 → Facade
-├── オブジェクトへのアクセス制御 → Proxy
-├── ツリー構造の表現 → Composite
-├── 抽象化と実装を独立に拡張 → Bridge
-└── 大量オブジェクトのメモリ最適化 → Flyweight
+You want to solve a structural problem
+├── Incompatible interfaces → Adapter
+├── Add features to an existing object → Decorator
+├── Simplify a complex subsystem → Facade
+├── Control access to an object → Proxy
+├── Represent a tree structure → Composite
+├── Extend abstraction and implementation independently → Bridge
+└── Optimize memory for a huge number of objects → Flyweight
 ```
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Reads
 
 ---
 
-## 参考文献
+## References
 1. Gamma, E. et al. "Design Patterns: Elements of Reusable Object-Oriented Software." Addison-Wesley, 1994.
 2. Freeman, E. et al. "Head First Design Patterns." O'Reilly, 2020.
 3. Martin, R.C. "Agile Software Development, Principles, Patterns, and Practices." Prentice Hall, 2002.
