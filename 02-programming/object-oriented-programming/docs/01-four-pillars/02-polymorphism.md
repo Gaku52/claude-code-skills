@@ -1,79 +1,79 @@
-# ポリモーフィズム
+# Polymorphism
 
-> ポリモーフィズム（多態性）は「同じインターフェースで異なる実装を呼び出せる」仕組み。OOPの最も強力な概念であり、柔軟で拡張性の高い設計の基盤。
+> Polymorphism is the mechanism that lets you "invoke different implementations through the same interface." It is the most powerful concept in OOP and the foundation of flexible, extensible designs.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] 3種類のポリモーフィズムを理解する
-- [ ] 動的ディスパッチの仕組み（vtable）を把握する
-- [ ] ポリモーフィズムの実践的な活用パターンを学ぶ
-- [ ] 静的ディスパッチと動的ディスパッチの使い分けを理解する
-- [ ] パラメトリックポリモーフィズム（ジェネリクス）を活用する
-- [ ] 実務での設計パターンとの関連を把握する
+- [ ] Understand the three types of polymorphism
+- [ ] Grasp the mechanism of dynamic dispatch (vtable)
+- [ ] Learn practical usage patterns of polymorphism
+- [ ] Understand when to use static vs. dynamic dispatch
+- [ ] Leverage parametric polymorphism (generics)
+- [ ] Understand the connections to real-world design patterns
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Reading the following beforehand will deepen your understanding of this guide:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [継承](./01-inheritance.md) の内容を理解していること
-
----
-
-## 1. 3種類のポリモーフィズム
-
-```
-1. サブタイプポリモーフィズム（Subtype / Inclusion）
-   → 親型の変数にサブクラスのオブジェクトを代入
-   → OOPの「ポリモーフィズム」はこれを指すことが多い
-   → 実行時に実際の型のメソッドが呼ばれる
-
-2. パラメトリックポリモーフィズム（Parametric）
-   → ジェネリクス。型パラメータで汎用的なコードを書く
-   → List<T>, Map<K,V> など
-
-3. アドホックポリモーフィズム（Ad-hoc）
-   → メソッドオーバーロード。同名で引数の型が異なるメソッド
-   → 演算子オーバーロードも含む
-
-比較:
-  ┌────────────────┬──────────────┬───────────────┬──────────────┐
-  │                │ サブタイプ    │ パラメトリック │ アドホック    │
-  ├────────────────┼──────────────┼───────────────┼──────────────┤
-  │ 決定タイミング │ 実行時       │ コンパイル時   │ コンパイル時  │
-  │ 実現手段       │ 継承/IF実装  │ ジェネリクス   │ オーバーロード│
-  │ 型の統一性     │ 共通の親型   │ 型パラメータ   │ 同名異引数    │
-  │ 代表例         │ Shape.area() │ List<T>       │ add(int,int)  │
-  └────────────────┴──────────────┴───────────────┴──────────────┘
-```
+- Basic programming knowledge
+- Understanding of related fundamental concepts
+- Familiarity with the content of [Inheritance](./01-inheritance.md)
 
 ---
 
-## 2. サブタイプポリモーフィズム
+## 1. The Three Types of Polymorphism
 
 ```
-  Shape（インターフェース/抽象クラス）
+1. Subtype Polymorphism (Subtype / Inclusion)
+   -> Assign a subclass object to a variable of the parent type
+   -> In OOP, "polymorphism" usually refers to this
+   -> The method of the actual type is called at runtime
+
+2. Parametric Polymorphism
+   -> Generics. Write generic code using type parameters
+   -> List<T>, Map<K,V>, etc.
+
+3. Ad-hoc Polymorphism
+   -> Method overloading. Methods with the same name but different argument types
+   -> Also includes operator overloading
+
+Comparison:
+  +----------------+--------------+----------------+---------------+
+  |                | Subtype      | Parametric     | Ad-hoc        |
+  +----------------+--------------+----------------+---------------+
+  | When decided   | Runtime      | Compile time   | Compile time  |
+  | Means          | Inherit / IF | Generics       | Overloading   |
+  | Type unity     | Common parent| Type parameter | Same name diff|
+  | Typical        | Shape.area() | List<T>        | add(int,int)  |
+  +----------------+--------------+----------------+---------------+
+```
+
+---
+
+## 2. Subtype Polymorphism
+
+```
+  Shape (interface / abstract class)
     area(): number
     draw(): void
-       ↑
-  ┌────┼────┬───────────┐
-  ▼    ▼    ▼           ▼
+       ^
+  +----+----+-----------+
+  v    v    v           v
 Circle  Rect  Triangle  Polygon
  area() area()  area()   area()
- 各々が独自の実装を持つ
+ Each has its own implementation
 
   shapes: Shape[] = [Circle, Rect, Triangle, ...]
   for (shape of shapes) {
-    shape.area()  ← 実行時に正しい実装が呼ばれる
+    shape.area()  <- the correct implementation is called at runtime
   }
 ```
 
-### 2.1 基本的なサブタイプポリモーフィズム
+### 2.1 Basic Subtype Polymorphism
 
 ```typescript
-// TypeScript: サブタイプポリモーフィズム
+// TypeScript: subtype polymorphism
 interface Shape {
   area(): number;
   perimeter(): number;
@@ -92,7 +92,7 @@ class Circle implements Shape {
   }
 
   describe(): string {
-    return `円（半径: ${this.radius}）`;
+    return `Circle (radius: ${this.radius})`;
   }
 }
 
@@ -108,7 +108,7 @@ class Rectangle implements Shape {
   }
 
   describe(): string {
-    return `長方形（${this.width} x ${this.height}）`;
+    return `Rectangle (${this.width} x ${this.height})`;
   }
 }
 
@@ -121,7 +121,7 @@ class Triangle implements Shape {
   ) {}
 
   area(): number {
-    // ヘロンの公式
+    // Heron's formula
     const s = (this.a + this.b + this.c) / 2;
     return Math.sqrt(s * (s - this.a) * (s - this.b) * (s - this.c));
   }
@@ -131,21 +131,21 @@ class Triangle implements Shape {
   }
 
   describe(): string {
-    return `三角形（辺: ${this.a}, ${this.b}, ${this.c}）`;
+    return `Triangle (sides: ${this.a}, ${this.b}, ${this.c})`;
   }
 }
 
-// ポリモーフィズム: Shape型で統一的に扱う
+// Polymorphism: treat uniformly as the Shape type
 function printShapeInfo(shape: Shape): void {
-  console.log(`${shape.describe()}: 面積=${shape.area().toFixed(2)}`);
+  console.log(`${shape.describe()}: area=${shape.area().toFixed(2)}`);
 }
 
-// 形状の面積合計を計算（Shape型のみに依存）
+// Compute the total area of shapes (depends only on the Shape type)
 function totalArea(shapes: Shape[]): number {
   return shapes.reduce((sum, shape) => sum + shape.area(), 0);
 }
 
-// 面積でソート（Shape型のみに依存）
+// Sort by area (depends only on the Shape type)
 function sortByArea(shapes: Shape[]): Shape[] {
   return [...shapes].sort((a, b) => a.area() - b.area());
 }
@@ -158,25 +158,25 @@ const shapes: Shape[] = [
 ];
 
 shapes.forEach(printShapeInfo);
-// 円（半径: 5）: 面積=78.54
-// 長方形（3 x 4）: 面積=12.00
-// 円（半径: 10）: 面積=314.16
-// 三角形（辺: 3, 4, 5）: 面積=6.00
+// Circle (radius: 5): area=78.54
+// Rectangle (3 x 4): area=12.00
+// Circle (radius: 10): area=314.16
+// Triangle (sides: 3, 4, 5): area=6.00
 
-console.log(`合計面積: ${totalArea(shapes).toFixed(2)}`);
-// 合計面積: 410.70
+console.log(`Total area: ${totalArea(shapes).toFixed(2)}`);
+// Total area: 410.70
 ```
 
-### 2.2 インターフェースベースのポリモーフィズム
+### 2.2 Interface-Based Polymorphism
 
 ```python
-# Python: プロトコルベースのポリモーフィズム（ダックタイピング + 型ヒント）
+# Python: protocol-based polymorphism (duck typing + type hints)
 from typing import Protocol, runtime_checkable
 
 
 @runtime_checkable
 class Renderable(Protocol):
-    """描画可能なオブジェクトのプロトコル"""
+    """Protocol for renderable objects"""
     def render(self) -> str: ...
     def width(self) -> int: ...
     def height(self) -> int: ...
@@ -184,13 +184,13 @@ class Renderable(Protocol):
 
 @runtime_checkable
 class Clickable(Protocol):
-    """クリック可能なオブジェクトのプロトコル"""
+    """Protocol for clickable objects"""
     def on_click(self, x: int, y: int) -> None: ...
     def is_point_inside(self, x: int, y: int) -> bool: ...
 
 
 class TextLabel:
-    """テキストラベル（Renderable のみ実装）"""
+    """Text label (implements Renderable only)"""
     def __init__(self, text: str, x: int = 0, y: int = 0):
         self.text = text
         self.x = x
@@ -200,14 +200,14 @@ class TextLabel:
         return f'<label x="{self.x}" y="{self.y}">{self.text}</label>'
 
     def width(self) -> int:
-        return len(self.text) * 8  # 1文字8px想定
+        return len(self.text) * 8  # assume 8px per character
 
     def height(self) -> int:
         return 16
 
 
 class Button:
-    """ボタン（Renderable + Clickable 両方を実装）"""
+    """Button (implements both Renderable and Clickable)"""
     def __init__(self, label: str, x: int = 0, y: int = 0,
                  w: int = 100, h: int = 30):
         self.label = label
@@ -240,7 +240,7 @@ class Button:
 
 
 class Image:
-    """画像（Renderable + Clickable 両方を実装）"""
+    """Image (implements both Renderable and Clickable)"""
     def __init__(self, src: str, x: int = 0, y: int = 0,
                  w: int = 200, h: int = 150):
         self.src = src
@@ -266,51 +266,51 @@ class Image:
                 self.y <= y <= self.y + self._height)
 
 
-# ポリモーフィズムの活用: 型に依存しない汎用関数
+# Leveraging polymorphism: type-agnostic generic functions
 def render_all(elements: list[Renderable]) -> str:
-    """Renderable を実装する全ての要素を描画"""
+    """Render all elements that implement Renderable"""
     return "\n".join(el.render() for el in elements)
 
 def calculate_total_area(elements: list[Renderable]) -> int:
-    """全要素の面積合計を計算"""
+    """Calculate the total area of all elements"""
     return sum(el.width() * el.height() for el in elements)
 
 def handle_click(clickables: list[Clickable], x: int, y: int) -> None:
-    """クリック位置に該当する要素のクリックハンドラを呼ぶ"""
+    """Call the click handler of elements at the click position"""
     for element in clickables:
         if element.is_point_inside(x, y):
             element.on_click(x, y)
 
 
-# 使用例
+# Usage
 elements: list[Renderable] = [
-    TextLabel("こんにちは", x=10, y=10),
-    Button("送信", x=10, y=40),
+    TextLabel("Hello", x=10, y=10),
+    Button("Submit", x=10, y=40),
     Image("logo.png", x=10, y=80),
 ]
 
 print(render_all(elements))
-print(f"合計面積: {calculate_total_area(elements)} px^2")
+print(f"Total area: {calculate_total_area(elements)} px^2")
 
-# プロトコルの型チェック
+# Protocol type check
 print(isinstance(Button("test"), Renderable))  # True
 print(isinstance(Button("test"), Clickable))   # True
 print(isinstance(TextLabel("test"), Clickable)) # False
 ```
 
-### 2.3 Java でのサブタイプポリモーフィズム
+### 2.3 Subtype Polymorphism in Java
 
 ```java
-// Java: インターフェースによるポリモーフィズム
+// Java: polymorphism via interfaces
 
-// 支払い処理のインターフェース
+// Payment processing interface
 public interface PaymentProcessor {
     PaymentResult process(PaymentRequest request);
     boolean supports(String paymentMethod);
     String getProviderName();
 }
 
-// 各プロバイダの実装
+// Implementations for each provider
 public class StripeProcessor implements PaymentProcessor {
     private final StripeClient client;
 
@@ -320,7 +320,7 @@ public class StripeProcessor implements PaymentProcessor {
 
     @Override
     public PaymentResult process(PaymentRequest request) {
-        // Stripe API を使った決済処理
+        // Payment processing using the Stripe API
         try {
             var charge = client.charges().create(
                 request.getAmount(),
@@ -353,7 +353,7 @@ public class PayPayProcessor implements PaymentProcessor {
 
     @Override
     public PaymentResult process(PaymentRequest request) {
-        // PayPay API を使った決済処理
+        // Payment processing using the PayPay API
         try {
             var result = client.createPayment(
                 request.getAmount(),
@@ -379,7 +379,7 @@ public class PayPayProcessor implements PaymentProcessor {
 public class BankTransferProcessor implements PaymentProcessor {
     @Override
     public PaymentResult process(PaymentRequest request) {
-        // 銀行振込処理
+        // Bank transfer processing
         String transferId = generateTransferId();
         return PaymentResult.pending(transferId, "bank_transfer");
     }
@@ -399,7 +399,7 @@ public class BankTransferProcessor implements PaymentProcessor {
     }
 }
 
-// 利用側: PaymentProcessor のみに依存（具象クラスを知らない）
+// Consumer: depends only on PaymentProcessor (unaware of concrete classes)
 public class CheckoutService {
     private final List<PaymentProcessor> processors;
 
@@ -408,100 +408,100 @@ public class CheckoutService {
     }
 
     public PaymentResult checkout(Order order, String paymentMethod) {
-        // ポリモーフィズム: 適切なプロセッサを動的に選択
+        // Polymorphism: dynamically select the appropriate processor
         PaymentProcessor processor = processors.stream()
             .filter(p -> p.supports(paymentMethod))
             .findFirst()
             .orElseThrow(() -> new UnsupportedPaymentException(
-                "サポートされていない決済方法: " + paymentMethod));
+                "Unsupported payment method: " + paymentMethod));
 
         PaymentRequest request = PaymentRequest.from(order);
-        System.out.println("決済プロバイダ: " + processor.getProviderName());
+        System.out.println("Payment provider: " + processor.getProviderName());
         return processor.process(request);
     }
 }
 
-// 組み立て（DI）
+// Wiring (DI)
 CheckoutService service = new CheckoutService(List.of(
     new StripeProcessor("sk_test_xxx"),
     new PayPayProcessor("merchant_123", "secret_xxx"),
     new BankTransferProcessor()
 ));
 
-// 新しい決済方法を追加 → 新しいクラスを追加するだけ
-// CheckoutService は一切変更不要（OCP遵守）
+// Adding a new payment method -> just add a new class
+// CheckoutService needs no changes (OCP compliance)
 ```
 
 ---
 
-## 3. 動的ディスパッチの仕組み（vtable）
+## 3. Dynamic Dispatch Mechanism (vtable)
 
 ```
-仮想関数テーブル（vtable / Virtual Method Table）:
-  → C++, Java, C# 等で使われる実装メカニズム
-  → 各クラスが持つメソッドポインタの配列
-  → 実行時にオブジェクトの実際の型に基づいてメソッドを選択
+Virtual function table (vtable / Virtual Method Table):
+  -> The implementation mechanism used by C++, Java, C#, etc.
+  -> An array of method pointers owned by each class
+  -> At runtime, selects the method based on the object's actual type
 
-  メモリレイアウト:
+  Memory layout:
 
-  Circle オブジェクト            Circle の vtable
-  ┌──────────────┐            ┌──────────────────┐
-  │ vptr ────────┼───────────→│ area() → Circle実装│
-  │ radius: 5.0  │            │ perimeter() → ...  │
-  └──────────────┘            │ describe() → ...   │
-                              └──────────────────┘
+  Circle object                Circle's vtable
+  +--------------+            +----------------------+
+  | vptr --------+----------->| area() -> Circle impl |
+  | radius: 5.0  |            | perimeter() -> ...    |
+  +--------------+            | describe() -> ...     |
+                              +----------------------+
 
-  Rectangle オブジェクト         Rectangle の vtable
-  ┌──────────────┐            ┌──────────────────┐
-  │ vptr ────────┼───────────→│ area() → Rect実装  │
-  │ width: 3.0   │            │ perimeter() → ...  │
-  │ height: 4.0  │            │ describe() → ...   │
-  └──────────────┘            └──────────────────┘
+  Rectangle object             Rectangle's vtable
+  +--------------+            +----------------------+
+  | vptr --------+----------->| area() -> Rect impl   |
+  | width: 3.0   |            | perimeter() -> ...    |
+  | height: 4.0  |            | describe() -> ...     |
+  +--------------+            +----------------------+
 
-  shape.area() の呼び出し:
-    1. shape の vptr を取得
-    2. vtable から area() のアドレスを取得
-    3. そのアドレスのメソッドを呼ぶ
+  Invoking shape.area():
+    1. Get shape's vptr
+    2. Get the address of area() from the vtable
+    3. Call the method at that address
 
-  コスト: ポインタ間接参照1回分（ほぼゼロコスト）
+  Cost: one pointer indirection (nearly zero cost)
 ```
 
-### 3.1 vtable の詳細な動作
+### 3.1 Detailed vtable Behavior
 
 ```
-継承時の vtable の構築:
+How the vtable is built with inheritance:
 
   Shape vtable:
-  ┌──────────────────────┐
-  │ [0] area() → ???     │ ← 純粋仮想（抽象メソッド）
-  │ [1] perimeter() → ???│
-  │ [2] describe() → ??? │
-  └──────────────────────┘
+  +----------------------+
+  | [0] area() -> ???    | <- pure virtual (abstract method)
+  | [1] perimeter() -> ??|
+  | [2] describe() -> ???|
+  +----------------------+
 
-  Circle vtable（Shape を継承）:
-  ┌───────────────────────────────┐
-  │ [0] area() → Circle::area    │ ← オーバーライド
-  │ [1] perimeter() → Circle::per│ ← オーバーライド
-  │ [2] describe() → Circle::desc│ ← オーバーライド
-  └───────────────────────────────┘
+  Circle vtable (inherits Shape):
+  +----------------------------------+
+  | [0] area() -> Circle::area       | <- override
+  | [1] perimeter() -> Circle::per   | <- override
+  | [2] describe() -> Circle::desc   | <- override
+  +----------------------------------+
 
-  FilledCircle vtable（Circle を継承）:
-  ┌───────────────────────────────────┐
-  │ [0] area() → Circle::area        │ ← 継承（変更なし）
-  │ [1] perimeter() → Circle::per    │ ← 継承（変更なし）
-  │ [2] describe() → Filled::describe│ ← オーバーライド
-  │ [3] fill() → FilledCircle::fill  │ ← 新規追加
-  └───────────────────────────────────┘
+  FilledCircle vtable (inherits Circle):
+  +--------------------------------------+
+  | [0] area() -> Circle::area           | <- inherited (unchanged)
+  | [1] perimeter() -> Circle::per       | <- inherited (unchanged)
+  | [2] describe() -> Filled::describe   | <- override
+  | [3] fill() -> FilledCircle::fill     | <- newly added
+  +--------------------------------------+
 
-  ポイント:
-  - vtable はクラスごとに1つ（オブジェクトごとではない）
-  - オブジェクトには vptr（vtable へのポインタ）のみ保持
-  - メモリオーバーヘッド = 1ポインタ/オブジェクト（通常8バイト）
-  - 呼び出しオーバーヘッド = 1間接参照（数ナノ秒）
+  Key points:
+  - One vtable per class (not per object)
+  - Each object only holds a vptr (pointer to the vtable)
+  - Memory overhead = 1 pointer per object (typically 8 bytes)
+  - Call overhead = 1 indirection (a few nanoseconds)
 ```
 
 ```cpp
-// C++: vtable の動作を理解するための例
+// C++: example to understand vtable behavior
 #include <iostream>
 #include <vector>
 #include <memory>
@@ -510,13 +510,13 @@ class Shape {
 public:
     virtual ~Shape() = default;
 
-    // 純粋仮想関数（= 0）: vtable のスロットは存在するが、
-    // アドレスは nullptr（サブクラスで実装必須）
+    // Pure virtual functions (= 0): a slot exists in the vtable,
+    // but the address is nullptr (subclass must implement)
     virtual double area() const = 0;
     virtual double perimeter() const = 0;
     virtual std::string describe() const = 0;
 
-    // 非仮想関数: vtable に含まれない。静的に解決される
+    // Non-virtual function: not in the vtable. Resolved statically
     void printInfo() const {
         std::cout << describe() << ": area=" << area() << std::endl;
     }
@@ -559,13 +559,13 @@ public:
 };
 
 int main() {
-    // ポリモーフィズム: Shape ポインタの配列
+    // Polymorphism: an array of Shape pointers
     std::vector<std::unique_ptr<Shape>> shapes;
     shapes.push_back(std::make_unique<Circle>(5.0));
     shapes.push_back(std::make_unique<Rectangle>(3.0, 4.0));
     shapes.push_back(std::make_unique<Circle>(10.0));
 
-    // 各 shape の vptr を通じて正しい実装が呼ばれる
+    // The correct implementation is called through each shape's vptr
     for (const auto& shape : shapes) {
         shape->printInfo();
     }
@@ -577,42 +577,42 @@ int main() {
 }
 ```
 
-### 3.2 vtable のパフォーマンス考慮
+### 3.2 vtable Performance Considerations
 
 ```
-vtable 呼び出しのコスト分析:
+Cost analysis of vtable calls:
 
-  直接呼び出し（非仮想）:
-    call 0x400520          ; 1命令、アドレスはコンパイル時に確定
-    → CPU の分岐予測が100%的中
-    → インライン展開も可能
+  Direct call (non-virtual):
+    call 0x400520          ; 1 instruction, address fixed at compile time
+    -> CPU branch prediction hits 100%
+    -> Inlining is also possible
 
-  仮想関数呼び出し（vtable経由）:
-    mov rax, [rdi]         ; 1. vptr をロード
-    call [rax + offset]    ; 2. vtable からメソッドアドレスを取得して呼ぶ
-    → 間接参照1回 + 分岐予測ミスの可能性
-    → インライン展開が困難
+  Virtual function call (via vtable):
+    mov rax, [rdi]         ; 1. load the vptr
+    call [rax + offset]    ; 2. fetch method address from vtable and call
+    -> One indirection + potential branch misprediction
+    -> Inlining is difficult
 
-  パフォーマンスへの影響:
-    - 通常のアプリケーション: 影響はほぼゼロ（無視できる）
-    - ゲームの内部ループ: 数百万回/フレーム → 1-2%の影響あり得る
-    - 数値計算の内部ループ: 影響が顕著になる場合がある
+  Performance impact:
+    - Typical applications: effectively zero (negligible)
+    - Game inner loops: millions of times per frame -> 1-2% impact possible
+    - Inner loops of numerical computation: can be significant
 
-  最適化テクニック:
-    1. ホットパスでは仮想関数を避ける
-    2. final キーワードで仮想呼び出しを排除（C++/Java）
-    3. コンパイラの devirtualization 最適化を活用
-    4. 型ごとにバッチ処理（data-oriented design）
+  Optimization techniques:
+    1. Avoid virtual functions on hot paths
+    2. Use the final keyword to eliminate virtual calls (C++/Java)
+    3. Take advantage of the compiler's devirtualization optimizations
+    4. Batch processing per type (data-oriented design)
 ```
 
 ---
 
-## 4. 実践的な活用パターン
+## 4. Practical Usage Patterns
 
-### 4.1 Strategy パターン
+### 4.1 Strategy Pattern
 
 ```typescript
-// 支払い方法のポリモーフィズム
+// Polymorphism over payment methods
 interface PaymentStrategy {
   pay(amount: number): Promise<PaymentResult>;
   validate(): boolean;
@@ -636,11 +636,11 @@ class CreditCardPayment implements PaymentStrategy {
   async pay(amount: number): Promise<PaymentResult> {
     const fee = this.getFee(amount);
     const totalAmount = amount + fee;
-    // クレジットカード決済処理
+    // Credit card payment processing
     return {
       success: true,
       transactionId: `cc-${Date.now()}`,
-      message: `¥${totalAmount}を決済しました（手数料: ¥${fee}）`,
+      message: `Charged ¥${totalAmount} (fee: ¥${fee})`,
     };
   }
 
@@ -654,7 +654,7 @@ class CreditCardPayment implements PaymentStrategy {
 
   getDisplayName(): string {
     const masked = this.cardNumber.slice(-4).padStart(16, "*");
-    return `クレジットカード (****${masked.slice(-4)})`;
+    return `Credit Card (****${masked.slice(-4)})`;
   }
 
   getFee(amount: number): number {
@@ -669,7 +669,7 @@ class PayPayPayment implements PaymentStrategy {
     return {
       success: true,
       transactionId: `pp-${Date.now()}`,
-      message: `PayPayで¥${amount}を決済しました`,
+      message: `Charged ¥${amount} via PayPay`,
     };
   }
 
@@ -682,7 +682,7 @@ class PayPayPayment implements PaymentStrategy {
   }
 
   getFee(amount: number): number {
-    return 0; // PayPayは手数料無料
+    return 0; // PayPay has no fees
   }
 }
 
@@ -696,7 +696,7 @@ class BankTransferPayment implements PaymentStrategy {
     return {
       success: true,
       transactionId: `bt-${Date.now()}`,
-      message: `銀行振込の依頼を受け付けました（¥${amount}）`,
+      message: `Bank transfer request accepted (¥${amount})`,
     };
   }
 
@@ -705,11 +705,11 @@ class BankTransferPayment implements PaymentStrategy {
   }
 
   getDisplayName(): string {
-    return `銀行振込 (${this.bankCode})`;
+    return `Bank Transfer (${this.bankCode})`;
   }
 
   getFee(amount: number): number {
-    return amount >= 30000 ? 440 : 220; // 3万円以上は440円
+    return amount >= 30000 ? 440 : 220; // 440 yen for 30,000 or more
   }
 }
 
@@ -721,7 +721,7 @@ class ConvenienceStorePayment implements PaymentStrategy {
     return {
       success: true,
       transactionId: `cs-${Date.now()}`,
-      message: `コンビニ支払い番号: ${paymentCode}（期限: 3日以内）`,
+      message: `Convenience store payment code: ${paymentCode} (valid: within 3 days)`,
     };
   }
 
@@ -730,12 +730,12 @@ class ConvenienceStorePayment implements PaymentStrategy {
   }
 
   getDisplayName(): string {
-    const names = { seven: "セブンイレブン", lawson: "ローソン", family: "ファミリーマート" };
-    return `コンビニ払い（${names[this.storeType]}）`;
+    const names = { seven: "7-Eleven", lawson: "Lawson", family: "FamilyMart" };
+    return `Convenience Store Payment (${names[this.storeType]})`;
   }
 
   getFee(amount: number): number {
-    return 110; // 一律110円
+    return 110; // Flat 110 yen
   }
 
   private generatePaymentCode(): string {
@@ -743,65 +743,65 @@ class ConvenienceStorePayment implements PaymentStrategy {
   }
 }
 
-// 利用側: PaymentStrategy のみに依存
+// Consumer: depends only on PaymentStrategy
 class Checkout {
   async process(strategy: PaymentStrategy, amount: number): Promise<void> {
-    console.log(`決済方法: ${strategy.getDisplayName()}`);
+    console.log(`Payment method: ${strategy.getDisplayName()}`);
 
     if (!strategy.validate()) {
-      throw new Error("決済情報が無効です");
+      throw new Error("Invalid payment information");
     }
 
     const fee = strategy.getFee(amount);
-    console.log(`手数料: ¥${fee}`);
+    console.log(`Fee: ¥${fee}`);
 
     const result = await strategy.pay(amount);
     if (result.success) {
-      console.log(`決済成功: ${result.message}`);
-      console.log(`取引ID: ${result.transactionId}`);
+      console.log(`Payment success: ${result.message}`);
+      console.log(`Transaction ID: ${result.transactionId}`);
     } else {
-      console.log(`決済失敗: ${result.message}`);
+      console.log(`Payment failure: ${result.message}`);
     }
-    // 新しい決済方法が追加されても、このコードは変更不要
+    // Even when a new payment method is added, this code does not change
   }
 }
 
-// 使用例
+// Usage
 const checkout = new Checkout();
 await checkout.process(new CreditCardPayment("4111111111111111", "123", "12/25"), 10000);
 await checkout.process(new PayPayPayment("user-123"), 5000);
 await checkout.process(new ConvenienceStorePayment("seven"), 3000);
 ```
 
-### 4.2 プラグインシステム
+### 4.2 Plugin System
 
 ```python
-# Python: プラグインシステム
+# Python: plugin system
 from abc import ABC, abstractmethod
 from typing import Any
 import json
 
 
 class FileExporter(ABC):
-    """ファイルエクスポーターの抽象基底クラス"""
+    """Abstract base class for file exporters"""
 
     @abstractmethod
     def export(self, data: list[dict]) -> bytes:
-        """データをバイト列にエクスポート"""
+        """Export data to a byte stream"""
         ...
 
     @abstractmethod
     def file_extension(self) -> str:
-        """ファイル拡張子を返す"""
+        """Return the file extension"""
         ...
 
     @abstractmethod
     def mime_type(self) -> str:
-        """MIMEタイプを返す"""
+        """Return the MIME type"""
         ...
 
     def get_filename(self, base_name: str) -> str:
-        """ファイル名を生成"""
+        """Generate a file name"""
         return f"{base_name}{self.file_extension()}"
 
 
@@ -853,21 +853,21 @@ class JsonExporter(FileExporter):
 
 
 class ExcelExporter(FileExporter):
-    """Excel形式でのエクスポート"""
+    """Export in Excel format"""
 
     def export(self, data: list[dict]) -> bytes:
-        # 簡易的なXML SpreadsheetML形式
+        # A simplified XML SpreadsheetML format
         xml_parts = ['<?xml version="1.0"?>\n']
         xml_parts.append('<Workbook>\n<Worksheet ss:Name="Sheet1">\n<Table>\n')
 
         if data:
-            # ヘッダー行
+            # Header row
             xml_parts.append('<Row>\n')
             for key in data[0].keys():
                 xml_parts.append(f'  <Cell><Data ss:Type="String">{key}</Data></Cell>\n')
             xml_parts.append('</Row>\n')
 
-            # データ行
+            # Data rows
             for row in data:
                 xml_parts.append('<Row>\n')
                 for value in row.values():
@@ -886,7 +886,7 @@ class ExcelExporter(FileExporter):
 
 
 class MarkdownExporter(FileExporter):
-    """Markdown テーブル形式でのエクスポート"""
+    """Export as a Markdown table"""
 
     def export(self, data: list[dict]) -> bytes:
         if not data:
@@ -895,11 +895,11 @@ class MarkdownExporter(FileExporter):
         headers = list(data[0].keys())
         lines = []
 
-        # ヘッダー行
+        # Header row
         lines.append("| " + " | ".join(headers) + " |")
-        # 区切り線
+        # Separator line
         lines.append("| " + " | ".join("---" for _ in headers) + " |")
-        # データ行
+        # Data rows
         for row in data:
             values = [str(row.get(h, "")) for h in headers]
             lines.append("| " + " | ".join(values) + " |")
@@ -913,9 +913,9 @@ class MarkdownExporter(FileExporter):
         return "text/markdown"
 
 
-# レジストリパターン: エクスポーターを動的に管理
+# Registry pattern: manage exporters dynamically
 class ExporterRegistry:
-    """エクスポーターのレジストリ"""
+    """Registry of exporters"""
 
     def __init__(self):
         self._exporters: dict[str, FileExporter] = {}
@@ -927,7 +927,7 @@ class ExporterRegistry:
         if format_name not in self._exporters:
             available = ", ".join(self._exporters.keys())
             raise ValueError(
-                f"未対応のフォーマット: {format_name}（利用可能: {available}）"
+                f"Unsupported format: {format_name} (available: {available})"
             )
         return self._exporters[format_name]
 
@@ -935,15 +935,15 @@ class ExporterRegistry:
         return list(self._exporters.keys())
 
 
-# レジストリの初期化
+# Initialize the registry
 registry = ExporterRegistry()
 registry.register("csv", CsvExporter())
 registry.register("json", JsonExporter())
 registry.register("excel", ExcelExporter())
 registry.register("markdown", MarkdownExporter())
-registry.register("tsv", CsvExporter(delimiter="\t"))  # TSVもCSVの派生
+registry.register("tsv", CsvExporter(delimiter="\t"))  # TSV is a CSV variant
 
-# 利用側: FileExporter のみに依存
+# Consumer: depends only on FileExporter
 def save_report(format_name: str, data: list[dict], filename: str) -> str:
     exporter = registry.get(format_name)
     content = exporter.export(data)
@@ -952,15 +952,15 @@ def save_report(format_name: str, data: list[dict], filename: str) -> str:
     with open(full_path, "wb") as f:
         f.write(content)
 
-    print(f"保存完了: {full_path} ({len(content)} bytes, {exporter.mime_type()})")
+    print(f"Saved: {full_path} ({len(content)} bytes, {exporter.mime_type()})")
     return full_path
 
 
-# 使用例
+# Usage
 sample_data = [
-    {"名前": "田中太郎", "年齢": 30, "部署": "開発部"},
-    {"名前": "鈴木花子", "年齢": 25, "部署": "企画部"},
-    {"名前": "佐藤次郎", "年齢": 35, "部署": "営業部"},
+    {"name": "Taro Tanaka", "age": 30, "department": "Engineering"},
+    {"name": "Hanako Suzuki", "age": 25, "department": "Planning"},
+    {"name": "Jiro Sato", "age": 35, "department": "Sales"},
 ]
 
 save_report("csv", sample_data, "report")       # report.csv
@@ -968,10 +968,10 @@ save_report("json", sample_data, "report")      # report.json
 save_report("markdown", sample_data, "report")  # report.md
 ```
 
-### 4.3 Observer パターンでのポリモーフィズム
+### 4.3 Polymorphism in the Observer Pattern
 
 ```typescript
-// TypeScript: Observer パターン
+// TypeScript: Observer pattern
 interface EventListener<T> {
   onEvent(event: T): void;
   getId(): string;
@@ -989,14 +989,14 @@ class EmailNotifier implements EventListener<OrderEvent> {
 
   onEvent(event: OrderEvent): void {
     const subjects: Record<string, string> = {
-      created: "ご注文を受け付けました",
-      paid: "お支払いを確認しました",
-      shipped: "商品を発送しました",
-      delivered: "商品をお届けしました",
-      cancelled: "ご注文がキャンセルされました",
+      created: "Your order has been received",
+      paid: "Payment has been confirmed",
+      shipped: "Your item has been shipped",
+      delivered: "Your item has been delivered",
+      cancelled: "Your order has been cancelled",
     };
     console.log(
-      `📧 ${this.recipientEmail} へメール送信: [${subjects[event.type]}] 注文#${event.orderId}`
+      `Email sent to ${this.recipientEmail}: [${subjects[event.type]}] Order #${event.orderId}`
     );
   }
 
@@ -1010,9 +1010,9 @@ class SlackNotifier implements EventListener<OrderEvent> {
 
   onEvent(event: OrderEvent): void {
     console.log(
-      `💬 Slack #${this.channel}: 注文 ${event.orderId} が ${event.type} になりました`
+      `Slack #${this.channel}: order ${event.orderId} became ${event.type}`
     );
-    // webhookUrl にPOSTリクエストを送信
+    // POST request is sent to webhookUrl
   }
 
   getId(): string {
@@ -1023,9 +1023,9 @@ class SlackNotifier implements EventListener<OrderEvent> {
 class InventoryUpdater implements EventListener<OrderEvent> {
   onEvent(event: OrderEvent): void {
     if (event.type === "paid") {
-      console.log(`📦 在庫を確保: 注文 ${event.orderId}`);
+      console.log(`Reserve stock: order ${event.orderId}`);
     } else if (event.type === "cancelled") {
-      console.log(`📦 在庫を戻す: 注文 ${event.orderId}`);
+      console.log(`Return stock: order ${event.orderId}`);
     }
   }
 
@@ -1041,7 +1041,7 @@ class AnalyticsTracker implements EventListener<OrderEvent> {
     const count = this.eventCounts.get(event.type) || 0;
     this.eventCounts.set(event.type, count + 1);
     console.log(
-      `📊 Analytics: ${event.type} イベント記録（累計: ${count + 1}）`
+      `Analytics: recorded ${event.type} event (total: ${count + 1})`
     );
   }
 
@@ -1054,13 +1054,13 @@ class AnalyticsTracker implements EventListener<OrderEvent> {
   }
 }
 
-// イベントバス: リスナーのポリモーフィズムを活用
+// Event bus: leverages polymorphism of listeners
 class EventBus<T> {
   private listeners: EventListener<T>[] = [];
 
   subscribe(listener: EventListener<T>): void {
     this.listeners.push(listener);
-    console.log(`✅ リスナー登録: ${listener.getId()}`);
+    console.log(`Listener registered: ${listener.getId()}`);
   }
 
   unsubscribe(listenerId: string): void {
@@ -1068,62 +1068,62 @@ class EventBus<T> {
   }
 
   publish(event: T): void {
-    // ポリモーフィズム: 全リスナーの onEvent を呼ぶ
-    // 各リスナーが異なる処理を実行
+    // Polymorphism: call onEvent on every listener
+    // Each listener performs different processing
     for (const listener of this.listeners) {
       try {
         listener.onEvent(event);
       } catch (error) {
-        console.error(`リスナー ${listener.getId()} でエラー:`, error);
+        console.error(`Error in listener ${listener.getId()}:`, error);
       }
     }
   }
 }
 
-// 使用例
+// Usage
 const orderEvents = new EventBus<OrderEvent>();
 orderEvents.subscribe(new EmailNotifier("customer@example.com"));
 orderEvents.subscribe(new SlackNotifier("orders", "https://hooks.slack.com/xxx"));
 orderEvents.subscribe(new InventoryUpdater());
 orderEvents.subscribe(new AnalyticsTracker());
 
-// 注文イベントを発行 → 全リスナーが各自の処理を実行
+// Publish an order event -> every listener performs its own processing
 orderEvents.publish({
   type: "paid",
   orderId: "ORD-2024-001",
   timestamp: new Date(),
 });
-// 📧 customer@example.com へメール送信: [お支払いを確認しました] 注文#ORD-2024-001
-// 💬 Slack #orders: 注文 ORD-2024-001 が paid になりました
-// 📦 在庫を確保: 注文 ORD-2024-001
-// 📊 Analytics: paid イベント記録（累計: 1）
+// Email sent to customer@example.com: [Payment has been confirmed] Order #ORD-2024-001
+// Slack #orders: order ORD-2024-001 became paid
+// Reserve stock: order ORD-2024-001
+// Analytics: recorded paid event (total: 1)
 ```
 
 ---
 
-## 5. アドホックポリモーフィズム
+## 5. Ad-hoc Polymorphism
 
-### 5.1 メソッドオーバーロード
+### 5.1 Method Overloading
 
 ```java
-// Java: メソッドオーバーロード
+// Java: method overloading
 public class Calculator {
-    // 同名メソッドで引数の型が異なる
+    // Same name but different argument types
     public int add(int a, int b) { return a + b; }
     public double add(double a, double b) { return a + b; }
     public String add(String a, String b) { return a + b; }
 
-    // 引数の数が異なるオーバーロード
+    // Overload with different number of arguments
     public int add(int a, int b, int c) { return a + b + c; }
 
-    // 型の組み合わせ
+    // Combinations of types
     public double add(int a, double b) { return a + b; }
     public double add(double a, int b) { return a + b; }
 }
 
-// コンパイル時に呼ぶメソッドが決定（静的ディスパッチ）
+// The method to call is decided at compile time (static dispatch)
 
-// 実用例: ログメソッドのオーバーロード
+// Practical example: overloaded log methods
 public class Logger {
     public void log(String message) {
         log("INFO", message, null);
@@ -1146,89 +1146,89 @@ public class Logger {
 }
 ```
 
-### 5.2 演算子オーバーロード
+### 5.2 Operator Overloading
 
 ```python
-# Python: 演算子オーバーロード
+# Python: operator overloading
 from __future__ import annotations
 import math
 
 
 class Vector:
-    """2Dベクトルクラス（演算子オーバーロードの活用）"""
+    """2D vector class (leveraging operator overloading)"""
 
     def __init__(self, x: float, y: float):
         self.x = x
         self.y = y
 
-    # 加算: v1 + v2
+    # Addition: v1 + v2
     def __add__(self, other: Vector) -> Vector:
         return Vector(self.x + other.x, self.y + other.y)
 
-    # 減算: v1 - v2
+    # Subtraction: v1 - v2
     def __sub__(self, other: Vector) -> Vector:
         return Vector(self.x - other.x, self.y - other.y)
 
-    # スカラー乗算: v * 3
+    # Scalar multiplication: v * 3
     def __mul__(self, scalar: float) -> Vector:
         return Vector(self.x * scalar, self.y * scalar)
 
-    # 右側からのスカラー乗算: 3 * v
+    # Scalar multiplication from the right: 3 * v
     def __rmul__(self, scalar: float) -> Vector:
         return self.__mul__(scalar)
 
-    # スカラー除算: v / 2
+    # Scalar division: v / 2
     def __truediv__(self, scalar: float) -> Vector:
         if scalar == 0:
-            raise ZeroDivisionError("ベクトルを0で割ることはできません")
+            raise ZeroDivisionError("cannot divide a vector by zero")
         return Vector(self.x / scalar, self.y / scalar)
 
-    # 負のベクトル: -v
+    # Negation: -v
     def __neg__(self) -> Vector:
         return Vector(-self.x, -self.y)
 
-    # 等価比較: v1 == v2
+    # Equality comparison: v1 == v2
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Vector):
             return NotImplemented
         return math.isclose(self.x, other.x) and math.isclose(self.y, other.y)
 
-    # 絶対値（大きさ）: abs(v)
+    # Absolute value (magnitude): abs(v)
     def __abs__(self) -> float:
         return math.sqrt(self.x ** 2 + self.y ** 2)
 
-    # 真偽値: bool(v) → ゼロベクトルでなければ True
+    # Truthiness: bool(v) -> True if not a zero vector
     def __bool__(self) -> bool:
         return not (self.x == 0 and self.y == 0)
 
-    # 内積: v1 @ v2（行列乗算演算子を転用）
+    # Dot product: v1 @ v2 (repurposing the matrix multiplication operator)
     def __matmul__(self, other: Vector) -> float:
         return self.x * other.x + self.y * other.y
 
-    # 文字列表現
+    # String representation
     def __repr__(self) -> str:
         return f"Vector({self.x}, {self.y})"
 
     def __str__(self) -> str:
         return f"({self.x}, {self.y})"
 
-    # ユーティリティメソッド
+    # Utility methods
     def magnitude(self) -> float:
         return abs(self)
 
     def normalized(self) -> Vector:
         mag = self.magnitude()
         if mag == 0:
-            raise ValueError("ゼロベクトルは正規化できません")
+            raise ValueError("cannot normalize a zero vector")
         return self / mag
 
     def angle_to(self, other: Vector) -> float:
-        """他のベクトルとの角度（ラジアン）"""
+        """Angle (in radians) to another vector"""
         dot = self @ other
         return math.acos(dot / (abs(self) * abs(other)))
 
     def rotate(self, angle: float) -> Vector:
-        """ベクトルを回転（ラジアン）"""
+        """Rotate the vector (in radians)"""
         cos_a = math.cos(angle)
         sin_a = math.sin(angle)
         return Vector(
@@ -1237,25 +1237,25 @@ class Vector:
         )
 
 
-# 使用例
+# Usage
 v1 = Vector(1, 2)
 v2 = Vector(3, 4)
 
 print(v1 + v2)          # (4, 6)
 print(v1 - v2)          # (-2, -2)
 print(v1 * 3)           # (3, 6)
-print(3 * v1)           # (3, 6) ← __rmul__
+print(3 * v1)           # (3, 6) <- __rmul__
 print(v1 / 2)           # (0.5, 1.0)
 print(-v1)              # (-1, -2)
 print(abs(v1))           # 2.236...
-print(v1 @ v2)          # 11（内積）
+print(v1 @ v2)          # 11 (dot product)
 print(v1 == Vector(1, 2))  # True
 print(v1.normalized())  # (0.447..., 0.894...)
 
-# 物理シミュレーション的な使い方
+# Physics simulation style usage
 position = Vector(0, 0)
 velocity = Vector(1, 0.5)
-acceleration = Vector(0, -0.1)  # 重力
+acceleration = Vector(0, -0.1)  # gravity
 
 for step in range(10):
     velocity = velocity + acceleration
@@ -1264,32 +1264,32 @@ for step in range(10):
 ```
 
 ```kotlin
-// Kotlin: 演算子オーバーロード
+// Kotlin: operator overloading
 data class Money(val amount: Long, val currency: String) {
-    // + 演算子
+    // + operator
     operator fun plus(other: Money): Money {
-        require(currency == other.currency) { "通貨が異なります: $currency vs ${other.currency}" }
+        require(currency == other.currency) { "different currencies: $currency vs ${other.currency}" }
         return Money(amount + other.amount, currency)
     }
 
-    // - 演算子
+    // - operator
     operator fun minus(other: Money): Money {
-        require(currency == other.currency) { "通貨が異なります" }
+        require(currency == other.currency) { "different currencies" }
         return Money(amount - other.amount, currency)
     }
 
-    // * 演算子（スカラー倍）
+    // * operator (scalar multiplication)
     operator fun times(multiplier: Int): Money {
         return Money(amount * multiplier, currency)
     }
 
-    // 比較演算子
+    // Comparison operator
     operator fun compareTo(other: Money): Int {
-        require(currency == other.currency) { "通貨が異なります" }
+        require(currency == other.currency) { "different currencies" }
         return amount.compareTo(other.amount)
     }
 
-    // 単項マイナス
+    // Unary minus
     operator fun unaryMinus(): Money = Money(-amount, currency)
 
     override fun toString(): String {
@@ -1304,7 +1304,7 @@ data class Money(val amount: Long, val currency: String) {
     }
 }
 
-// 使用例
+// Usage
 val price = Money(1000, "JPY")
 val tax = Money(100, "JPY")
 val total = price + tax           // ¥1,100
@@ -1318,12 +1318,12 @@ println(price + Money(500, "JPY")) // ¥1,500
 
 ---
 
-## 6. パラメトリックポリモーフィズム（ジェネリクス）
+## 6. Parametric Polymorphism (Generics)
 
 ```typescript
-// TypeScript: ジェネリクスによるパラメトリックポリモーフィズム
+// TypeScript: parametric polymorphism via generics
 
-// 汎用的なリポジトリインターフェース
+// Generic repository interface
 interface Repository<T, ID> {
   findById(id: ID): Promise<T | null>;
   findAll(): Promise<T[]>;
@@ -1332,14 +1332,14 @@ interface Repository<T, ID> {
   count(): Promise<number>;
 }
 
-// 汎用的な検索条件
+// Generic search criteria
 interface SearchCriteria<T> {
   field: keyof T;
   operator: "eq" | "gt" | "lt" | "contains" | "in";
   value: any;
 }
 
-// 汎用的なページネーション結果
+// Generic pagination result
 interface PaginatedResult<T> {
   items: T[];
   total: number;
@@ -1349,7 +1349,7 @@ interface PaginatedResult<T> {
   hasPrev: boolean;
 }
 
-// エンティティ型の定義
+// Entity type definitions
 interface User {
   id: string;
   name: string;
@@ -1364,7 +1364,7 @@ interface Product {
   stock: number;
 }
 
-// インメモリ実装（テスト用）
+// In-memory implementation (for testing)
 class InMemoryRepository<T extends { id: string }> implements Repository<T, string> {
   private items: Map<string, T> = new Map();
 
@@ -1389,7 +1389,7 @@ class InMemoryRepository<T extends { id: string }> implements Repository<T, stri
     return this.items.size;
   }
 
-  // 追加: 検索機能
+  // Additional: search capability
   async search(criteria: SearchCriteria<T>[]): Promise<T[]> {
     const all = await this.findAll();
     return all.filter(item =>
@@ -1410,15 +1410,15 @@ class InMemoryRepository<T extends { id: string }> implements Repository<T, stri
   }
 }
 
-// 使用例: 同じ Repository 実装で異なる型を扱う
+// Usage: the same Repository implementation handles different types
 const userRepo = new InMemoryRepository<User>();
 const productRepo = new InMemoryRepository<Product>();
 
-// 型安全: User と Product を間違えるとコンパイルエラー
-await userRepo.save({ id: "1", name: "田中", email: "tanaka@test.com", createdAt: new Date() });
-await productRepo.save({ id: "1", name: "ノートPC", price: 150000, stock: 10 });
+// Type-safe: confusing User and Product is a compile error
+await userRepo.save({ id: "1", name: "Tanaka", email: "tanaka@test.com", createdAt: new Date() });
+await productRepo.save({ id: "1", name: "Laptop", price: 150000, stock: 10 });
 
-// ジェネリクスによる汎用ユーティリティ関数
+// Generic utility function using generics
 function paginate<T>(items: T[], page: number, pageSize: number): PaginatedResult<T> {
   const start = (page - 1) * pageSize;
   const paginatedItems = items.slice(start, start + pageSize);
@@ -1434,13 +1434,13 @@ function paginate<T>(items: T[], page: number, pageSize: number): PaginatedResul
   };
 }
 
-// 型安全にどの型でも使える
+// Works in a type-safe manner for any type
 const userPage: PaginatedResult<User> = paginate(await userRepo.findAll(), 1, 10);
 const productPage: PaginatedResult<Product> = paginate(await productRepo.findAll(), 1, 20);
 ```
 
 ```python
-# Python: ジェネリクス（typing.Generic）
+# Python: generics (typing.Generic)
 from typing import TypeVar, Generic, Optional, Callable
 from dataclasses import dataclass
 
@@ -1451,7 +1451,7 @@ E = TypeVar("E")
 
 @dataclass
 class Result(Generic[T, E]):
-    """Rust の Result 型を模倣したジェネリック型"""
+    """Generic type that mimics Rust's Result"""
     _value: Optional[T] = None
     _error: Optional[E] = None
     _is_ok: bool = True
@@ -1479,13 +1479,13 @@ class Result(Generic[T, E]):
         return self._value if self._is_ok else default  # type: ignore
 
     def map(self, fn: Callable[[T], "U"]) -> "Result[U, E]":
-        """成功値を変換"""
+        """Transform the success value"""
         if self._is_ok:
             return Result.ok(fn(self._value))  # type: ignore
         return Result.err(self._error)  # type: ignore
 
     def flat_map(self, fn: Callable[[T], "Result[U, E]"]) -> "Result[U, E]":
-        """成功値を別の Result に変換"""
+        """Transform the success value into another Result"""
         if self._is_ok:
             return fn(self._value)  # type: ignore
         return Result.err(self._error)  # type: ignore
@@ -1496,20 +1496,20 @@ class Result(Generic[T, E]):
         return f"Err({self._error})"
 
 
-# 使用例
+# Usage
 def parse_int(s: str) -> Result[int, str]:
     try:
         return Result.ok(int(s))
     except ValueError:
-        return Result.err(f"'{s}' は整数に変換できません")
+        return Result.err(f"'{s}' cannot be converted to an integer")
 
 def divide(a: int, b: int) -> Result[float, str]:
     if b == 0:
-        return Result.err("ゼロ除算エラー")
+        return Result.err("division by zero")
     return Result.ok(a / b)
 
 
-# メソッドチェーン
+# Method chaining
 result = (
     parse_int("42")
     .map(lambda x: x * 2)
@@ -1521,30 +1521,30 @@ error_result = (
     parse_int("abc")
     .map(lambda x: x * 2)
 )
-print(error_result)  # Err('abc' は整数に変換できません)
+print(error_result)  # Err('abc' cannot be converted to an integer)
 ```
 
 ---
 
-## 7. 静的 vs 動的ディスパッチ
+## 7. Static vs. Dynamic Dispatch
 
 ```
-静的ディスパッチ（コンパイル時に決定）:
-  → メソッドオーバーロード
-  → Rust のジェネリクス（単相化）
-  → C++ のテンプレート
-  → 高速（インライン化可能）
+Static dispatch (decided at compile time):
+  -> Method overloading
+  -> Rust's generics (monomorphization)
+  -> C++ templates
+  -> Fast (can be inlined)
 
-動的ディスパッチ（実行時に決定）:
-  → サブタイプポリモーフィズム
-  → Java/C# の仮想メソッド
-  → Rust の dyn Trait
-  → 柔軟（実行時にオブジェクトの型で分岐）
-  → vtable のオーバーヘッドあり（ほぼゼロだが）
+Dynamic dispatch (decided at runtime):
+  -> Subtype polymorphism
+  -> Virtual methods in Java/C#
+  -> Rust's dyn Trait
+  -> Flexible (branches on object type at runtime)
+  -> Has vtable overhead (near zero, but present)
 ```
 
 ```rust
-// Rust: 静的 vs 動的ディスパッチの選択
+// Rust: choosing between static and dynamic dispatch
 trait Drawable {
     fn draw(&self);
     fn bounding_box(&self) -> (f64, f64, f64, f64);
@@ -1572,91 +1572,91 @@ impl Drawable for Rect {
     }
 }
 
-// 静的ディスパッチ（ジェネリクス）: コンパイル時に型が確定
-// → コンパイラが型ごとに専用のコードを生成（単相化: monomorphization）
+// Static dispatch (generics): type determined at compile time
+// -> Compiler generates specialized code per type (monomorphization)
 fn draw_static<T: Drawable>(item: &T) {
-    item.draw(); // インライン化可能、高速
+    item.draw(); // Can be inlined, fast
 }
-// コンパイル後:
+// After compilation:
 // fn draw_static_Circle(item: &Circle) { item.draw(); }
 // fn draw_static_Rect(item: &Rect) { item.draw(); }
 
-// 動的ディスパッチ（トレイトオブジェクト）: 実行時に型が確定
+// Dynamic dispatch (trait object): type determined at runtime
 fn draw_dynamic(item: &dyn Drawable) {
-    item.draw(); // vtable 経由、柔軟
+    item.draw(); // Goes through a vtable, flexible
 }
 
-// 動的ディスパッチが必要な場面: 異なる型のコレクション
+// Situation requiring dynamic dispatch: heterogeneous collections
 fn main() {
-    // 静的ディスパッチ: 同じ型のコレクション
+    // Static dispatch: homogeneous collection
     let circles = vec![
         Circle { x: 0.0, y: 0.0, radius: 5.0 },
         Circle { x: 10.0, y: 10.0, radius: 3.0 },
     ];
     for c in &circles {
-        draw_static(c); // Circle 専用のコードが呼ばれる
+        draw_static(c); // Code specialized for Circle is called
     }
 
-    // 動的ディスパッチ: 異なる型の混在コレクション
+    // Dynamic dispatch: collection mixing different types
     let shapes: Vec<Box<dyn Drawable>> = vec![
         Box::new(Circle { x: 0.0, y: 0.0, radius: 5.0 }),
         Box::new(Rect { x: 1.0, y: 1.0, width: 3.0, height: 4.0 }),
     ];
     for shape in &shapes {
-        draw_dynamic(shape.as_ref()); // vtable 経由で呼ばれる
+        draw_dynamic(shape.as_ref()); // Called through the vtable
     }
 }
 ```
 
-### 7.1 選択基準
+### 7.1 Selection Criteria
 
 ```
-静的ディスパッチを選ぶべき場面:
-  ✓ パフォーマンスが最重要（ゲームの内部ループ、数値計算）
-  ✓ コンパイル時に型が確定している
-  ✓ 同じ型のコレクションを扱う
-  ✓ インライン展開のメリットが大きい
+When to choose static dispatch:
+  - Performance is paramount (game inner loops, numerical computation)
+  - The type is known at compile time
+  - You handle a homogeneous collection
+  - Inlining benefits are significant
 
-動的ディスパッチを選ぶべき場面:
-  ✓ 異なる型を同じコレクションで扱いたい
-  ✓ プラグインシステムのように実行時に型が決まる
-  ✓ コンパイル時間を短縮したい（ジェネリクスの膨張を避ける）
-  ✓ バイナリサイズを小さくしたい
+When to choose dynamic dispatch:
+  - You need to handle different types in the same collection
+  - The type is determined at runtime, e.g., plugin systems
+  - You want to reduce compile time (avoid generic code bloat)
+  - You want to reduce binary size
 
-  判断フロー:
-  1. 異なる型を混在させる必要がある？
-     → Yes → 動的ディスパッチ
-  2. パフォーマンスが極めて重要？
-     → Yes → 静的ディスパッチ
-  3. どちらでもよい場合
-     → 静的ディスパッチを優先（型安全性が高い）
+  Decision flow:
+  1. Do you need to mix different types?
+     -> Yes -> dynamic dispatch
+  2. Is performance extremely important?
+     -> Yes -> static dispatch
+  3. Either is fine
+     -> Prefer static dispatch (higher type safety)
 ```
 
 ---
 
-## 8. ポリモーフィズムとデザインパターン
+## 8. Polymorphism and Design Patterns
 
 ```
-ポリモーフィズムを活用する主要デザインパターン:
+Major design patterns that leverage polymorphism:
 
-  ┌──────────────────┬────────────────────────────────────────┐
-  │ パターン          │ ポリモーフィズムの活用                  │
-  ├──────────────────┼────────────────────────────────────────┤
-  │ Strategy         │ アルゴリズムの切り替え                   │
-  │ Observer         │ 通知先の動的な追加/削除                  │
-  │ Command          │ コマンドの統一的な実行/Undo               │
-  │ Template Method  │ 処理フローの共通化 + カスタマイズポイント  │
-  │ Factory Method   │ 生成するオブジェクトの動的な切り替え      │
-  │ State            │ 状態に応じた振る舞いの切り替え            │
-  │ Visitor          │ 操作の追加（ダブルディスパッチ）          │
-  │ Chain of Resp.   │ 処理の連鎖と委譲                        │
-  │ Decorator        │ 機能の動的な追加                        │
-  │ Adapter          │ 互換性のないIFの変換                     │
-  └──────────────────┴────────────────────────────────────────┘
+  +------------------+------------------------------------------+
+  | Pattern          | How polymorphism is used                  |
+  +------------------+------------------------------------------+
+  | Strategy         | Swapping algorithms                       |
+  | Observer         | Dynamic add/remove of notification targets |
+  | Command          | Uniform execution / Undo of commands       |
+  | Template Method  | Shared flow + customization points         |
+  | Factory Method   | Dynamic selection of objects to create     |
+  | State            | Behavior switching based on state          |
+  | Visitor          | Adding operations (double dispatch)        |
+  | Chain of Resp.   | Chained processing and delegation          |
+  | Decorator        | Dynamic addition of features               |
+  | Adapter          | Converting incompatible IFs                |
+  +------------------+------------------------------------------+
 ```
 
 ```typescript
-// State パターン: 状態に応じた振る舞いの切り替え
+// State pattern: behavior switching based on state
 interface OrderState {
   readonly name: string;
   pay(order: Order): void;
@@ -1666,107 +1666,107 @@ interface OrderState {
 }
 
 class PendingState implements OrderState {
-  readonly name = "保留中";
+  readonly name = "Pending";
 
   pay(order: Order): void {
-    console.log("支払い処理を開始します");
+    console.log("Starting payment processing");
     order.setState(new PaidState());
   }
 
   ship(order: Order): void {
-    console.log("エラー: 支払い前に発送できません");
+    console.log("Error: cannot ship before payment");
   }
 
   deliver(order: Order): void {
-    console.log("エラー: 支払い前に配達できません");
+    console.log("Error: cannot deliver before payment");
   }
 
   cancel(order: Order): void {
-    console.log("注文をキャンセルしました");
+    console.log("Order has been cancelled");
     order.setState(new CancelledState());
   }
 }
 
 class PaidState implements OrderState {
-  readonly name = "支払い済み";
+  readonly name = "Paid";
 
   pay(order: Order): void {
-    console.log("エラー: 既に支払い済みです");
+    console.log("Error: payment already completed");
   }
 
   ship(order: Order): void {
-    console.log("商品を発送しました");
+    console.log("Item shipped");
     order.setState(new ShippedState());
   }
 
   deliver(order: Order): void {
-    console.log("エラー: 発送前に配達できません");
+    console.log("Error: cannot deliver before shipping");
   }
 
   cancel(order: Order): void {
-    console.log("返金処理を開始し、注文をキャンセルしました");
+    console.log("Started refund processing and cancelled the order");
     order.setState(new CancelledState());
   }
 }
 
 class ShippedState implements OrderState {
-  readonly name = "発送済み";
+  readonly name = "Shipped";
 
   pay(order: Order): void {
-    console.log("エラー: 既に支払い済みです");
+    console.log("Error: payment already completed");
   }
 
   ship(order: Order): void {
-    console.log("エラー: 既に発送済みです");
+    console.log("Error: already shipped");
   }
 
   deliver(order: Order): void {
-    console.log("商品が配達されました");
+    console.log("Item has been delivered");
     order.setState(new DeliveredState());
   }
 
   cancel(order: Order): void {
-    console.log("エラー: 発送後のキャンセルは受付窓口にお問い合わせください");
+    console.log("Error: please contact support for cancellations after shipping");
   }
 }
 
 class DeliveredState implements OrderState {
-  readonly name = "配達済み";
+  readonly name = "Delivered";
 
   pay(order: Order): void {
-    console.log("エラー: 既に配達済みです");
+    console.log("Error: already delivered");
   }
 
   ship(order: Order): void {
-    console.log("エラー: 既に配達済みです");
+    console.log("Error: already delivered");
   }
 
   deliver(order: Order): void {
-    console.log("エラー: 既に配達済みです");
+    console.log("Error: already delivered");
   }
 
   cancel(order: Order): void {
-    console.log("返品処理を開始してください");
+    console.log("Please start the return process");
   }
 }
 
 class CancelledState implements OrderState {
-  readonly name = "キャンセル済み";
+  readonly name = "Cancelled";
 
   pay(order: Order): void {
-    console.log("エラー: キャンセル済みの注文です");
+    console.log("Error: order is already cancelled");
   }
 
   ship(order: Order): void {
-    console.log("エラー: キャンセル済みの注文です");
+    console.log("Error: order is already cancelled");
   }
 
   deliver(order: Order): void {
-    console.log("エラー: キャンセル済みの注文です");
+    console.log("Error: order is already cancelled");
   }
 
   cancel(order: Order): void {
-    console.log("エラー: 既にキャンセル済みです");
+    console.log("Error: already cancelled");
   }
 }
 
@@ -1776,7 +1776,7 @@ class Order {
   constructor(public readonly id: string) {}
 
   setState(state: OrderState): void {
-    console.log(`  状態遷移: ${this.state.name} → ${state.name}`);
+    console.log(`  State transition: ${this.state.name} -> ${state.name}`);
     this.state = state;
   }
 
@@ -1784,58 +1784,58 @@ class Order {
     return this.state.name;
   }
 
-  // ポリモーフィズム: 現在の状態に応じた振る舞いが呼ばれる
+  // Polymorphism: behavior corresponding to the current state is invoked
   pay(): void { this.state.pay(this); }
   ship(): void { this.state.ship(this); }
   deliver(): void { this.state.deliver(this); }
   cancel(): void { this.state.cancel(this); }
 }
 
-// 使用例
+// Usage
 const order = new Order("ORD-001");
-order.pay();      // 支払い処理 → PaidState
-order.ship();     // 発送 → ShippedState
-order.deliver();  // 配達 → DeliveredState
-order.cancel();   // 返品処理を開始してください
+order.pay();      // payment processing -> PaidState
+order.ship();     // shipping -> ShippedState
+order.deliver();  // delivery -> DeliveredState
+order.cancel();   // Please start the return process
 ```
 
 ---
 
-## 9. ポリモーフィズムのアンチパターン
+## 9. Polymorphism Anti-patterns
 
 ```
-アンチパターン1: 型チェックの氾濫
-  → instanceof / typeof / type() を多用して分岐
-  → ポリモーフィズムで解決すべき
+Anti-pattern 1: Type-check explosion
+  -> Overuse of instanceof / typeof / type() branching
+  -> Should be solved by polymorphism
 
-アンチパターン2: ダウンキャスト
-  → 親型を子型にキャストして子固有のメソッドを呼ぶ
-  → インターフェース設計の見直しが必要
+Anti-pattern 2: Downcasting
+  -> Casting a parent type to a child type to call child-specific methods
+  -> Indicates the interface design needs revisiting
 
-アンチパターン3: 空実装
-  → インターフェースのメソッドを空実装で満たす
-  → ISP（インターフェース分離の原則）違反
+Anti-pattern 3: Empty implementations
+  -> Implementing interface methods with empty bodies
+  -> Violates ISP (Interface Segregation Principle)
 
-アンチパターン4: 過剰なポリモーフィズム
-  → 変更の見込みがない部分まで抽象化
-  → YAGNI 違反
+Anti-pattern 4: Excessive polymorphism
+  -> Abstracting parts that are unlikely to change
+  -> Violates YAGNI
 ```
 
 ```typescript
-// ❌ アンチパターン: 型チェックの氾濫
+// Anti-pattern: type-check explosion
 function calculateDiscount(customer: Customer): number {
   if (customer instanceof PremiumCustomer) {
-    return 0.2; // 20%割引
+    return 0.2; // 20% discount
   } else if (customer instanceof RegularCustomer) {
-    return 0.05; // 5%割引
+    return 0.05; // 5% discount
   } else if (customer instanceof NewCustomer) {
-    return 0.1; // 10%割引（初回特典）
+    return 0.1; // 10% discount (first-time perk)
   }
   return 0;
 }
-// 新しい顧客タイプ追加のたびにここを修正 → OCP違反
+// Every time a new customer type is added, this must change -> OCP violation
 
-// ✅ ポリモーフィズムで解決
+// Solved with polymorphism
 interface Customer {
   getDiscount(): number;
   getName(): string;
@@ -1843,20 +1843,20 @@ interface Customer {
 
 class PremiumCustomer implements Customer {
   getDiscount(): number { return 0.2; }
-  getName(): string { return "プレミアム会員"; }
+  getName(): string { return "Premium Member"; }
 }
 
 class RegularCustomer implements Customer {
   getDiscount(): number { return 0.05; }
-  getName(): string { return "一般会員"; }
+  getName(): string { return "Regular Member"; }
 }
 
 class NewCustomer implements Customer {
   getDiscount(): number { return 0.1; }
-  getName(): string { return "新規会員"; }
+  getName(): string { return "New Member"; }
 }
 
-// 利用側: Customer.getDiscount() を呼ぶだけ
+// Consumer: simply calls Customer.getDiscount()
 function calculateTotal(customer: Customer, price: number): number {
   const discount = customer.getDiscount();
   return price * (1 - discount);
@@ -1868,42 +1868,42 @@ function calculateTotal(customer: Customer, price: number): number {
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Beyond theory, writing real code and observing the behavior deepens your understanding.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What mistakes do beginners often make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend firmly understanding the basic concepts explained in this guide before moving on to the next steps.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-| 種類 | 決定時期 | 手段 | 典型例 |
-|------|---------|------|--------|
-| サブタイプ | 実行時 | 継承/インターフェース | Strategy, Plugin, Observer |
-| パラメトリック | コンパイル時 | ジェネリクス | List<T>, Repository<T, ID> |
-| アドホック | コンパイル時 | オーバーロード | add(int), add(double), 演算子 |
-
-| 設計原則 | ポイント |
-|----------|---------|
-| OCP | 新機能はクラス追加で対応（既存コード変更なし） |
-| LSP | サブタイプは親型の代替として正しく動く |
-| DIP | 具象ではなく抽象（インターフェース）に依存 |
-| ISP | 不要なメソッドを含まない小さなインターフェース |
+The knowledge of this topic is used frequently in day-to-day development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 次に読むべきガイド
+## Summary
+
+| Kind | When decided | Means | Typical example |
+|------|-------------|-------|-----------------|
+| Subtype | Runtime | Inheritance / interface | Strategy, Plugin, Observer |
+| Parametric | Compile time | Generics | List<T>, Repository<T, ID> |
+| Ad-hoc | Compile time | Overloading | add(int), add(double), operators |
+
+| Design principle | Key point |
+|------------------|-----------|
+| OCP | New features are handled by adding classes (no changes to existing code) |
+| LSP | A subtype correctly substitutes for its parent type |
+| DIP | Depend on abstractions (interfaces), not concretes |
+| ISP | Small interfaces that do not include unnecessary methods |
 
 ---
 
-## 参考文献
+## Guides to Read Next
+
+---
+
+## References
 1. Cardelli, L. "On Understanding Types, Data Abstraction, and Polymorphism." 1985.
 2. Gamma, E. et al. "Design Patterns." Addison-Wesley, 1994.
 3. Bloch, J. "Effective Java." 3rd edition, 2018.
