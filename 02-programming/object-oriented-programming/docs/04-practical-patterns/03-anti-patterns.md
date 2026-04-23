@@ -1,67 +1,67 @@
-# OOPアンチパターン
+# OOP Anti-Patterns
 
-> アンチパターンは「よくある悪い設計」。God Object、深い継承階層、Anemic Domain Model など、OOP で陥りがちな罠とその回避方法を解説する。アンチパターンを認識し、適切にリファクタリングできることは、中級から上級エンジニアへのステップアップに不可欠なスキルである。
+> Anti-patterns are "common bad designs." This guide explains the traps that OOP developers frequently fall into—such as the God Object, deep inheritance hierarchies, and the Anemic Domain Model—and how to avoid them. Recognizing anti-patterns and being able to refactor them appropriately is an essential skill for stepping up from intermediate to senior engineer.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] 主要なOOPアンチパターンを認識できるようになる
-- [ ] 各アンチパターンの問題点と発生原因を理解する
-- [ ] リファクタリングによる解決方法を学ぶ
-- [ ] コードレビューでアンチパターンを指摘できるようになる
-- [ ] 予防的な設計手法を身につける
+- [ ] Be able to recognize the major OOP anti-patterns
+- [ ] Understand the problems and root causes of each anti-pattern
+- [ ] Learn how to resolve them through refactoring
+- [ ] Be able to point out anti-patterns during code reviews
+- [ ] Acquire preventive design techniques
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, the following knowledge will help deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [振る舞いパターン（Behavioral Patterns）](./02-behavioral-patterns.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related fundamental concepts
+- Understanding the content of [Behavioral Patterns](./02-behavioral-patterns.md)
 
 ---
 
-## 1. God Object（神オブジェクト）
+## 1. God Object
 
-### 1.1 概要と症状
+### 1.1 Overview and Symptoms
 
-God Object は最も一般的で最も有害なアンチパターンの一つである。一つのクラスがアプリケーションの多くの責任を担い、事実上の「全知全能」オブジェクトになってしまう現象を指す。
-
-```
-症状:
-  → 1つのクラスが全てを知り、全てを行う
-  → 1000行以上のクラス
-  → 20以上のメソッド
-  → あらゆるクラスがこのクラスに依存
-  → メソッド名に統一感がない（create, process, handle, manage...）
-  → 複数の異なるドメイン概念が混在
-
-原因:
-  → 「とりあえずここに追加」の積み重ね
-  → 責任の分離を意識しない開発
-  → 最初から設計せずにコードを追加し続けた結果
-  → チームメンバー間でクラス設計の合意がない
-
-問題:
-  → 変更が困難（影響範囲が広大）
-  → テスト困難（依存が多すぎる）
-  → チーム開発でコンフリクト多発
-  → コンパイル時間の増大
-  → メモリ使用量の増大（不要なデータもロードされる）
-```
-
-### 1.2 God Object の発生パターン
+The God Object is one of the most common and most harmful anti-patterns. It refers to a situation where a single class takes on many of the application's responsibilities, effectively becoming an "omniscient and omnipotent" object.
 
 ```
-時間経過による肥大化:
+Symptoms:
+  → One class knows everything and does everything
+  → A class of more than 1,000 lines
+  → More than 20 methods
+  → Every class depends on this class
+  → Method names lack consistency (create, process, handle, manage...)
+  → Multiple distinct domain concepts are mixed together
 
- Month 1:  [UserService: 100行]     ← 最初は適切
- Month 3:  [UserService: 300行]     ← 「ちょっと追加」
- Month 6:  [UserService: 800行]     ← 「関連するから」
- Month 12: [UserService: 2000行]    ← God Object 完成
- Month 18: [UserService: 5000行]    ← 誰も触りたくない
+Causes:
+  → The accumulation of "just add it here for now"
+  → Development without awareness of separation of responsibilities
+  → The result of continuing to add code without designing from the start
+  → No agreement among team members on class design
 
-依存関係の増大:
+Problems:
+  → Difficult to change (huge impact scope)
+  → Difficult to test (too many dependencies)
+  → Frequent conflicts in team development
+  → Increased compile time
+  → Increased memory usage (unnecessary data also gets loaded)
+```
+
+### 1.2 How God Objects Emerge
+
+```
+Bloat over time:
+
+ Month 1:  [UserService: 100 lines]   ← Initially appropriate
+ Month 3:  [UserService: 300 lines]   ← "Just a little addition"
+ Month 6:  [UserService: 800 lines]   ← "Because it's related"
+ Month 12: [UserService: 2000 lines]  ← God Object completed
+ Month 18: [UserService: 5000 lines]  ← Nobody wants to touch it
+
+Growth of dependencies:
                  ┌──────────┐
     ┌───────────►│          │◄───────────┐
     │            │   God    │            │
@@ -71,16 +71,16 @@ God Object は最も一般的で最も有害なアンチパターンの一つで
     │   │         ▲  ▲  ▲           │   │
   [A] [B]       [C][D][E]         [F] [G]
 
-  → 全てのクラスが God Object に依存
-  → God Object の変更が全体に波及
+  → Every class depends on the God Object
+  → Changes to the God Object ripple through the entire system
 ```
 
-### 1.3 具体例と問題
+### 1.3 Concrete Example and Problems
 
 ```typescript
-// ❌ God Object の典型例
+// ❌ Typical example of a God Object
 class ApplicationManager {
-  // ユーザー管理
+  // User management
   private users: Map<string, User> = new Map();
   private sessions: Map<string, Session> = new Map();
 
@@ -90,7 +90,7 @@ class ApplicationManager {
   updateUserProfile(id: string, profile: any) { /* ... */ }
   getUserPermissions(id: string) { /* ... */ }
 
-  // 注文管理
+  // Order management
   private orders: Map<string, Order> = new Map();
 
   createOrder(userId: string, items: any[]) { /* ... */ }
@@ -98,64 +98,64 @@ class ApplicationManager {
   getOrderHistory(userId: string) { /* ... */ }
   updateOrderStatus(orderId: string, status: string) { /* ... */ }
 
-  // 支払い管理
+  // Payment management
   processPayment(orderId: string, card: any) { /* ... */ }
   refundPayment(paymentId: string) { /* ... */ }
   getPaymentHistory(userId: string) { /* ... */ }
 
-  // 通知管理
+  // Notification management
   sendEmail(to: string, body: string) { /* ... */ }
   sendSms(to: string, body: string) { /* ... */ }
   sendPushNotification(userId: string, message: string) { /* ... */ }
 
-  // レポート
+  // Reports
   generateMonthlyReport() { /* ... */ }
   generateUserReport(userId: string) { /* ... */ }
   generateSalesReport(from: Date, to: Date) { /* ... */ }
 
-  // 設定管理
+  // Configuration management
   getConfig(key: string) { /* ... */ }
   updateConfig(key: string, value: any) { /* ... */ }
 
-  // キャッシュ管理
+  // Cache management
   clearCache() { /* ... */ }
   warmUpCache() { /* ... */ }
 
-  // ... さらに100メソッド以上
+  // ... and more than 100 additional methods
 }
 ```
 
-### 1.4 段階的リファクタリング手順
+### 1.4 Incremental Refactoring Procedure
 
-God Object のリファクタリングは一度にやるのではなく、段階的に進めるのが重要である。
+Refactoring a God Object should not be done all at once; it's important to proceed incrementally.
 
 ```
-リファクタリング戦略:
+Refactoring strategy:
 
-Phase 1: 責任の識別
-  → メソッドをカテゴリごとにグループ化
-  → 依存関係を可視化
-  → 分割境界を決定
+Phase 1: Identify responsibilities
+  → Group methods by category
+  → Visualize dependencies
+  → Determine split boundaries
 
-Phase 2: インターフェース抽出
-  → 各グループのインターフェースを定義
-  → God Object にインターフェースを実装させる
-  → 利用側をインターフェース経由に変更
+Phase 2: Extract interfaces
+  → Define an interface for each group
+  → Have the God Object implement the interfaces
+  → Change callers to go through the interfaces
 
-Phase 3: クラス抽出
-  → インターフェースごとに新しいクラスを作成
-  → God Object からロジックを移動
-  → God Object はファサードとして残す（一時的）
+Phase 3: Extract classes
+  → Create a new class for each interface
+  → Move logic out of the God Object
+  → Keep the God Object as a facade (temporarily)
 
-Phase 4: ファサード除去
-  → 利用側を新しいクラスに直接接続
-  → God Object を完全に削除
+Phase 4: Remove the facade
+  → Connect callers directly to the new classes
+  → Delete the God Object completely
 ```
 
 ```typescript
-// Phase 1: 責任の識別（コメントでグループ化）
+// Phase 1: Identify responsibilities (group with comments)
 
-// Phase 2: インターフェース抽出
+// Phase 2: Extract interfaces
 interface IUserService {
   createUser(data: CreateUserDTO): Promise<User>;
   deleteUser(id: string): Promise<void>;
@@ -180,7 +180,7 @@ interface INotificationService {
   sendPushNotification(userId: string, message: string): Promise<void>;
 }
 
-// Phase 3: クラス抽出
+// Phase 3: Extract classes
 class UserService implements IUserService {
   constructor(
     private readonly userRepo: UserRepository,
@@ -224,7 +224,7 @@ class UserService implements IUserService {
   }
 
   private generateToken(user: User): string {
-    // JWT生成ロジック
+    // JWT generation logic
     return "token";
   }
 }
@@ -256,9 +256,9 @@ class OrderService implements IOrderService {
   }
 }
 
-// Phase 4: 利用側の変更
+// Phase 4: Change callers
 // Before: const app = new ApplicationManager(); app.createUser(...);
-// After:  直接各サービスを利用
+// After:  use each service directly
 class OrderController {
   constructor(
     private readonly orderService: IOrderService,
@@ -269,69 +269,69 @@ class OrderController {
   async placeOrder(req: Request): Promise<Response> {
     const order = await this.orderService.createOrder(req.userId, req.items);
     const payment = await this.paymentService.processPayment(order.id, req.card);
-    await this.notificationService.sendEmail(req.userEmail, "注文完了");
+    await this.notificationService.sendEmail(req.userEmail, "Order complete");
     return { orderId: order.id, paymentId: payment.id };
   }
 }
 ```
 
-### 1.5 God Object を防ぐルール
+### 1.5 Rules to Prevent God Objects
 
 ```
-予防策:
-  1. 新しいメソッドを追加する前に「このクラスの責任か？」と問う
-  2. クラスの命名で責任を明確化（Manager/Handler は危険信号）
-  3. 200行を超えたら分割を検討する
-  4. コードレビューで責任の混在を指摘する
-  5. 静的解析ツールでクラスの複雑度をモニタリング
+Preventive measures:
+  1. Before adding a new method, ask "Is this the responsibility of this class?"
+  2. Clarify responsibility through class naming (Manager/Handler are danger signals)
+  3. Consider splitting when a class exceeds 200 lines
+  4. Point out mixed responsibilities during code reviews
+  5. Monitor class complexity with static analysis tools
 
-危険な命名パターン:
+Dangerous naming patterns:
   ❌ ApplicationManager
   ❌ SystemHelper
   ❌ Utility
   ❌ CommonService
   ❌ MainController
-  → これらの名前は「何でも入る」ことを暗示する
+  → These names imply "anything can go in here"
 ```
 
 ---
 
-## 2. Anemic Domain Model（貧血ドメインモデル）
+## 2. Anemic Domain Model
 
-### 2.1 概要と症状
+### 2.1 Overview and Symptoms
 
-Anemic Domain Model は Martin Fowler が「ドメイン駆動設計の最大のアンチパターン」と呼んだ問題である。ドメインオブジェクトがデータの入れ物でしかなく、ビジネスロジックが全てサービスクラスに流出している状態を指す。
+The Anemic Domain Model is what Martin Fowler called "the biggest anti-pattern in Domain-Driven Design." It refers to a state where domain objects are nothing more than data containers, and all business logic has leaked out into service classes.
 
 ```
-症状:
-  → クラスがデータ（getter/setter）だけを持つ
-  → ビジネスロジックが全てサービスクラスにある
-  → ドメインオブジェクトが単なるデータの入れ物
-  → 不変条件（invariant）がどこにも強制されない
-  → 同じバリデーションロジックが複数箇所に散在
+Symptoms:
+  → Classes have only data (getters/setters)
+  → All business logic lives in service classes
+  → Domain objects are mere data containers
+  → Invariants are not enforced anywhere
+  → The same validation logic is scattered across multiple locations
 
-原因:
-  → 「データクラス + サービスクラス」の分離が目的化
-  → DTOとドメインモデルの混同
-  → データベーステーブルと1:1でクラスを作る習慣
-  → 手続き型プログラミングの思考が残っている
+Causes:
+  → Separating into "data classes + service classes" becomes an end in itself
+  → Confusion between DTOs and domain models
+  → The habit of creating classes 1:1 with database tables
+  → Procedural programming thinking still remains
 
-問題:
-  → オブジェクト指向の利点が活かせない
-  → ビジネスルールの重複
-  → 不正な状態を防げない
-  → テストでサービスとデータの両方を用意する必要
-  → ドメイン知識がコードに表現されない
+Problems:
+  → Cannot leverage the advantages of object orientation
+  → Duplication of business rules
+  → Cannot prevent invalid states
+  → Tests need to prepare both service and data
+  → Domain knowledge is not expressed in the code
 ```
 
-### 2.2 Anemic vs Rich の比較図
+### 2.2 Comparison Diagram: Anemic vs Rich
 
 ```
 Anemic Domain Model:
 
   ┌─────────────┐         ┌─────────────────┐
   │   Order      │         │  OrderService    │
-  │  (データだけ) │◄────────│  (ロジックだけ)   │
+  │ (data only)  │◄────────│  (logic only)    │
   │             │         │                 │
   │ id          │         │ calculateTotal()│
   │ items[]     │         │ canCancel()     │
@@ -339,14 +339,14 @@ Anemic Domain Model:
   │ totalPrice  │         │ applyDiscount() │
   │ createdAt   │         │ validate()      │
   └─────────────┘         └─────────────────┘
-  ※ データとロジックが分離 → 不正な状態が可能
+  * Data and logic are separated → invalid states are possible
 
 
 Rich Domain Model:
 
   ┌──────────────────────────┐
   │   Order                   │
-  │  (データ + ロジック)        │
+  │  (data + logic)           │
   │                          │
   │ - id: OrderId            │
   │ - items: OrderItem[]     │
@@ -359,10 +359,10 @@ Rich Domain Model:
   │ + cancel()               │
   │ + applyDiscount(coupon)  │
   └──────────────────────────┘
-  ※ データとロジックが一体 → 不正な状態を型で防ぐ
+  * Data and logic are unified → invalid states are prevented by types
 ```
 
-### 2.3 具体例：Before / After
+### 2.3 Concrete Example: Before / After
 
 ```typescript
 // ❌ Anemic Domain Model
@@ -374,11 +374,11 @@ class Order {
   discount: number = 0;
   shippingAddress: string = "";
   createdAt: Date = new Date();
-  // getter/setter だけ。ロジックなし
+  // Only getters/setters. No logic.
 }
 
 class OrderService {
-  // 全てのロジックがサービスに
+  // All logic is in the service
   calculateTotal(order: Order): number {
     order.totalPrice = order.items.reduce(
       (sum, item) => sum + item.price * item.quantity, 0
@@ -387,7 +387,7 @@ class OrderService {
   }
 
   applyDiscount(order: Order, discountRate: number): void {
-    // バリデーションがサービス側にある
+    // Validation is on the service side
     if (discountRate < 0 || discountRate > 0.5) {
       throw new Error("Invalid discount rate");
     }
@@ -406,19 +406,19 @@ class OrderService {
 
   validate(order: Order): string[] {
     const errors: string[] = [];
-    if (order.items.length === 0) errors.push("商品が必要です");
-    if (!order.shippingAddress) errors.push("配送先が必要です");
-    if (order.totalPrice < 0) errors.push("合計金額が不正です");
+    if (order.items.length === 0) errors.push("Items are required");
+    if (!order.shippingAddress) errors.push("Shipping address is required");
+    if (order.totalPrice < 0) errors.push("Invalid total price");
     return errors;
   }
 }
 
-// 問題: 不正な状態を簡単に作れてしまう
+// Problem: it's easy to create invalid states
 const order = new Order();
-order.status = "shipped";      // いきなり出荷済み？
-order.totalPrice = -1000;      // 負の金額？
-order.items = [];              // 商品なしで出荷済み？
-// → 何のエラーも発生しない！
+order.status = "shipped";      // Shipped right away?
+order.totalPrice = -1000;      // Negative amount?
+order.items = [];              // Shipped without items?
+// → No errors are raised!
 ```
 
 ```typescript
@@ -444,10 +444,10 @@ class Order {
 
   constructor(private readonly _id: OrderId) {}
 
-  // ビジネスルールを持つメソッド
+  // Methods that carry business rules
   addItem(item: OrderItem): void {
     if (this._status !== "pending") {
-      throw new DomainError("確定済みの注文には追加できません");
+      throw new DomainError("Cannot add to a confirmed order");
     }
     const existing = this._items.find(i => i.productId === item.productId);
     if (existing) {
@@ -459,14 +459,14 @@ class Order {
 
   removeItem(productId: string): void {
     if (this._status !== "pending") {
-      throw new DomainError("確定済みの注文からは削除できません");
+      throw new DomainError("Cannot remove from a confirmed order");
     }
     const index = this._items.findIndex(i => i.productId === productId);
-    if (index === -1) throw new DomainError("商品が見つかりません");
+    if (index === -1) throw new DomainError("Item not found");
     this._items.splice(index, 1);
   }
 
-  // 計算ロジックがドメインオブジェクト内
+  // Calculation logic lives inside the domain object
   get subtotal(): Money {
     return this._items.reduce(
       (sum, item) => sum.add(item.totalPrice),
@@ -480,52 +480,52 @@ class Order {
 
   applyDiscount(coupon: Coupon): void {
     if (this._status !== "pending") {
-      throw new DomainError("確定済みの注文に割引は適用できません");
+      throw new DomainError("Cannot apply a discount to a confirmed order");
     }
     if (!coupon.isValid()) {
-      throw new DomainError("無効なクーポンです");
+      throw new DomainError("Invalid coupon");
     }
     this._discount = coupon.calculateDiscount(this.subtotal);
   }
 
   setShippingAddress(address: Address): void {
     if (this._status === "shipped" || this._status === "delivered") {
-      throw new DomainError("発送済みの注文の配送先は変更できません");
+      throw new DomainError("Cannot change the shipping address of a shipped order");
     }
     this._shippingAddress = address;
   }
 
-  // 状態遷移を管理するメソッド
+  // Methods that manage state transitions
   confirm(): void {
     if (this._items.length === 0) {
-      throw new DomainError("商品がない注文は確定できません");
+      throw new DomainError("Cannot confirm an order with no items");
     }
     if (!this._shippingAddress) {
-      throw new DomainError("配送先が設定されていません");
+      throw new DomainError("Shipping address is not set");
     }
     if (this._status !== "pending") {
-      throw new DomainError(`${this._status} の注文は確定できません`);
+      throw new DomainError(`Cannot confirm a ${this._status} order`);
     }
     this._status = "confirmed";
   }
 
   ship(): void {
     if (this._status !== "confirmed") {
-      throw new DomainError("確定済みの注文のみ発送できます");
+      throw new DomainError("Only confirmed orders can be shipped");
     }
     this._status = "shipped";
   }
 
   deliver(): void {
     if (this._status !== "shipped") {
-      throw new DomainError("発送済みの注文のみ配達完了にできます");
+      throw new DomainError("Only shipped orders can be marked as delivered");
     }
     this._status = "delivered";
   }
 
   cancel(): void {
     if (this._status === "shipped" || this._status === "delivered") {
-      throw new DomainError("発送済みの注文はキャンセルできません");
+      throw new DomainError("Cannot cancel a shipped order");
     }
     this._status = "cancelled";
   }
@@ -536,15 +536,15 @@ class Order {
   get createdAt(): Date { return this._createdAt; }
 }
 
-// → 不正な状態を作ることができない
-// → ビジネスルールがオブジェクト内に集約
-// → テストが明確（Orderだけテストすれば良い）
+// → Invalid states cannot be created
+// → Business rules are consolidated inside the object
+// → Testing is straightforward (you only need to test Order)
 ```
 
-### 2.4 状態遷移図で見る Rich Domain Model
+### 2.4 Rich Domain Model Viewed Through State Transitions
 
 ```
-Order の状態遷移:
+Order state transitions:
 
   ┌─────────┐  confirm()  ┌───────────┐  ship()  ┌─────────┐  deliver()  ┌───────────┐
   │ pending  │───────────►│ confirmed │────────►│ shipped │───────────►│ delivered │
@@ -557,14 +557,14 @@ Order の状態遷移:
   │ cancelled │          │ cancelled │
   └───────────┘          └───────────┘
 
-  → 各状態遷移にビジネスルールが埋め込まれている
-  → 不正な遷移（例: pending → delivered）は例外で防止
+  → Business rules are embedded at every state transition
+  → Invalid transitions (e.g., pending → delivered) are prevented via exceptions
 ```
 
-### 2.5 Java での Rich Domain Model 例
+### 2.5 Rich Domain Model Example in Java
 
 ```java
-// ✅ Java での Rich Domain Model
+// ✅ Rich Domain Model in Java
 public class BankAccount {
     private final AccountId id;
     private Money balance;
@@ -573,7 +573,7 @@ public class BankAccount {
 
     private BankAccount(AccountId id, Money initialDeposit) {
         if (initialDeposit.isLessThan(Money.of(1000, "JPY"))) {
-            throw new DomainException("最低入金額は1000円です");
+            throw new DomainException("The minimum deposit is 1000 JPY");
         }
         this.id = id;
         this.balance = initialDeposit;
@@ -589,7 +589,7 @@ public class BankAccount {
     public void deposit(Money amount) {
         ensureActive();
         if (amount.isLessThanOrEqual(Money.zero("JPY"))) {
-            throw new DomainException("入金額は正の数である必要があります");
+            throw new DomainException("Deposit amount must be positive");
         }
         this.balance = this.balance.add(amount);
         this.transactions.add(Transaction.deposit(amount));
@@ -598,7 +598,7 @@ public class BankAccount {
     public void withdraw(Money amount) {
         ensureActive();
         if (amount.isLessThanOrEqual(Money.zero("JPY"))) {
-            throw new DomainException("出金額は正の数である必要があります");
+            throw new DomainException("Withdrawal amount must be positive");
         }
         if (this.balance.isLessThan(amount)) {
             throw new InsufficientFundsException(this.balance, amount);
@@ -614,18 +614,18 @@ public class BankAccount {
 
     public void close() {
         if (this.balance.isGreaterThan(Money.zero("JPY"))) {
-            throw new DomainException("残高がある口座は閉鎖できません");
+            throw new DomainException("Cannot close an account with a remaining balance");
         }
         this.status = AccountStatus.CLOSED;
     }
 
     private void ensureActive() {
         if (this.status != AccountStatus.ACTIVE) {
-            throw new DomainException("アクティブな口座でのみ操作可能です");
+            throw new DomainException("Operation is only allowed on active accounts");
         }
     }
 
-    // 不変条件が常に保証される
+    // Invariants are always guaranteed
     public Money getBalance() { return this.balance; }
     public AccountStatus getStatus() { return this.status; }
     public List<Transaction> getTransactionHistory() {
@@ -634,37 +634,37 @@ public class BankAccount {
 }
 ```
 
-### 2.6 Anemic Model が適切な場面
+### 2.6 Situations Where the Anemic Model Is Appropriate
 
-全てのケースで Rich Domain Model が最適とは限らない。以下の場面では Anemic Model が合理的な場合もある。
+The Rich Domain Model is not always optimal in every case. In the following situations, the Anemic Model can be a reasonable choice.
 
 ```
-Anemic Model が許容される場面:
-  → 単純な CRUD アプリケーション（ビジネスロジックが少ない）
-  → DTO（データ転送オブジェクト）としての利用
-  → 外部 API との通信用オブジェクト
-  → レポート/集計用の読み取り専用データ
+Situations where the Anemic Model is acceptable:
+  → Simple CRUD applications (little business logic)
+  → Use as a DTO (Data Transfer Object)
+  → Objects for communication with external APIs
+  → Read-only data for reports/aggregates
 
-Rich Domain Model が必須な場面:
-  → 複雑なビジネスルールが存在する
-  → 状態遷移の管理が重要
-  → ドメインエキスパートとの共通言語が必要
-  → 不正な状態を確実に防ぐ必要がある
+Situations where a Rich Domain Model is essential:
+  → Complex business rules exist
+  → Managing state transitions is important
+  → A shared language with domain experts is needed
+  → Invalid states must be reliably prevented
 ```
 
 ---
 
-## 3. 深い継承階層（Deep Inheritance Hierarchy）
+## 3. Deep Inheritance Hierarchy
 
-### 3.1 概要と症状
+### 3.1 Overview and Symptoms
 
 ```
-症状:
-  → 4段階以上の継承チェーン
-  → 各レイヤーの変更が下位全てに影響
-  → どのメソッドがどのレイヤーで定義されたか不明
-  → super.super.method() のような呼び出し
-  → 一つの変更で予想外の動作変更が発生
+Symptoms:
+  → Inheritance chains four or more levels deep
+  → Changes at each layer affect everything below
+  → It becomes unclear which method was defined at which layer
+  → Calls like super.super.method()
+  → A single change causes unexpected behavior changes
 
   Entity
   └── LivingEntity
@@ -674,53 +674,53 @@ Rich Domain Model が必須な場面:
                   └── GuideDog
                       └── TrainedGuideDog
 
-  → 7段階！ TrainedGuideDog のバグを直すには
-     全レイヤーを理解する必要がある
+  → 7 levels! Fixing a bug in TrainedGuideDog
+     requires understanding every layer
 
-解決:
-  → 継承は2-3段階まで
-  → コンポジションで機能を組み合わせ
-  → インターフェースで型の関係を表現
+Solution:
+  → Keep inheritance to 2–3 levels
+  → Combine features via composition
+  → Express type relationships through interfaces
 ```
 
-### 3.2 深い継承の問題を図解
+### 3.2 Visualizing the Problems of Deep Inheritance
 
 ```
-メソッド解決の複雑さ:
+The complexity of method resolution:
 
-  TrainedGuideDog.walk() はどこで定義されている？
+  Where is TrainedGuideDog.walk() defined?
 
-  TrainedGuideDog   → walk() なし
-  GuideDog          → walk() なし
-  Dog               → walk() あり！ ... でも super.walk() を呼んでいる
-  Mammal            → walk() あり！ ... でもこちらも super.move() を呼ぶ
-  Animal            → move() あり！
-  LivingEntity      → なし
-  Entity            → なし
+  TrainedGuideDog   → No walk()
+  GuideDog          → No walk()
+  Dog               → Has walk()! ... but it calls super.walk()
+  Mammal            → Has walk()! ... but it also calls super.move()
+  Animal            → Has move()!
+  LivingEntity      → None
+  Entity            → None
 
-  → 「Yo-Yo 問題」: 上下に行ったり来たりしないと理解できない
+  → "Yo-Yo Problem": you can't understand it without bouncing up and down
 
-脆い基底クラス問題（Fragile Base Class Problem）:
+The Fragile Base Class Problem:
 
-  Animal に sound() メソッドを追加:
-    → Mammal: 問題なし
-    → Dog: 問題なし
-    → GuideDog: sound() が既に定義済み → 意図しないオーバーライド！
-    → TrainedGuideDog: 動作が変わる → テスト失敗！
+  Adding a sound() method to Animal:
+    → Mammal: no problem
+    → Dog: no problem
+    → GuideDog: sound() is already defined → unintended override!
+    → TrainedGuideDog: behavior changes → tests fail!
 ```
 
-### 3.3 リファクタリング例
+### 3.3 Refactoring Example
 
 ```typescript
-// ❌ 深い継承
-class BaseComponent { /* 基本機能 */ }
-class StyledComponent extends BaseComponent { /* スタイル */ }
-class InteractiveComponent extends StyledComponent { /* インタラクション */ }
-class AnimatedComponent extends InteractiveComponent { /* アニメーション */ }
+// ❌ Deep inheritance
+class BaseComponent { /* base features */ }
+class StyledComponent extends BaseComponent { /* styling */ }
+class InteractiveComponent extends StyledComponent { /* interaction */ }
+class AnimatedComponent extends InteractiveComponent { /* animation */ }
 class AccessibleComponent extends AnimatedComponent { /* a11y */ }
-class MyButton extends AccessibleComponent { /* ボタン */ }
+class MyButton extends AccessibleComponent { /* button */ }
 
-// ✅ コンポジション + インターフェース
+// ✅ Composition + interfaces
 interface Stylable { applyStyles(styles: Styles): void; }
 interface Interactive { onClick(handler: () => void): void; }
 interface Animatable { animate(animation: Animation): void; }
@@ -728,19 +728,19 @@ interface Accessible { setAriaLabel(label: string): void; }
 
 class StyleEngine implements Stylable {
   applyStyles(styles: Styles): void {
-    // スタイル適用ロジック
+    // Style application logic
   }
 }
 
 class AnimationEngine implements Animatable {
   animate(animation: Animation): void {
-    // アニメーションロジック
+    // Animation logic
   }
 }
 
 class AccessibilityManager implements Accessible {
   setAriaLabel(label: string): void {
-    // ARIA属性設定ロジック
+    // ARIA attribute setting logic
   }
 }
 
@@ -760,7 +760,7 @@ class MyButton implements Stylable, Interactive, Animatable, Accessible {
   }
 
   onClick(handler: () => void): void {
-    // クリックイベント処理
+    // Click event handling
   }
 
   animate(animation: Animation): void {
@@ -773,12 +773,12 @@ class MyButton implements Stylable, Interactive, Animatable, Accessible {
 }
 ```
 
-### 3.4 Python での Mixin パターン
+### 3.4 Mixin Pattern in Python
 
-Python では多重継承を利用した Mixin パターンが、深い単一継承の代替として使える。
+In Python, the Mixin pattern—which leverages multiple inheritance—can be used as an alternative to deep single inheritance.
 
 ```python
-# ❌ 深い単一継承
+# ❌ Deep single inheritance
 class BaseModel:
     def save(self): pass
 
@@ -799,14 +799,14 @@ class AuditableModel(SoftDeletableModel):
 class VersionedModel(AuditableModel):
     version: int = 1
 
-class Product(VersionedModel):  # 5段階の継承！
+class Product(VersionedModel):  # 5 levels of inheritance!
     name: str
     price: float
 
 
-# ✅ Mixin パターン
+# ✅ Mixin pattern
 class TimestampMixin:
-    """タイムスタンプ機能"""
+    """Timestamp functionality"""
     created_at: datetime
     updated_at: datetime
 
@@ -814,7 +814,7 @@ class TimestampMixin:
         self.updated_at = datetime.now()
 
 class SoftDeleteMixin:
-    """論理削除機能"""
+    """Soft-delete functionality"""
     deleted_at: datetime | None = None
 
     def soft_delete(self):
@@ -825,89 +825,89 @@ class SoftDeleteMixin:
         return self.deleted_at is not None
 
 class AuditMixin:
-    """監査ログ機能"""
+    """Audit log functionality"""
     created_by: str
     updated_by: str
 
 class VersionMixin:
-    """バージョニング機能"""
+    """Versioning functionality"""
     version: int = 1
 
     def increment_version(self):
         self.version += 1
 
 class BaseModel:
-    """基底モデル"""
+    """Base model"""
     def save(self): pass
 
 class Product(BaseModel, TimestampMixin, SoftDeleteMixin, AuditMixin, VersionMixin):
-    """必要な機能だけをMixinで組み合わせ（継承は1段階）"""
+    """Combine only the features you need via mixins (inheritance is one level)"""
     name: str
     price: float
 
-# 別のモデルには異なる組み合わせ
+# A different model uses a different combination
 class LogEntry(BaseModel, TimestampMixin):
-    """ログエントリ: タイムスタンプだけ必要"""
+    """Log entry: only timestamp is needed"""
     message: str
     level: str
 ```
 
-### 3.5 継承とコンポジションの使い分け
+### 3.5 When to Use Inheritance vs. Composition
 
 ```
-判断基準:
+Decision criteria:
 
   ┌─────────────────────┬────────────────────┬────────────────────┐
-  │ 基準                │ 継承を使う          │ コンポジションを使う │
+  │ Criterion           │ Use inheritance    │ Use composition    │
   ├─────────────────────┼────────────────────┼────────────────────┤
-  │ 関係性              │ "is-a" 関係         │ "has-a" 関係        │
-  │ 例                  │ Cat is an Animal   │ Car has an Engine  │
-  │ 再利用の方向        │ 共通の振る舞い       │ 機能の組み合わせ     │
-  │ 変更頻度            │ 基底クラスが安定     │ 機能が独立に変化     │
-  │ 柔軟性              │ コンパイル時に決定   │ 実行時に変更可能     │
-  │ 段階数              │ 2-3段階まで         │ 制限なし            │
+  │ Relationship        │ "is-a" relation    │ "has-a" relation   │
+  │ Example             │ Cat is an Animal   │ Car has an Engine  │
+  │ Direction of reuse  │ Shared behavior    │ Feature composition│
+  │ Change frequency    │ Stable base class  │ Features vary      │
+  │ Flexibility         │ Decided at compile │ Changeable at run  │
+  │ Levels              │ Up to 2–3 levels   │ No limit           │
   └─────────────────────┴────────────────────┴────────────────────┘
 
-  原則: 迷ったらコンポジション（Composition over Inheritance）
+  Principle: when in doubt, use composition (Composition over Inheritance)
 ```
 
 ---
 
-## 4. Circular Dependency（循環依存）
+## 4. Circular Dependency
 
-### 4.1 概要と症状
+### 4.1 Overview and Symptoms
 
 ```
-循環依存の構造:
+Structure of circular dependencies:
 
-  直接循環:
+  Direct cycle:
     A → B → A
 
-  間接循環:
+  Indirect cycle:
     A → B → C → A
 
-  複雑な循環:
+  Complex cycle:
     A → B → C → D
     ↑           │
     └───────────┘
 
-症状:
-  → コンパイルエラーまたは実行時エラー
-  → モジュールのロード順序の問題
-  → テストで一方をモックできない
-  → 単独でのデプロイが不可能
-  → 変更がカスケード的に伝播
+Symptoms:
+  → Compile-time errors or runtime errors
+  → Module loading order problems
+  → Cannot mock one side in tests
+  → Cannot deploy independently
+  → Changes propagate in cascade
 
-原因:
-  → 設計時にモジュール境界を考えていない
-  → 便宜的に双方向の参照を追加
-  → 共通モジュールの抽出不足
+Causes:
+  → Module boundaries were not considered at design time
+  → Bidirectional references were added for convenience
+  → Insufficient extraction of common modules
 ```
 
-### 4.2 循環依存の具体例と解決
+### 4.2 Concrete Example of Circular Dependency and Its Resolution
 
 ```typescript
-// ❌ 循環依存の例
+// ❌ Example of a circular dependency
 // user.ts
 import { Order } from "./order";
 
@@ -924,7 +924,7 @@ class User {
 }
 
 // order.ts
-import { User } from "./user";  // ← 循環依存！
+import { User } from "./user";  // ← circular dependency!
 
 class Order {
   user: User;
@@ -938,16 +938,16 @@ class Order {
     return this.items.reduce((sum, i) => sum + i.price * i.quantity, 0);
   }
 
-  // User の情報を使うメソッド
+  // A method that uses information from User
   getShippingAddress(): Address {
-    return this.user.defaultAddress;  // User に依存
+    return this.user.defaultAddress;  // Depends on User
   }
 }
 ```
 
 ```typescript
-// ✅ 解決策1: インターフェースの導入（依存性逆転）
-// interfaces.ts（共通モジュール）
+// ✅ Solution 1: Introduce an interface (dependency inversion)
+// interfaces.ts (shared module)
 interface IUser {
   id: string;
   defaultAddress: Address;
@@ -962,7 +962,7 @@ interface IOrder {
 import { IOrder } from "./interfaces";
 
 class User implements IUser {
-  private orders: IOrder[] = [];  // インターフェースに依存
+  private orders: IOrder[] = [];  // Depends on the interface
 
   getActiveOrders(): IOrder[] {
     return this.orders.filter(o => o.isActive());
@@ -973,7 +973,7 @@ class User implements IUser {
 import { IUser } from "./interfaces";
 
 class Order implements IOrder {
-  private userId: string;  // User オブジェクトではなく ID で参照
+  private userId: string;  // Reference by ID rather than User object
 
   constructor(private readonly userProvider: (id: string) => IUser) {}
 
@@ -985,14 +985,14 @@ class Order implements IOrder {
 ```
 
 ```typescript
-// ✅ 解決策2: 中間モジュールの導入
-// user.ts - User は Order を知らない
+// ✅ Solution 2: Introduce an intermediate module
+// user.ts - User does not know about Order
 class User {
   id: string;
   defaultAddress: Address;
 }
 
-// order.ts - Order は User を知らない
+// order.ts - Order does not know about User
 class Order {
   userId: string;
   items: OrderItem[] = [];
@@ -1002,7 +1002,7 @@ class Order {
   }
 }
 
-// user-order-service.ts - 両方を知る仲介者
+// user-order-service.ts - the mediator that knows both
 import { User } from "./user";
 import { Order } from "./order";
 
@@ -1026,7 +1026,7 @@ class UserOrderService {
 ```
 
 ```typescript
-// ✅ 解決策3: イベント駆動アーキテクチャ
+// ✅ Solution 3: Event-driven architecture
 // user.ts
 class User {
   deactivate(eventBus: EventBus): void {
@@ -1035,7 +1035,7 @@ class User {
   }
 }
 
-// order.ts - User を直接参照しない
+// order.ts - does not reference User directly
 class OrderEventHandler {
   constructor(private orderRepo: OrderRepository) {}
 
@@ -1050,75 +1050,75 @@ class OrderEventHandler {
 }
 ```
 
-### 4.3 依存方向の原則
+### 4.3 The Principle of Dependency Direction
 
 ```
-依存の方向は常に安定な方向へ向ける:
+Always direct dependencies toward what is more stable:
 
-  不安定（変更が多い）
+  Unstable (changes often)
      ↓
   ┌───────────┐
-  │ Controller │ ─ → 変更頻度: 高
+  │ Controller │ ─ → Change frequency: high
   └───────────┘
        │
        ▼
   ┌───────────┐
-  │  Service   │ ─ → 変更頻度: 中
+  │  Service   │ ─ → Change frequency: medium
   └───────────┘
        │
        ▼
   ┌───────────┐
-  │  Domain    │ ─ → 変更頻度: 低
+  │  Domain    │ ─ → Change frequency: low
   └───────────┘
        │
        ▼
   ┌───────────┐
-  │ Interface  │ ─ → 変更頻度: 最低
+  │ Interface  │ ─ → Change frequency: lowest
   └───────────┘
      ↓
-  安定（変更が少ない）
+  Stable (rarely changes)
 
-  依存性逆転の原則（DIP）:
-    → 具象クラスではなくインターフェースに依存する
-    → 上位モジュールは下位モジュールに依存しない
-    → 両方とも抽象に依存する
+  Dependency Inversion Principle (DIP):
+    → Depend on interfaces rather than concrete classes
+    → High-level modules do not depend on low-level modules
+    → Both depend on abstractions
 ```
 
 ---
 
-## 5. Feature Envy（機能の羨望）
+## 5. Feature Envy
 
-### 5.1 概要
+### 5.1 Overview
 
-Feature Envy は、あるクラスのメソッドが自分自身のデータよりも、他のクラスのデータを多く使っている状態を指す。
+Feature Envy refers to a situation where a method of one class uses another class's data more than its own.
 
 ```
-症状:
-  → メソッド内で他のオブジェクトの getter を3回以上呼んでいる
-  → 自クラスの this をほとんど使わない
-  → 「このメソッドは本当にこのクラスにあるべきか？」と疑問に思う
+Symptoms:
+  → A method calls getters on another object three or more times
+  → The method barely uses its own this
+  → You find yourself wondering, "Should this method really live in this class?"
 
-原因:
-  → データの場所とロジックの場所が一致していない
-  → 責任の配置ミス
+Causes:
+  → The location of data does not match the location of logic
+  → Misplacement of responsibility
 ```
 
-### 5.2 具体例
+### 5.2 Concrete Example
 
 ```typescript
-// ❌ Feature Envy: InvoiceGenerator が Customer のデータばかり使っている
+// ❌ Feature Envy: InvoiceGenerator keeps using Customer's data
 class InvoiceGenerator {
   generateGreeting(customer: Customer): string {
-    // customer のデータを4回も使っている → Feature Envy
+    // Uses customer data four times → Feature Envy
     if (customer.getType() === "premium") {
-      return `${customer.getTitle()} ${customer.getLastName()} 様、` +
-             `いつもご利用ありがとうございます。`;
+      return `Dear ${customer.getTitle()} ${customer.getLastName()}, ` +
+             `thank you for your continued patronage.`;
     }
-    return `${customer.getFirstName()} ${customer.getLastName()} 様`;
+    return `Dear ${customer.getFirstName()} ${customer.getLastName()}`;
   }
 
   calculateDiscount(customer: Customer, amount: number): number {
-    // またもや customer のデータばかり
+    // Once again, customer data everywhere
     if (customer.getType() === "premium") {
       return amount * customer.getDiscountRate();
     }
@@ -1129,7 +1129,7 @@ class InvoiceGenerator {
   }
 }
 
-// ✅ リファクタリング: ロジックをデータのあるクラスに移動
+// ✅ Refactoring: move the logic to the class that owns the data
 class Customer {
   private type: CustomerType;
   private title: string;
@@ -1140,9 +1140,9 @@ class Customer {
 
   getGreeting(): string {
     if (this.type === "premium") {
-      return `${this.title} ${this.lastName} 様、いつもご利用ありがとうございます。`;
+      return `Dear ${this.title} ${this.lastName}, thank you for your continued patronage.`;
     }
-    return `${this.firstName} ${this.lastName} 様`;
+    return `Dear ${this.firstName} ${this.lastName}`;
   }
 
   calculateDiscount(amount: number): number {
@@ -1181,66 +1181,66 @@ class InvoiceGenerator {
 
 ---
 
-## 6. Shotgun Surgery（散弾銃手術）
+## 6. Shotgun Surgery
 
-### 6.1 概要
+### 6.1 Overview
 
-Shotgun Surgery は、一つの変更を行うために多数のクラスやファイルを修正する必要がある状態を指す。機能が複数のクラスに分散しているために起きる。
+Shotgun Surgery refers to a situation where a single change requires modifying many classes or files. It occurs because a piece of functionality has been scattered across multiple classes.
 
 ```
-症状:
-  → 1つの仕様変更で5つ以上のファイルを修正
-  → 「税率変更」で Order, Invoice, Cart, Report, Export を全部修正
-  → 変更漏れによるバグが頻発
-  → 「ここも修正が必要だった」が頻繁に起きる
+Symptoms:
+  → A single specification change requires editing five or more files
+  → A "tax rate change" forces modifications to Order, Invoice, Cart, Report, and Export
+  → Bugs from missed changes happen frequently
+  → "Oh, this also needed to be changed" is a common occurrence
 
-  仕様変更: 消費税率 8% → 10%
+  Specification change: consumption tax 8% → 10%
 
-  修正が必要なクラス:
+  Classes that need modification:
     ┌────────┐ ┌───────┐ ┌──────┐ ┌────────┐ ┌────────┐
     │ Order  │ │Invoice│ │ Cart │ │ Report │ │ Export │
     │  8→10  │ │ 8→10  │ │ 8→10 │ │  8→10  │ │  8→10  │
     └────────┘ └───────┘ └──────┘ └────────┘ └────────┘
-    → 5箇所修正！ 1つ忘れたらバグ！
+    → Five places to modify! Miss one and you've got a bug!
 
-解決:
-  → 関連するロジックを1つのクラスに集約
-  → 変更の影響を局所化する
+Solution:
+  → Consolidate related logic into a single class
+  → Localize the impact of changes
 ```
 
-### 6.2 具体例
+### 6.2 Concrete Example
 
 ```typescript
-// ❌ 税率計算が散在
+// ❌ Tax rate calculation is scattered
 class Order {
   calculateTax(): number {
-    return this.subtotal * 0.10;  // ← ハードコード
+    return this.subtotal * 0.10;  // ← hard-coded
   }
 }
 
 class Invoice {
   getTaxAmount(): number {
-    return this.amount * 0.10;  // ← 同じ値がここにも
+    return this.amount * 0.10;  // ← the same value appears here too
   }
 }
 
 class Cart {
   estimateTax(): number {
-    return this.total * 0.10;  // ← ここにも
+    return this.total * 0.10;  // ← and here
   }
 }
 
 class SalesReport {
   calculateTaxTotal(): number {
-    return this.sales.reduce((sum, s) => sum + s.amount * 0.10, 0);  // ← ここにも
+    return this.sales.reduce((sum, s) => sum + s.amount * 0.10, 0);  // ← and here
   }
 }
 
 
-// ✅ 税率計算を一箇所に集約
+// ✅ Consolidate tax calculation into one place
 class TaxCalculator {
   private static readonly STANDARD_RATE = 0.10;
-  private static readonly REDUCED_RATE = 0.08;  // 軽減税率
+  private static readonly REDUCED_RATE = 0.08;  // Reduced tax rate
 
   static calculate(amount: number, type: TaxType = "standard"): number {
     const rate = type === "reduced"
@@ -1268,33 +1268,33 @@ class Invoice {
   }
 }
 
-// → 税率変更時は TaxCalculator だけ修正すれば OK
+// → When the tax rate changes, only TaxCalculator needs to be modified
 ```
 
 ---
 
-## 7. Primitive Obsession（基本型への執着）
+## 7. Primitive Obsession
 
-### 7.1 概要
+### 7.1 Overview
 
-Primitive Obsession は、ドメインの概念を string、number、boolean などの基本型で表現し続けるアンチパターンである。
+Primitive Obsession is the anti-pattern of continuing to represent domain concepts with primitive types such as string, number, and boolean.
 
 ```
-症状:
-  → メールアドレスが string
-  → 金額が number
-  → 電話番号が string
-  → ステータスが string（"active", "inactive"...）
-  → 同じバリデーションが複数箇所に散在
+Symptoms:
+  → Email addresses are strings
+  → Amounts are numbers
+  → Phone numbers are strings
+  → Statuses are strings ("active", "inactive", ...)
+  → The same validation is scattered across multiple places
 
-問題:
-  → 型安全性がない（string と string を混同しやすい）
-  → バリデーションの重複
-  → 不正な値を防げない
-  → ドメインの意味がコードに表現されない
+Problems:
+  → No type safety (it's easy to confuse one string with another)
+  → Duplication of validation
+  → Invalid values cannot be prevented
+  → The meaning of the domain is not expressed in code
 ```
 
-### 7.2 値オブジェクト（Value Object）による解決
+### 7.2 Resolution via Value Objects
 
 ```typescript
 // ❌ Primitive Obsession
@@ -1305,21 +1305,21 @@ function createUser(
   age: number,
   zipCode: string,
 ): void {
-  // name, email, phone, zipCode は全て string
-  // 引数の順番を間違えてもコンパイルエラーにならない！
+  // name, email, phone, and zipCode are all strings
+  // Even if you get the argument order wrong, there's no compile error!
   // createUser("test@email.com", "John Doe", "100-0001", 25, "090-1234-5678")
-  //            ↑ email と name が逆！でもコンパイル通る
+  //            ↑ email and name are swapped! But the code still compiles
 }
 
 function sendEmail(to: string, subject: string, body: string): void {
-  // to が有効なメールアドレスか検証が必要...毎回
+  // You have to validate that to is a valid email address... every time
   if (!to.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
     throw new Error(`Invalid email: ${to}`);
   }
   // ...
 }
 
-// ✅ 値オブジェクトで型安全に
+// ✅ Use value objects for type safety
 class Email {
   private constructor(private readonly value: string) {}
 
@@ -1351,7 +1351,7 @@ class PhoneNumber {
   }
 
   get formatted(): string {
-    // 090-1234-5678 形式
+    // 090-1234-5678 format
     if (this.value.length === 11) {
       return `${this.value.slice(0,3)}-${this.value.slice(3,7)}-${this.value.slice(7)}`;
     }
@@ -1367,10 +1367,10 @@ class Money {
     public readonly amount: number,
     public readonly currency: "JPY" | "USD" | "EUR",
   ) {
-    if (!Number.isFinite(amount)) throw new Error("金額は有限の数値");
-    if (amount < 0) throw new Error("金額は0以上");
+    if (!Number.isFinite(amount)) throw new Error("Amount must be a finite number");
+    if (amount < 0) throw new Error("Amount must be non-negative");
     if (currency === "JPY" && !Number.isInteger(amount)) {
-      throw new Error("日本円は整数のみ");
+      throw new Error("Japanese yen must be an integer");
     }
   }
 
@@ -1382,7 +1382,7 @@ class Money {
   subtract(other: Money): Money {
     this.ensureSameCurrency(other);
     const result = this.amount - other.amount;
-    if (result < 0) throw new Error("金額が負になります");
+    if (result < 0) throw new Error("Amount would become negative");
     return new Money(result, this.currency);
   }
 
@@ -1435,7 +1435,7 @@ class ZipCode {
   toString(): string { return this.value; }
 }
 
-// 値オブジェクトを使った関数
+// A function that uses value objects
 function createUser(
   name: UserName,
   email: Email,
@@ -1443,24 +1443,24 @@ function createUser(
   age: Age,
   zipCode: ZipCode,
 ): void {
-  // 引数の順番を間違えたらコンパイルエラー！
-  // 各値は生成時にバリデーション済み
+  // If the argument order is wrong, you get a compile error!
+  // Each value was already validated at creation time
 }
 
 function sendEmail(to: Email, subject: string, body: string): void {
-  // to は必ず有効なメールアドレス。バリデーション不要！
+  // `to` is guaranteed to be a valid email address. No validation needed!
 }
 ```
 
-### 7.3 Python での値オブジェクト
+### 7.3 Value Objects in Python
 
 ```python
 from dataclasses import dataclass
 from typing import Self
 import re
 
-# ✅ Python での値オブジェクト（dataclass + __post_init__）
-@dataclass(frozen=True)  # frozen=True で不変に
+# ✅ Value object in Python (dataclass + __post_init__)
+@dataclass(frozen=True)  # frozen=True makes it immutable
 class Email:
     value: str
 
@@ -1468,7 +1468,7 @@ class Email:
         normalized = self.value.strip().lower()
         if not re.match(r'^[^\s@]+@[^\s@]+\.[^\s@]+$', normalized):
             raise ValueError(f"Invalid email: {self.value}")
-        # frozen=True でも __post_init__ では object.__setattr__ が使える
+        # Even with frozen=True, object.__setattr__ can be used inside __post_init__
         object.__setattr__(self, 'value', normalized)
 
     @property
@@ -1481,23 +1481,23 @@ class Email:
 
 @dataclass(frozen=True)
 class Money:
-    amount: int  # 最小単位（日本円なら1円単位）
+    amount: int  # Smallest unit (1 JPY for Japanese yen)
     currency: str
 
     def __post_init__(self):
         if self.amount < 0:
-            raise ValueError("金額は0以上である必要があります")
+            raise ValueError("Amount must be non-negative")
         if self.currency not in ("JPY", "USD", "EUR"):
-            raise ValueError(f"未対応の通貨: {self.currency}")
+            raise ValueError(f"Unsupported currency: {self.currency}")
 
     def add(self, other: Self) -> Self:
         if self.currency != other.currency:
-            raise ValueError(f"通貨が異なります: {self.currency} vs {other.currency}")
+            raise ValueError(f"Currency mismatch: {self.currency} vs {other.currency}")
         return Money(self.amount + other.amount, self.currency)
 
     def subtract(self, other: Self) -> Self:
         if self.currency != other.currency:
-            raise ValueError(f"通貨が異なります")
+            raise ValueError(f"Currency mismatch")
         return Money(self.amount - other.amount, self.currency)
 
     def multiply(self, factor: float) -> Self:
@@ -1513,7 +1513,7 @@ class Money:
         return f"{self.currency} {self.amount / 100:.2f}"
 
 
-# 使用例
+# Usage example
 email = Email("User@Example.COM")
 print(email)         # user@example.com
 print(email.domain)  # example.com
@@ -1524,13 +1524,13 @@ total = price.add(tax)
 print(total)  # ¥1,100
 ```
 
-### 7.4 Java での値オブジェクト（record）
+### 7.4 Value Objects in Java (record)
 
 ```java
-// Java 16+ の record を使った値オブジェクト
+// Value object using a Java 16+ record
 public record Email(String value) {
     public Email {
-        // Compact constructor でバリデーション
+        // Validation inside a compact constructor
         value = value.trim().toLowerCase();
         if (!value.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) {
             throw new IllegalArgumentException("Invalid email: " + value);
@@ -1574,30 +1574,30 @@ public record Money(long amount, Currency currency) {
 
 ---
 
-## 8. Singleton の誤用
+## 8. Misuse of Singleton
 
-### 8.1 概要
+### 8.1 Overview
 
-Singleton パターン自体はデザインパターンだが、乱用するとアンチパターンになる。グローバルな可変状態を隠す手段として使われることが多い。
+The Singleton pattern itself is a design pattern, but when overused it becomes an anti-pattern. It is often used as a means of hiding global mutable state.
 
 ```
-問題点:
-  → グローバル状態の隠蔽（実質的なグローバル変数）
-  → テスト困難（モック化が難しい）
-  → 隠れた依存関係（コンストラクタに表れない）
-  → 並行処理での問題
-  → ライフサイクル管理の困難
+Problems:
+  → Hiding global state (effectively a global variable)
+  → Difficult to test (hard to mock)
+  → Hidden dependencies (not visible in the constructor)
+  → Problems with concurrency
+  → Difficulty managing lifecycle
 
-Singleton の正当な使用:
-  → ハードウェアリソースの管理（プリンタースプーラーなど）
-  → 設定の読み取り専用キャッシュ
-  → ログファクトリ
+Legitimate uses of Singleton:
+  → Managing hardware resources (e.g., printer spooler)
+  → Read-only caches of configuration
+  → Log factories
 ```
 
-### 8.2 具体例
+### 8.2 Concrete Example
 
 ```typescript
-// ❌ Singleton の誤用
+// ❌ Misuse of Singleton
 class Database {
   private static instance: Database;
   private connection: Connection;
@@ -1618,22 +1618,22 @@ class Database {
   }
 }
 
-// 利用側 - 隠れた依存
+// Caller - hidden dependency
 class UserRepository {
   async findById(id: string): Promise<User | null> {
-    // Database への依存がコンストラクタに表れない！
+    // The dependency on Database is not visible in the constructor!
     const db = Database.getInstance();
     const rows = await db.query(`SELECT * FROM users WHERE id = '${id}'`);
     return rows[0] ? this.toUser(rows[0]) : null;
   }
 }
 
-// テスト時の問題
-// UserRepository をテストするのに、実際のDBが必要になる
-// Database.getInstance() をモック化するのが困難
+// Problem when testing
+// Testing UserRepository requires an actual database
+// It is hard to mock Database.getInstance()
 
 
-// ✅ 依存性注入で解決
+// ✅ Resolved via dependency injection
 interface IDatabase {
   query(sql: string): Promise<any[]>;
 }
@@ -1647,7 +1647,7 @@ class Database implements IDatabase {
 }
 
 class UserRepository {
-  // 依存が明示的
+  // Dependency is explicit
   constructor(private readonly db: IDatabase) {}
 
   async findById(id: string): Promise<User | null> {
@@ -1656,7 +1656,7 @@ class UserRepository {
   }
 }
 
-// テスト時 - モックを簡単に注入できる
+// For testing — a mock can be injected easily
 class MockDatabase implements IDatabase {
   private mockData: Map<string, any[]> = new Map();
 
@@ -1670,44 +1670,44 @@ class MockDatabase implements IDatabase {
 }
 
 const mockDb = new MockDatabase();
-const repo = new UserRepository(mockDb);  // テスト用DBを注入
+const repo = new UserRepository(mockDb);  // Inject a test database
 ```
 
 ---
 
-## 9. Poltergeist（ポルターガイスト）
+## 9. Poltergeist
 
-### 9.1 概要
+### 9.1 Overview
 
-Poltergeist は、存在意義の薄いクラスで、他のクラスのメソッドを呼ぶだけで自身は何も行わないオブジェクトである。
+A Poltergeist is a class with little reason for existence—an object that merely invokes methods on other classes and does nothing itself.
 
 ```
-症状:
-  → クラスが他のクラスのメソッドを呼ぶだけ
-  → 自身の状態やロジックを持たない
-  → 「マネージャー」「コントローラー」「ハンドラー」という名前
-  → 短命で、一瞬だけ使われてすぐ捨てられる
-  → メソッドが1-2行で、全て委譲（delegation）
+Symptoms:
+  → A class just calls methods on other classes
+  → It has no state or logic of its own
+  → Names like "Manager," "Controller," or "Handler"
+  → It's short-lived, used for an instant and then discarded
+  → Methods are 1–2 lines and are all delegation
 ```
 
-### 9.2 具体例
+### 9.2 Concrete Example
 
 ```typescript
-// ❌ Poltergeist: 何もしていないクラス
+// ❌ Poltergeist: a class that does nothing
 class OrderProcessor {
   private orderService: OrderService;
   private paymentService: PaymentService;
   private emailService: EmailService;
 
   processOrder(order: Order): void {
-    this.orderService.validate(order);    // 委譲するだけ
-    this.paymentService.charge(order);    // 委譲するだけ
-    this.emailService.sendConfirmation(order);  // 委譲するだけ
+    this.orderService.validate(order);    // just delegates
+    this.paymentService.charge(order);    // just delegates
+    this.emailService.sendConfirmation(order);  // just delegates
   }
 }
 
-// ✅ 解決策1: Poltergeist を削除し、直接呼び出す
-// （ワークフローが単純な場合）
+// ✅ Solution 1: Remove the Poltergeist and call directly
+// (when the workflow is simple)
 async function processOrder(
   order: Order,
   orderService: OrderService,
@@ -1719,8 +1719,8 @@ async function processOrder(
   await emailService.sendConfirmation(order);
 }
 
-// ✅ 解決策2: 付加価値のあるオーケストレーター
-// （エラーハンドリングやトランザクション管理など、自身のロジックがある場合は正当）
+// ✅ Solution 2: A value-adding orchestrator
+// (legitimate when it has its own logic such as error handling or transaction management)
 class OrderWorkflow {
   constructor(
     private orderService: OrderService,
@@ -1732,14 +1732,14 @@ class OrderWorkflow {
   async execute(order: Order): Promise<OrderResult> {
     this.logger.info(`Processing order ${order.id}`);
 
-    // バリデーション
+    // Validation
     const validationResult = await this.orderService.validate(order);
     if (!validationResult.isValid) {
       this.logger.warn(`Order ${order.id} validation failed`, validationResult.errors);
       return OrderResult.failure(validationResult.errors);
     }
 
-    // 支払い（リトライ付き）
+    // Payment (with retry)
     let paymentResult: PaymentResult;
     try {
       paymentResult = await this.retryWithBackoff(
@@ -1752,12 +1752,12 @@ class OrderWorkflow {
       return OrderResult.paymentFailed(error);
     }
 
-    // 確認メール（失敗しても注文は成功）
+    // Confirmation email (the order still succeeds even if this fails)
     try {
       await this.emailService.sendConfirmation(order);
     } catch (error) {
       this.logger.warn(`Email sending failed for order ${order.id}`, error);
-      // メール失敗は注文の失敗にはしない
+      // Email failure does not make the order a failure
     }
 
     return OrderResult.success(order.id, paymentResult.transactionId);
@@ -1767,7 +1767,7 @@ class OrderWorkflow {
     fn: () => Promise<T>,
     maxRetries: number,
   ): Promise<T> {
-    // リトライロジック
+    // Retry logic
     for (let i = 0; i < maxRetries; i++) {
       try {
         return await fn();
@@ -1787,200 +1787,200 @@ class OrderWorkflow {
 
 ---
 
-## 10. Lava Flow（溶岩流）
+## 10. Lava Flow
 
-### 10.1 概要
+### 10.1 Overview
 
-Lava Flow は、「なぜそこにあるのか誰も分からないが、怖くて触れないコード」を指す。過去の実装が残骸として残り、固まった溶岩のように除去困難になっている状態。
+Lava Flow refers to "code that nobody knows why it's there, but everyone is too afraid to touch." Past implementations remain as debris, hardening like cooled lava until they become difficult to remove.
 
 ```
-症状:
-  → 「これ何に使ってるの？」「分からないけど消したら壊れるかも」
-  → コメントアウトされたコードが大量に存在
-  → 未使用のクラスやメソッド
-  → TODO コメントが何年も放置
-  → 「レガシー」「旧」「temp」「test」という名前のファイル
-  → 複数の方法で同じことを行う重複コード
+Symptoms:
+  → "What is this used for?" "I don't know, but deleting it might break things"
+  → Large amounts of commented-out code
+  → Unused classes and methods
+  → TODO comments left in place for years
+  → Files named "legacy," "old," "temp," or "test"
+  → Duplicated code that does the same thing in multiple ways
 
-原因:
-  → プロトタイプコードがそのまま本番へ
-  → リファクタリングが途中で中断
-  → 担当者が退職して知識が失われた
-  → 「動いてるなら触るな」の文化
+Causes:
+  → Prototype code shipped straight into production
+  → Refactoring was interrupted midway
+  → The responsible person left and the knowledge was lost
+  → A "don't touch it if it works" culture
 
-対策:
-  → テストカバレッジを上げてから削除
-  → git log で最終更新日を確認（数年触られていなければ候補）
-  → デッドコード検出ツールの活用
-  → コードオーナーシップの明確化
-  → 定期的な「技術的負債返済スプリント」
+Countermeasures:
+  → Raise test coverage before deleting
+  → Check the last-modified date with git log (untouched for years is a candidate)
+  → Use dead-code detection tools
+  → Clarify code ownership
+  → Periodic "technical debt repayment sprints"
 ```
 
 ```typescript
-// ❌ Lava Flow の例
+// ❌ Example of Lava Flow
 class OrderProcessor {
   // TODO: refactor this (2019-03-15)
   process(order: Order): void {
     // ...
   }
 
-  // 旧バージョン（移行完了後に削除予定）
+  // Old version (planned to be deleted after migration completes)
   // processOld(order: Order): void {
-  //   const tax = order.total * 0.08;  // 旧税率
-  //   // ... 200行のコメントアウト
+  //   const tax = order.total * 0.08;  // old tax rate
+  //   // ... 200 lines of commented-out code
   // }
 
-  // processV2 もある...
+  // There's also processV2...
   processV2(order: Order): void {
-    // "一時的な" 修正（3年前）
+    // A "temporary" fix (from 3 years ago)
     if (order.type === "legacy") {
       return this.processLegacy(order);
     }
     // ...
   }
 
-  // 誰が使っているか不明
+  // Who is using this? Unknown
   private processLegacy(order: Order): void {
-    // 2020年のシステム移行時のコード
-    // 今も使われている？ 不明...
+    // Code from a 2020 system migration
+    // Is it still being used? Unknown...
   }
 }
 ```
 
 ---
 
-## 11. 検出と回避
+## 11. Detection and Avoidance
 
-### 11.1 定量的な検出指標
+### 11.1 Quantitative Detection Indicators
 
 ```
-検出の指標:
-  → クラスの行数 > 300行 → 分割を検討
-  → メソッド数 > 15 → 責任の分離を検討
-  → 継承の深さ > 3 → コンポジションに変更
-  → 依存数 > 7 → ファサードの導入を検討
-  → instanceof の使用 → ポリモーフィズムに変更
-  → getter/setter だけのクラス → Rich Domain Model
-  → 同じバリデーションが3箇所以上 → 値オブジェクト
-  → 循環 import → インターフェース分離
-  → メソッド内の他オブジェクト getter 3回以上 → Feature Envy
+Detection indicators:
+  → Class line count > 300 → consider splitting
+  → Method count > 15 → consider separating responsibilities
+  → Inheritance depth > 3 → switch to composition
+  → Dependency count > 7 → consider introducing a facade
+  → Use of instanceof → switch to polymorphism
+  → Classes with only getters/setters → Rich Domain Model
+  → The same validation in three or more places → value object
+  → Circular imports → interface segregation
+  → Three or more getter calls on another object in a method → Feature Envy
 
-メトリクスの目安:
+Reference metrics:
   ┌────────────────────────┬─────────┬──────────┬─────────┐
-  │ メトリクス              │ 良好     │ 注意      │ 危険    │
+  │ Metric                  │ Good     │ Caution  │ Danger  │
   ├────────────────────────┼─────────┼──────────┼─────────┤
-  │ クラス行数              │ < 200   │ 200-500  │ > 500   │
-  │ メソッド数              │ < 10    │ 10-20    │ > 20    │
-  │ 継承の深さ              │ 1-2     │ 3        │ > 3     │
-  │ 循環的複雑度            │ < 10    │ 10-20    │ > 20    │
-  │ 依存クラス数            │ < 5     │ 5-10     │ > 10    │
-  │ メソッドのパラメータ数   │ < 4     │ 4-6      │ > 6     │
-  │ コードカバレッジ        │ > 80%   │ 50-80%   │ < 50%   │
+  │ Class line count        │ < 200   │ 200-500  │ > 500   │
+  │ Method count            │ < 10    │ 10-20    │ > 20    │
+  │ Inheritance depth       │ 1-2     │ 3        │ > 3     │
+  │ Cyclomatic complexity   │ < 10    │ 10-20    │ > 20    │
+  │ Number of dependencies  │ < 5     │ 5-10     │ > 10    │
+  │ Method parameter count  │ < 4     │ 4-6      │ > 6     │
+  │ Code coverage           │ > 80%   │ 50-80%   │ < 50%   │
   └────────────────────────┴─────────┴──────────┴─────────┘
 ```
 
-### 11.2 ツール
+### 11.2 Tools
 
 ```
-静的解析ツール:
-  → SonarQube: コード品質メトリクス（コード臭い検出）
-  → ESLint: complexity ルール（JavaScript/TypeScript）
-  → Pylint: Python のコード品質チェック
-  → SpotBugs / PMD: Java のバグパターン検出
-  → IDE: クラス図の可視化（IntelliJ, VS Code）
+Static analysis tools:
+  → SonarQube: code quality metrics (code smell detection)
+  → ESLint: complexity rules (JavaScript/TypeScript)
+  → Pylint: code quality checks for Python
+  → SpotBugs / PMD: bug pattern detection for Java
+  → IDEs: class diagram visualization (IntelliJ, VS Code)
 
 TypeScript / JavaScript:
-  → eslint-plugin-sonarjs: コード臭い検出
-  → eslint-plugin-import: 循環依存検出
-  → madge: モジュール依存の可視化
-  → dependency-cruiser: 依存ルールの定義・検証
+  → eslint-plugin-sonarjs: code smell detection
+  → eslint-plugin-import: circular dependency detection
+  → madge: module dependency visualization
+  → dependency-cruiser: define and enforce dependency rules
 
 Python:
-  → pylint: 全般的なコード品質
-  → radon: 循環的複雑度の計測
-  → vulture: デッドコード検出
-  → pydeps: 依存グラフの可視化
+  → pylint: general code quality
+  → radon: cyclomatic complexity measurement
+  → vulture: dead code detection
+  → pydeps: dependency graph visualization
 
 Java:
-  → Checkstyle: コーディングスタイル
-  → ArchUnit: アーキテクチャテスト
-  → JDepend: パッケージ依存の分析
+  → Checkstyle: coding style
+  → ArchUnit: architecture tests
+  → JDepend: package dependency analysis
 ```
 
-### 11.3 コードレビューチェックリスト
+### 11.3 Code Review Checklist
 
 ```
-コードレビュー時のアンチパターンチェック:
+Anti-pattern checks during code review:
 
 □ God Object
-  - 新しいメソッドは既存クラスの責任に合っているか？
-  - クラスの説明を1文で言えるか？
+  - Does the new method fit the responsibility of the existing class?
+  - Can you describe the class in a single sentence?
 
 □ Anemic Domain Model
-  - ドメインオブジェクトにビジネスロジックはあるか？
-  - サービスクラスがデータクラスの setter を直接操作していないか？
+  - Do the domain objects have business logic?
+  - Is the service class directly manipulating setters on data classes?
 
-□ 深い継承
-  - 継承は3段階以内か？
-  - 継承よりコンポジションが適切ではないか？
+□ Deep Inheritance
+  - Is inheritance within three levels?
+  - Wouldn't composition be more appropriate than inheritance?
 
-□ 循環依存
-  - 新しい import が循環を作っていないか？
-  - モジュール間の依存方向は適切か？
+□ Circular Dependency
+  - Does the new import create a cycle?
+  - Is the direction of dependencies between modules appropriate?
 
 □ Feature Envy
-  - メソッドが他のオブジェクトのデータを多用していないか？
-  - ロジックはデータのあるクラスに配置されているか？
+  - Is the method using a lot of data from other objects?
+  - Is the logic placed in the class that owns the data?
 
 □ Shotgun Surgery
-  - この変更で他に修正すべき場所はないか？
-  - 同じロジックが複数箇所に存在しないか？
+  - Are there other places that need to be modified for this change?
+  - Is the same logic present in multiple places?
 
 □ Primitive Obsession
-  - ドメイン概念を基本型で表現していないか？
-  - バリデーションが散在していないか？
+  - Are domain concepts being represented with primitive types?
+  - Is validation scattered around?
 
 □ Lava Flow
-  - 不要なコメントアウトコードが残っていないか？
-  - 未使用のメソッドやクラスが追加されていないか？
+  - Is there unnecessary commented-out code left behind?
+  - Have any unused methods or classes been added?
 ```
 
-### 11.4 設計原則
+### 11.4 Design Principles
 
 ```
-原則:
-  1. 小さいクラス（SRP: 単一責任原則）
-     → 1つのクラスは1つの理由でのみ変更される
+Principles:
+  1. Small classes (SRP: Single Responsibility Principle)
+     → A class should change for only one reason
 
-  2. 浅い継承（コンポジション優先）
-     → "is-a" でないなら継承しない
+  2. Shallow inheritance (prefer composition)
+     → Don't inherit unless it's an "is-a" relationship
 
-  3. 豊かなドメインモデル（振る舞いを持つ）
-     → データとロジックを一体にする
+  3. Rich domain model (have behavior)
+     → Unify data and logic
 
-  4. 値オブジェクト（型で制約を表現）
-     → ドメインの概念には専用の型を作る
+  4. Value objects (express constraints via types)
+     → Create dedicated types for domain concepts
 
-  5. 依存の方向を一方向に（DIP: 依存性逆転の原則）
-     → 具象ではなく抽象に依存する
+  5. Make dependency direction one-way (DIP: Dependency Inversion Principle)
+     → Depend on abstractions rather than concretions
 
-  6. インターフェース分離の原則（ISP）
-     → クライアントが使わないメソッドに依存させない
+  6. Interface Segregation Principle (ISP)
+     → Don't force clients to depend on methods they don't use
 
-  7. 開放閉鎖の原則（OCP）
-     → 拡張に開き、修正に閉じる
+  7. Open/Closed Principle (OCP)
+     → Open to extension, closed to modification
 
-  SOLID 原則との対応:
+  Mapping to SOLID principles:
   ┌──────────────────┬──────────────────────────┐
-  │ アンチパターン    │ 違反している SOLID 原則    │
+  │ Anti-pattern     │ Violated SOLID principle  │
   ├──────────────────┼──────────────────────────┤
-  │ God Object       │ SRP（単一責任）            │
-  │ Anemic Model     │ OCP（開放閉鎖）            │
-  │ 深い継承         │ LSP（リスコフの置換）       │
-  │ 循環依存         │ DIP（依存性逆転）           │
-  │ Feature Envy     │ SRP（単一責任）            │
-  │ Shotgun Surgery  │ SRP（単一責任）            │
-  │ Primitive Obsession │ ISP（インターフェース分離）│
+  │ God Object       │ SRP (Single Responsibility)│
+  │ Anemic Model     │ OCP (Open/Closed)          │
+  │ Deep Inheritance │ LSP (Liskov Substitution)  │
+  │ Circular Deps    │ DIP (Dependency Inversion) │
+  │ Feature Envy     │ SRP (Single Responsibility)│
+  │ Shotgun Surgery  │ SRP (Single Responsibility)│
+  │ Primitive Obsession │ ISP (Interface Segregation)│
   └──────────────────┴──────────────────────────┘
 ```
 
@@ -1989,78 +1989,78 @@ Java:
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Understanding deepens not through theory alone but by actually writing code and observing how it behaves.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What mistakes do beginners commonly make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is used frequently in day-to-day development work. It is especially important during code reviews and architecture design.
 
 ---
 
-## まとめ
+## Summary
 
-| アンチパターン | 症状 | 解決策 | 検出方法 |
+| Anti-pattern | Symptoms | Solution | Detection method |
 |---------------|------|--------|----------|
-| God Object | 全部入りクラス | SRPで分割 | 行数 > 300, メソッド数 > 15 |
-| Anemic Model | データだけのクラス | Rich Domain Model | getter/setter のみ |
-| 深い継承 | 4段階以上 | コンポジション | 継承の深さ計測 |
-| 循環依存 | A→B→C→A | インターフェース導入 | 依存グラフの分析 |
-| Feature Envy | 他クラスのデータ多用 | メソッドの移動 | 他オブジェクトの getter 回数 |
-| Shotgun Surgery | 1変更で多数ファイル修正 | ロジックの集約 | 変更の影響範囲分析 |
-| Primitive Obsession | string/number乱用 | 値オブジェクト | バリデーションの重複 |
-| Singleton 誤用 | グローバル状態 | 依存性注入 | getInstance() の多用 |
-| Poltergeist | 委譲するだけのクラス | クラス削除/統合 | 1-2行メソッドばかり |
-| Lava Flow | 触れないコード | テスト追加後に削除 | 最終更新日の確認 |
+| God Object | A class that does everything | Split via SRP | Lines > 300, methods > 15 |
+| Anemic Model | Data-only classes | Rich Domain Model | Only getters/setters |
+| Deep Inheritance | Four or more levels | Composition | Measure inheritance depth |
+| Circular Dependency | A→B→C→A | Introduce interfaces | Dependency graph analysis |
+| Feature Envy | Heavy use of another class's data | Move the method | Count of getter calls on other objects |
+| Shotgun Surgery | One change edits many files | Consolidate logic | Analyze impact scope of changes |
+| Primitive Obsession | Overuse of string/number | Value objects | Duplicate validation |
+| Singleton Misuse | Global state | Dependency injection | Frequent use of getInstance() |
+| Poltergeist | A class that only delegates | Remove/merge the class | Nothing but 1–2-line methods |
+| Lava Flow | Untouchable code | Add tests, then delete | Check last-modified date |
 
 ---
 
-## 演習問題
+## Exercises
 
-### 演習1: God Object の分割
+### Exercise 1: Splitting a God Object
 
-以下の `AppController` は典型的な God Object である。5つ以上のクラスに分割し、各クラスの責任を明確にせよ。
+The `AppController` below is a classic God Object. Split it into five or more classes, clarifying the responsibility of each.
 
 ```typescript
 class AppController {
-  // ユーザー認証
+  // User authentication
   login(email: string, password: string): Token { /* ... */ }
   logout(token: string): void { /* ... */ }
   refreshToken(token: string): Token { /* ... */ }
 
-  // プロフィール管理
+  // Profile management
   getProfile(userId: string): Profile { /* ... */ }
   updateProfile(userId: string, data: any): void { /* ... */ }
   uploadAvatar(userId: string, file: File): string { /* ... */ }
 
-  // 商品管理
+  // Product management
   listProducts(filter: any): Product[] { /* ... */ }
   getProduct(id: string): Product { /* ... */ }
   searchProducts(query: string): Product[] { /* ... */ }
 
-  // カート管理
+  // Cart management
   addToCart(userId: string, productId: string): void { /* ... */ }
   removeFromCart(userId: string, productId: string): void { /* ... */ }
   getCart(userId: string): Cart { /* ... */ }
 
-  // 注文
+  // Orders
   checkout(userId: string): Order { /* ... */ }
   getOrderHistory(userId: string): Order[] { /* ... */ }
 
-  // 管理者機能
+  // Administrative features
   getSystemStats(): Stats { /* ... */ }
   generateReport(type: string): Report { /* ... */ }
 }
 ```
 
-### 演習2: Anemic → Rich リファクタリング
+### Exercise 2: Anemic → Rich Refactoring
 
-以下の Anemic Domain Model を Rich Domain Model にリファクタリングせよ。ビジネスルールがサービス外に漏れないようにすること。
+Refactor the following Anemic Domain Model into a Rich Domain Model. Ensure that no business rule leaks outside of the service.
 
 ```typescript
 class Subscription {
@@ -2091,9 +2091,9 @@ class SubscriptionService {
 }
 ```
 
-### 演習3: 循環依存の解消
+### Exercise 3: Resolving a Circular Dependency
 
-以下のコードには循環依存がある。インターフェースを導入して循環を断ち切れ。
+The code below has a circular dependency. Introduce an interface to break the cycle.
 
 ```typescript
 // department.ts
@@ -2108,7 +2108,7 @@ class Department {
 }
 
 // employee.ts
-import { Department } from "./department";  // 循環依存！
+import { Department } from "./department";  // circular dependency!
 class Employee {
   salary: number;
   department: Department;
@@ -2117,9 +2117,9 @@ class Employee {
 }
 ```
 
-### 演習4: Primitive Obsession の解消
+### Exercise 4: Resolving Primitive Obsession
 
-以下のコードで使われている基本型を値オブジェクトに置き換えよ。最低3つの値オブジェクト（Email, PhoneNumber, Address のうち任意）を作成すること。
+Replace the primitive types used in the code below with value objects. Create at least three value objects (any of Email, PhoneNumber, Address).
 
 ```typescript
 function registerUser(
@@ -2132,7 +2132,7 @@ function registerUser(
   zipCode: string,
   country: string,
 ): User {
-  // バリデーションが関数の先頭に長々と...
+  // Validation drags on at the top of the function...
   if (!email.includes("@")) throw new Error("Invalid email");
   if (phone.length < 10) throw new Error("Invalid phone");
   if (zipCode.length !== 7) throw new Error("Invalid zip code");
@@ -2140,9 +2140,9 @@ function registerUser(
 }
 ```
 
-### 演習5: アンチパターンの識別
+### Exercise 5: Identifying Anti-Patterns
 
-以下のコードにはどのアンチパターンが含まれているか、全て識別せよ。また、それぞれの修正方針を示せ。
+Identify all the anti-patterns contained in the code below. Also provide a corrective approach for each.
 
 ```typescript
 class SystemManager {
@@ -2157,17 +2157,17 @@ class SystemManager {
     const user = db.query(`SELECT * FROM users WHERE id = ${userId}`);
     const order = db.query(`SELECT * FROM orders WHERE id = ${orderId}`);
 
-    // Feature Envy: user のデータばかり使っている
+    // Feature Envy: uses user data heavily
     const discount = user.type === "premium" ? user.discountRate :
                      user.yearsActive > 5 ? 0.05 : 0;
 
-    const tax = order.total * 0.10;  // Shotgun Surgery: 税率がハードコード
+    const tax = order.total * 0.10;  // Shotgun Surgery: tax rate hard-coded
     const total = order.total - (order.total * discount) + tax;
 
     db.query(`UPDATE orders SET total = ${total} WHERE id = ${orderId}`);
 
-    // さらに通知、ログ、レポート更新も全部ここで...
-    this.sendEmail(user.email, `注文確定: ${total}円`);
+    // Also handles notifications, logging, and report updates here...
+    this.sendEmail(user.email, `Order confirmed: ${total} yen`);
     this.logActivity(userId, "order_processed");
     this.updateDashboard();
   }
@@ -2175,15 +2175,15 @@ class SystemManager {
   sendEmail(to: string, body: string) { /* ... */ }
   logActivity(userId: string, action: string) { /* ... */ }
   updateDashboard() { /* ... */ }
-  // ... さらに50メソッド
+  // ... 50 more methods
 }
 ```
 
-**ヒント**: 少なくとも5つのアンチパターンが含まれている。
+**Hint**: at least five anti-patterns are present.
 
-### 演習6: テスタビリティの改善
+### Exercise 6: Improving Testability
 
-以下のクラスをアンチパターンを解消しつつ、ユニットテストが容易な設計にリファクタリングせよ。テストコードも1つ以上書くこと。
+Refactor the class below to eliminate anti-patterns and produce a design that is easy to unit test. Also write at least one piece of test code.
 
 ```typescript
 class ReportGenerator {
@@ -2198,7 +2198,7 @@ class ReportGenerator {
       report += `${row.name}: ${row.value}\n`;
     }
 
-    // ファイルに直接書き込み
+    // Write directly to a file
     const fs = require("fs");
     fs.writeFileSync(`/reports/${type}_${now.getTime()}.txt`, report);
 
@@ -2210,13 +2210,13 @@ class ReportGenerator {
 ---
 
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
-- 同カテゴリの他のガイドを参照してください
+- Please refer to the other guides in the same category
 
 ---
 
-## 参考文献
+## References
 1. Fowler, M. "Refactoring: Improving the Design of Existing Code." 2nd Ed, Addison-Wesley, 2018.
 2. Brown, W. "AntiPatterns: Refactoring Software, Architectures, and Projects in Crisis." Wiley, 1998.
 3. Evans, E. "Domain-Driven Design: Tackling Complexity in the Heart of Software." Addison-Wesley, 2003.
