@@ -1,98 +1,98 @@
-# インターフェースとトレイト
+# Interfaces and Traits
 
-> インターフェースは「契約」を定義し、トレイトは「再利用可能な振る舞い」を提供する。各言語での実装の違いと、ダックタイピングとの関係を理解する。
+> Interfaces define "contracts" while traits provide "reusable behavior." Understand the differences in implementation across languages and the relationship with duck typing.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] インターフェースとトレイトの違いを理解する
-- [ ] 各言語での実装方法を把握する
-- [ ] 構造的型付けとダックタイピングの関係を学ぶ
-- [ ] インターフェース設計のベストプラクティスを習得する
-- [ ] 型システムの違いが設計に与える影響を理解する
+- [ ] Understand the difference between interfaces and traits
+- [ ] Grasp implementation methods in each language
+- [ ] Learn the relationship between structural typing and duck typing
+- [ ] Master best practices for interface design
+- [ ] Understand how differences in type systems affect design
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Reading this guide will be more meaningful if you have the following knowledge:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [コンポジション vs 継承](./00-composition-vs-inheritance.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding the content of [Composition vs Inheritance](./00-composition-vs-inheritance.md)
 
 ---
 
-## 1. インターフェース vs トレイト vs 抽象クラス
+## 1. Interfaces vs Traits vs Abstract Classes
 
 ```
 ┌──────────────┬────────────────┬────────────────┬────────────────┐
-│              │ インターフェース│ トレイト        │ 抽象クラス     │
+│              │ Interface      │ Trait          │ Abstract Class │
 ├──────────────┼────────────────┼────────────────┼────────────────┤
-│ メソッド宣言 │ ○             │ ○             │ ○             │
+│ Method decl. │ Yes            │ Yes            │ Yes            │
 ├──────────────┼────────────────┼────────────────┼────────────────┤
-│ デフォルト実装│ △(言語による) │ ○             │ ○             │
+│ Default impl │ Partial(lang)  │ Yes            │ Yes            │
 ├──────────────┼────────────────┼────────────────┼────────────────┤
-│ フィールド   │ ×             │ △(言語による) │ ○             │
+│ Fields       │ No             │ Partial(lang)  │ Yes            │
 ├──────────────┼────────────────┼────────────────┼────────────────┤
-│ 多重実装     │ ○             │ ○             │ ×             │
+│ Multi impl.  │ Yes            │ Yes            │ No             │
 ├──────────────┼────────────────┼────────────────┼────────────────┤
-│ コンストラクタ│ ×             │ ×             │ ○             │
+│ Constructor  │ No             │ No             │ Yes            │
 ├──────────────┼────────────────┼────────────────┼────────────────┤
-│ アクセス修飾子│ public のみ   │ △(言語による) │ 全て可能       │
+│ Access mod.  │ public only    │ Partial(lang)  │ All allowed    │
 ├──────────────┼────────────────┼────────────────┼────────────────┤
-│ 代表言語     │ Java, TS, Go  │ Rust, Scala,PHP│ Java, Python   │
+│ Languages    │ Java, TS, Go   │ Rust,Scala,PHP │ Java, Python   │
 └──────────────┴────────────────┴────────────────┴────────────────┘
 
-選択のガイドライン:
-  インターフェース: 「何ができるか」の契約を定義したい
-  トレイト: 再利用可能な振る舞いの実装を提供したい
-  抽象クラス: 共通の状態と部分的な実装を共有したい
+Selection guidelines:
+  Interface: When you want to define a contract of "what can be done"
+  Trait: When you want to provide reusable behavior implementations
+  Abstract Class: When you want to share common state and partial implementations
 ```
 
-### 1.1 概念の関係性
+### 1.1 Relationships Between Concepts
 
 ```
-型システムの3つの層:
+Three layers of the type system:
 
-  1. 契約層（Contract Layer）
-     → インターフェース: 「何ができるか」を宣言
-     → メソッドシグネチャのみ
-     → 実装を持たない（原則）
+  1. Contract Layer
+     - Interface: Declares "what can be done"
+     - Only method signatures
+     - Holds no implementation (in principle)
 
-  2. 振る舞い層（Behavior Layer）
-     → トレイト: 再利用可能な振る舞いを定義
-     → デフォルト実装を提供
-     → 状態は持たない（原則）
+  2. Behavior Layer
+     - Trait: Defines reusable behavior
+     - Provides default implementations
+     - Holds no state (in principle)
 
-  3. 実装層（Implementation Layer）
-     → 抽象クラス / 具象クラス: 完全な実装
-     → 状態（フィールド）を持つ
-     → コンストラクタを持つ
+  3. Implementation Layer
+     - Abstract class / Concrete class: Complete implementation
+     - Holds state (fields)
+     - Has constructors
 
-  実装の進化:
-    インターフェース（宣言のみ）
-         ↓ デフォルトメソッド追加
-    トレイト（宣言 + デフォルト実装）
-         ↓ 状態の追加
-    抽象クラス（宣言 + 実装 + 状態）
-         ↓ 全メソッド実装
-    具象クラス（完全な実装）
+  Evolution of implementations:
+    Interface (declarations only)
+         ↓ Adds default methods
+    Trait (declarations + default implementations)
+         ↓ Adds state
+    Abstract class (declarations + implementations + state)
+         ↓ All methods implemented
+    Concrete class (complete implementation)
 
-  近年の言語の傾向:
-    → インターフェースとトレイトの境界が曖昧化
-    → Java 8+: インターフェースにデフォルトメソッド
-    → Kotlin: インターフェースにプロパティ
-    → Swift: プロトコルエクステンション
-    → PHP 8: インターフェースに近いトレイト
+  Recent language trends:
+    - Boundary between interfaces and traits has blurred
+    - Java 8+: Default methods on interfaces
+    - Kotlin: Properties on interfaces
+    - Swift: Protocol extensions
+    - PHP 8: Traits close to interfaces
 ```
 
 ---
 
-## 2. 各言語の実装
+## 2. Implementation in Each Language
 
-### 2.1 Java: インターフェース
+### 2.1 Java: Interfaces
 
 ```java
-// Java: インターフェース（デフォルトメソッド付き）
+// Java: Interface (with default methods)
 public interface Comparable<T> {
     int compareTo(T other);
 }
@@ -100,7 +100,7 @@ public interface Comparable<T> {
 public interface Printable {
     void print();
 
-    // デフォルトメソッド（Java 8+）
+    // Default method (Java 8+)
     default void printWithBorder() {
         System.out.println("================");
         print();
@@ -108,7 +108,7 @@ public interface Printable {
     }
 }
 
-// 複数のインターフェースを実装
+// Implement multiple interfaces
 public class Product implements Comparable<Product>, Printable {
     private String name;
     private int price;
@@ -126,14 +126,14 @@ public class Product implements Comparable<Product>, Printable {
 ```
 
 ```java
-// Java: インターフェースの高度な使い方
+// Java: Advanced usage of interfaces
 
-// 1. 関数型インターフェース（SAM: Single Abstract Method）
+// 1. Functional interface (SAM: Single Abstract Method)
 @FunctionalInterface
 public interface Predicate<T> {
     boolean test(T t);
 
-    // デフォルトメソッドで合成
+    // Composition via default methods
     default Predicate<T> and(Predicate<T> other) {
         return t -> this.test(t) && other.test(t);
     }
@@ -146,18 +146,18 @@ public interface Predicate<T> {
         return t -> !this.test(t);
     }
 
-    // static ファクトリーメソッド
+    // static factory method
     static <T> Predicate<T> isEqual(Object targetRef) {
         return t -> Objects.equals(t, targetRef);
     }
 }
 
-// ラムダ式で使用
+// Use with lambda expressions
 Predicate<String> isNotEmpty = s -> !s.isEmpty();
 Predicate<String> isLongEnough = s -> s.length() >= 8;
 Predicate<String> isValidPassword = isNotEmpty.and(isLongEnough);
 
-// 2. sealed インターフェース（Java 17+）
+// 2. sealed interface (Java 17+)
 public sealed interface Shape
     permits Circle, Rectangle, Triangle {
     double area();
@@ -188,16 +188,16 @@ public record Triangle(double a, double b, double c) implements Shape {
     public double perimeter() { return a + b + c; }
 }
 
-// パターンマッチング（Java 21+）
+// Pattern matching (Java 21+)
 public String describeShape(Shape shape) {
     return switch (shape) {
-        case Circle c -> "半径 " + c.radius() + " の円";
-        case Rectangle r -> r.width() + "x" + r.height() + " の長方形";
-        case Triangle t -> "三角形（辺: " + t.a() + ", " + t.b() + ", " + t.c() + "）";
+        case Circle c -> "Circle with radius " + c.radius();
+        case Rectangle r -> r.width() + "x" + r.height() + " rectangle";
+        case Triangle t -> "Triangle (sides: " + t.a() + ", " + t.b() + ", " + t.c() + ")";
     };
 }
 
-// 3. インターフェースのデフォルトメソッド競合
+// 3. Default method conflict in interfaces
 public interface A {
     default String greet() { return "Hello from A"; }
 }
@@ -206,26 +206,26 @@ public interface B {
     default String greet() { return "Hello from B"; }
 }
 
-// 両方を実装する場合、明示的にオーバーライドが必要
+// When implementing both, explicit override is required
 public class C implements A, B {
     @Override
     public String greet() {
-        // 明示的にどちらかを選ぶ
+        // Explicitly choose one
         return A.super.greet();
     }
 }
 ```
 
-### 2.2 Rust: トレイト
+### 2.2 Rust: Traits
 
 ```rust
-// Rust: トレイト（インターフェース + デフォルト実装 + ジェネリクス制約）
+// Rust: Traits (interface + default implementation + generics constraints)
 trait Summary {
     fn summarize_author(&self) -> String;
 
-    // デフォルト実装
+    // Default implementation
     fn summarize(&self) -> String {
-        format!("({}からの新着...)", self.summarize_author())
+        format!("(Breaking news from {}...)", self.summarize_author())
     }
 }
 
@@ -240,15 +240,15 @@ impl Summary for Article {
         self.author.clone()
     }
 
-    // summarize() はデフォルト実装を使用
+    // summarize() uses the default implementation
 }
 
-// トレイト境界: ジェネリクスの制約として使用
+// Trait bound: used as a generics constraint
 fn notify(item: &impl Summary) {
-    println!("速報: {}", item.summarize());
+    println!("Breaking: {}", item.summarize());
 }
 
-// 複数トレイトの組み合わせ
+// Combining multiple traits
 fn display_and_summarize(item: &(impl Summary + std::fmt::Display)) {
     println!("{}", item);
     println!("{}", item.summarize());
@@ -256,15 +256,15 @@ fn display_and_summarize(item: &(impl Summary + std::fmt::Display)) {
 ```
 
 ```rust
-// Rust: トレイトの高度な使い方
+// Rust: Advanced usage of traits
 
-// 1. 関連型（Associated Types）
+// 1. Associated Types
 trait Iterator {
-    type Item;  // 関連型: 実装者が具体的な型を指定
+    type Item;  // Associated type: implementer specifies the concrete type
 
     fn next(&mut self) -> Option<Self::Item>;
 
-    // デフォルト実装: 関連型を使ったメソッド
+    // Default implementation: method using the associated type
     fn count(mut self) -> usize
     where
         Self: Sized,
@@ -283,7 +283,7 @@ struct Counter {
 }
 
 impl Iterator for Counter {
-    type Item = u32;  // この Iterator の要素は u32
+    type Item = u32;  // Elements of this Iterator are u32
 
     fn next(&mut self) -> Option<u32> {
         if self.count < self.max {
@@ -295,14 +295,14 @@ impl Iterator for Counter {
     }
 }
 
-// 2. スーパートレイト（トレイトの継承）
+// 2. Supertraits (trait inheritance)
 trait Animal {
     fn name(&self) -> &str;
 }
 
-trait Pet: Animal {  // Pet は Animal のスーパートレイトを要求
+trait Pet: Animal {  // Pet requires Animal as a supertrait
     fn cuddle(&self) -> String {
-        format!("{}をなでなで", self.name())
+        format!("Petting {}", self.name())
     }
 }
 
@@ -317,25 +317,25 @@ impl Animal for Dog {
 }
 
 impl Pet for Dog {
-    // cuddle() はデフォルト実装を使用
+    // cuddle() uses the default implementation
 }
 
-// 3. トレイトオブジェクト（動的ディスパッチ）
+// 3. Trait objects (dynamic dispatch)
 fn print_summaries(items: &[&dyn Summary]) {
     for item in items {
         println!("{}", item.summarize());
     }
 }
 
-// 4. ブランケット実装（Blanket Implementation）
-// Display を実装するすべての型に ToString を自動実装
+// 4. Blanket implementation
+// Automatically implements ToString for all types that implement Display
 impl<T: std::fmt::Display> ToString for T {
     fn to_string(&self) -> String {
         format!("{}", self)
     }
 }
 
-// 5. From/Into トレイト（型変換）
+// 5. From/Into traits (type conversion)
 struct Celsius(f64);
 struct Fahrenheit(f64);
 
@@ -345,19 +345,19 @@ impl From<Celsius> for Fahrenheit {
     }
 }
 
-// Into は From から自動導出される
+// Into is automatically derived from From
 let c = Celsius(100.0);
 let f: Fahrenheit = c.into();  // Fahrenheit(212.0)
 
-// 6. Derive マクロ（トレイトの自動実装）
+// 6. Derive macro (automatic trait implementation)
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct Point {
     x: i32,
     y: i32,
 }
-// Debug, Clone, PartialEq, Eq, Hash が自動実装される
+// Debug, Clone, PartialEq, Eq, Hash are automatically implemented
 
-// 7. Newtype パターン（外部の型にトレイトを実装）
+// 7. Newtype pattern (implementing traits for external types)
 struct Meters(f64);
 
 impl std::fmt::Display for Meters {
@@ -374,10 +374,10 @@ impl std::ops::Add for Meters {
 }
 ```
 
-### 2.3 Go: 暗黙的インターフェース
+### 2.3 Go: Implicit Interfaces
 
 ```go
-// Go: 構造的型付け（暗黙的にインターフェースを満たす）
+// Go: Structural typing (implicitly satisfies interfaces)
 type Writer interface {
     Write(p []byte) (n int, err error)
 }
@@ -386,13 +386,13 @@ type Reader interface {
     Read(p []byte) (n int, err error)
 }
 
-// ReadWriter は Writer と Reader の合成
+// ReadWriter is a composition of Writer and Reader
 type ReadWriter interface {
     Reader
     Writer
 }
 
-// MyBuffer は Writer を「宣言なしに」満たす
+// MyBuffer satisfies Writer "without declaration"
 type MyBuffer struct {
     data []byte
 }
@@ -402,15 +402,15 @@ func (b *MyBuffer) Write(p []byte) (int, error) {
     return len(p), nil
 }
 
-// implements Writer とは書かない（暗黙的に満たす）
+// No "implements Writer" needed (satisfies implicitly)
 var w Writer = &MyBuffer{}
 ```
 
 ```go
-// Go: インターフェースの高度な使い方
+// Go: Advanced usage of interfaces
 
-// 1. 小さなインターフェース（Go の哲学）
-// Go のインターフェースは通常 1-3 メソッド
+// 1. Small interfaces (Go's philosophy)
+// Go interfaces are usually 1-3 methods
 type Stringer interface {
     String() string
 }
@@ -424,37 +424,37 @@ type ReadCloser interface {
     Closer
 }
 
-// 2. 空インターフェース（any / interface{}）
+// 2. Empty interface (any / interface{})
 func PrintAnything(v any) {
     fmt.Println(v)
 }
 
-// 3. 型アサーション
+// 3. Type assertion
 func Process(r Reader) {
-    // r が Closer も満たすか確認
+    // Check if r also satisfies Closer
     if closer, ok := r.(Closer); ok {
         defer closer.Close()
     }
 
-    // 型switch
+    // Type switch
     switch v := r.(type) {
     case *os.File:
-        fmt.Println("ファイル:", v.Name())
+        fmt.Println("File:", v.Name())
     case *bytes.Buffer:
-        fmt.Println("バッファ:", v.Len(), "バイト")
+        fmt.Println("Buffer:", v.Len(), "bytes")
     default:
-        fmt.Println("不明なReader")
+        fmt.Println("Unknown Reader")
     }
 }
 
-// 4. インターフェースの合成パターン
+// 4. Interface composition pattern
 type Handler interface {
     Handle(ctx context.Context, req Request) (Response, error)
 }
 
 type Middleware func(Handler) Handler
 
-// ミドルウェアの連鎖
+// Chain of middleware
 func Chain(h Handler, middlewares ...Middleware) Handler {
     for i := len(middlewares) - 1; i >= 0; i-- {
         h = middlewaresi
@@ -462,7 +462,7 @@ func Chain(h Handler, middlewares ...Middleware) Handler {
     return h
 }
 
-// ロギングミドルウェア
+// Logging middleware
 func LoggingMiddleware(next Handler) Handler {
     return HandlerFunc(func(ctx context.Context, req Request) (Response, error) {
         start := time.Now()
@@ -472,37 +472,37 @@ func LoggingMiddleware(next Handler) Handler {
     })
 }
 
-// 認証ミドルウェア
+// Authentication middleware
 func AuthMiddleware(next Handler) Handler {
     return HandlerFunc(func(ctx context.Context, req Request) (Response, error) {
         token := req.Header("Authorization")
         if token == "" {
             return nil, ErrUnauthorized
         }
-        // トークン検証...
+        // Token validation...
         return next.Handle(ctx, req)
     })
 }
 
-// 使用例
+// Usage example
 handler := Chain(myHandler, LoggingMiddleware, AuthMiddleware)
 
-// 5. コンパイル時のインターフェース準拠チェック
-// 構造体がインターフェースを満たすことを保証するイディオム
+// 5. Compile-time interface conformance check
+// Idiom to ensure a struct satisfies an interface
 var _ Writer = (*MyBuffer)(nil)
 var _ Reader = (*MyBuffer)(nil)
-// MyBuffer が Writer/Reader を満たさない場合、コンパイルエラー
+// Compile error if MyBuffer does not satisfy Writer/Reader
 ```
 
-### 2.4 TypeScript: 構造的型付け
+### 2.4 TypeScript: Structural Typing
 
 ```typescript
-// TypeScript: 構造的型付け（Structural Typing）
+// TypeScript: Structural Typing
 interface Loggable {
   toLogString(): string;
 }
 
-// 明示的に implements しなくても、構造が合えばOK
+// No explicit 'implements' needed; matching structure is enough
 class User {
   constructor(public name: string, public email: string) {}
 
@@ -511,19 +511,19 @@ class User {
   }
 }
 
-// User は Loggable を明示的に implements していないが、
-// toLogString() を持つので Loggable として使える
+// User does not explicitly implement Loggable, but since it
+// has toLogString() it can be used as Loggable
 function log(item: Loggable): void {
   console.log(item.toLogString());
 }
 
-log(new User("田中", "tanaka@example.com")); // OK
+log(new User("Tanaka", "tanaka@example.com")); // OK
 ```
 
 ```typescript
-// TypeScript: インターフェースの高度な使い方
+// TypeScript: Advanced interface usage
 
-// 1. ジェネリックインターフェース
+// 1. Generic interfaces
 interface Repository<T> {
   findById(id: string): Promise<T | null>;
   findAll(): Promise<T[]>;
@@ -535,12 +535,12 @@ interface Identifiable {
   id: string;
 }
 
-// ジェネリクス制約
+// Generic constraint
 interface CrudRepository<T extends Identifiable> extends Repository<T> {
   update(id: string, data: Partial<T>): Promise<T>;
 }
 
-// 2. インデックスシグネチャ
+// 2. Index signatures
 interface Dictionary<T> {
   [key: string]: T;
 }
@@ -551,7 +551,7 @@ const scores: Dictionary<number> = {
   science: 92,
 };
 
-// 3. 呼び出しシグネチャ
+// 3. Call signatures
 interface Formatter {
   (value: unknown): string;
   locale: string;
@@ -562,7 +562,7 @@ const jsonFormatter: Formatter = Object.assign(
   { locale: "ja-JP" },
 );
 
-// 4. インターセクション型（型の合成）
+// 4. Intersection types (type composition)
 interface HasName {
   name: string;
 }
@@ -575,16 +575,16 @@ interface HasAge {
   age: number;
 }
 
-// インターセクション型で合成
+// Compose with intersection type
 type UserInfo = HasName & HasEmail & HasAge;
 
 const user: UserInfo = {
-  name: "田中",
+  name: "Tanaka",
   email: "tanaka@example.com",
   age: 30,
 };
 
-// 5. Conditional Types とインターフェース
+// 5. Conditional Types with interfaces
 interface ApiResponse<T> {
   data: T;
   status: number;
@@ -603,19 +603,19 @@ interface User {
   age: number;
 }
 
-// 全フィールドをオプショナルに
+// Make all fields optional
 type PartialUser = Partial<User>;
 
-// 全フィールドを読み取り専用に
+// Make all fields readonly
 type ReadonlyUser = Readonly<User>;
 
-// 特定のフィールドのみ取得
+// Pick specific fields only
 type UserPreview = Pick<User, "id" | "name">;
 
-// 特定のフィールドを除外
+// Exclude specific fields
 type UserWithoutId = Omit<User, "id">;
 
-// 7. Template Literal Types とインターフェース
+// 7. Template Literal Types with interfaces
 type EventName = "click" | "hover" | "focus";
 type HandlerName = `on${Capitalize<EventName>}`;
 // "onClick" | "onHover" | "onFocus"
@@ -627,21 +627,21 @@ interface EventHandlers {
 }
 ```
 
-### 2.5 Python: Protocol（構造的サブタイピング）
+### 2.5 Python: Protocol (Structural Subtyping)
 
 ```python
-# Python: Protocol によるインターフェース（Python 3.8+）
+# Python: Interface via Protocol (Python 3.8+)
 from typing import Protocol, runtime_checkable
 
 
-# Protocol: 構造的型付け（ダックタイピングの型安全版）
+# Protocol: Structural typing (type-safe version of duck typing)
 class Renderable(Protocol):
-    """レンダリング可能なオブジェクトの契約"""
+    """Contract for renderable objects"""
     def render(self) -> str: ...
 
 
 class HtmlComponent:
-    """Protocol を明示的に実装する必要なし"""
+    """No need to explicitly implement the Protocol"""
     def __init__(self, tag: str, content: str):
         self.tag = tag
         self.content = content
@@ -651,7 +651,7 @@ class HtmlComponent:
 
 
 class MarkdownText:
-    """これも render() を持つので Renderable"""
+    """Also Renderable since it has render()"""
     def __init__(self, text: str):
         self.text = text
 
@@ -659,7 +659,7 @@ class MarkdownText:
         return self.text
 
 
-# render() を持つ何でも受け取れる
+# Accepts anything that has render()
 def display(item: Renderable) -> None:
     print(item.render())
 
@@ -669,13 +669,13 @@ display(MarkdownText("# Hello"))       # # Hello
 ```
 
 ```python
-# Python: Protocol の高度な使い方
+# Python: Advanced usage of Protocol
 
 from typing import Protocol, runtime_checkable, TypeVar, Generic
 from abc import abstractmethod
 
 
-# 1. runtime_checkable: isinstance() で使える
+# 1. runtime_checkable: usable with isinstance()
 @runtime_checkable
 class Closable(Protocol):
     def close(self) -> None: ...
@@ -689,19 +689,19 @@ class FileWrapper:
         self.file.close()
 
 
-# isinstance でチェック可能
+# Can be checked with isinstance
 wrapper = FileWrapper("test.txt")
 assert isinstance(wrapper, Closable)  # True
 
 
-# 2. ジェネリック Protocol
+# 2. Generic Protocol
 T = TypeVar("T")
 T_co = TypeVar("T_co", covariant=True)
 T_contra = TypeVar("T_contra", contravariant=True)
 
 
 class Comparable(Protocol[T]):
-    """比較可能なオブジェクト"""
+    """Comparable object"""
     def __lt__(self, other: T) -> bool: ...
     def __le__(self, other: T) -> bool: ...
     def __gt__(self, other: T) -> bool: ...
@@ -709,14 +709,14 @@ class Comparable(Protocol[T]):
 
 
 class SupportsAdd(Protocol[T_co]):
-    """加算可能なオブジェクト"""
+    """Object supporting addition"""
     def __add__(self, other: "SupportsAdd[T_co]") -> T_co: ...
 
 
-# 3. Protocol のメソッドにデフォルト実装は持てないが、
-#    Mixin と組み合わせて使える
+# 3. Protocol methods cannot have default implementations,
+#    but can be combined with Mixins
 class EqualityMixin:
-    """等値比較のデフォルト実装を提供するMixin"""
+    """Mixin providing default equality comparison"""
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
             return NotImplemented
@@ -727,12 +727,12 @@ class EqualityMixin:
 
 
 class HashableMixin(EqualityMixin):
-    """ハッシュのデフォルト実装"""
+    """Default hash implementation"""
     def __hash__(self) -> int:
         return hash(tuple(sorted(self.__dict__.items())))
 
 
-# 4. Protocol を使った依存性注入
+# 4. Dependency injection with Protocol
 class UserRepository(Protocol):
     async def find_by_id(self, user_id: str) -> dict | None: ...
     async def save(self, user: dict) -> None: ...
@@ -748,7 +748,7 @@ class Logger(Protocol):
 
 
 class UserService:
-    """Protocol に依存（具象クラスに依存しない）"""
+    """Depends on Protocol (not on concrete classes)"""
     def __init__(
         self,
         repo: UserRepository,
@@ -763,11 +763,11 @@ class UserService:
         self.logger.info(f"Registering user: {email_addr}")
         user = {"name": name, "email": email_addr}
         await self.repo.save(user)
-        await self.email.send(email_addr, "Welcome!", "ご登録ありがとうございます")
+        await self.email.send(email_addr, "Welcome!", "Thank you for registering")
         return user
 
 
-# テスト用のモック（Protocol を満たせばOK）
+# Mocks for testing (satisfying the Protocol is enough)
 class MockUserRepository:
     def __init__(self):
         self.users: list[dict] = []
@@ -798,7 +798,7 @@ class MockLogger:
         self.messages.append(f"[ERROR] {message}")
 
 
-# テスト
+# Test
 import asyncio
 
 async def test_register():
@@ -807,7 +807,7 @@ async def test_register():
     logger = MockLogger()
 
     service = UserService(repo, email, logger)
-    user = await service.register("田中", "tanaka@example.com")
+    user = await service.register("Tanaka", "tanaka@example.com")
 
     assert len(repo.users) == 1
     assert len(email.sent) == 1
@@ -817,20 +817,20 @@ async def test_register():
 asyncio.run(test_register())
 ```
 
-### 2.6 Scala: トレイト
+### 2.6 Scala: Traits
 
 ```scala
-// Scala: トレイト（インターフェース + デフォルト実装 + 状態）
+// Scala: Traits (interface + default implementation + state)
 trait Greeter {
-  // 抽象メソッド
+  // Abstract method
   def name: String
 
-  // デフォルト実装
+  // Default implementation
   def greet(): String = s"Hello, $name!"
 }
 
 trait Logger {
-  // トレイトは状態を持てる
+  // Traits can hold state
   var logLevel: String = "INFO"
 
   def log(message: String): Unit = {
@@ -842,7 +842,7 @@ trait Serializable {
   def toJson: String
 }
 
-// 複数のトレイトを合成
+// Compose multiple traits
 class User(val name: String, val email: String)
     extends Greeter
     with Logger
@@ -852,21 +852,21 @@ class User(val name: String, val email: String)
     s"""{"name": "$name", "email": "$email"}"""
 }
 
-// self-type: 依存関係の宣言
+// self-type: declare dependency
 trait Repository {
-  self: Logger =>  // Repository は Logger を必要とする
+  self: Logger =>  // Repository requires Logger
   def save(data: String): Unit = {
     log(s"Saving: $data")
-    // 永続化処理
+    // Persistence logic
   }
 }
 
-// 動的ミックスイン（インスタンス生成時にトレイトを追加）
-val user = new User("田中", "tanaka@example.com") with Serializable {
+// Dynamic mixin (add trait when instantiating)
+val user = new User("Tanaka", "tanaka@example.com") with Serializable {
   override def toJson: String = s"""{"name": "$name"}"""
 }
 
-// ケーキパターン（DI）
+// Cake pattern (DI)
 trait UserRepositoryComponent {
   val userRepository: UserRepository
   trait UserRepository {
@@ -884,10 +884,10 @@ trait UserServiceComponent {
 }
 ```
 
-### 2.7 Swift: プロトコル
+### 2.7 Swift: Protocols
 
 ```swift
-// Swift: プロトコル（インターフェース + Protocol Extensions）
+// Swift: Protocols (interface + Protocol Extensions)
 protocol Drawable {
     func draw()
 }
@@ -898,7 +898,7 @@ protocol Resizable {
     func resize(by factor: Double)
 }
 
-// Protocol Extension: デフォルト実装を提供
+// Protocol Extension: provide default implementations
 extension Resizable {
     func resize(by factor: Double) {
         width *= factor
@@ -910,7 +910,7 @@ extension Resizable {
     }
 }
 
-// プロトコル合成（Protocol Composition）
+// Protocol Composition
 typealias InteractiveElement = Drawable & Resizable
 
 struct Button: InteractiveElement {
@@ -923,23 +923,23 @@ struct Button: InteractiveElement {
     }
 }
 
-// Associated Types（関連型）
+// Associated Types
 protocol Container {
-    associatedtype Item  // 関連型
+    associatedtype Item  // Associated type
     var count: Int { get }
     mutating func append(_ item: Item)
     subscript(i: Int) -> Item { get }
 }
 
 struct Stack<Element>: Container {
-    typealias Item = Element  // 関連型の指定（推論可能なら省略可）
+    typealias Item = Element  // Specify the associated type (can be omitted if inferable)
     var items: [Element] = []
     var count: Int { items.count }
     mutating func append(_ item: Element) { items.append(item) }
     subscript(i: Int) -> Element { items[i] }
 }
 
-// where句でジェネリクス制約
+// Generic constraint via where clause
 func allEqual<C: Container>(_ container: C) -> Bool
     where C.Item: Equatable {
     if container.count < 2 { return true }
@@ -949,14 +949,14 @@ func allEqual<C: Container>(_ container: C) -> Bool
     return true
 }
 
-// Existential Types（any キーワード、Swift 5.7+）
+// Existential Types (any keyword, Swift 5.7+)
 func printAll(_ items: [any Drawable]) {
     for item in items {
         item.draw()
     }
 }
 
-// Opaque Types（some キーワード）
+// Opaque Types (some keyword)
 func makeShape() -> some Drawable {
     return Button(label: "OK", width: 100, height: 40)
 }
@@ -964,55 +964,55 @@ func makeShape() -> some Drawable {
 
 ---
 
-## 3. ダックタイピング
+## 3. Duck Typing
 
 ```
-「アヒルのように歩き、アヒルのように鳴くなら、それはアヒルだ」
+"If it walks like a duck and quacks like a duck, it's a duck"
 
-名前的型付け（Nominal Typing）:
-  → 明示的に implements/extends した型のみ互換
-  → Java, C#, Swift
+Nominal Typing:
+  - Only types explicitly implementing/extending are compatible
+  - Java, C#, Swift
 
-構造的型付け（Structural Typing）:
-  → 構造（メソッド/プロパティ）が合えば互換
-  → TypeScript, Go
+Structural Typing:
+  - Compatible if structure (methods/properties) matches
+  - TypeScript, Go
 
-ダックタイピング（Duck Typing）:
-  → 実行時にメソッドが存在すれば呼べる
-  → Python, Ruby, JavaScript
+Duck Typing:
+  - Can be called if method exists at runtime
+  - Python, Ruby, JavaScript
 
-型チェックの厳密さ:
-  名前的型付け > 構造的型付け > ダックタイピング
+Strictness of type checking:
+  Nominal typing > Structural typing > Duck typing
 
-安全性と柔軟性のトレードオフ:
-  名前的型付け: 安全性 高 / 柔軟性 低
-  構造的型付け: 安全性 中 / 柔軟性 中
-  ダックタイピング: 安全性 低 / 柔軟性 高
+Tradeoff between safety and flexibility:
+  Nominal typing: High safety / Low flexibility
+  Structural typing: Medium safety / Medium flexibility
+  Duck typing: Low safety / High flexibility
 ```
 
 ```python
-# Python: ダックタイピング
+# Python: Duck typing
 class Duck:
     def quack(self):
-        return "ガーガー"
+        return "Quack quack"
 
 class Person:
     def quack(self):
-        return "（人間が真似する）ガーガー"
+        return "(Human imitating) Quack quack"
 
 class RubberDuck:
     def quack(self):
-        return "キュッキュッ"
+        return "Squeak squeak"
 
-# 型宣言なしに、quack() を持つ何でも渡せる
+# No type declaration; accepts anything that has quack()
 def make_it_quack(thing):
     print(thing.quack())
 
-make_it_quack(Duck())       # ガーガー
-make_it_quack(Person())     # （人間が真似する）ガーガー
-make_it_quack(RubberDuck()) # キュッキュッ
+make_it_quack(Duck())       # Quack quack
+make_it_quack(Person())     # (Human imitating) Quack quack
+make_it_quack(RubberDuck()) # Squeak squeak
 
-# Protocol（Python 3.8+）: 型ヒントでダックタイピングを型安全に
+# Protocol (Python 3.8+): make duck typing type-safe via type hints
 from typing import Protocol
 
 class Quackable(Protocol):
@@ -1023,7 +1023,7 @@ def make_it_quack_typed(thing: Quackable) -> None:
 ```
 
 ```ruby
-# Ruby: ダックタイピング
+# Ruby: Duck typing
 class Logger
   def write(message)
     puts "[LOG] #{message}"
@@ -1046,21 +1046,21 @@ end
 
 class NullWriter
   def write(message)
-    # 何もしない
+    # Do nothing
   end
 end
 
-# write() を持つ何でも渡せる
+# Accepts anything that has write()
 def process(writer, data)
   writer.write("Processing: #{data}")
-  # writerの具体的な型を気にしない
+  # Does not care about the concrete type of writer
 end
 
 process(Logger.new, "test data")
 process(FileWriter.new("output.log"), "test data")
 process(NullWriter.new, "test data")
 
-# respond_to? でメソッドの存在を確認
+# Use respond_to? to check for method existence
 def safe_write(writer, message)
   if writer.respond_to?(:write)
     writer.write(message)
@@ -1070,34 +1070,34 @@ def safe_write(writer, message)
 end
 ```
 
-### 3.1 各型付け方式の比較
+### 3.1 Comparison of Typing Styles
 
 ```typescript
-// TypeScript: 構造的型付けの利点と注意点
+// TypeScript: Benefits and caveats of structural typing
 
-// 利点1: サードパーティライブラリとの互換性
-// ライブラリAが定義したインターフェース
+// Benefit 1: Compatibility with third-party libraries
+// Interface defined by library A
 interface PointA {
   x: number;
   y: number;
 }
 
-// ライブラリBが定義した別のインターフェース
+// Different interface defined by library B
 interface PointB {
   x: number;
   y: number;
 }
 
-// 名前が違っても構造が同じなら互換
+// Compatible if structure is the same even with different names
 function distanceA(p: PointA): number {
   return Math.sqrt(p.x ** 2 + p.y ** 2);
 }
 
 const pointB: PointB = { x: 3, y: 4 };
-distanceA(pointB); // ✅ OK（構造的型付け）
-// Java なら: ❌ コンパイルエラー（名前的型付け）
+distanceA(pointB); // OK (structural typing)
+// In Java: compile error (nominal typing)
 
-// 注意点: 構造が同じでも意味が異なる場合
+// Caveat: Same structure but different meaning
 interface UserId {
   value: string;
 }
@@ -1112,11 +1112,11 @@ function findProduct(id: ProductId): Product { /* ... */ }
 const userId: UserId = { value: "user-123" };
 const productId: ProductId = { value: "product-456" };
 
-findUser(productId); // ✅ TypeScriptではコンパイル通る！（構造が同じ）
-// → 意味的には間違い
-// → Branded Types で解決
+findUser(productId); // Compiles in TypeScript! (same structure)
+// - Semantically wrong
+// - Solved with Branded Types
 
-// Branded Types: 構造的型付けで名前的型付けを実現
+// Branded Types: achieve nominal typing with structural typing
 type Brand<T, B extends string> = T & { __brand: B };
 type StrictUserId = Brand<string, "UserId">;
 type StrictProductId = Brand<string, "ProductId">;
@@ -1127,47 +1127,46 @@ function findProductStrict(id: StrictProductId): Product { /* ... */ }
 const strictUserId = "user-123" as StrictUserId;
 const strictProductId = "product-456" as StrictProductId;
 
-// findUserStrict(strictProductId); // ❌ コンパイルエラー！
-findUserStrict(strictUserId);        // ✅ OK
+// findUserStrict(strictProductId); // Compile error!
+findUserStrict(strictUserId);        // OK
 ```
 
 ---
 
-## 4. インターフェース設計のベストプラクティス
+## 4. Best Practices for Interface Design
 
 ```
-1. 小さく保つ（ISP準拠）:
-   → メソッド数は1-5個が理想
-   → 「このインターフェースの全メソッドを
-      すべての実装者が意味的に実装できるか？」
+1. Keep them small (ISP-compliant):
+   - Ideally 1-5 methods
+   - "Can every implementer semantically implement
+      all methods of this interface?"
 
-2. クライアント視点で設計:
-   → 実装者ではなく利用者の観点で
-   → 「このインターフェースのメソッドが
-      すべて必要なクライアントは存在するか？」
+2. Design from the client's perspective:
+   - Think from users, not from implementers
+   - "Does a client exist that needs all methods of this interface?"
 
-3. 名前で意図を伝える:
-   → -able, -er, -or サフィックス
-   → Comparable, Serializer, Validator
-   → 「〜できる」「〜するもの」
+3. Convey intent through names:
+   - Suffixes like -able, -er, -or
+   - Comparable, Serializer, Validator
+   - "Can do X", "Thing that does X"
 
-4. 安定した契約:
-   → インターフェースは変更しにくい
-   → 最初から完璧を目指さず、少しずつ追加
+4. Stable contracts:
+   - Interfaces are hard to change
+   - Don't aim for perfection from the start; add gradually
 
-5. テスタビリティを考慮:
-   → 外部依存をインターフェースで抽象化
-   → モックを作りやすい粒度に
+5. Consider testability:
+   - Abstract external dependencies with interfaces
+   - Granularity that makes mocking easy
 
-6. ドメインの言葉を使う:
-   → 技術用語より業務用語
-   → interface OrderProcessor > interface DataHandler
+6. Use domain language:
+   - Business terms over technical terms
+   - interface OrderProcessor > interface DataHandler
 ```
 
 ```typescript
-// インターフェース設計の良い例と悪い例
+// Good and bad examples of interface design
 
-// ❌ 悪い例: 巨大なインターフェース
+// Bad example: massive interface
 interface DataManager {
   fetch(url: string): Promise<any>;
   save(data: any): Promise<void>;
@@ -1181,14 +1180,14 @@ interface DataManager {
   encrypt(data: any): Buffer;
 }
 
-// ❌ 悪い例: 技術的すぎる名前
+// Bad example: overly technical name
 interface IDataAccessObject {
   executeSQL(query: string): Promise<any>;
   commitTransaction(): Promise<void>;
   rollbackTransaction(): Promise<void>;
 }
 
-// ✅ 良い例: 小さく、ドメイン志向
+// Good example: small, domain-oriented
 interface OrderRepository {
   findById(id: string): Promise<Order | null>;
   findByUserId(userId: string): Promise<Order[]>;
@@ -1208,7 +1207,7 @@ interface OrderNotifier {
   notifyOrderShipped(order: Order): Promise<void>;
 }
 
-// ✅ 良い例: 関数型インターフェース
+// Good example: functional interfaces
 interface Predicate<T> {
   test(value: T): boolean;
 }
@@ -1224,122 +1223,122 @@ interface AsyncHandler<I, O> {
 
 ---
 
-## 5. 選択指針
+## 5. Selection Guide
 
 ```
-インターフェース:
-  → 「何ができるか」の契約を定義
-  → 実装は持たない（またはデフォルト最小限）
-  → 多重実装が必要な場合
-  → 異なる型に共通の振る舞いを強制
+Interface:
+  - Defines contract of "what can be done"
+  - No implementation (or minimal default)
+  - When multiple implementations are needed
+  - Enforce common behavior across different types
 
-トレイト:
-  → 再利用可能な振る舞いの単位
-  → デフォルト実装を積極的に提供
-  → ミックスイン的な使い方
-  → コードの重複を排除しつつ柔軟に合成
+Trait:
+  - Unit of reusable behavior
+  - Actively provides default implementations
+  - Mixin-style usage
+  - Eliminate code duplication while composing flexibly
 
-抽象クラス:
-  → 共通の状態（フィールド）+ 部分的な実装
-  → テンプレートメソッドパターン
-  → is-a 関係が明確な場合
-  → コンストラクタでの初期化が必要
+Abstract class:
+  - Common state (fields) + partial implementation
+  - Template Method pattern
+  - When the is-a relationship is clear
+  - When constructor initialization is needed
 
-言語別の推奨:
-  Java: インターフェース（デフォルトメソッド活用）
-  TypeScript: インターフェース（構造的型付けを活用）
-  Go: インターフェース（小さく、暗黙的に）
-  Rust: トレイト（唯一の抽象化メカニズム）
-  Python: Protocol（型安全なダックタイピング）
-  Scala: トレイト（状態も持てる柔軟さ）
-  Swift: プロトコル（Protocol Extension 活用）
+Recommendations by language:
+  Java: Interfaces (leveraging default methods)
+  TypeScript: Interfaces (leveraging structural typing)
+  Go: Interfaces (small, implicit)
+  Rust: Traits (the only abstraction mechanism)
+  Python: Protocol (type-safe duck typing)
+  Scala: Traits (flexibility with state)
+  Swift: Protocols (leveraging Protocol Extensions)
 ```
 
-### 5.1 実務での判断基準
+### 5.1 Practical Decision Criteria
 
 ```
-判断フローチャート:
+Decision flowchart:
 
-  Q1: 「状態（フィールド）の共有が必要か？」
+  Q1: "Do you need to share state (fields)?"
   │
-  ├── Yes → 抽象クラス or コンポジション
-  │         Q1a: 「is-a 関係が明確か？」
-  │         ├── Yes → 抽象クラス
-  │         └── No → コンポジション
+  ├── Yes - Abstract class or composition
+  │         Q1a: "Is the is-a relationship clear?"
+  │         ├── Yes - Abstract class
+  │         └── No - Composition
   │
   └── No
       │
-      Q2: 「デフォルト実装を提供したいか？」
+      Q2: "Do you want to provide default implementations?"
       │
-      ├── Yes → トレイト / インターフェース（デフォルトメソッド）
+      ├── Yes - Trait / Interface (default methods)
       │
-      └── No → インターフェース（純粋な契約）
+      └── No - Interface (pure contract)
 
-  具体的なシナリオ:
+  Concrete scenarios:
 
-  シナリオ1: DB接続の抽象化
-  → インターフェース
-  → 複数実装（MySQL, Postgres, SQLite）
-  → 状態は実装クラスが持つ
+  Scenario 1: Abstracting DB connections
+  - Interface
+  - Multiple implementations (MySQL, Postgres, SQLite)
+  - Implementation classes hold state
 
-  シナリオ2: ログ出力のヘルパー
-  → トレイト / ミックスイン
-  → デフォルト実装を提供
-  → 多くのクラスで横断的に使用
+  Scenario 2: Logging helper
+  - Trait / Mixin
+  - Provide default implementations
+  - Used cross-cuttingly across many classes
 
-  シナリオ3: UIコンポーネントの基底
-  → 抽象クラス（フレームワーク提供）
-  → 共通の状態（width, height, visible）
-  → テンプレートメソッド（render, update）
+  Scenario 3: Base for UI components
+  - Abstract class (provided by the framework)
+  - Common state (width, height, visible)
+  - Template methods (render, update)
 
-  シナリオ4: 型の制約
-  → インターフェース / トレイト境界
-  → ジェネリクスの制約として使用
-  → 「T は Comparable を満たす」
+  Scenario 4: Type constraints
+  - Interface / trait bound
+  - Used as constraint on generics
+  - "T satisfies Comparable"
 ```
 
 
 ---
 
-## 実践演習
+## Practical Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that satisfies the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate input data
+- Implement appropriate error handling
+- Also write test code
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Template for basic implementation
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Exercise in basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main data processing logic"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Retrieve processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1348,26 +1347,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "An exception should be raised"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced Pattern
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation by adding the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Advanced pattern
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Exercise in advanced patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1375,7 +1374,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1386,14 +1385,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Find by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Remove by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1401,7 +1400,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1409,44 +1408,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # Size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1455,7 +1454,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1470,119 +1469,119 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient version: {slow_time:.4f} sec")
+    print(f"Efficient version:   {fast_time:.6f} sec")
+    print(f"Speedup ratio: {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key points:**
+- Be mindful of algorithmic complexity
+- Choose appropriate data structures
+- Measure the effect with benchmarks
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is most important. Understanding deepens not only through theory but also by writing actual code and verifying behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What mistakes do beginners often make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## まとめ
-
-| 概念 | 特徴 | 代表言語 |
-|------|------|---------|
-| インターフェース | 契約の定義 | Java, TS, Go |
-| トレイト | 再利用可能な振る舞い | Rust, Scala, PHP |
-| 構造的型付け | 構造が合えば互換 | TS, Go |
-| ダックタイピング | 実行時にメソッド確認 | Python, Ruby |
-| Protocol | 型安全なダックタイピング | Python, Swift |
-
-```
-実践的な指針:
-
-  1. インターフェースは契約
-     → 「何ができるか」を定義する
-     → 「どう実装するか」は実装者の自由
-
-  2. 小さいインターフェースは良いインターフェース
-     → 1メソッドのインターフェースは最も再利用しやすい
-     → Go の io.Reader, io.Writer が好例
-
-  3. 言語の特性を活かす
-     → TypeScript: 構造的型付け → implements は省略可能
-     → Go: 暗黙的インターフェース → 後から適合可能
-     → Rust: トレイト境界 → ジェネリクスの制約として活用
-     → Python: Protocol → ダックタイピングに型安全性を追加
-
-  4. テストを意識する
-     → 外部依存はインターフェースで抽象化
-     → モック作成が容易な粒度に
-```
+Knowledge of this topic is frequently applied in day-to-day development. It is especially important during code reviews and architectural design.
 
 ---
 
-## 6. インターフェースの進化パターン
+## Summary
+
+| Concept | Characteristics | Representative Languages |
+|---------|-----------------|--------------------------|
+| Interface | Defines a contract | Java, TS, Go |
+| Trait | Reusable behavior | Rust, Scala, PHP |
+| Structural typing | Compatible if structure matches | TS, Go |
+| Duck typing | Method check at runtime | Python, Ruby |
+| Protocol | Type-safe duck typing | Python, Swift |
 
 ```
-インターフェースのバージョニング:
+Practical guidelines:
 
-  問題: インターフェースにメソッドを追加すると
-       既存の実装がすべて壊れる
+  1. Interfaces are contracts
+     - Define "what can be done"
+     - "How it is implemented" is up to the implementer
 
-  解決策 1: デフォルトメソッド（Java 8+）
-    → 既存実装を壊さずにメソッドを追加
-    → ただし、デフォルト実装は最小限に
+  2. Small interfaces are good interfaces
+     - A one-method interface is the most reusable
+     - Go's io.Reader, io.Writer are great examples
 
-  解決策 2: インターフェース分割
-    → V1 + 追加インターフェースで拡張
-    → UserService → UserService + UserServiceV2
+  3. Leverage language characteristics
+     - TypeScript: structural typing - 'implements' can be omitted
+     - Go: implicit interfaces - can conform retroactively
+     - Rust: trait bounds - use as constraints on generics
+     - Python: Protocol - adds type safety to duck typing
 
-  解決策 3: アダプターパターン
-    → 旧インターフェースを新インターフェースに適合
-    → 移行期間を設けて段階的に切り替え
+  4. Be mindful of testing
+     - Abstract external dependencies with interfaces
+     - Granularity that makes mock creation easy
+```
 
-  推奨ルール:
-    1. インターフェースは公開後、原則変更しない
-    2. 新機能は新インターフェースとして追加
-    3. デフォルトメソッドは後方互換のためだけに使う
-    4. 非推奨（@Deprecated）を活用して段階的に移行
+---
+
+## 6. Interface Evolution Patterns
+
+```
+Versioning interfaces:
+
+  Problem: Adding a method to an interface
+           breaks all existing implementations
+
+  Solution 1: Default methods (Java 8+)
+    - Add methods without breaking existing implementations
+    - However, keep default implementations minimal
+
+  Solution 2: Interface splitting
+    - Extend with V1 + additional interfaces
+    - UserService -> UserService + UserServiceV2
+
+  Solution 3: Adapter pattern
+    - Adapt old interfaces to new ones
+    - Provide a migration period to switch gradually
+
+  Recommended rules:
+    1. Do not change interfaces after release, in principle
+    2. Add new features as new interfaces
+    3. Use default methods only for backward compatibility
+    4. Leverage @Deprecated to migrate in stages
 ```
 
 ```java
-// Java: インターフェースの進化パターン
+// Java: Interface evolution pattern
 
-// V1: 初期リリース
+// V1: Initial release
 public interface PaymentGateway {
     PaymentResult charge(String customerId, BigDecimal amount);
     PaymentResult refund(String transactionId);
 }
 
-// V2: 新機能を追加（デフォルトメソッドで後方互換を維持）
+// V2: Add new features (maintain backward compatibility via default methods)
 public interface PaymentGateway {
     PaymentResult charge(String customerId, BigDecimal amount);
     PaymentResult refund(String transactionId);
 
-    // V2で追加: デフォルト実装で後方互換
+    // Added in V2: backward compatible default implementation
     default PaymentResult chargeWithCurrency(
             String customerId, BigDecimal amount, Currency currency) {
-        // デフォルトでは通貨変換なしで charge を呼ぶ
+        // By default, call charge without currency conversion
         return charge(customerId, amount);
     }
 
-    // V2で追加: サブスクリプション対応
+    // Added in V2: subscription support
     default SubscriptionResult subscribe(
             String customerId, String planId) {
         throw new UnsupportedOperationException(
@@ -1590,7 +1589,7 @@ public interface PaymentGateway {
     }
 }
 
-// 別パターン: インターフェース分割
+// Alternate pattern: split interfaces
 public interface SubscriptionGateway extends PaymentGateway {
     SubscriptionResult subscribe(String customerId, String planId);
     void cancelSubscription(String subscriptionId);
@@ -1598,22 +1597,22 @@ public interface SubscriptionGateway extends PaymentGateway {
 ```
 
 ```typescript
-// TypeScript: インターフェースの拡張パターン
+// TypeScript: Interface extension pattern
 
-// 宣言のマージ（Declaration Merging）
-// 同名インターフェースは自動的にマージされる
+// Declaration Merging
+// Interfaces with the same name are automatically merged
 interface Config {
   host: string;
   port: number;
 }
 
-// 別の場所で追加（ライブラリの拡張に便利）
+// Added in another place (convenient for extending libraries)
 interface Config {
   ssl: boolean;
   timeout: number;
 }
 
-// マージ結果: { host, port, ssl, timeout }
+// Merged result: { host, port, ssl, timeout }
 const config: Config = {
   host: "localhost",
   port: 3000,
@@ -1621,8 +1620,8 @@ const config: Config = {
   timeout: 5000,
 };
 
-// モジュール拡張（Module Augmentation）
-// express の Request に独自プロパティを追加
+// Module Augmentation
+// Add custom properties to express Request
 declare module "express" {
   interface Request {
     user?: {
@@ -1632,7 +1631,7 @@ declare module "express" {
   }
 }
 
-// グローバル型の拡張
+// Extend global types
 declare global {
   interface Window {
     myApp: {
@@ -1644,40 +1643,40 @@ declare global {
 ```
 
 ```go
-// Go: インターフェースの段階的拡張
+// Go: Gradual interface extension
 
-// 基本インターフェース
+// Base interface
 type Storage interface {
     Get(key string) ([]byte, error)
     Put(key string, value []byte) error
     Delete(key string) error
 }
 
-// 拡張インターフェース: バッチ操作対応
+// Extended interface: batch operations support
 type BatchStorage interface {
     Storage
     BatchGet(keys []string) (map[string][]byte, error)
     BatchPut(items map[string][]byte) error
 }
 
-// 拡張インターフェース: TTL対応
+// Extended interface: TTL support
 type TTLStorage interface {
     Storage
     PutWithTTL(key string, value []byte, ttl time.Duration) error
     GetTTL(key string) (time.Duration, error)
 }
 
-// 実行時に拡張機能の有無を確認
+// Check for extension support at runtime
 func StoreData(s Storage, key string, value []byte, ttl time.Duration) error {
-    // TTL対応ストレージなら TTL 付きで保存
+    // Store with TTL if TTL-compatible storage
     if ts, ok := s.(TTLStorage); ok {
         return ts.PutWithTTL(key, value, ttl)
     }
-    // 非対応なら通常の Put
+    // Fall back to regular Put
     return s.Put(key, value)
 }
 
-// テスト用のストレージ実装
+// Storage implementation for testing
 type MemoryStorage struct {
     data map[string][]byte
     mu   sync.RWMutex
@@ -1711,43 +1710,43 @@ func (m *MemoryStorage) Delete(key string) error {
     return nil
 }
 
-// コンパイル時チェック
+// Compile-time check
 var _ Storage = (*MemoryStorage)(nil)
 ```
 
 ---
 
-## 7. テストにおけるインターフェースの活用
+## 7. Leveraging Interfaces in Testing
 
 ```
-テスト戦略:
+Testing strategy:
 
-  1. インターフェースを使ったモック
-     → 外部依存（DB、API、ファイル）をインターフェースで抽象化
-     → テスト時にモック実装を注入
-     → テストの実行速度向上 + 独立性確保
+  1. Mocking using interfaces
+     - Abstract external dependencies (DB, API, files) with interfaces
+     - Inject mock implementations at test time
+     - Faster test execution + isolation
 
-  2. テストダブルの種類:
-     → スタブ（Stub）: 固定値を返す
-     → モック（Mock）: 呼び出しを検証する
-     → フェイク（Fake）: 簡易的な代替実装
-     → スパイ（Spy）: 呼び出しを記録しつつ本物に委譲
+  2. Kinds of test doubles:
+     - Stub: returns fixed values
+     - Mock: verifies calls
+     - Fake: simple alternative implementation
+     - Spy: records calls while delegating to the real object
 
-  3. インターフェース設計とテスタビリティ:
-     → 小さなインターフェースはモックが楽
-     → 1メソッドインターフェースは最もテストしやすい
-     → メソッドが増えるとモック作成が煩雑に
+  3. Interface design and testability:
+     - Small interfaces are easy to mock
+     - Single-method interfaces are easiest to test
+     - As methods grow, mock creation becomes cumbersome
 ```
 
 ```python
-# Python: Protocol を使ったテスト戦略
+# Python: Testing strategy using Protocol
 
 from typing import Protocol
 from dataclasses import dataclass, field
 import pytest
 
 
-# プロダクションコードの Protocol 定義
+# Protocol definitions in production code
 class Clock(Protocol):
     def now(self) -> float: ...
 
@@ -1758,9 +1757,9 @@ class NotificationSender(Protocol):
     def send(self, recipient: str, message: str) -> bool: ...
 
 
-# テスト用のフェイク実装
+# Fake implementations for testing
 class FakeClock:
-    """テスト用: 固定時刻を返す"""
+    """For testing: returns a fixed time"""
     def __init__(self, fixed_time: float = 1000.0):
         self._time = fixed_time
 
@@ -1772,7 +1771,7 @@ class FakeClock:
 
 
 class FakeRandom:
-    """テスト用: 事前に決めた値を順番に返す"""
+    """For testing: returns predetermined values in order"""
     def __init__(self, values: list[float]):
         self._values = iter(values)
 
@@ -1782,7 +1781,7 @@ class FakeRandom:
 
 @dataclass
 class SpyNotificationSender:
-    """テスト用: 送信を記録するスパイ"""
+    """For testing: spy that records sends"""
     sent: list[dict] = field(default_factory=list)
     should_succeed: bool = True
 
@@ -1794,7 +1793,7 @@ class SpyNotificationSender:
         return self.should_succeed
 
 
-# プロダクションコード
+# Production code
 class CouponService:
     def __init__(
         self,
@@ -1808,15 +1807,15 @@ class CouponService:
 
     def issue_coupon(self, user_email: str) -> str:
         code = f"COUPON-{int(self.rng.random() * 10000):04d}"
-        expiry = self.clock.now() + 86400  # 24時間後
+        expiry = self.clock.now() + 86400  # 24 hours later
         self.notifier.send(
             user_email,
-            f"クーポンコード: {code}（有効期限: {expiry}）",
+            f"Coupon code: {code} (expires: {expiry})",
         )
         return code
 
 
-# テスト
+# Tests
 def test_issue_coupon():
     clock = FakeClock(1700000000.0)
     rng = FakeRandom([0.5678])
@@ -1839,17 +1838,17 @@ def test_issue_coupon_notification_failure():
     service = CouponService(clock, rng, notifier)
     code = service.issue_coupon("user@example.com")
 
-    # 通知が失敗してもクーポンは発行される
+    # Coupon is still issued even if notification fails
     assert code == "COUPON-1234"
     assert len(notifier.sent) == 1
 ```
 
 ```rust
-// Rust: トレイトを使ったテスト戦略
+// Rust: Testing strategy using traits
 
 use std::collections::HashMap;
 
-// プロダクションコードのトレイト定義
+// Trait definitions in production code
 trait UserStore {
     fn find_by_id(&self, id: &str) -> Option<User>;
     fn save(&mut self, user: &User) -> Result<(), StoreError>;
@@ -1866,7 +1865,7 @@ struct User {
     email: String,
 }
 
-// テスト用のモック実装
+// Mock implementations for testing
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1921,8 +1920,8 @@ mod tests {
             if self.should_fail {
                 return Err(EmailError::SendFailed);
             }
-            // 注: テストではmutable参照が必要なため、
-            // 実際にはRefCellなどを使う
+            // Note: actual tests need a mutable reference,
+            // so in practice use something like RefCell
             Ok(())
         }
     }
@@ -1931,13 +1930,13 @@ mod tests {
     fn test_find_existing_user() {
         let store = MockUserStore::new().with_user(User {
             id: "user-1".to_string(),
-            name: "田中".to_string(),
+            name: "Tanaka".to_string(),
             email: "tanaka@example.com".to_string(),
         });
 
         let user = store.find_by_id("user-1");
         assert!(user.is_some());
-        assert_eq!(user.unwrap().name, "田中");
+        assert_eq!(user.unwrap().name, "Tanaka");
     }
 
     #[test]
@@ -1951,11 +1950,11 @@ mod tests {
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
 ---
 
-## 参考文献
+## References
 1. Odersky, M. "Scalable Component Abstractions." OOPSLA, 2005.
 2. The Rust Programming Language. "Traits." doc.rust-lang.org.
 3. Bloch, J. "Effective Java." 3rd Edition, Addison-Wesley, 2018.
