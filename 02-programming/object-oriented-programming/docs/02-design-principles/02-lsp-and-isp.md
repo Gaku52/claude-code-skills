@@ -1,76 +1,78 @@
-# LSP（リスコフの置換原則）+ ISP（インターフェース分離の原則）
+# LSP (Liskov Substitution Principle) + ISP (Interface Segregation Principle)
 
-> LSPは「サブタイプは親タイプの代替として使えるべき」、ISPは「クライアントに不要なメソッドへの依存を強制しない」。型の正しさとインターフェースの適切な粒度を保証する原則。
+> LSP states "subtypes should be substitutable for their base types," while ISP states "clients should not be forced to depend on methods they do not use." These principles guarantee type correctness and appropriate interface granularity.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] LSP 違反のパターンとその回避方法を理解する
-- [ ] ISP による適切なインターフェース設計を把握する
-- [ ] 実践的な設計判断の基準を学ぶ
-- [ ] LSP と ISP を組み合わせた堅牢な型階層の設計方法を習得する
-- [ ] 実務での違反検出とリファクタリング手法を身につける
+- [ ] Understand LSP violation patterns and how to avoid them
+- [ ] Grasp proper interface design through ISP
+- [ ] Learn practical criteria for design decisions
+- [ ] Master the design of robust type hierarchies that combine LSP and ISP
+- [ ] Acquire techniques for detecting violations and refactoring in real-world practice
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Your understanding will deepen if you have the following knowledge before reading this guide:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [SRP（単一責任の原則）+ OCP（開放閉鎖の原則）](./01-srp-and-ocp.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related fundamental concepts
+- Familiarity with the content of [SRP (Single Responsibility Principle) + OCP (Open/Closed Principle)](./01-srp-and-ocp.md)
 
 ---
 
-## 1. LSP: リスコフの置換原則
+## 1. LSP: The Liskov Substitution Principle
 
 ```
-定義（Barbara Liskov, 1987）:
-  「S が T のサブタイプならば、T型のオブジェクトを
-   S型のオブジェクトで置き換えてもプログラムの正しさは変わらない」
+Definition (Barbara Liskov, 1987):
+  "If S is a subtype of T, then objects of type T may be replaced
+   with objects of type S without altering the correctness of the program."
 
-平易に:
-  → 親クラスが使えるところにサブクラスを入れても壊れない
-  → サブクラスは親クラスの「契約」を守る
+In plain terms:
+  -> Substituting a subclass where a parent class is used should not break anything
+  -> Subclasses must honor the "contract" of the parent class
 
-契約:
-  1. 事前条件を強化しない（受け入れ範囲を狭めない）
-  2. 事後条件を弱化しない（保証を減らさない）
-  3. 不変条件を維持する
+The contract:
+  1. Do not strengthen preconditions (do not narrow the range of acceptance)
+  2. Do not weaken postconditions (do not reduce guarantees)
+  3. Maintain invariants
 
-形式的な定義（Design by Contract との関係）:
-  サブタイプ S が T の正当な代替であるために:
-  - S の事前条件 ≤ T の事前条件（より緩い or 同じ）
-  - S の事後条件 ≥ T の事後条件（より厳しい or 同じ）
-  - S は T の不変条件をすべて維持する
-  - S は T が送出する例外のサブタイプのみを送出する
+Formal definition (relationship with Design by Contract):
+  For a subtype S to be a valid substitute for T:
+  - Preconditions of S <= Preconditions of T (weaker or equal)
+  - Postconditions of S >= Postconditions of T (stronger or equal)
+  - S maintains all invariants of T
+  - S throws only subtypes of the exceptions thrown by T
 ```
 
-### 1.1 LSPの歴史的背景
+### 1.1 Historical Background of LSP
 
 ```
-1987年:
-  Barbara Liskov が OOPSLA の基調講演 "Data Abstraction and Hierarchy"
-  で最初にこの概念を提示
+1987:
+  Barbara Liskov first presented this concept in the OOPSLA keynote
+  "Data Abstraction and Hierarchy"
 
-1994年:
-  Liskov と Wing が "A Behavioral Notion of Subtyping" を発表
-  行動的サブタイピングの形式的定義を確立
+1994:
+  Liskov and Wing published "A Behavioral Notion of Subtyping,"
+  establishing a formal definition of behavioral subtyping
 
-2002年:
-  Robert C. Martin が SOLID 原則の一部として整理
-  実務者向けに分かりやすくまとめ直した
+2002:
+  Robert C. Martin organized it as part of the SOLID principles
+  and restated it in an accessible way for practitioners
 
-核心的な洞察:
-  → 継承は「コードの再利用」ではなく「振る舞いの互換性」のために使うべき
-  → 型の階層は「実装の階層」ではなく「契約の階層」であるべき
-  → サブタイプは単にメソッドを持っているだけでなく、
-    意味的に正しく振る舞わなければならない
+Core insight:
+  -> Inheritance should be used for "behavioral compatibility,"
+     not for "code reuse"
+  -> Type hierarchies should be "hierarchies of contracts,"
+     not "hierarchies of implementations"
+  -> A subtype must not merely possess the methods;
+     it must behave correctly in a semantic sense
 ```
 
-### 1.2 LSP 違反の典型例: 正方形と長方形
+### 1.2 Classic LSP Violation Example: Square and Rectangle
 
 ```typescript
-// ❌ LSP違反の典型例
+// Classic LSP violation example (bad)
 class Rectangle {
   constructor(protected width: number, protected height: number) {}
 
@@ -82,7 +84,7 @@ class Rectangle {
 class Square extends Rectangle {
   setWidth(w: number): void {
     this.width = w;
-    this.height = w; // 正方形なので幅と高さを同じにする
+    this.height = w; // Since it's a square, keep width and height equal
   }
   setHeight(h: number): void {
     this.width = h;
@@ -90,19 +92,19 @@ class Square extends Rectangle {
   }
 }
 
-// このテストが壊れる = LSP違反
+// This test breaks = LSP violation
 function testRectangle(rect: Rectangle): void {
   rect.setWidth(5);
   rect.setHeight(4);
-  console.assert(rect.area() === 20); // Square だと 16 になる！
+  console.assert(rect.area() === 20); // With Square, becomes 16!
 }
 
-testRectangle(new Rectangle(0, 0)); // ✅ 20
-testRectangle(new Square(0, 0));    // ❌ 16（LSP違反）
+testRectangle(new Rectangle(0, 0)); // OK: 20
+testRectangle(new Square(0, 0));    // FAIL: 16 (LSP violation)
 ```
 
 ```typescript
-// ✅ LSP準拠: 共通のインターフェースで抽象化
+// LSP compliant: abstract through a common interface
 interface Shape {
   area(): number;
 }
@@ -116,52 +118,52 @@ class Square implements Shape {
   constructor(private side: number) {}
   area(): number { return this.side * this.side; }
 }
-// Square は Rectangle を継承しない → LSP問題が発生しない
+// Square does not inherit from Rectangle -> no LSP problem arises
 ```
 
-### 1.3 LSP 違反のパターン一覧
+### 1.3 Catalog of LSP Violation Patterns
 
 ```
-パターン1: メソッドの例外追加
-  親: withdraw(amount) — 常に成功
-  子: withdraw(amount) — 残高不足で例外 ← 事前条件の強化
+Pattern 1: Adding exceptions to methods
+  Parent: withdraw(amount) - always succeeds
+  Child:  withdraw(amount) - throws on insufficient balance <- strengthened precondition
 
-パターン2: 空実装
-  親: save() — データを保存
-  子: save() — 何もしない ← 事後条件の弱化
+Pattern 2: Empty implementations
+  Parent: save() - persists data
+  Child:  save() - does nothing <- weakened postcondition
 
-パターン3: 型チェック
+Pattern 3: Type checks
   if (animal instanceof Dog) {
     animal.fetch();
   }
-  → ポリモーフィズムが壊れている = LSP違反の兆候
+  -> Polymorphism is broken = sign of LSP violation
 
-パターン4: 戻り値の型の変更
-  親: findAll() → 常に配列を返す
-  子: findAll() → 条件によって null を返す ← 事後条件の弱化
+Pattern 4: Changing return types
+  Parent: findAll() -> always returns an array
+  Child:  findAll() -> returns null under certain conditions <- weakened postcondition
 
-パターン5: 副作用の追加
-  親: calculate(x) → 計算結果を返す（副作用なし）
-  子: calculate(x) → 計算結果を返す + ログを書き込む + DBに保存
-  → 予期しない副作用 ← 不変条件の違反
+Pattern 5: Adding side effects
+  Parent: calculate(x) -> returns result (no side effects)
+  Child:  calculate(x) -> returns result + writes to log + saves to DB
+  -> Unexpected side effects <- invariant violation
 
-パターン6: 状態変更の範囲
-  親: setName(name) → name フィールドのみ変更
-  子: setName(name) → name 変更 + updatedAt 変更 + 通知送信
-  → 呼び出し側が予期しない状態変更
+Pattern 6: Scope of state changes
+  Parent: setName(name) -> changes only the name field
+  Child:  setName(name) -> changes name + updatedAt + sends notification
+  -> Unexpected state changes from the caller's perspective
 ```
 
 ```python
-# ❌ LSP違反: 空実装
+# LSP violation: empty implementation (bad)
 class Bird:
     def fly(self) -> str:
-        return "飛んでいます"
+        return "flying"
 
 class Penguin(Bird):
     def fly(self) -> str:
-        raise NotImplementedError("ペンギンは飛べません")  # LSP違反
+        raise NotImplementedError("Penguins cannot fly")  # LSP violation
 
-# ✅ LSP準拠: インターフェースを分離
+# LSP compliant: separate the interfaces
 from abc import ABC, abstractmethod
 
 class Bird(ABC):
@@ -170,49 +172,49 @@ class Bird(ABC):
 
 class FlyingBird(Bird):
     def move(self) -> str:
-        return "飛んでいます"
+        return "flying"
 
 class Penguin(Bird):
     def move(self) -> str:
-        return "泳いでいます"  # 正当な実装
+        return "swimming"  # a legitimate implementation
 ```
 
-### 1.4 Design by Contract と LSP
+### 1.4 Design by Contract and LSP
 
 ```python
-# Design by Contract (DbC) を使った LSP の形式化
+# Formalizing LSP using Design by Contract (DbC)
 from abc import ABC, abstractmethod
 from typing import List
 
 
 class SortedCollection(ABC):
-    """ソート済みコレクションの契約"""
+    """Contract for a sorted collection"""
 
     @abstractmethod
     def add(self, item: int) -> None:
         """
-        事前条件: なし（任意の整数を受け付ける）
-        事後条件: アイテムが追加され、コレクションはソート済み状態を維持する
-        不変条件: コレクションは常にソート済み
+        Precondition: none (accepts any integer)
+        Postcondition: the item is added and the collection remains sorted
+        Invariant: the collection is always sorted
         """
         ...
 
     @abstractmethod
     def get_all(self) -> List[int]:
         """
-        事前条件: なし
-        事後条件: ソート済みのリストを返す
+        Precondition: none
+        Postcondition: returns a sorted list
         """
         ...
 
     def _check_invariant(self) -> bool:
-        """不変条件: 常にソート済み"""
+        """Invariant: always sorted"""
         items = self.get_all()
         return all(items[i] <= items[i + 1] for i in range(len(items) - 1))
 
 
 class AscendingSortedCollection(SortedCollection):
-    """✅ LSP準拠: 昇順でソート済み"""
+    """LSP compliant: sorted in ascending order"""
 
     def __init__(self):
         self._items: List[int] = []
@@ -220,15 +222,15 @@ class AscendingSortedCollection(SortedCollection):
     def add(self, item: int) -> None:
         import bisect
         bisect.insort(self._items, item)
-        assert self._check_invariant(), "不変条件違反"
+        assert self._check_invariant(), "invariant violation"
 
     def get_all(self) -> List[int]:
         return list(self._items)
 
 
 class UniqueAscendingSortedCollection(SortedCollection):
-    """✅ LSP準拠: 重複なし昇順ソート
-    事後条件を強化（重複排除も保証）→ OK
+    """LSP compliant: ascending sort without duplicates
+    Strengthened postcondition (also guarantees deduplication) -> OK
     """
 
     def __init__(self):
@@ -238,14 +240,14 @@ class UniqueAscendingSortedCollection(SortedCollection):
         if item not in self._items:
             import bisect
             bisect.insort(self._items, item)
-        assert self._check_invariant(), "不変条件違反"
+        assert self._check_invariant(), "invariant violation"
 
     def get_all(self) -> List[int]:
         return list(self._items)
 
 
 class BoundedSortedCollection(SortedCollection):
-    """❌ LSP違反: 値の範囲を制限（事前条件の強化）"""
+    """LSP violation: restricts the value range (strengthened precondition)"""
 
     def __init__(self, min_val: int = 0, max_val: int = 100):
         self._items: List[int] = []
@@ -254,7 +256,7 @@ class BoundedSortedCollection(SortedCollection):
 
     def add(self, item: int) -> None:
         if item < self._min or item > self._max:
-            raise ValueError(f"値は{self._min}〜{self._max}の範囲内である必要があります")
+            raise ValueError(f"Value must be within {self._min} to {self._max}")
         import bisect
         bisect.insort(self._items, item)
 
@@ -262,29 +264,29 @@ class BoundedSortedCollection(SortedCollection):
         return list(self._items)
 
 
-# テスト: LSP準拠を検証
+# Test: verify LSP compliance
 def test_sorted_collection(collection: SortedCollection):
-    """親クラスの契約に基づくテスト"""
+    """Test based on the parent class contract"""
     collection.add(5)
     collection.add(1)
     collection.add(3)
     items = collection.get_all()
-    assert items == sorted(items), "ソート済みでない！"
-    print(f"✅ {type(collection).__name__}: {items}")
+    assert items == sorted(items), "not sorted!"
+    print(f"OK {type(collection).__name__}: {items}")
 
 
-test_sorted_collection(AscendingSortedCollection())           # ✅ [1, 3, 5]
-test_sorted_collection(UniqueAscendingSortedCollection())     # ✅ [1, 3, 5]
-# test_sorted_collection(BoundedSortedCollection(min_val=3))  # ❌ ValueError
+test_sorted_collection(AscendingSortedCollection())           # OK: [1, 3, 5]
+test_sorted_collection(UniqueAscendingSortedCollection())     # OK: [1, 3, 5]
+# test_sorted_collection(BoundedSortedCollection(min_val=3))  # FAIL: ValueError
 ```
 
-### 1.5 共変性・反変性と LSP
+### 1.5 Covariance, Contravariance, and LSP
 
 ```typescript
-// 共変性（Covariance）と反変性（Contravariance）はLSPと密接に関連する
+// Covariance and contravariance are closely related to LSP
 
-// === 戻り値の共変性（LSP準拠）===
-// 親の戻り値型のサブタイプを返すのはOK
+// === Covariant return types (LSP compliant) ===
+// Returning a subtype of the parent's return type is OK
 class Animal {
   name: string;
   constructor(name: string) { this.name = name; }
@@ -305,34 +307,34 @@ class AnimalFactory {
 }
 
 class DogFactory extends AnimalFactory {
-  // ✅ 戻り値の共変性: Dog は Animal のサブタイプ
+  // Covariant return type: Dog is a subtype of Animal
   create(): Dog {
     return new Dog("Buddy", "Labrador");
   }
 }
 
-// === 引数の反変性（LSP準拠）===
-// 親の引数型のスーパータイプを受け取るのはOK
+// === Contravariant parameters (LSP compliant) ===
+// Accepting a supertype of the parent's parameter type is OK
 interface AnimalHandler {
-  handle(animal: Dog): void;  // Dog のみ受け付ける
+  handle(animal: Dog): void;  // accepts only Dog
 }
 
 class GeneralAnimalHandler implements AnimalHandler {
-  // より広い型（Animal）を受け付けるのは安全
+  // Accepting a wider type (Animal) is safe
   handle(animal: Animal): void {
     console.log(`Handling ${animal.name}`);
   }
 }
 
-// === LSP違反: 引数を狭める ===
+// === LSP violation: narrowing parameters ===
 // class StrictDogHandler extends GeneralHandler {
 //   handle(animal: PurebredDog): void { ... }
-//   // ❌ 引数を狭めている（事前条件の強化）
+//   // BAD: narrowing the parameter (strengthened precondition)
 // }
 ```
 
 ```java
-// Java での共変戻り値型
+// Covariant return types in Java
 public class AnimalShelter {
     public Animal adopt() {
         return new Animal("Unknown");
@@ -340,25 +342,25 @@ public class AnimalShelter {
 }
 
 public class DogShelter extends AnimalShelter {
-    // ✅ 共変戻り値: 戻り値型をサブタイプに変更（Java 5+）
+    // Covariant return type: return type changed to a subtype (Java 5+)
     @Override
     public Dog adopt() {
         return new Dog("Buddy");
     }
 }
 
-// 呼び出し側
+// Caller side
 AnimalShelter shelter = new DogShelter();
-Animal animal = shelter.adopt();  // Dog が返るが、Animal として使える → LSP準拠
+Animal animal = shelter.adopt();  // Returns Dog, usable as Animal -> LSP compliant
 ```
 
-### 1.6 LSP違反の実務での検出方法
+### 1.6 Detecting LSP Violations in Practice
 
 ```typescript
-// LSP違反を検出する5つのサイン
+// Five signs that indicate LSP violations
 
-// サイン1: instanceof チェックの存在
-// ❌ ポリモーフィズムの崩壊
+// Sign 1: Presence of instanceof checks
+// BAD: polymorphism has collapsed
 function processShape(shape: Shape): number {
   if (shape instanceof Circle) {
     return Math.PI * (shape as Circle).radius ** 2;
@@ -368,20 +370,20 @@ function processShape(shape: Shape): number {
   throw new Error("Unknown shape");
 }
 
-// ✅ ポリモーフィズムで解決
+// GOOD: solve with polymorphism
 function processShape(shape: Shape): number {
-  return shape.area();  // 各クラスが自分のarea()を実装
+  return shape.area();  // Each class implements its own area()
 }
 
-// サイン2: NotImplementedError / UnsupportedOperationException
-// ❌ サブクラスが親のメソッドを拒否
+// Sign 2: NotImplementedError / UnsupportedOperationException
+// BAD: subclass rejects the parent's method
 class ReadOnlyList<T> extends ArrayList<T> {
   add(item: T): void {
     throw new Error("UnsupportedOperation: read-only list");
   }
 }
 
-// ✅ インターフェースを分離して解決
+// GOOD: solve by separating interfaces
 interface ReadableList<T> {
   get(index: number): T;
   size(): number;
@@ -392,16 +394,16 @@ interface WritableList<T> extends ReadableList<T> {
   remove(index: number): T;
 }
 
-// サイン3: 空のメソッド実装
-// ❌ 何もしない save()
+// Sign 3: Empty method implementations
+// BAD: save() that does nothing
 class CacheOnlyRepository implements Repository {
   save(entity: Entity): void {
-    // 何もしない（キャッシュのみなので永続化不要）
+    // do nothing (cache-only, so no persistence needed)
   }
 }
 
-// サイン4: 条件分岐での型判定
-// ❌ 型に基づく分岐
+// Sign 4: Branching on type within conditionals
+// BAD: branching based on type
 function calculatePay(employee: Employee): number {
   switch (employee.type) {
     case "fulltime": return employee.salary;
@@ -410,7 +412,7 @@ function calculatePay(employee: Employee): number {
   }
 }
 
-// ✅ ポリモーフィズムで解決
+// GOOD: solve with polymorphism
 interface Payable {
   calculatePay(): number;
 }
@@ -430,17 +432,17 @@ class Contractor implements Payable {
   calculatePay(): number { return this.dailyRate * this.days; }
 }
 
-// サイン5: ドキュメントでの「このメソッドは呼ばないでください」
-// → インターフェースの設計に問題がある明確なサイン
+// Sign 5: Documentation stating "please do not call this method"
+// -> A clear sign that there is a problem with the interface's design
 ```
 
-### 1.7 LSP準拠のリファクタリングパターン
+### 1.7 Refactoring Patterns for LSP Compliance
 
 ```python
-# パターン1: 「抽出して委譲」
-# 継承関係をコンポジションに変換する
+# Pattern 1: "Extract and Delegate"
+# Convert inheritance relationships into composition
 
-# ❌ LSP違反: Stack が List のサブタイプ
+# LSP violation: Stack as a subtype of List (bad)
 class MyList:
     def __init__(self):
         self._items = []
@@ -459,34 +461,34 @@ class MyList:
 
 
 class Stack(MyList):
-    """スタックはリストの一種？ → No! LSP違反"""
+    """Is a stack a kind of list? -> No! LSP violation"""
     def push(self, item):
         self.add(item)
 
     def pop(self):
         return self.remove(self.size() - 1)
 
-    # get(index) が使える → スタックの契約（LIFO）が壊れる！
+    # get(index) is still available -> the stack's contract (LIFO) is broken!
 
 
-# ✅ LSP準拠: コンポジションで実装
+# LSP compliant: implement with composition
 class Stack:
-    """スタック: LIFO構造"""
+    """Stack: LIFO structure"""
 
     def __init__(self):
-        self._items = []  # コンポジション: リストを内部で使用
+        self._items = []  # composition: use a list internally
 
     def push(self, item) -> None:
         self._items.append(item)
 
     def pop(self):
         if self.is_empty():
-            raise IndexError("スタックが空です")
+            raise IndexError("stack is empty")
         return self._items.pop()
 
     def peek(self):
         if self.is_empty():
-            raise IndexError("スタックが空です")
+            raise IndexError("stack is empty")
         return self._items[-1]
 
     def is_empty(self) -> bool:
@@ -495,27 +497,27 @@ class Stack:
     def size(self) -> int:
         return len(self._items)
 
-    # get(index) は公開しない → LIFO契約を維持
+    # Do not expose get(index) -> preserve the LIFO contract
 ```
 
 ```typescript
-// パターン2: 「インターフェース抽出」
-// 共通のインターフェースを抽出して、個別に実装する
+// Pattern 2: "Extract Interface"
+// Extract a common interface and implement them separately
 
-// ❌ LSP違反: 永続オブジェクトと一時オブジェクトの混在
+// LSP violation: mixing persistent and temporary objects (bad)
 class PersistentEntity {
   id: string;
-  save(): void { /* DBに保存 */ }
-  delete(): void { /* DBから削除 */ }
+  save(): void { /* save to DB */ }
+  delete(): void { /* delete from DB */ }
   validate(): boolean { return true; }
 }
 
 class TemporaryEntity extends PersistentEntity {
-  save(): void { /* 何もしない */ }    // ❌ 空実装
-  delete(): void { /* 何もしない */ }  // ❌ 空実装
+  save(): void { /* do nothing */ }    // BAD: empty implementation
+  delete(): void { /* do nothing */ }  // BAD: empty implementation
 }
 
-// ✅ インターフェース抽出でLSP準拠
+// LSP compliant via interface extraction
 interface Validatable {
   validate(): boolean;
 }
@@ -527,50 +529,50 @@ interface Persistable extends Validatable {
 
 class PersistentEntity implements Persistable {
   id: string;
-  save(): void { /* DBに保存 */ }
-  delete(): void { /* DBから削除 */ }
+  save(): void { /* save to DB */ }
+  delete(): void { /* delete from DB */ }
   validate(): boolean { return true; }
 }
 
 class TemporaryEntity implements Validatable {
   validate(): boolean { return true; }
-  // save() と delete() はそもそも持たない → LSP問題なし
+  // Does not have save() or delete() at all -> no LSP problem
 }
 ```
 
 ```java
-// パターン3: 「テンプレートメソッド + フック」
-// 親クラスのアルゴリズムの一部をサブクラスでカスタマイズ
+// Pattern 3: "Template Method + Hooks"
+// Customize part of the parent class's algorithm in subclasses
 
 public abstract class DataExporter {
-    // テンプレートメソッド: アルゴリズムの骨格
+    // Template method: skeleton of the algorithm
     public final void export(List<Record> records) {
         validate(records);
         List<String> formatted = format(records);
         String output = join(formatted);
         write(output);
-        afterExport(records);  // フック
+        afterExport(records);  // hook
     }
 
-    // 共通の実装
+    // Shared implementation
     protected void validate(List<Record> records) {
         if (records == null || records.isEmpty()) {
-            throw new IllegalArgumentException("レコードが空です");
+            throw new IllegalArgumentException("records are empty");
         }
     }
 
-    // サブクラスが実装する抽象メソッド
+    // Abstract methods to be implemented by subclasses
     protected abstract List<String> format(List<Record> records);
     protected abstract String join(List<String> formatted);
     protected abstract void write(String output);
 
-    // オプショナルなフック（デフォルトでは何もしない）
+    // Optional hook (does nothing by default)
     protected void afterExport(List<Record> records) {
-        // サブクラスで必要に応じてオーバーライド
+        // Subclasses may override as needed
     }
 }
 
-// ✅ LSP準拠: テンプレートメソッドの契約を守りつつカスタマイズ
+// LSP compliant: customize while honoring the template method contract
 public class CsvExporter extends DataExporter {
     @Override
     protected List<String> format(List<Record> records) {
@@ -618,58 +620,58 @@ public class JsonExporter extends DataExporter {
 
 ---
 
-## 2. ISP: インターフェース分離の原則
+## 2. ISP: The Interface Segregation Principle
 
 ```
-定義:
-  「クライアントに、使わないメソッドへの依存を強制してはならない」
+Definition:
+  "Clients should not be forced to depend on methods they do not use."
 
-平易に:
-  → インターフェースは小さく、焦点を絞る
-  → 「太った」インターフェースを「細い」インターフェースに分割
+In plain terms:
+  -> Interfaces should be small and focused
+  -> Split "fat" interfaces into "thin" interfaces
 
-なぜ重要か:
-  → 不要なメソッドを実装する負担を減らす
-  → 変更の影響を最小限にする
-  → テスト時のモック作成が容易
-  → インターフェースの凝集度を高める
+Why it matters:
+  -> Reduces the burden of implementing unnecessary methods
+  -> Minimizes the impact of changes
+  -> Makes mocking in tests easier
+  -> Increases the cohesion of interfaces
 
-ISPの形式的な基準:
-  1. インターフェースの各メソッドは、そのインターフェースの
-     すべての実装者が意味的に実装できるべき
-  2. インターフェースの各メソッドは、そのインターフェースを
-     使用するすべてのクライアントが必要とするべき
-  3. どちらかが満たされない場合、インターフェースを分割する
+Formal criteria for ISP:
+  1. Every method in an interface should be semantically
+     implementable by every implementer of that interface
+  2. Every method in an interface should be needed by every
+     client that uses it
+  3. If either condition is not met, split the interface
 ```
 
-### 2.1 ISPの歴史的背景
+### 2.1 Historical Background of ISP
 
 ```
-1996年:
-  Robert C. Martin が "The Interface Segregation Principle" を発表
-  Xerox社のプリンタソフトウェアの実際の設計問題から原則を導出
+1996:
+  Robert C. Martin published "The Interface Segregation Principle,"
+  deriving the principle from actual design issues in Xerox's printer software
 
-問題の背景:
-  Xerox社では、多機能プリンタの全機能を1つの巨大なインターフェースで定義
-  → 新しいタイプのプリンタを追加するたびに、不要なメソッドの実装が必要
-  → コンパイル時間の増大（C++）
-  → テストの肥大化
+Background of the problem:
+  Xerox defined all features of a multifunction printer in one huge interface
+  -> Each time a new type of printer was added, unnecessary methods had to be implemented
+  -> Increased compilation time (C++)
+  -> Bloated tests
 
-解決:
-  機能ごとにインターフェースを分離
-  → 各プリンタは必要なインターフェースのみ実装
-  → コンパイル時間の短縮
-  → テストの簡素化
+Solution:
+  Separate interfaces by functionality
+  -> Each printer implements only the interfaces it needs
+  -> Reduced compilation time
+  -> Simplified tests
 
-教訓:
-  → 「太った」インターフェースは、クライアントとサーバー双方に負担をかける
-  → 小さなインターフェースの方が、再利用性・テスト容易性が高い
+Lesson:
+  -> "Fat" interfaces burden both clients and servers
+  -> Smaller interfaces have higher reusability and testability
 ```
 
-### 2.2 ISP リファクタリング: デバイスの例
+### 2.2 ISP Refactoring: The Device Example
 
 ```typescript
-// ❌ ISP違反: 巨大インターフェース
+// ISP violation: a giant interface (bad)
 interface SmartDevice {
   print(doc: Document): void;
   scan(): Image;
@@ -678,16 +680,16 @@ interface SmartDevice {
   staple(doc: Document): void;
 }
 
-// シンプルなプリンターは fax, scan, staple が不要!
+// A simple printer does not need fax, scan, or staple!
 class SimplePrinter implements SmartDevice {
-  print(doc: Document): void { /* 実装 */ }
-  scan(): Image { throw new Error("Not supported"); } // 空実装...
-  fax(): void { throw new Error("Not supported"); }   // 空実装...
+  print(doc: Document): void { /* impl */ }
+  scan(): Image { throw new Error("Not supported"); } // empty impl...
+  fax(): void { throw new Error("Not supported"); }   // empty impl...
   copy(): Document { throw new Error("Not supported"); }
   staple(): void { throw new Error("Not supported"); }
 }
 
-// ✅ ISP適用: 細かいインターフェースに分離
+// Applying ISP: split into smaller interfaces
 interface Printer {
   print(doc: Document): void;
 }
@@ -700,28 +702,28 @@ interface Faxer {
   fax(doc: Document, number: string): void;
 }
 
-// 必要なインターフェースだけ実装
+// Implement only the needed interfaces
 class SimplePrinter implements Printer {
-  print(doc: Document): void { /* 実装 */ }
+  print(doc: Document): void { /* impl */ }
 }
 
 class MultiFunctionDevice implements Printer, Scanner, Faxer {
-  print(doc: Document): void { /* 実装 */ }
-  scan(): Image { /* 実装 */ return new Image(); }
-  fax(doc: Document, number: string): void { /* 実装 */ }
+  print(doc: Document): void { /* impl */ }
+  scan(): Image { /* impl */ return new Image(); }
+  fax(doc: Document, number: string): void { /* impl */ }
 }
 
-// 利用側も必要なインターフェースだけに依存
+// The caller also depends only on the interfaces it needs
 function printReport(printer: Printer): void {
-  // Printer だけに依存。Scanner, Faxer は知らない
+  // Depends only on Printer. Does not know Scanner or Faxer.
   printer.print(report);
 }
 ```
 
-### 2.3 実践例: リポジトリのISP
+### 2.3 Practical Example: ISP for Repositories
 
 ```typescript
-// ❌ ISP違反: CRUDが全て必要
+// ISP violation: entire CRUD is required (bad)
 interface Repository<T> {
   findAll(): Promise<T[]>;
   findById(id: string): Promise<T | null>;
@@ -730,9 +732,9 @@ interface Repository<T> {
   delete(id: string): Promise<void>;
 }
 
-// 読み取り専用サービスにも書き込みメソッドが見える
+// Even read-only services see the write methods
 
-// ✅ ISP適用: 読み取りと書き込みを分離
+// Applying ISP: separate read and write
 interface ReadRepository<T> {
   findAll(): Promise<T[]>;
   findById(id: string): Promise<T | null>;
@@ -746,45 +748,45 @@ interface WriteRepository<T> {
 
 interface Repository<T> extends ReadRepository<T>, WriteRepository<T> {}
 
-// 読み取り専用サービス
+// Read-only service
 class ReportService {
   constructor(private repo: ReadRepository<Order>) {}
-  // 書き込みメソッドにアクセスできない = 安全
+  // Cannot access write methods = safe
 }
 ```
 
-### 2.4 ISP実践例: ユーザー管理サービス
+### 2.4 ISP in Practice: User Management Service
 
 ```typescript
-// ❌ ISP違反: 巨大なユーザーサービスインターフェース
+// ISP violation: a giant user service interface (bad)
 interface UserService {
-  // 認証
+  // Authentication
   login(email: string, password: string): Promise<AuthToken>;
   logout(token: string): Promise<void>;
   refreshToken(token: string): Promise<AuthToken>;
 
-  // プロフィール管理
+  // Profile management
   getProfile(userId: string): Promise<UserProfile>;
   updateProfile(userId: string, data: Partial<UserProfile>): Promise<void>;
   uploadAvatar(userId: string, image: Buffer): Promise<string>;
 
-  // 管理者機能
+  // Administrator functions
   listAllUsers(): Promise<User[]>;
   banUser(userId: string): Promise<void>;
   unbanUser(userId: string): Promise<void>;
   assignRole(userId: string, role: string): Promise<void>;
 
-  // 通知設定
+  // Notification settings
   getNotificationSettings(userId: string): Promise<NotificationSettings>;
   updateNotificationSettings(userId: string, settings: Partial<NotificationSettings>): Promise<void>;
 
-  // 課金
+  // Billing
   getSubscription(userId: string): Promise<Subscription>;
   updateSubscription(userId: string, plan: string): Promise<void>;
   cancelSubscription(userId: string): Promise<void>;
 }
 
-// ✅ ISP適用: 責務ごとにインターフェースを分離
+// Applying ISP: split interfaces by responsibility
 interface AuthenticationService {
   login(email: string, password: string): Promise<AuthToken>;
   logout(token: string): Promise<void>;
@@ -818,7 +820,7 @@ interface SubscriptionService {
   cancelSubscription(userId: string): Promise<void>;
 }
 
-// ログイン画面: 認証機能のみ必要
+// Login screen: only needs authentication
 class LoginController {
   constructor(private auth: AuthenticationService) {}
 
@@ -827,7 +829,7 @@ class LoginController {
   }
 }
 
-// ユーザーダッシュボード: プロフィールと通知設定のみ
+// User dashboard: only profile and notification settings
 class DashboardController {
   constructor(
     private profile: ProfileService,
@@ -843,7 +845,7 @@ class DashboardController {
   }
 }
 
-// 管理画面: 管理者機能のみ
+// Admin screen: only admin functions
 class AdminController {
   constructor(private admin: AdminService) {}
 
@@ -853,7 +855,7 @@ class AdminController {
 }
 ```
 
-### 2.5 ISP実践例: イベントハンドラの分離
+### 2.5 ISP in Practice: Separating Event Handlers
 
 ```python
 from abc import ABC, abstractmethod
@@ -862,7 +864,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 
-# ❌ ISP違反: すべてのイベントを処理する巨大リスナー
+# ISP violation: a giant listener that handles every event (bad)
 class EventListener(ABC):
     @abstractmethod
     def on_user_created(self, user_id: str) -> None: ...
@@ -886,17 +888,17 @@ class EventListener(ABC):
     def on_payment_refunded(self, payment_id: str) -> None: ...
 
 
-# メール通知サービスは注文イベントだけ必要なのに
-# 全メソッドの実装を強制される
+# The email notification service only needs order events,
+# but is forced to implement every method
 class EmailNotificationService(EventListener):
     def on_user_created(self, user_id: str) -> None:
-        pass  # 不要だが実装必須
+        pass  # not needed, but required to implement
 
     def on_user_updated(self, user_id: str) -> None:
-        pass  # 不要だが実装必須
+        pass  # not needed, but required to implement
 
     def on_user_deleted(self, user_id: str) -> None:
-        pass  # 不要だが実装必須
+        pass  # not needed, but required to implement
 
     def on_order_created(self, order_id: str) -> None:
         self._send_order_confirmation(order_id)
@@ -905,13 +907,13 @@ class EmailNotificationService(EventListener):
         self._send_shipping_notification(order_id)
 
     def on_payment_received(self, payment_id: str) -> None:
-        pass  # 不要
+        pass  # not needed
 
     def on_payment_refunded(self, payment_id: str) -> None:
         self._send_refund_notification(payment_id)
 
 
-# ✅ ISP適用: イベントごとにリスナーを分離
+# Applying ISP: separate listeners per event
 class UserEventListener(Protocol):
     def on_user_created(self, user_id: str) -> None: ...
     def on_user_updated(self, user_id: str) -> None: ...
@@ -928,35 +930,35 @@ class PaymentEventListener(Protocol):
     def on_payment_refunded(self, payment_id: str) -> None: ...
 
 
-# メール通知サービス: 必要なイベントのみ処理
+# Email notification service: handles only the events it needs
 class EmailNotificationService:
-    """注文と返金の通知のみ担当"""
+    """Handles only order and refund notifications"""
 
     def on_order_created(self, order_id: str) -> None:
-        print(f"注文確認メール送信: {order_id}")
+        print(f"Sending order confirmation email: {order_id}")
 
     def on_order_shipped(self, order_id: str) -> None:
-        print(f"出荷通知メール送信: {order_id}")
+        print(f"Sending shipping notification email: {order_id}")
 
     def on_payment_refunded(self, payment_id: str) -> None:
-        print(f"返金通知メール送信: {payment_id}")
+        print(f"Sending refund notification email: {payment_id}")
 
 
-# 監査ログサービス: ユーザーイベントのみ処理
+# Audit log service: handles only user events
 class AuditLogService:
-    """ユーザー操作の監査ログを記録"""
+    """Records audit logs for user operations"""
 
     def on_user_created(self, user_id: str) -> None:
-        print(f"監査ログ: ユーザー作成 {user_id}")
+        print(f"Audit log: user created {user_id}")
 
     def on_user_updated(self, user_id: str) -> None:
-        print(f"監査ログ: ユーザー更新 {user_id}")
+        print(f"Audit log: user updated {user_id}")
 
     def on_user_deleted(self, user_id: str) -> None:
-        print(f"監査ログ: ユーザー削除 {user_id}")
+        print(f"Audit log: user deleted {user_id}")
 
 
-# イベントバス: リスナーを適切なインターフェースで登録
+# Event bus: register listeners with the appropriate interface
 class EventBus:
     def __init__(self):
         self._user_listeners: list[UserEventListener] = []
@@ -981,20 +983,20 @@ class EventBus:
             listener.on_user_created(user_id)
 
 
-# 使用例
+# Usage
 bus = EventBus()
 bus.register_order_listener(EmailNotificationService())
 bus.register_user_listener(AuditLogService())
 ```
 
-### 2.6 ISP実践例: ファイルシステム操作
+### 2.6 ISP in Practice: File System Operations
 
 ```go
 package filesystem
 
 import "io"
 
-// ❌ ISP違反: 巨大なファイルシステムインターフェース
+// ISP violation: a giant filesystem interface (bad)
 type FileSystem interface {
     Read(path string) ([]byte, error)
     Write(path string, data []byte) error
@@ -1011,7 +1013,7 @@ type FileSystem interface {
     Watch(path string, callback func(Event)) error
 }
 
-// ✅ ISP適用: 責務ごとに分離
+// Applying ISP: separate by responsibility
 type FileReader interface {
     Read(path string) ([]byte, error)
     Stat(path string) (FileInfo, error)
@@ -1040,7 +1042,7 @@ type FileWatcher interface {
     Watch(path string, callback func(Event)) error
 }
 
-// 読み取り専用のバックアップサービス
+// Read-only backup service
 type BackupService struct {
     reader FileReader
     lister DirectoryLister
@@ -1073,7 +1075,7 @@ func (s *BackupService) BackupDirectory(dir string) ([]BackupEntry, error) {
     return entries, nil
 }
 
-// 書き込み権限が必要なデプロイサービス
+// Deploy service requiring write permissions
 type DeployService struct {
     reader  FileReader
     writer  FileWriter
@@ -1091,45 +1093,45 @@ func NewDeployService(
 
 ---
 
-## 3. LSP と ISP の関係
+## 3. The Relationship Between LSP and ISP
 
 ```
-LSP: サブタイプの正しさを保証
-  → 「このクラスは本当に親の代替として使えるか？」
-  → 使えない → インターフェースの設計が間違っている
+LSP: guarantees the correctness of subtypes
+  -> "Can this class truly substitute for the parent?"
+  -> If not -> the interface design is wrong
 
-ISP: インターフェースの粒度を最適化
-  → 「このインターフェースは細かすぎ？太すぎ？」
-  → 不要なメソッドがある → 分割する
+ISP: optimizes interface granularity
+  -> "Is this interface too fine? Too fat?"
+  -> Unnecessary methods exist -> split them
 
-LSP違反 → ISPで解決できることが多い:
-  Penguin が Bird.fly() を実装できない
-  → Bird インターフェースが太すぎる
-  → Movable, Flyable に分割（ISP）
-  → Penguin は Movable のみ実装（LSP準拠）
+LSP violations can often be resolved via ISP:
+  Penguin cannot implement Bird.fly()
+  -> The Bird interface is too fat
+  -> Split into Movable and Flyable (ISP)
+  -> Penguin implements only Movable (LSP compliant)
 
-相互関係の図:
+Diagram of the relationship:
 
-  ISP違反                    LSP違反
-    │                          │
-    ▼                          ▼
-  太いインターフェース → 空実装・例外スローが必要
-    │                          │
-    ▼                          ▼
-  ISPで分割         →   自然にLSP準拠に
+  ISP violation            LSP violation
+    |                         |
+    v                         v
+  Fat interfaces  ->  Empty implementations / thrown exceptions required
+    |                         |
+    v                         v
+  Split via ISP  ->  Naturally becomes LSP compliant
 
-つまり:
-  ISP は LSP 違反を「予防する」役割を果たす
-  適切に分離されたインターフェースは、
-  LSP違反が起きにくい設計を自然に導く
+In other words:
+  ISP plays the role of "preventing" LSP violations.
+  Properly segregated interfaces naturally lead to
+  designs where LSP violations are less likely to occur.
 ```
 
-### 3.1 LSP + ISP の統合的な設計例
+### 3.1 An Integrated Design Example of LSP + ISP
 
 ```typescript
-// 実践的な例: 決済システム
+// A practical example: a payment system
 
-// === Step 1: ISPで適切な粒度のインターフェースを設計 ===
+// === Step 1: Design interfaces with appropriate granularity via ISP ===
 
 interface ChargeablePayment {
   charge(amount: number): Promise<PaymentResult>;
@@ -1152,7 +1154,7 @@ interface PaymentInfoProvider {
   getPaymentType(): string;
 }
 
-// === Step 2: 各決済手段がLSP準拠で実装 ===
+// === Step 2: Each payment method is implemented in an LSP-compliant way ===
 
 class CreditCardPayment implements
   ChargeablePayment,
@@ -1167,12 +1169,12 @@ class CreditCardPayment implements
   ) {}
 
   async charge(amount: number): Promise<PaymentResult> {
-    // クレジットカード決済の実装
+    // Credit card charge implementation
     return { success: true, transactionId: "cc_" + Date.now() };
   }
 
   getChargeLimit(): number {
-    return 1000000; // 100万円
+    return 1000000; // 1,000,000 JPY
   }
 
   async refund(transactionId: string, amount: number): Promise<RefundResult> {
@@ -1188,7 +1190,7 @@ class CreditCardPayment implements
   }
 
   async cancelRecurring(subscriptionId: string): Promise<void> {
-    // サブスクリプションのキャンセル処理
+    // Subscription cancellation
   }
 
   getLastFourDigits(): string {
@@ -1205,9 +1207,9 @@ class CreditCardPayment implements
 }
 
 class BankTransferPayment implements ChargeablePayment, PaymentInfoProvider {
-  // 銀行振込: 課金と情報提供のみ
-  // RefundablePayment, RecurringPayment は実装しない → ISP準拠
-  // → 「返金できない」メソッドの空実装を強制されない → LSP準拠
+  // Bank transfer: only charges and info provision
+  // Does not implement RefundablePayment or RecurringPayment -> ISP compliant
+  // -> Not forced to provide empty implementations for "cannot refund" methods -> LSP compliant
 
   constructor(
     private bankCode: string,
@@ -1219,7 +1221,7 @@ class BankTransferPayment implements ChargeablePayment, PaymentInfoProvider {
   }
 
   getChargeLimit(): number {
-    return 5000000; // 500万円（銀行振込は限度額が高い）
+    return 5000000; // 5,000,000 JPY (bank transfers have a high limit)
   }
 
   getLastFourDigits(): string {
@@ -1227,7 +1229,7 @@ class BankTransferPayment implements ChargeablePayment, PaymentInfoProvider {
   }
 
   getExpirationDate(): string {
-    return "N/A"; // 銀行口座に有効期限はない
+    return "N/A"; // Bank accounts do not expire
   }
 
   getPaymentType(): string {
@@ -1236,52 +1238,52 @@ class BankTransferPayment implements ChargeablePayment, PaymentInfoProvider {
 }
 
 class ConvenienceStorePayment implements ChargeablePayment {
-  // コンビニ決済: 課金のみ
-  // 返金不可、定期支払い不可、カード情報なし
+  // Convenience store payment: charges only
+  // No refunds, no recurring, no card info
 
   async charge(amount: number): Promise<PaymentResult> {
     if (amount > 300000) {
-      return { success: false, error: "コンビニ決済の上限は30万円です" };
+      return { success: false, error: "The limit for convenience store payments is 300,000 JPY" };
     }
     return { success: true, transactionId: "cvs_" + Date.now() };
   }
 
   getChargeLimit(): number {
-    return 300000; // 30万円
+    return 300000; // 300,000 JPY
   }
 }
 
-// === Step 3: 利用側は必要なインターフェースだけに依存 ===
+// === Step 3: Callers depend only on the interfaces they need ===
 
 class CheckoutService {
-  // 課金のみ必要
+  // Only needs charging
   async processPayment(
     payment: ChargeablePayment,
     amount: number,
   ): Promise<PaymentResult> {
     const limit = payment.getChargeLimit();
     if (amount > limit) {
-      return { success: false, error: `決済限度額(${limit})を超えています` };
+      return { success: false, error: `Exceeds payment limit (${limit})` };
     }
     return payment.charge(amount);
   }
 }
 
 class RefundService {
-  // 返金可能な決済手段のみ
+  // Only refundable payment methods
   async processRefund(
     payment: RefundablePayment,
     transactionId: string,
     amount: number,
   ): Promise<RefundResult> {
     const policy = payment.getRefundPolicy();
-    // ポリシーに基づいた返金処理
+    // Refund processing based on the policy
     return payment.refund(transactionId, amount);
   }
 }
 
 class SubscriptionService {
-  // 定期支払い対応の決済手段のみ
+  // Only payment methods that support recurring
   async createSubscription(
     payment: RecurringPayment,
     plan: { interval: string; amount: number },
@@ -1293,49 +1295,49 @@ class SubscriptionService {
 
 ---
 
-## 4. 判断基準
+## 4. Decision Criteria
 
 ```
-LSPチェックリスト:
-  □ サブクラスは親の全メソッドを正しく実装しているか？
-  □ 空実装や例外スロー（UnsupportedOperation）がないか？
-  □ instanceof による型チェックが不要か？
-  □ 親クラスのテストがサブクラスでも通るか？
-  □ 事前条件を強化していないか？
-  □ 事後条件を弱化していないか？
-  □ 不変条件を維持しているか？
-  □ 戻り値の型は共変か？（サブタイプを返すのはOK）
-  □ 引数の型は反変か？（スーパータイプを受け取るのはOK）
+LSP checklist:
+  [ ] Does the subclass correctly implement all of the parent's methods?
+  [ ] Are there any empty implementations or exception throws (UnsupportedOperation)?
+  [ ] Is instanceof type checking unnecessary?
+  [ ] Do the parent class's tests also pass for the subclass?
+  [ ] Are preconditions not strengthened?
+  [ ] Are postconditions not weakened?
+  [ ] Are invariants maintained?
+  [ ] Are return types covariant? (Returning a subtype is OK)
+  [ ] Are parameter types contravariant? (Accepting a supertype is OK)
 
-ISPチェックリスト:
-  □ インターフェースの実装者が全メソッドを使っているか？
-  □ インターフェースの利用者が全メソッドを必要としているか？
-  □ インターフェースのメソッド数は5個以下か？
-  □ インターフェースの凝集度は高いか？
-  □ 1つの変更理由だけを持つか？（SRP的観点）
-  □ インターフェースの名前が具体的か？（「Service」は広すぎる）
-  □ モックの作成が容易か？
+ISP checklist:
+  [ ] Do implementers of the interface use all its methods?
+  [ ] Do clients of the interface need every method?
+  [ ] Does the interface have five methods or fewer?
+  [ ] Does the interface have high cohesion?
+  [ ] Does it have only one reason to change? (An SRP-style lens)
+  [ ] Is the interface's name specific? ("Service" is too broad)
+  [ ] Are mocks easy to create?
 
-実務での分割ガイドライン:
-  1. 「このインターフェースを実装するとき、
-      全メソッドに意味のある実装を書けるか？」
-     → 書けない → 分割が必要
+Practical guidelines for splitting:
+  1. "When implementing this interface,
+      can I write meaningful implementations for every method?"
+     -> If not -> a split is needed
 
-  2. 「このインターフェースを利用するとき、
-      全メソッドが必要か？」
-     → 不要なものがある → 分割が必要
+  2. "When using this interface,
+      do I need every method?"
+     -> Some are unnecessary -> a split is needed
 
-  3. 「このインターフェースの変更頻度は
-      全メソッドで同じか？」
-     → 違う → 変更頻度ごとに分割
+  3. "Is the change frequency of this interface
+      the same across all methods?"
+     -> If not -> split by change frequency
 ```
 
-### 4.1 過度な分割の回避
+### 4.1 Avoiding Excessive Segregation
 
 ```
-ISPの落とし穴: 過度な分割（Over-Segregation）
+Pitfall of ISP: Over-Segregation
 
-❌ 行き過ぎた分割:
+Too far (bad):
   interface Readable { read(): string; }
   interface Writable { write(data: string): void; }
   interface Closable { close(): void; }
@@ -1343,9 +1345,9 @@ ISPの落とし穴: 過度な分割（Over-Segregation）
   interface Seekable { seek(position: number): void; }
   interface Positionable { getPosition(): number; }
   interface Sizeable { getSize(): number; }
-  // ... 7個のインターフェース、使い勝手が悪い
+  // ... 7 interfaces; inconvenient to use
 
-✅ 適切な粒度:
+Appropriate granularity (good):
   interface ReadableStream {
     read(): string;
     getPosition(): number;
@@ -1362,49 +1364,49 @@ ISPの落とし穴: 過度な分割（Over-Segregation）
     close(): void;
   }
 
-  // 3個のインターフェースで十分
+  // Three interfaces are enough
 
-判断のコツ:
-  → 「一緒に使われるメソッド」は同じインターフェースに
-  → 「別々のクライアントが使うメソッド」は別のインターフェースに
-  → 凝集度（Cohesion）を意識する
-  → 実際のクライアントのユースケースから逆算する
+A rule of thumb:
+  -> Put "methods used together" in the same interface
+  -> Put "methods used by different clients" in different interfaces
+  -> Be mindful of cohesion
+  -> Work backward from actual client use cases
 ```
 
 ---
 
-## 5. テストにおける LSP と ISP
+## 5. LSP and ISP in Testing
 
 ```typescript
-// LSP準拠のテスト: 親クラスのテストがサブクラスでも通る
+// LSP-compliant tests: parent class tests pass for subclasses
 
-// テストの共通化パターン
+// Common test pattern
 abstract class CollectionTestBase<T extends Collection<number>> {
   abstract createCollection(): T;
 
   testAddAndContains(): void {
     const collection = this.createCollection();
     collection.add(42);
-    assert(collection.contains(42), "追加した要素が含まれるべき");
+    assert(collection.contains(42), "added element should be present");
   }
 
   testRemove(): void {
     const collection = this.createCollection();
     collection.add(42);
     collection.remove(42);
-    assert(!collection.contains(42), "削除した要素は含まれないべき");
+    assert(!collection.contains(42), "removed element should not be present");
   }
 
   testSize(): void {
     const collection = this.createCollection();
-    assert(collection.size() === 0, "初期サイズは0");
+    assert(collection.size() === 0, "initial size is 0");
     collection.add(1);
     collection.add(2);
-    assert(collection.size() === 2, "2つ追加後のサイズは2");
+    assert(collection.size() === 2, "size is 2 after adding two");
   }
 }
 
-// ✅ LSP準拠: 全サブクラスが同じテストに通る
+// LSP compliant: all subclasses pass the same tests
 class ArrayListTest extends CollectionTestBase<ArrayList<number>> {
   createCollection() { return new ArrayList<number>(); }
 }
@@ -1417,8 +1419,8 @@ class HashSetTest extends CollectionTestBase<HashSet<number>> {
   createCollection() { return new HashSet<number>(); }
 }
 
-// ISP とモック: 小さなインターフェースはモックが容易
-// ❌ 太いインターフェース: モック作成が大変
+// ISP and mocking: smaller interfaces are easier to mock
+// Fat interface: mock creation is tedious
 const mockFullRepository: jest.Mocked<Repository<User>> = {
   findAll: jest.fn(),
   findById: jest.fn(),
@@ -1428,21 +1430,21 @@ const mockFullRepository: jest.Mocked<Repository<User>> = {
   count: jest.fn(),
   findByEmail: jest.fn(),
   search: jest.fn(),
-  // ... 多数のメソッドをモック
+  // ... many methods to mock
 };
 
-// ✅ ISP適用: 必要なメソッドだけモック
+// Applying ISP: mock only the needed methods
 const mockReader: jest.Mocked<ReadRepository<User>> = {
   findAll: jest.fn().mockResolvedValue([]),
   findById: jest.fn().mockResolvedValue(null),
 };
 
-// テストが簡潔で意図が明確
+// The test is concise and its intent is clear
 describe("ReportService", () => {
   it("should generate report from all users", async () => {
     mockReader.findAll.mockResolvedValue([
-      { id: "1", name: "田中" },
-      { id: "2", name: "佐藤" },
+      { id: "1", name: "Tanaka" },
+      { id: "2", name: "Sato" },
     ]);
 
     const service = new ReportService(mockReader);
@@ -1455,36 +1457,36 @@ describe("ReportService", () => {
 ```
 
 ```python
-# Python: pytest でのLSP準拠テスト
+# Python: LSP-compliant tests with pytest
 import pytest
 from abc import ABC, abstractmethod
 
 
 class ShapeTestBase(ABC):
-    """Shape の LSP テスト基底クラス"""
+    """Base test class for Shape LSP tests"""
 
     @abstractmethod
     def create_shape(self) -> "Shape":
-        """テスト対象のShapeインスタンスを返す"""
+        """Return the Shape instance under test"""
         ...
 
     def test_area_is_non_negative(self):
-        """面積は常に非負"""
+        """Area is always non-negative"""
         shape = self.create_shape()
         assert shape.area() >= 0
 
     def test_area_is_numeric(self):
-        """面積は数値を返す"""
+        """Area returns a numeric value"""
         shape = self.create_shape()
         assert isinstance(shape.area(), (int, float))
 
     def test_perimeter_is_non_negative(self):
-        """周囲長は常に非負"""
+        """Perimeter is always non-negative"""
         shape = self.create_shape()
         assert shape.perimeter() >= 0
 
     def test_string_representation(self):
-        """文字列表現が空でない"""
+        """String representation is non-empty"""
         shape = self.create_shape()
         assert len(str(shape)) > 0
 
@@ -1516,17 +1518,17 @@ class TestTriangle(ShapeTestBase):
         assert tri.area() == 25
 
 
-# 全てのサブクラスが ShapeTestBase のテストに通る = LSP準拠
+# All subclasses pass ShapeTestBase's tests = LSP compliant
 ```
 
 ---
 
-## 6. 実務でのアンチパターンと対処法
+## 6. Real-World Anti-Patterns and How to Address Them
 
-### 6.1 「何でもインターフェース」アンチパターン
+### 6.1 The "Interface Everything" Anti-Pattern
 
 ```typescript
-// ❌ アンチパターン: 実装が1つしかないのに無理にインターフェースを作る
+// Anti-pattern: forcibly creating an interface when there is only one implementation (bad)
 interface IUserService {
   getUser(id: string): Promise<User>;
 }
@@ -1535,24 +1537,24 @@ class UserService implements IUserService {
   getUser(id: string): Promise<User> { /* ... */ }
 }
 
-// → 「I」プレフィックスのインターフェースが大量に...
-// → 実装が1つしかないので、ISPの恩恵が薄い
-// → コードナビゲーションが困難
+// -> A proliferation of interfaces with the "I" prefix...
+// -> With only one implementation, the benefits of ISP are slim
+// -> Code navigation becomes difficult
 
-// ✅ 改善: 本当に必要な場合だけインターフェースを作る
-// 以下の場合にインターフェースが有用:
-// 1. 複数の実装がある（本番環境、テスト環境、開発環境）
-// 2. 外部サービスへの依存を抽象化したい
-// 3. テスト時のモックが必要
+// Better: create interfaces only when truly necessary
+// Interfaces are useful in the following situations:
+// 1. Multiple implementations exist (production, testing, development)
+// 2. You want to abstract dependencies on external services
+// 3. Mocks are needed for testing
 
-// 外部API依存: インターフェースが有用
+// External API dependency: interface is useful
 interface PaymentGateway {
   charge(amount: number, token: string): Promise<ChargeResult>;
 }
 
 class StripeGateway implements PaymentGateway {
   async charge(amount: number, token: string): Promise<ChargeResult> {
-    // Stripe API 呼び出し
+    // Stripe API call
   }
 }
 
@@ -1563,10 +1565,10 @@ class MockPaymentGateway implements PaymentGateway {
 }
 ```
 
-### 6.2 「Header Interface」アンチパターン
+### 6.2 The "Header Interface" Anti-Pattern
 
 ```java
-// ❌ Header Interface: クラスの全publicメソッドをそのままインターフェースにする
+// Header Interface (bad): turn all public methods of a class into an interface
 public interface IOrderService {
     Order createOrder(CreateOrderDto dto);
     Order getOrder(String id);
@@ -1580,74 +1582,74 @@ public interface IOrderService {
     OrderStats getStatistics(DateRange range);
 }
 
-// → クラスの全メソッドをコピーしただけ
-// → ISPの精神に反している（クライアントは全メソッドを使わない）
+// -> Just a copy of every method from the class
+// -> Violates the spirit of ISP (clients do not use every method)
 
-// ✅ クライアントの視点でインターフェースを設計
-// 注文の作成・管理
+// Design the interface from the client's perspective
+// Order creation and management
 public interface OrderManagement {
     Order createOrder(CreateOrderDto dto);
     void cancelOrder(String id);
     void updateOrderStatus(String id, OrderStatus status);
 }
 
-// 注文の検索・閲覧
+// Order search and retrieval
 public interface OrderQuery {
     Order getOrder(String id);
     List<Order> getOrdersByUser(String userId);
     List<Order> searchOrders(OrderSearchCriteria criteria);
 }
 
-// レポート・分析
+// Reporting and analytics
 public interface OrderReporting {
     OrderReport generateReport(DateRange range);
     OrderStats getStatistics(DateRange range);
 }
 
-// 管理者操作
+// Administrator operations
 public interface OrderAdministration {
     void archiveOldOrders(int daysOld);
 }
 
-// 通知
+// Notifications
 public interface OrderNotification {
     void sendOrderConfirmation(String orderId);
 }
 ```
 
-### 6.3 言語別のISP実装テクニック
+### 6.3 Language-Specific ISP Implementation Techniques
 
 ```python
-# Python: Protocol を使った ISP の実装
+# Python: implementing ISP with Protocol
 from typing import Protocol, runtime_checkable
 
 
 @runtime_checkable
 class Drawable(Protocol):
-    """描画可能なオブジェクト"""
+    """A drawable object"""
     def draw(self, canvas: "Canvas") -> None: ...
 
 
 @runtime_checkable
 class Resizable(Protocol):
-    """サイズ変更可能なオブジェクト"""
+    """A resizable object"""
     def resize(self, factor: float) -> None: ...
 
 
 @runtime_checkable
 class Movable(Protocol):
-    """移動可能なオブジェクト"""
+    """A movable object"""
     def move(self, dx: float, dy: float) -> None: ...
 
 
 @runtime_checkable
 class Rotatable(Protocol):
-    """回転可能なオブジェクト"""
+    """A rotatable object"""
     def rotate(self, angle: float) -> None: ...
 
 
 class Circle:
-    """円: 全ての操作に対応"""
+    """Circle: supports all operations"""
     def __init__(self, x: float, y: float, radius: float):
         self.x = x
         self.y = y
@@ -1664,11 +1666,11 @@ class Circle:
         self.y += dy
 
     def rotate(self, angle: float) -> None:
-        pass  # 円は回転しても変わらない（これは valid な実装）
+        pass  # rotation does not change a circle (a valid implementation)
 
 
 class TextLabel:
-    """テキストラベル: 描画と移動のみ"""
+    """Text label: drawing and moving only"""
     def __init__(self, x: float, y: float, text: str):
         self.x = x
         self.y = y
@@ -1681,10 +1683,10 @@ class TextLabel:
         self.x += dx
         self.y += dy
 
-    # resize() と rotate() は実装しない → ISP準拠
+    # Do not implement resize() or rotate() -> ISP compliant
 
 
-# 利用側: 必要なプロトコルだけ型ヒントで指定
+# Caller side: specify only the needed protocols as type hints
 def draw_all(items: list[Drawable]) -> None:
     for item in items:
         item.draw(canvas)
@@ -1698,18 +1700,18 @@ def move_all(items: list[Movable], dx: float, dy: float) -> None:
         item.move(dx, dy)
 
 
-# 型チェック: Protocol は isinstance でも使える
+# Type checking: Protocols work with isinstance too
 circle = Circle(0, 0, 10)
 label = TextLabel(0, 0, "Hello")
 
 assert isinstance(circle, Drawable)   # True
 assert isinstance(circle, Resizable)  # True
 assert isinstance(label, Drawable)    # True
-assert isinstance(label, Resizable)   # False — ISPにより安全
+assert isinstance(label, Resizable)   # False — safe thanks to ISP
 ```
 
 ```rust
-// Rust: トレイトでISPを自然に実現
+// Rust: ISP is achieved naturally through traits
 trait Drawable {
     fn draw(&self, canvas: &mut Canvas);
 }
@@ -1732,7 +1734,7 @@ struct Circle {
     radius: f64,
 }
 
-// 必要なトレイトだけ実装
+// Implement only the needed traits
 impl Drawable for Circle {
     fn draw(&self, canvas: &mut Canvas) {
         canvas.draw_circle(self.x, self.y, self.radius);
@@ -1758,7 +1760,7 @@ struct TextLabel {
     text: String,
 }
 
-// TextLabel は Drawable と Movable のみ
+// TextLabel only has Drawable and Movable
 impl Drawable for TextLabel {
     fn draw(&self, canvas: &mut Canvas) {
         canvas.draw_text(self.x, self.y, &self.text);
@@ -1772,7 +1774,7 @@ impl Movable for TextLabel {
     }
 }
 
-// トレイト境界で必要な能力を指定
+// Specify required capabilities via trait bounds
 fn draw_all(items: &[&dyn Drawable]) {
     for item in items {
         item.draw(&mut canvas);
@@ -1785,7 +1787,7 @@ fn resize_all(items: &mut [&mut dyn Resizable], factor: f64) {
     }
 }
 
-// 複数のトレイト境界の組み合わせ
+// Combining multiple trait bounds
 fn interactive_element<T: Drawable + Movable + Resizable>(element: &mut T) {
     element.draw(&mut canvas);
     element.move_by(10.0, 20.0);
@@ -1796,39 +1798,39 @@ fn interactive_element<T: Drawable + Movable + Resizable>(element: &mut T) {
 
 ---
 
-## 7. 他の SOLID 原則との関係
+## 7. Relationships with Other SOLID Principles
 
 ```
-LSP と他の原則:
+LSP and other principles:
 
-  SRP ↔ LSP:
-    SRP違反（複数の責務）→ LSP違反しやすい
-    例: 「データ保存」と「通知」の責務を持つクラスを継承すると
-        片方の責務が不要なサブクラスで LSP 違反が起きる
+  SRP <-> LSP:
+    SRP violations (multiple responsibilities) -> more prone to LSP violations
+    Example: inheriting a class that combines "data persistence" and "notification"
+        causes LSP violations in subclasses where one of those responsibilities is unnecessary
 
-  OCP ↔ LSP:
-    LSP準拠 → OCP準拠しやすい
-    新しいサブタイプを追加しても既存コードが壊れない
+  OCP <-> LSP:
+    LSP compliance -> easier OCP compliance
+    Existing code does not break when new subtypes are added
 
-  ISP ↔ LSP:
-    ISP準拠 → LSP違反が起きにくい（前述の通り）
+  ISP <-> LSP:
+    ISP compliance -> fewer LSP violations (as discussed above)
 
-  DIP ↔ ISP:
-    ISPで分離されたインターフェースに依存（DIP）
-    → 疎結合なアーキテクチャが自然に実現
+  DIP <-> ISP:
+    Depend on ISP-segregated interfaces (DIP)
+    -> Naturally yields a loosely coupled architecture
 
-ISP と他の原則:
+ISP and other principles:
 
-  SRP ↔ ISP:
-    SRP: クラスレベルでの単一責任
-    ISP: インターフェースレベルでの単一責任
-    同じ「責務の分離」を異なるレベルで適用
+  SRP <-> ISP:
+    SRP: single responsibility at the class level
+    ISP: single responsibility at the interface level
+    The same "separation of responsibilities" applied at different levels
 
-  OCP ↔ ISP:
-    ISPで分離 → 変更の影響範囲が限定 → OCPに貢献
+  OCP <-> ISP:
+    Segregation via ISP -> limited scope of change impact -> contributes to OCP
 
-  DIP ↔ ISP:
-    ISPで適切な粒度のインターフェース → DIPの抽象層が最適化
+  DIP <-> ISP:
+    ISP gives interfaces appropriate granularity -> optimizes the abstraction layer of DIP
 ```
 
 ---
@@ -1836,54 +1838,54 @@ ISP と他の原則:
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when studying this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Beyond theory, actually writing code and observing its behavior deepens your understanding.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What mistakes do beginners commonly make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the foundational concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in real-world practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+The knowledge on this topic is frequently used in day-to-day development work. It is especially important during code reviews and architectural design.
 
 ---
 
-## まとめ
+## Summary
 
-| 原則 | 核心 | 違反のサイン | 解決策 |
+| Principle | Core idea | Signs of violation | Solution |
 |------|------|------------|--------|
-| LSP | 代替可能性 | 空実装、instanceof、例外追加 | インターフェース再設計 |
-| ISP | 適切な粒度 | 不要メソッド、肥大化したIF | インターフェース分割 |
+| LSP | Substitutability | Empty implementations, instanceof, added exceptions | Redesign the interface |
+| ISP | Appropriate granularity | Unnecessary methods, bloated interfaces | Split the interface |
 
 ```
-LSP + ISP の実践まとめ:
+Practical summary of LSP + ISP:
 
-  1. インターフェースを設計するとき:
-     → ISPの観点: 小さく、焦点を絞る
-     → 「全実装者が全メソッドを有意味に実装できるか？」
+  1. When designing interfaces:
+     -> ISP perspective: keep them small and focused
+     -> "Can every implementer provide a meaningful implementation for every method?"
 
-  2. 継承関係を設計するとき:
-     → LSPの観点: 代替可能性を保証
-     → 「親のテストがサブクラスで通るか？」
+  2. When designing inheritance relationships:
+     -> LSP perspective: guarantee substitutability
+     -> "Do the parent's tests pass for the subclass?"
 
-  3. リファクタリングのとき:
-     → LSP違反を発見 → ISPで分割を検討
-     → ISP違反を発見 → LSP違反も同時にチェック
+  3. When refactoring:
+     -> Find an LSP violation -> consider splitting via ISP
+     -> Find an ISP violation -> check for LSP violations at the same time
 
-  4. テストのとき:
-     → LSP: 親クラスのテストをサブクラスで再実行
-     → ISP: モック作成が容易かで粒度を確認
+  4. When testing:
+     -> LSP: re-run parent class tests against subclasses
+     -> ISP: judge granularity by how easy it is to create mocks
 ```
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
 ---
 
-## 参考文献
+## References
 1. Liskov, B. "Data Abstraction and Hierarchy." OOPSLA, 1987.
 2. Liskov, B. and Wing, J. "A Behavioral Notion of Subtyping." ACM Transactions on Programming Languages and Systems, 1994.
 3. Martin, R. "The Interface Segregation Principle." 1996.
