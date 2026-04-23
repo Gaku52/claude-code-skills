@@ -1,56 +1,56 @@
-# 生成パターン（Creational Patterns）
+# Creational Patterns
 
-> オブジェクトの生成方法を柔軟にする設計パターン。Factory、Abstract Factory、Builder、Singleton、Prototype の5つの主要パターンの「なぜ必要か」「いつ使うか」を実践的に解説。
+> Design patterns that provide flexibility in how objects are created. A practical guide to the five major patterns—Factory, Abstract Factory, Builder, Singleton, and Prototype—explaining "why you need them" and "when to use them."
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] 各生成パターンの目的と使い分けを理解する
-- [ ] 各パターンの実装方法を複数言語で把握する
-- [ ] アンチパターンとしての Singleton の問題を学ぶ
-- [ ] 現代のフレームワークでの生成パターンの応用を知る
-- [ ] テスタビリティを考慮した生成パターンの設計ができるようになる
+- [ ] Understand the purpose of each creational pattern and when to use which
+- [ ] Grasp the implementation of each pattern across multiple languages
+- [ ] Learn the problems with Singleton as an anti-pattern
+- [ ] Know how creational patterns are applied in modern frameworks
+- [ ] Be able to design creational patterns that account for testability
 
 
-## 前提知識
+## Prerequisite Knowledge
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Your understanding will be deeper if you have the following knowledge before reading this guide:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
+- Basic programming knowledge
+- Understanding of related fundamental concepts
 
 ---
 
-## 1. Factory Method パターン
+## 1. Factory Method Pattern
 
-### 1.1 概要と目的
+### 1.1 Overview and Purpose
 
 ```
-目的: オブジェクトの生成ロジックをカプセル化する
+Purpose: Encapsulate the object creation logic
 
-いつ使うか:
-  → 生成するクラスを実行時に決定したい
-  → 生成ロジックが複雑
-  → new を直接使わせたくない
-  → テスト時にモックオブジェクトに差し替えたい
+When to use:
+  -> You want to decide the class to create at runtime
+  -> The creation logic is complex
+  -> You don't want to let users use new directly
+  -> You want to swap in mock objects during testing
 
-構造:
-  ┌────────────────┐         ┌─────────────────┐
-  │    Creator     │         │    Product       │
-  │ (ファクトリ)   │────────→│ (生成物)         │
-  ├────────────────┤         ├─────────────────┤
-  │ factoryMethod()│         │ operation()      │
-  └───────┬────────┘         └────────┬────────┘
-          │                           │
-  ┌───────┴────────┐         ┌────────┴────────┐
-  │ConcreteCreator │         │ConcreteProduct  │
-  │                │────────→│                 │
-  └────────────────┘         └─────────────────┘
+Structure:
+  +----------------+         +-----------------+
+  |    Creator     |         |    Product      |
+  | (factory)      |-------->| (created item)  |
+  +----------------+         +-----------------+
+  | factoryMethod()|         | operation()     |
+  +-------+--------+         +--------+--------+
+          |                           |
+  +-------+--------+         +--------+--------+
+  |ConcreteCreator |         |ConcreteProduct  |
+  |                |-------->|                 |
+  +----------------+         +-----------------+
 ```
 
-### 1.2 Simple Factory（静的ファクトリメソッド）
+### 1.2 Simple Factory (Static Factory Method)
 
 ```typescript
-// Simple Factory: 最も基本的なファクトリ
+// Simple Factory: the most basic form of factory
 interface Notification {
   send(message: string): void;
   getChannel(): string;
@@ -88,7 +88,7 @@ class PushNotification implements Notification {
   getChannel() { return "push"; }
 }
 
-// ファクトリ: 生成ロジックを集約
+// Factory: centralizes the creation logic
 interface NotificationConfig {
   type: "email" | "sms" | "slack" | "push";
   target: string;
@@ -110,34 +110,34 @@ class NotificationFactory {
     }
   }
 
-  // 複数の通知を一括生成
+  // Create multiple notifications in a batch
   static createBatch(configs: NotificationConfig[]): Notification[] {
     return configs.map(config => this.create(config));
   }
 }
 
-// 利用側は具象クラスを知らなくてよい
+// Callers do not need to know the concrete classes
 const notification = NotificationFactory.create({
   type: "email",
   target: "tanaka@example.com",
 });
 notification.send("Hello!");
 
-// 複数チャネルへの一括送信
+// Batch send to multiple channels
 const notifications = NotificationFactory.createBatch([
   { type: "email", target: "tanaka@example.com" },
   { type: "slack", target: "general" },
   { type: "push", target: "device-token-123" },
 ]);
-notifications.forEach(n => n.send("重要なお知らせ"));
+notifications.forEach(n => n.send("Important announcement"));
 ```
 
-### 1.3 Factory Method（テンプレートメソッドとの組み合わせ）
+### 1.3 Factory Method (Combined with Template Method)
 
 ```typescript
-// Factory Method: サブクラスが生成するオブジェクトの型を決定
+// Factory Method: the subclass determines the type of object to create
 abstract class DocumentExporter {
-  // テンプレートメソッド
+  // Template method
   async export(data: ReportData): Promise<Buffer> {
     const formatter = this.createFormatter();
     const header = formatter.formatHeader(data.title);
@@ -146,7 +146,7 @@ abstract class DocumentExporter {
     return Buffer.from(header + body + footer);
   }
 
-  // Factory Method: サブクラスが実装
+  // Factory Method: implemented by subclasses
   protected abstract createFormatter(): DocumentFormatter;
 }
 
@@ -180,7 +180,7 @@ class CsvExporter extends DocumentExporter {
   }
 }
 
-// 各フォーマッタの実装
+// Implementations of each formatter
 class PdfFormatter implements DocumentFormatter {
   formatHeader(title: string): string {
     return `%PDF-1.4\n/Title (${title})\n`;
@@ -229,7 +229,7 @@ class CsvFormatter implements DocumentFormatter {
   }
 }
 
-// 使用例: エクスポート形式を動的に選択
+// Example usage: select export format dynamically
 function getExporter(format: string): DocumentExporter {
   switch (format) {
     case "pdf": return new PdfExporter();
@@ -241,10 +241,10 @@ function getExporter(format: string): DocumentExporter {
 }
 ```
 
-### 1.4 Java での Factory Method
+### 1.4 Factory Method in Java
 
 ```java
-// Java: Factory Method パターンの実装
+// Java: Factory Method pattern implementation
 public interface Logger {
     void log(String level, String message);
     void close();
@@ -259,7 +259,7 @@ public class ConsoleLogger implements Logger {
 
     @Override
     public void close() {
-        // コンソールは閉じる必要なし
+        // Console does not need to be closed
     }
 }
 
@@ -309,7 +309,7 @@ public class DatabaseLogger implements Logger {
     }
 }
 
-// ファクトリクラス
+// Factory class
 public class LoggerFactory {
     public static Logger createLogger(String type) {
         return createLogger(type, Map.of());
@@ -339,16 +339,16 @@ public class LoggerFactory {
     }
 }
 
-// 使用例
+// Example usage
 Logger logger = LoggerFactory.createLogger("file",
     Map.of("path", "/var/log/myapp.log"));
 logger.log("INFO", "Application started");
 ```
 
-### 1.5 登録ベースのファクトリ（拡張可能なファクトリ）
+### 1.5 Registration-Based Factory (Extensible Factory)
 
 ```typescript
-// 登録ベース: 新しいタイプを動的に追加可能
+// Registration-based: new types can be added dynamically
 type Creator<T> = (...args: any[]) => T;
 
 class PluggableFactory<T> {
@@ -385,7 +385,7 @@ class PluggableFactory<T> {
   }
 }
 
-// 使用例: プラグイン可能な通知システム
+// Example usage: pluggable notification system
 interface NotificationPlugin {
   send(message: string, target: string): Promise<void>;
   getName(): string;
@@ -393,10 +393,10 @@ interface NotificationPlugin {
 
 const notificationFactory = new PluggableFactory<NotificationPlugin>();
 
-// コアプラグインの登録
+// Register core plugins
 notificationFactory.register("email", (smtpConfig: SmtpConfig) => ({
   async send(message: string, target: string) {
-    // SMTP送信
+    // SMTP send
     console.log(`Email to ${target}: ${message}`);
   },
   getName() { return "Email"; },
@@ -412,7 +412,7 @@ notificationFactory.register("webhook", (url: string) => ({
   getName() { return "Webhook"; },
 }));
 
-// サードパーティがプラグインを追加
+// Third parties can add plugins
 notificationFactory.register("teams", (webhookUrl: string) => ({
   async send(message: string, target: string) {
     await fetch(webhookUrl, {
@@ -423,43 +423,43 @@ notificationFactory.register("teams", (webhookUrl: string) => ({
   getName() { return "Microsoft Teams"; },
 }));
 
-// 利用
+// Usage
 const emailPlugin = notificationFactory.create("email", { host: "smtp.example.com" });
 const teamsPlugin = notificationFactory.create("teams", "https://outlook.webhook.office.com/...");
 ```
 
 ---
 
-## 2. Abstract Factory パターン
+## 2. Abstract Factory Pattern
 
-### 2.1 概要と目的
+### 2.1 Overview and Purpose
 
 ```
-目的: 関連するオブジェクト群を、具象クラスを指定せずに生成する
+Purpose: Create groups of related objects without specifying their concrete classes
 
-いつ使うか:
-  → 関連するオブジェクト群を一貫して生成したい
-  → 製品ファミリーを切り替えたい（テーマ、プラットフォーム）
-  → 具象クラスからクライアントを完全に分離したい
+When to use:
+  -> You want to create related groups of objects consistently
+  -> You want to switch between product families (themes, platforms)
+  -> You want to fully decouple clients from concrete classes
 
-構造:
-  ┌─────────────────┐
-  │ AbstractFactory  │
-  │ createProductA() │
-  │ createProductB() │
-  └────────┬────────┘
-           │
-  ┌────────┴────────┐
-  │                 │
-  ┌─────────┐  ┌─────────┐
-  │Factory1 │  │Factory2 │
-  └─────────┘  └─────────┘
+Structure:
+  +-----------------+
+  | AbstractFactory |
+  | createProductA()|
+  | createProductB()|
+  +--------+--------+
+           |
+  +--------+--------+
+  |                 |
+  +---------+  +---------+
+  |Factory1 |  |Factory2 |
+  +---------+  +---------+
 ```
 
-### 2.2 UIテーマの切り替え
+### 2.2 Switching UI Themes
 
 ```typescript
-// Abstract Factory: 関連するオブジェクト群を生成
+// Abstract Factory: creates a group of related objects
 interface Button {
   render(): string;
   onClick(handler: () => void): void;
@@ -489,7 +489,7 @@ interface UIFactory {
   createCard(): Card;
 }
 
-// Material Design ファクトリ
+// Material Design factory
 class MaterialUIFactory implements UIFactory {
   createButton(label: string): Button {
     return {
@@ -536,7 +536,7 @@ class MaterialUIFactory implements UIFactory {
   }
 }
 
-// Ant Design ファクトリ
+// Ant Design factory
 class AntDesignFactory implements UIFactory {
   createButton(label: string): Button {
     return {
@@ -582,13 +582,13 @@ class AntDesignFactory implements UIFactory {
   }
 }
 
-// テーマを変更するだけで全UIコンポーネントが切り替わる
+// Just changing the theme swaps all UI components
 function buildDashboard(factory: UIFactory) {
-  const searchInput = factory.createInput("検索...");
-  const submitButton = factory.createButton("送信");
-  const detailModal = factory.createModal("詳細");
+  const searchInput = factory.createInput("Search...");
+  const submitButton = factory.createButton("Submit");
+  const detailModal = factory.createModal("Details");
   const summaryCard = factory.createCard();
-  summaryCard.setContent("今月の売上", "¥1,234,567");
+  summaryCard.setContent("This month's sales", "$1,234,567");
 
   return {
     render: () => `
@@ -602,7 +602,7 @@ function buildDashboard(factory: UIFactory) {
   };
 }
 
-// 設定に応じてファクトリを選択
+// Select the factory based on configuration
 const theme = process.env.UI_THEME ?? "material";
 const factory: UIFactory = theme === "ant"
   ? new AntDesignFactory()
@@ -611,10 +611,10 @@ const factory: UIFactory = theme === "ant"
 const dashboard = buildDashboard(factory);
 ```
 
-### 2.3 データベース抽象化レイヤー
+### 2.3 Database Abstraction Layer
 
 ```typescript
-// Abstract Factory: データベースの抽象化
+// Abstract Factory: abstracting the database
 interface DbConnection {
   connect(): Promise<void>;
   disconnect(): Promise<void>;
@@ -641,7 +641,7 @@ interface DatabaseFactory {
   createMigrationRunner(connection: DbConnection): DbMigrationRunner;
 }
 
-// PostgreSQL 実装
+// PostgreSQL implementation
 class PostgresFactory implements DatabaseFactory {
   createConnection(config: DbConfig): DbConnection {
     return new PostgresConnection(config);
@@ -656,7 +656,7 @@ class PostgresFactory implements DatabaseFactory {
   }
 }
 
-// MySQL 実装
+// MySQL implementation
 class MySQLFactory implements DatabaseFactory {
   createConnection(config: DbConfig): DbConnection {
     return new MySQLConnection(config);
@@ -671,7 +671,7 @@ class MySQLFactory implements DatabaseFactory {
   }
 }
 
-// SQLite 実装（テスト用）
+// SQLite implementation (for testing)
 class SQLiteFactory implements DatabaseFactory {
   createConnection(config: DbConfig): DbConnection {
     return new SQLiteConnection(config);
@@ -686,7 +686,7 @@ class SQLiteFactory implements DatabaseFactory {
   }
 }
 
-// アプリケーション層はデータベースの種類を知らない
+// The application layer does not know the database type
 class UserRepository {
   private queryBuilder: DbQueryBuilder;
 
@@ -707,7 +707,7 @@ class UserRepository {
   }
 }
 
-// 環境に応じてファクトリを切り替え
+// Switch factories based on the environment
 function createDatabaseFactory(env: string): DatabaseFactory {
   switch (env) {
     case "production": return new PostgresFactory();
@@ -718,15 +718,15 @@ function createDatabaseFactory(env: string): DatabaseFactory {
 }
 ```
 
-### 2.4 Python での Abstract Factory
+### 2.4 Abstract Factory in Python
 
 ```python
-# Python: Abstract Factory パターン
+# Python: Abstract Factory pattern
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Protocol
 
-# 抽象プロダクト
+# Abstract products
 class Serializer(Protocol):
     def serialize(self, data: dict) -> str: ...
     def deserialize(self, raw: str) -> dict: ...
@@ -737,7 +737,7 @@ class Validator(Protocol):
 class Formatter(Protocol):
     def format(self, data: dict) -> str: ...
 
-# 抽象ファクトリ
+# Abstract factory
 class DataProcessingFactory(ABC):
     @abstractmethod
     def create_serializer(self) -> Serializer: ...
@@ -748,7 +748,7 @@ class DataProcessingFactory(ABC):
     @abstractmethod
     def create_formatter(self) -> Formatter: ...
 
-# JSON ファミリー
+# JSON family
 class JsonSerializer:
     def serialize(self, data: dict) -> str:
         import json
@@ -781,7 +781,7 @@ class JsonProcessingFactory(DataProcessingFactory):
     def create_formatter(self) -> Formatter:
         return JsonFormatter()
 
-# XML ファミリー
+# XML family
 class XmlSerializer:
     def serialize(self, data: dict) -> str:
         def dict_to_xml(d: dict, root: str = "root") -> str:
@@ -793,14 +793,14 @@ class XmlSerializer:
         return dict_to_xml(data)
 
     def deserialize(self, raw: str) -> dict:
-        # 簡易的なXMLパーサー
+        # Simple XML parser
         import xml.etree.ElementTree as ET
         root = ET.fromstring(raw)
         return {child.tag: child.text for child in root}
 
 class XmlValidator:
     def validate(self, data: dict, schema: dict) -> list[str]:
-        # XSD ベースのバリデーション
+        # XSD-based validation
         errors = []
         for field, rules in schema.items():
             if rules.get("required") and field not in data:
@@ -826,7 +826,7 @@ class XmlProcessingFactory(DataProcessingFactory):
     def create_formatter(self) -> Formatter:
         return XmlFormatter()
 
-# 使用例
+# Example usage
 def process_data(factory: DataProcessingFactory, data: dict, schema: dict) -> str:
     validator = factory.create_validator()
     errors = validator.validate(data, schema)
@@ -842,30 +842,30 @@ def process_data(factory: DataProcessingFactory, data: dict, schema: dict) -> st
 
 ---
 
-## 3. Builder パターン
+## 3. Builder Pattern
 
-### 3.1 概要と目的
+### 3.1 Overview and Purpose
 
 ```
-目的: 複雑なオブジェクトの構築過程を分離する
+Purpose: Separate the construction process of a complex object
 
-いつ使うか:
-  → コンストラクタの引数が多い（5個以上）
-  → オプショナルなパラメータが多い
-  → 段階的に構築したい
-  → 同じ構築プロセスで異なる表現を生成したい
+When to use:
+  -> The constructor has many arguments (5 or more)
+  -> There are many optional parameters
+  -> You want to build incrementally
+  -> You want to produce different representations from the same construction process
 
-構造:
-  ┌──────────┐      ┌───────────┐      ┌─────────┐
-  │ Director │─────→│  Builder  │─────→│ Product │
-  │ (指揮者) │      │ (構築者)  │      │ (製品)  │
-  └──────────┘      └───────────┘      └─────────┘
+Structure:
+  +----------+      +-----------+      +---------+
+  | Director |----->|  Builder  |----->| Product |
+  | (leader) |      |(constructor)|    |(product)|
+  +----------+      +-----------+      +---------+
 ```
 
-### 3.2 Fluent Builder（メソッドチェーン）
+### 3.2 Fluent Builder (Method Chaining)
 
 ```typescript
-// Builder パターン: HTTPリクエストの構築
+// Builder pattern: constructing an HTTP request
 class HttpRequest {
   readonly method: string;
   readonly url: string;
@@ -907,7 +907,7 @@ class HttpRequestBuilder {
 
   setHeader(key: string, value: string): this {
     this.headers[key] = value;
-    return this; // メソッドチェーン
+    return this; // Method chaining
   }
 
   setBody(body: string): this {
@@ -950,7 +950,7 @@ class HttpRequestBuilder {
   }
 
   build(): HttpRequest {
-    // バリデーション
+    // Validation
     if (!this.url) throw new Error("URL is required");
     if (!this.method) throw new Error("Method is required");
     if (this.timeout < 0) throw new Error("Timeout must be non-negative");
@@ -960,21 +960,21 @@ class HttpRequestBuilder {
   }
 }
 
-// 可読性の高いオブジェクト構築
+// Highly readable object construction
 const request = HttpRequest.builder("POST", "https://api.example.com/users")
   .setHeader("Accept", "application/json")
   .setBearerToken("token123")
-  .setJsonBody({ name: "田中", email: "tanaka@example.com" })
+  .setJsonBody({ name: "Tanaka", email: "tanaka@example.com" })
   .setTimeout(10000)
   .setRetries(3)
   .addQueryParam("version", "v2")
   .build();
 ```
 
-### 3.3 Step Builder（段階的ビルダー）
+### 3.3 Step Builder (Incremental Builder)
 
 ```typescript
-// Step Builder: 必須パラメータを型で強制
+// Step Builder: enforces required parameters through the type system
 interface NeedsRecipient {
   to(recipient: string): NeedsSubject;
 }
@@ -1066,27 +1066,26 @@ class EmailStepBuilder implements NeedsRecipient, NeedsSubject, EmailBuilder {
       this._cc, this._bcc, this._attachments,
       this._replyTo, this._priority,
     );
-  }
-}
+  }}
 
-// 使用例: 型システムが順序を強制
+// Example usage: the type system enforces the order
 const email = Email.create()
-  .to("tanaka@example.com")     // 必須: 最初に指定
-  .subject("月次レポート")       // 必須: 次に指定
-  .body("添付のレポートをご確認ください。") // オプション
+  .to("tanaka@example.com")     // Required: must be specified first
+  .subject("Monthly Report")    // Required: specified next
+  .body("Please review the attached report.") // Optional
   .cc("manager@example.com")
   .priority("high")
   .build();
 
-// Email.create().subject("...")  // コンパイルエラー: to() が先に必要
+// Email.create().subject("...")  // Compile error: to() must come first
 ```
 
-### 3.4 Director パターン（定型構築）
+### 3.4 Director Pattern (Standardized Construction)
 
 ```typescript
-// Director: 定型的な構築手順をカプセル化
+// Director: encapsulates standardized construction procedures
 class QueryDirector {
-  // ページネーション付きリスト取得
+  // Paginated list fetch
   static paginatedList<T>(
     builder: QueryBuilder<T>,
     page: number,
@@ -1099,7 +1098,7 @@ class QueryDirector {
       .build();
   }
 
-  // 検索クエリ
+  // Search query
   static search<T>(
     builder: QueryBuilder<T>,
     keyword: string,
@@ -1115,7 +1114,7 @@ class QueryDirector {
       .build();
   }
 
-  // ソフトデリート済みを除外した取得
+  // Retrieve only records that have not been soft-deleted
   static activeOnly<T>(
     builder: QueryBuilder<T>,
   ): Query<T> {
@@ -1127,10 +1126,10 @@ class QueryDirector {
 }
 ```
 
-### 3.5 Java での Builder パターン
+### 3.5 Builder Pattern in Java
 
 ```java
-// Java: Builder パターン（Lombokなしの手書き版）
+// Java: Builder pattern (hand-written, no Lombok)
 public class ServerConfig {
     private final String host;
     private final int port;
@@ -1158,21 +1157,21 @@ public class ServerConfig {
         this.maxRequestSize = builder.maxRequestSize;
     }
 
-    // getter メソッド群...
+    // Getter methods...
     public String getHost() { return host; }
     public int getPort() { return port; }
     public boolean isSsl() { return ssl; }
-    // ... 省略
+    // ... omitted
 
     public static Builder builder(String host, int port) {
         return new Builder(host, port);
     }
 
     public static class Builder {
-        // 必須
+        // Required
         private final String host;
         private final int port;
-        // オプション（デフォルト値付き）
+        // Optional (with default values)
         private boolean ssl = false;
         private int maxConnections = 100;
         private int timeoutSeconds = 30;
@@ -1231,7 +1230,7 @@ public class ServerConfig {
         }
 
         public ServerConfig build() {
-            // バリデーション
+            // Validation
             if (ssl && (certPath.isEmpty() || keyPath.isEmpty())) {
                 throw new IllegalStateException(
                     "SSL enabled but cert/key paths not provided");
@@ -1244,7 +1243,7 @@ public class ServerConfig {
     }
 }
 
-// 使用例
+// Example usage
 ServerConfig config = ServerConfig.builder("0.0.0.0", 8080)
     .ssl(true)
     .cert("/etc/ssl/cert.pem", "/etc/ssl/key.pem")
@@ -1259,30 +1258,30 @@ ServerConfig config = ServerConfig.builder("0.0.0.0", 8080)
 
 ---
 
-## 4. Singleton パターン
+## 4. Singleton Pattern
 
-### 4.1 概要と注意点
+### 4.1 Overview and Caveats
 
 ```
-目的: クラスのインスタンスが1つだけであることを保証する
+Purpose: Ensure that a class has only one instance
 
-注意: Singleton は「アンチパターン」として批判されることが多い
+Caveat: Singleton is often criticized as an "anti-pattern"
 
-問題点:
-  → グローバル状態 = テスト困難
-  → 密結合 = 依存性注入の妨げ
-  → 並行処理 = 競合状態のリスク
-  → 隠れた依存 = コードの理解が困難
+Problems:
+  -> Global state = hard to test
+  -> Tight coupling = hinders dependency injection
+  -> Concurrency = risk of race conditions
+  -> Hidden dependencies = code becomes hard to understand
 
-適切な用途:
-  → ロガー、設定マネージャ（本当に1つでいい場合）
-  → DIコンテナ側で「1つだけ」を制御する方が良い
+Appropriate uses:
+  -> Logger, configuration manager (when you truly need only one)
+  -> It is often better to let a DI container control "exactly one"
 ```
 
-### 4.2 基本実装
+### 4.2 Basic Implementation
 
 ```typescript
-// Singleton（必要最小限の実装）
+// Singleton (minimal viable implementation)
 class AppConfig {
   private static instance: AppConfig;
 
@@ -1307,26 +1306,26 @@ class AppConfig {
     return AppConfig.instance;
   }
 
-  // テスト用リセット
+  // Reset for testing
   static resetForTesting(): void {
     AppConfig.instance = undefined as any;
   }
 
-  // テスト用: カスタムインスタンスの注入
+  // For testing: inject a custom instance
   static setInstanceForTesting(config: AppConfig): void {
     AppConfig.instance = config;
   }
 }
 ```
 
-### 4.3 スレッドセーフな Singleton（Java）
+### 4.3 Thread-Safe Singleton (Java)
 
 ```java
-// Java: スレッドセーフな Singleton の実装方法
+// Java: various ways to implement a thread-safe Singleton
 
-// 方法1: Eager Initialization（最もシンプル）
+// Approach 1: Eager Initialization (simplest)
 public class EagerSingleton {
-    // クラスロード時に生成（スレッドセーフ）
+    // Created at class-load time (thread-safe)
     private static final EagerSingleton INSTANCE = new EagerSingleton();
 
     private EagerSingleton() {}
@@ -1336,7 +1335,7 @@ public class EagerSingleton {
     }
 }
 
-// 方法2: Double-Checked Locking（遅延初期化が必要な場合）
+// Approach 2: Double-Checked Locking (when lazy initialization is needed)
 public class LazyThreadSafeSingleton {
     private static volatile LazyThreadSafeSingleton instance;
 
@@ -1354,11 +1353,11 @@ public class LazyThreadSafeSingleton {
     }
 }
 
-// 方法3: Holder Pattern（推奨: 遅延初期化 + スレッドセーフ）
+// Approach 3: Holder Pattern (recommended: lazy initialization + thread-safe)
 public class HolderSingleton {
     private HolderSingleton() {}
 
-    // 内部クラスは最初にアクセスされるまでロードされない
+    // The inner class is not loaded until it is first accessed
     private static class Holder {
         private static final HolderSingleton INSTANCE = new HolderSingleton();
     }
@@ -1368,7 +1367,7 @@ public class HolderSingleton {
     }
 }
 
-// 方法4: Enum Singleton（最も安全: シリアライズ・リフレクション攻撃に耐える）
+// Approach 4: Enum Singleton (safest: resilient against serialization and reflection attacks)
 public enum EnumSingleton {
     INSTANCE;
 
@@ -1384,10 +1383,10 @@ public enum EnumSingleton {
 }
 ```
 
-### 4.4 Singleton の代替: DIコンテナによるスコープ管理
+### 4.4 Singleton Alternative: Scope Management via a DI Container
 
 ```typescript
-// より良いアプローチ: DIコンテナでスコープ管理
+// A better approach: manage scope with a DI container
 interface ServiceContainer {
   register<T>(token: string, factory: () => T, scope?: "singleton" | "transient"): void;
   resolve<T>(token: string): T;
@@ -1419,51 +1418,51 @@ class SimpleContainer implements ServiceContainer {
     return entry.factory();
   }
 
-  // テスト用: シングルトンのリセット
+  // For testing: reset singletons
   resetSingletons(): void {
     this.singletons.clear();
   }
 }
 
-// 使用例
+// Example usage
 const container = new SimpleContainer();
 
-// シングルトンスコープで登録（1つのインスタンスを共有）
+// Register with singleton scope (share a single instance)
 container.register("config", () => loadConfig(), "singleton");
 container.register("logger", () => createLogger(), "singleton");
 
-// トランジェントスコープで登録（毎回新しいインスタンス）
+// Register with transient scope (new instance every time)
 container.register("httpClient", () => new HttpClient(), "transient");
 
-// Singleton の利点を活かしつつ、テスタビリティも確保
+// Gains the benefits of Singleton while preserving testability
 const config = container.resolve<AppConfig>("config");
 const logger = container.resolve<Logger>("logger");
 
-// テスト時
+// During tests
 container.register("config", () => createTestConfig(), "singleton");
 container.resetSingletons();
 ```
 
 ---
 
-## 5. Prototype パターン
+## 5. Prototype Pattern
 
-### 5.1 概要と目的
+### 5.1 Overview and Purpose
 
 ```
-目的: 既存オブジェクトをコピーして新しいオブジェクトを生成する
+Purpose: Create a new object by copying an existing object
 
-いつ使うか:
-  → 生成コストが高い（DB/APIから構築）
-  → テンプレートオブジェクトを元に微調整
-  → オブジェクトの状態を保存・復元（Memento との組み合わせ）
-  → クラスの具体的な型を知らずにコピーしたい
+When to use:
+  -> The creation cost is high (built from a DB/API)
+  -> You want to tweak based on a template object
+  -> You want to save/restore object state (combined with Memento)
+  -> You want to copy without knowing the concrete type
 ```
 
-### 5.2 基本実装
+### 5.2 Basic Implementation
 
 ```typescript
-// Prototype パターン
+// Prototype pattern
 interface Cloneable<T> {
   clone(): T;
   deepClone(): T;
@@ -1478,59 +1477,59 @@ class DocumentTemplate implements Cloneable<DocumentTemplate> {
     public sections: Array<{ heading: string; body: string }>,
   ) {}
 
-  // シャローコピー
+  // Shallow copy
   clone(): DocumentTemplate {
     return new DocumentTemplate(
       this.title,
       this.content,
       { ...this.styles },
       { ...this.metadata },
-      [...this.sections],  // 注意: 中のオブジェクトは共有
+      [...this.sections],  // Note: inner objects are shared
     );
   }
 
-  // ディープコピー
+  // Deep copy
   deepClone(): DocumentTemplate {
     return new DocumentTemplate(
       this.title,
       this.content,
       { ...this.styles },
       { ...this.metadata },
-      this.sections.map(s => ({ ...s })),  // 各セクションもコピー
+      this.sections.map(s => ({ ...s })),  // Each section is copied as well
     );
   }
 }
 
-// テンプレートからコピーして微調整
+// Copy from a template and tweak
 const template = new DocumentTemplate(
-  "月次レポート",
-  "## 概要\n...",
+  "Monthly Report",
+  "## Overview\n...",
   { fontSize: "14px", fontFamily: "Noto Sans JP" },
   { author: "", department: "" },
   [
-    { heading: "概要", body: "" },
-    { heading: "実績", body: "" },
-    { heading: "課題と対策", body: "" },
-    { heading: "次月の計画", body: "" },
+    { heading: "Overview", body: "" },
+    { heading: "Results", body: "" },
+    { heading: "Issues and Countermeasures", body: "" },
+    { heading: "Next Month's Plan", body: "" },
   ],
 );
 
 const januaryReport = template.deepClone();
-januaryReport.title = "2025年1月 月次レポート";
-januaryReport.metadata.author = "田中太郎";
-januaryReport.metadata.department = "開発部";
-januaryReport.sections[0].body = "1月の開発進捗をまとめる";
+januaryReport.title = "January 2025 Monthly Report";
+januaryReport.metadata.author = "Taro Tanaka";
+januaryReport.metadata.department = "Engineering";
+januaryReport.sections[0].body = "Summary of January's development progress";
 
 const februaryReport = template.deepClone();
-februaryReport.title = "2025年2月 月次レポート";
-februaryReport.metadata.author = "田中太郎";
-februaryReport.sections[0].body = "2月の開発進捗をまとめる";
+februaryReport.title = "February 2025 Monthly Report";
+februaryReport.metadata.author = "Taro Tanaka";
+februaryReport.sections[0].body = "Summary of February's development progress";
 ```
 
-### 5.3 Prototype Registry（プロトタイプの管理）
+### 5.3 Prototype Registry (Managing Prototypes)
 
 ```typescript
-// Prototype Registry: テンプレートを管理
+// Prototype Registry: manage templates
 class PrototypeRegistry<T extends Cloneable<T>> {
   private prototypes = new Map<string, T>();
 
@@ -1556,7 +1555,7 @@ class PrototypeRegistry<T extends Cloneable<T>> {
   }
 }
 
-// 使用例: フォームテンプレート
+// Example usage: form templates
 interface FormField {
   name: string;
   type: "text" | "number" | "email" | "select" | "textarea";
@@ -1589,66 +1588,66 @@ class FormTemplate implements Cloneable<FormTemplate> {
   }
 }
 
-// レジストリに定義済みフォームテンプレートを登録
+// Register predefined form templates in the registry
 const formRegistry = new PrototypeRegistry<FormTemplate>();
 
 formRegistry.register("contact", new FormTemplate(
-  "お問い合わせ",
-  "お問い合わせフォーム",
+  "Contact Us",
+  "Contact form",
   [
-    { name: "name", type: "text", label: "氏名", required: true },
-    { name: "email", type: "email", label: "メール", required: true },
-    { name: "category", type: "select", label: "カテゴリ", required: true,
-      options: ["一般", "技術", "営業", "その他"] },
-    { name: "message", type: "textarea", label: "メッセージ", required: true },
+    { name: "name", type: "text", label: "Full Name", required: true },
+    { name: "email", type: "email", label: "Email", required: true },
+    { name: "category", type: "select", label: "Category", required: true,
+      options: ["General", "Technical", "Sales", "Other"] },
+    { name: "message", type: "textarea", label: "Message", required: true },
   ],
 ));
 
 formRegistry.register("survey", new FormTemplate(
-  "アンケート",
-  "顧客満足度アンケート",
+  "Survey",
+  "Customer satisfaction survey",
   [
-    { name: "satisfaction", type: "select", label: "満足度", required: true,
-      options: ["非常に満足", "満足", "普通", "不満", "非常に不満"] },
-    { name: "feedback", type: "textarea", label: "ご意見", required: false },
+    { name: "satisfaction", type: "select", label: "Satisfaction", required: true,
+      options: ["Very satisfied", "Satisfied", "Neutral", "Dissatisfied", "Very dissatisfied"] },
+    { name: "feedback", type: "textarea", label: "Comments", required: false },
   ],
 ));
 
-// テンプレートからカスタマイズ
+// Customize from a template
 const customContact = formRegistry.create("contact");
-customContact.name = "技術サポート問い合わせ";
+customContact.name = "Technical Support Inquiry";
 customContact.addField({
   name: "product",
   type: "select",
-  label: "製品",
+  label: "Product",
   required: true,
-  options: ["製品A", "製品B", "製品C"],
+  options: ["Product A", "Product B", "Product C"],
 });
 ```
 
-### 5.4 JavaScript のスプレッド構文とStructured Clone
+### 5.4 JavaScript Spread Syntax and Structured Clone
 
 ```typescript
-// JavaScript/TypeScript での現代的なコピー手法
+// Modern copy techniques in JavaScript/TypeScript
 
-// 1. スプレッド構文（シャローコピー）
-const original = { name: "太郎", tags: ["developer", "manager"] };
+// 1. Spread syntax (shallow copy)
+const original = { name: "Taro", tags: ["developer", "manager"] };
 const shallow = { ...original };
-shallow.tags.push("admin");  // 注意: original.tags も変更される！
+shallow.tags.push("admin");  // Warning: original.tags is also modified!
 
-// 2. Object.assign（シャローコピー）
+// 2. Object.assign (shallow copy)
 const assigned = Object.assign({}, original);
 
-// 3. JSON.parse/JSON.stringify（ディープコピー、制限あり）
+// 3. JSON.parse/JSON.stringify (deep copy, with limitations)
 const jsonCopy = JSON.parse(JSON.stringify(original));
-// ⚠️ 制限: Date, Map, Set, RegExp, 関数, undefined は正しくコピーされない
+// Warning: Date, Map, Set, RegExp, functions, undefined are not copied correctly
 
-// 4. structuredClone（モダンなディープコピー、Node.js 17+）
+// 4. structuredClone (modern deep copy, Node.js 17+)
 const structuredCopy = structuredClone(original);
-// ✅ Date, Map, Set, ArrayBuffer, RegExp を正しくコピー
-// ❌ 関数, DOM ノード, Error オブジェクトは不可
+// OK: correctly copies Date, Map, Set, ArrayBuffer, RegExp
+// NG: cannot copy functions, DOM nodes, Error objects
 
-// 5. 実践的なディープコピーユーティリティ
+// 5. A practical deep clone utility
 function deepClone<T>(obj: T): T {
   if (obj === null || typeof obj !== "object") return obj;
   if (obj instanceof Date) return new Date(obj.getTime()) as T;
@@ -1674,23 +1673,23 @@ function deepClone<T>(obj: T): T {
 
 ---
 
-## 6. Object Pool パターン
+## 6. Object Pool Pattern
 
-### 6.1 概要と目的
+### 6.1 Overview and Purpose
 
 ```
-目的: 生成コストの高いオブジェクトを再利用する
+Purpose: Reuse objects that are expensive to create
 
-いつ使うか:
-  → オブジェクトの生成/破棄コストが高い（DB接続、スレッド）
-  → 同時に必要なオブジェクト数が限られている
-  → オブジェクトが再利用可能（状態をリセットできる）
+When to use:
+  -> Object creation/destruction is expensive (DB connections, threads)
+  -> The number of simultaneously required objects is limited
+  -> Objects are reusable (their state can be reset)
 ```
 
-### 6.2 接続プールの実装
+### 6.2 Implementing a Connection Pool
 
 ```typescript
-// Object Pool: データベース接続プール
+// Object Pool: database connection pool
 interface Poolable {
   reset(): void;
   isValid(): boolean;
@@ -1712,31 +1711,31 @@ class ConnectionPool<T extends Poolable> {
     private readonly maxSize: number = 10,
     private readonly acquireTimeoutMs: number = 5000,
   ) {
-    // 最小数のオブジェクトを事前生成
+    // Pre-create the minimum number of objects
     for (let i = 0; i < minSize; i++) {
       this.available.push(factory());
     }
   }
 
   async acquire(): Promise<T> {
-    // 利用可能なオブジェクトがあれば返す
+    // Return an available object if one exists
     while (this.available.length > 0) {
       const obj = this.available.pop()!;
       if (obj.isValid()) {
         this.inUse.add(obj);
         return obj;
       }
-      obj.destroy(); // 無効なオブジェクトは破棄
+      obj.destroy(); // Destroy invalid objects
     }
 
-    // 最大数に達していなければ新規生成
+    // Create a new one if we haven't reached the maximum
     if (this.inUse.size < this.maxSize) {
       const obj = this.factory();
       this.inUse.add(obj);
       return obj;
     }
 
-    // 空きを待つ
+    // Wait for a slot
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         const index = this.waitQueue.findIndex(w => w.timer === timer);
@@ -1753,7 +1752,7 @@ class ConnectionPool<T extends Poolable> {
     this.inUse.delete(obj);
     obj.reset();
 
-    // 待機中のリクエストがあれば渡す
+    // Hand off to a waiting request if any
     if (this.waitQueue.length > 0 && obj.isValid()) {
       const waiter = this.waitQueue.shift()!;
       clearTimeout(waiter.timer);
@@ -1766,7 +1765,7 @@ class ConnectionPool<T extends Poolable> {
     }
   }
 
-  // using パターン（確実にリリースする）
+  // using pattern (ensures reliable release)
   async withConnection<R>(fn: (conn: T) => Promise<R>): Promise<R> {
     const conn = await this.acquire();
     try {
@@ -1799,13 +1798,13 @@ class ConnectionPool<T extends Poolable> {
   }
 }
 
-// 使用例
+// Example usage
 const dbPool = new ConnectionPool(
   () => new DatabaseConnection("postgres://localhost:5432/mydb"),
   { minSize: 5, maxSize: 20, acquireTimeoutMs: 3000 }
 );
 
-// using パターン（推奨）
+// using pattern (recommended)
 const users = await dbPool.withConnection(async (conn) => {
   return conn.query("SELECT * FROM users WHERE active = true");
 });
@@ -1816,40 +1815,40 @@ console.log(dbPool.stats);
 
 ---
 
-## 7. 選択指針
+## 7. Selection Guidelines
 
-### 7.1 パターン比較
-
-```
-┌─────────────────┬──────────────────────────────────────────┐
-│ パターン        │ 使う場面                                  │
-├─────────────────┼──────────────────────────────────────────┤
-│ Simple Factory  │ 型を実行時に決定、生成ロジック集約       │
-│ Factory Method  │ サブクラスが生成物の型を決定             │
-│ Abstract Factory│ 関連するオブジェクト群の一貫した生成     │
-│ Builder         │ パラメータが多い複雑な構築               │
-│ Step Builder    │ 必須パラメータの順序を型で強制           │
-│ Singleton       │ 本当に1つだけ必要（慎重に）              │
-│ Prototype       │ 既存オブジェクトを元にコピー             │
-│ Object Pool     │ 生成コストが高いオブジェクトの再利用     │
-└─────────────────┴──────────────────────────────────────────┘
-```
-
-### 7.2 判断フローチャート
+### 7.1 Pattern Comparison
 
 ```
-オブジェクト生成が必要
-├── 生成する型が実行時に決まる
-│   ├── 関連するオブジェクト群 → Abstract Factory
-│   └── 単一のオブジェクト → Factory Method / Simple Factory
-├── パラメータが多い or 段階的に構築
-│   ├── 必須パラメータの順序を強制したい → Step Builder
-│   └── 柔軟な構築 → Fluent Builder
-├── 既存オブジェクトをコピーしたい → Prototype
-├── インスタンス数を制限したい
-│   ├── 1つだけ → Singleton（※DI推奨）
-│   └── N個まで → Object Pool
-└── シンプルな生成 → コンストラクタ直接呼び出し
++------------------+------------------------------------------+
+| Pattern          | When to use                              |
++------------------+------------------------------------------+
+| Simple Factory   | Decide type at runtime, centralize logic |
+| Factory Method   | Subclass decides the product type        |
+| Abstract Factory | Consistent creation of related object sets|
+| Builder          | Complex construction with many parameters|
+| Step Builder     | Enforce order of required params via types|
+| Singleton        | Really need just one (use cautiously)    |
+| Prototype        | Copy based on an existing object         |
+| Object Pool      | Reuse expensive-to-create objects        |
++------------------+------------------------------------------+
+```
+
+### 7.2 Decision Flowchart
+
+```
+Object creation needed
+|-- Type to create is determined at runtime
+|   |-- Related groups of objects -> Abstract Factory
+|   \-- Single object -> Factory Method / Simple Factory
+|-- Many parameters or incremental construction
+|   |-- Enforce order of required parameters -> Step Builder
+|   \-- Flexible construction -> Fluent Builder
+|-- Want to copy an existing object -> Prototype
+|-- Want to limit the number of instances
+|   |-- Only one -> Singleton (* DI recommended)
+|   \-- Up to N -> Object Pool
+\-- Simple creation -> Call the constructor directly
 ```
 
 ---
@@ -1857,40 +1856,40 @@ console.log(dbPool.stats);
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Beyond theory, your understanding deepens when you actually write code and verify its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What mistakes do beginners commonly make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and moving on to advanced topics. We recommend solidly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+The knowledge covered in this topic is frequently applied in day-to-day development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## まとめ
+## Summary
 
-| パターン | 目的 | 注意点 |
+| Pattern | Purpose | Caveats |
 |---------|------|--------|
-| Simple Factory | 生成ロジックの集約 | 過剰なFactory化を避ける |
-| Factory Method | サブクラスが型を決定 | テンプレートメソッドと併用 |
-| Abstract Factory | 製品ファミリーの切替 | インターフェース数が増大しがち |
-| Builder | 段階的構築 | 単純なクラスには不要 |
-| Step Builder | 型安全な段階構築 | インターフェース数が増える |
-| Singleton | 唯一性の保証 | DIで代替を検討 |
-| Prototype | コピー生成 | deep/shallow コピーに注意 |
-| Object Pool | オブジェクト再利用 | リリース忘れに注意 |
+| Simple Factory | Centralize creation logic | Avoid excessive factory-ization |
+| Factory Method | Subclass determines type | Use alongside template method |
+| Abstract Factory | Swap product families | Number of interfaces tends to grow |
+| Builder | Incremental construction | Unnecessary for simple classes |
+| Step Builder | Type-safe incremental construction | Number of interfaces increases |
+| Singleton | Guarantee uniqueness | Consider DI as an alternative |
+| Prototype | Creation by copying | Be careful with deep/shallow copy |
+| Object Pool | Object reuse | Beware of forgetting to release |
 
 ---
 
-## 次に読むべきガイド
+## Next Guides to Read
 
 ---
 
-## 参考文献
+## References
 1. Gamma, E. et al. "Design Patterns: Elements of Reusable Object-Oriented Software." Addison-Wesley, 1994.
 2. Bloch, J. "Effective Java." 3rd Ed, Item 2: Consider a builder when faced with many constructor parameters. 2018.
 3. Freeman, E. et al. "Head First Design Patterns." O'Reilly, 2020.
