@@ -1,107 +1,107 @@
-# コンポジション vs 継承
+# Composition vs Inheritance
 
-> 「継承よりコンポジションを優先せよ」はGoF以来の鉄則。しかし盲目的にコンポジションを使うのではなく、両者のトレードオフを理解して使い分けることが重要。
+> "Favor composition over inheritance" has been an iron rule since GoF. However, rather than blindly using composition, it is important to understand the tradeoffs between the two and use them appropriately.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-- [ ] コンポジションと継承の本質的な違いを理解する
-- [ ] 「継承よりコンポジション」の理由を把握する
-- [ ] 実践的な判断基準を学ぶ
-- [ ] デザインパターンにおけるコンポジションの活用を習得する
-- [ ] 継承が適切な場面とその設計指針を理解する
+- [ ] Understand the essential difference between composition and inheritance
+- [ ] Grasp the reasons behind "favor composition over inheritance"
+- [ ] Learn practical criteria for choosing between them
+- [ ] Master the use of composition in design patterns
+- [ ] Understand when inheritance is appropriate and its design guidelines
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, having the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
+- Basic programming knowledge
+- Understanding of related foundational concepts
 
 ---
 
-## 1. 本質的な違い
+## 1. The Essential Difference
 
 ```
-継承（Inheritance）: is-a 関係
-  → Dog is-a Animal（犬は動物である）
-  → 親のすべてを引き継ぐ（強い結合）
-  → コンパイル時に関係が固定
+Inheritance: is-a relationship
+  -> Dog is-a Animal
+  -> Inherits everything from the parent (strong coupling)
+  -> Relationships fixed at compile time
 
-コンポジション（Composition）: has-a 関係
-  → Car has-a Engine（車はエンジンを持つ）
-  → 必要な部品を組み合わせる（弱い結合）
-  → 実行時に部品を差し替え可能
+Composition: has-a relationship
+  -> Car has-a Engine
+  -> Combines the necessary parts (loose coupling)
+  -> Parts can be swapped at runtime
 
-  継承:
-    ┌─────────┐
-    │ Animal  │
-    └────┬────┘
-         │ is-a
-    ┌────┴────┐
-    │   Dog   │
-    └─────────┘
+  Inheritance:
+    +---------+
+    | Animal  |
+    +----+----+
+         | is-a
+    +----+----+
+    |   Dog   |
+    +---------+
 
-  コンポジション:
-    ┌─────────┐     ┌────────┐
-    │   Car   │────→│ Engine │  has-a
-    │         │────→│ Wheels │  has-a
-    │         │────→│ GPS    │  has-a
-    └─────────┘     └────────┘
+  Composition:
+    +---------+     +--------+
+    |   Car   |---->| Engine |  has-a
+    |         |---->| Wheels |  has-a
+    |         |---->| GPS    |  has-a
+    +---------+     +--------+
 
-委譲（Delegation）:
-  → コンポジションの一形態
-  → 内部のオブジェクトにメソッド呼び出しを転送
-  → 「自分で処理する」のではなく「持っているものに頼む」
+Delegation:
+  -> A form of composition
+  -> Forwards method calls to an internal object
+  -> Rather than "handling it yourself," you "ask what you have"
 
-集約（Aggregation）:
-  → コンポジションの弱い形態
-  → 「部品」が独立して存在できる
-  → Car has-a Driver（ドライバーは車がなくても存在する）
+Aggregation:
+  -> A weaker form of composition
+  -> The "part" can exist independently
+  -> Car has-a Driver (a driver exists even without a car)
 
-  コンポジション: 部品はオーナーと共に生死する
-  集約: 部品はオーナーとは独立して存在する
+  Composition: parts live and die with the owner
+  Aggregation: parts exist independently of the owner
 ```
 
-### 1.1 継承の構造的問題
+### 1.1 Structural Problems of Inheritance
 
 ```
-継承のメカニズム:
+Inheritance mechanism:
 
   class Dog extends Animal {
-    // Dog は Animal の全てを自動的に引き継ぐ
-    // 1. public メソッド → そのまま公開
-    // 2. protected メソッド → アクセス可能
-    // 3. private メソッド → アクセス不可だが存在する
-    // 4. フィールド → すべて引き継ぐ
+    // Dog automatically inherits everything from Animal
+    // 1. public methods -> exposed as-is
+    // 2. protected methods -> accessible
+    // 3. private methods -> not accessible but still exist
+    // 4. fields -> all inherited
   }
 
-問題点:
+Problems:
 
-  1. カプセル化の破壊:
-     → protected フィールドにアクセスできてしまう
-     → 親クラスの内部実装に依存してしまう
-     → 親クラスのリファクタリングが困難に
+  1. Breaking encapsulation:
+     -> Can access protected fields
+     -> Depends on the internal implementation of the parent class
+     -> Refactoring the parent class becomes difficult
 
-  2. 脆い基底クラス問題（Fragile Base Class Problem）:
-     → 親クラスの変更が子クラスを予期せず壊す
-     → 子クラスが親の実装詳細に依存しているため
+  2. Fragile Base Class Problem:
+     -> Changes to the parent class break subclasses unexpectedly
+     -> Because subclasses depend on the parent's implementation details
 
-  3. 密結合:
-     → 親クラスのインターフェースすべてを強制的に継承
-     → 不要なメソッドもすべて公開される
+  3. Tight coupling:
+     -> Forced to inherit the entire interface of the parent class
+     -> All methods, including unnecessary ones, are exposed
 
-  4. 単一継承の制約（Java, C#, TypeScript）:
-     → 1つの親クラスしか持てない
-     → 複数の振る舞いを組み合わせられない
+  4. Single inheritance constraint (Java, C#, TypeScript):
+     -> Can only have one parent class
+     -> Cannot combine multiple behaviors
 ```
 
-### 1.2 脆い基底クラス問題の具体例
+### 1.2 Concrete Example of the Fragile Base Class Problem
 
 ```java
-// ❌ 脆い基底クラス問題の実例
+// BAD: Real example of the fragile base class problem
 
-// Java の HashSet を継承した「カウント付きセット」
+// A "counting set" that extends Java's HashSet
 public class CountingSet<E> extends HashSet<E> {
     private int addCount = 0;
 
@@ -122,17 +122,17 @@ public class CountingSet<E> extends HashSet<E> {
     }
 }
 
-// 使ってみる
+// Try using it
 CountingSet<String> s = new CountingSet<>();
 s.addAll(Arrays.asList("A", "B", "C"));
-System.out.println(s.getAddCount()); // 期待: 3, 実際: 6 !!!
+System.out.println(s.getAddCount()); // Expected: 3, Actual: 6 !!!
 
-// なぜ 6 になるのか？
-// HashSet.addAll() の内部で add() を呼んでいる!
-// addAll() で +3、add() x 3 で +3 = 合計 6
-// → 親クラスの実装詳細に依存してしまった
+// Why is it 6?
+// HashSet.addAll() internally calls add()!
+// +3 from addAll(), +3 from add() x 3 = total 6
+// -> We depended on the parent class's implementation details
 
-// ✅ コンポジションで解決
+// GOOD: Solved with composition
 public class CountingSet<E> implements Set<E> {
     private final Set<E> delegate = new HashSet<>();
     private int addCount = 0;
@@ -140,13 +140,13 @@ public class CountingSet<E> implements Set<E> {
     @Override
     public boolean add(E e) {
         addCount++;
-        return delegate.add(e);  // 委譲
+        return delegate.add(e);  // Delegation
     }
 
     @Override
     public boolean addAll(Collection<? extends E> c) {
         addCount += c.size();
-        return delegate.addAll(c);  // 委譲（内部で add() を呼んでも影響なし）
+        return delegate.addAll(c);  // Delegation (no effect even if add() is called internally)
     }
 
     @Override
@@ -155,7 +155,7 @@ public class CountingSet<E> implements Set<E> {
     @Override
     public boolean contains(Object o) { return delegate.contains(o); }
 
-    // ... 他の Set メソッドもすべて delegate に委譲
+    // ... all other Set methods also delegate to delegate
 
     public int getAddCount() {
         return addCount;
@@ -164,79 +164,79 @@ public class CountingSet<E> implements Set<E> {
 
 CountingSet<String> s = new CountingSet<>();
 s.addAll(Arrays.asList("A", "B", "C"));
-System.out.println(s.getAddCount()); // ✅ 3（正しい！）
+System.out.println(s.getAddCount()); // 3 (correct!)
 ```
 
 ---
 
-## 2. なぜ「継承よりコンポジション」か
+## 2. Why "Favor Composition Over Inheritance"
 
 ```
-継承の問題:
-  1. 強い結合: 親の変更が全子クラスに波及
-  2. カプセル化の破壊: 子が親の実装詳細に依存
-  3. 柔軟性の欠如: 実行時に振る舞いを変更できない
-  4. 爆発的な組み合わせ:
+Problems with inheritance:
+  1. Tight coupling: changes to the parent ripple through all subclasses
+  2. Breaking encapsulation: children depend on parent's implementation details
+  3. Lack of flexibility: behavior cannot be changed at runtime
+  4. Combinatorial explosion:
 
-  例: ゲームキャラクター
-  継承で設計すると:
+  Example: Game characters
+  Designed with inheritance:
     Character
-    ├── Warrior
-    │   ├── FireWarrior
-    │   ├── IceWarrior
-    │   └── FlyingWarrior
-    ├── Mage
-    │   ├── FireMage
-    │   ├── IceMage
-    │   └── FlyingMage
-    └── Archer
-        ├── FireArcher
-        ├── IceArcher
-        └── FlyingArcher
-    → 3属性 × 3職業 = 9クラス
-    → 新属性追加で +3クラス、新職業追加で +3クラス
+    |-- Warrior
+    |   |-- FireWarrior
+    |   |-- IceWarrior
+    |   +-- FlyingWarrior
+    |-- Mage
+    |   |-- FireMage
+    |   |-- IceMage
+    |   +-- FlyingMage
+    +-- Archer
+        |-- FireArcher
+        |-- IceArcher
+        +-- FlyingArcher
+    -> 3 attributes x 3 classes = 9 classes
+    -> Adding a new attribute = +3 classes, adding a new class = +3 classes
 
-  コンポジションで設計すると:
+  Designed with composition:
     Character
-    ├── has-a: AttackStyle（Warrior, Mage, Archer）
-    ├── has-a: Element（Fire, Ice, Lightning）
-    └── has-a: Movement（Walk, Fly, Teleport）
-    → 3 + 3 + 3 = 9コンポーネント
-    → 新属性追加で +1コンポーネント
+    |-- has-a: AttackStyle (Warrior, Mage, Archer)
+    |-- has-a: Element (Fire, Ice, Lightning)
+    +-- has-a: Movement (Walk, Fly, Teleport)
+    -> 3 + 3 + 3 = 9 components
+    -> Adding a new attribute = +1 component
 ```
 
-### 2.1 コンポジションによるリファクタリング
+### 2.1 Refactoring with Composition
 
 ```typescript
-// ❌ 継承: クラスの爆発
+// BAD inheritance: class explosion
 class Animal {
-  eat(): void { console.log("食べる"); }
+  eat(): void { console.log("eat"); }
 }
 class FlyingAnimal extends Animal {
-  fly(): void { console.log("飛ぶ"); }
+  fly(): void { console.log("fly"); }
 }
 class SwimmingAnimal extends Animal {
-  swim(): void { console.log("泳ぐ"); }
+  swim(): void { console.log("swim"); }
 }
 class FlyingSwimmingAnimal extends ??? {
-  // 多重継承できない！
+  // Multiple inheritance is not possible!
 }
 
-// ✅ コンポジション: 柔軟な組み合わせ
+// GOOD composition: flexible combinations
 interface MovementAbility {
   move(): string;
 }
 
 class Flying implements MovementAbility {
-  move(): string { return "空を飛ぶ"; }
+  move(): string { return "fly through the sky"; }
 }
 
 class Swimming implements MovementAbility {
-  move(): string { return "水中を泳ぐ"; }
+  move(): string { return "swim underwater"; }
 }
 
 class Walking implements MovementAbility {
-  move(): string { return "地上を歩く"; }
+  move(): string { return "walk on the ground"; }
 }
 
 class Animal {
@@ -251,20 +251,20 @@ class Animal {
   }
 }
 
-// カモ: 飛べる + 泳げる + 歩ける
+// Duck: can fly + swim + walk
 const duck = new Animal();
 duck.addAbility(new Flying());
 duck.addAbility(new Swimming());
 duck.addAbility(new Walking());
-console.log(duck.moveAll()); // ["空を飛ぶ", "水中を泳ぐ", "地上を歩く"]
+console.log(duck.moveAll()); // ["fly through the sky", "swim underwater", "walk on the ground"]
 ```
 
-### 2.2 ゲームキャラクターのコンポジション設計
+### 2.2 Game Character Composition Design
 
 ```typescript
-// ECS（Entity-Component-System）的なコンポジション設計
+// ECS (Entity-Component-System) style composition design
 
-// === コンポーネント（振る舞いの部品）===
+// === Components (behavior parts) ===
 interface AttackBehavior {
   attack(target: string): string;
   getRange(): number;
@@ -285,80 +285,80 @@ interface ElementalPower {
   specialAttack(target: string): string;
 }
 
-// === 具体的なコンポーネント ===
+// === Concrete components ===
 class SwordAttack implements AttackBehavior {
   attack(target: string): string {
-    return `剣で${target}を斬りつけた！`;
+    return `Slashed ${target} with a sword!`;
   }
   getRange(): number { return 1; }
 }
 
 class BowAttack implements AttackBehavior {
   attack(target: string): string {
-    return `弓矢で${target}を射た！`;
+    return `Shot ${target} with a bow and arrow!`;
   }
   getRange(): number { return 10; }
 }
 
 class MagicAttack implements AttackBehavior {
   attack(target: string): string {
-    return `魔法で${target}を攻撃した！`;
+    return `Attacked ${target} with magic!`;
   }
   getRange(): number { return 5; }
 }
 
 class ShieldDefense implements DefenseBehavior {
-  defend(): string { return "盾で防御！"; }
+  defend(): string { return "Defended with a shield!"; }
   getArmor(): number { return 50; }
 }
 
 class DodgeDefense implements DefenseBehavior {
-  defend(): string { return "素早く回避！"; }
+  defend(): string { return "Nimbly dodged!"; }
   getArmor(): number { return 10; }
 }
 
 class MagicBarrier implements DefenseBehavior {
-  defend(): string { return "魔法障壁を展開！"; }
+  defend(): string { return "Deployed a magic barrier!"; }
   getArmor(): number { return 30; }
 }
 
 class WalkMovement implements MovementBehavior {
-  move(direction: string): string { return `${direction}に歩いた`; }
+  move(direction: string): string { return `Walked ${direction}`; }
   getSpeed(): number { return 3; }
 }
 
 class FlyMovement implements MovementBehavior {
-  move(direction: string): string { return `${direction}に飛んだ`; }
+  move(direction: string): string { return `Flew ${direction}`; }
   getSpeed(): number { return 8; }
 }
 
 class TeleportMovement implements MovementBehavior {
-  move(direction: string): string { return `${direction}にテレポートした`; }
+  move(direction: string): string { return `Teleported ${direction}`; }
   getSpeed(): number { return 100; }
 }
 
 class FirePower implements ElementalPower {
-  element(): string { return "炎"; }
+  element(): string { return "Fire"; }
   specialAttack(target: string): string {
-    return `${target}を炎で焼き尽くした！`;
+    return `Burned ${target} to ashes with fire!`;
   }
 }
 
 class IcePower implements ElementalPower {
-  element(): string { return "氷"; }
+  element(): string { return "Ice"; }
   specialAttack(target: string): string {
-    return `${target}を氷で凍らせた！`;
+    return `Froze ${target} with ice!`;
   }
 }
 
 class LightningPower implements ElementalPower {
-  element(): string { return "雷"; }
+  element(): string { return "Lightning"; }
   specialAttack(target: string): string {
-    return `${target}に雷を落とした！`;
+    return `Struck ${target} with lightning!`;
   }
 }
 
-// === キャラクター（コンポジション）===
+// === Character (composition) ===
 class Character {
   constructor(
     public name: string,
@@ -382,12 +382,12 @@ class Character {
 
   performSpecial(target: string): string {
     if (!this.elementalPower) {
-      return "特殊能力を持っていない";
+      return "No special ability";
     }
     return this.elementalPower.specialAttack(target);
   }
 
-  // 実行時に振る舞いを変更可能！
+  // Behavior can be changed at runtime!
   setAttackBehavior(attack: AttackBehavior): void {
     this.attackBehavior = attack;
   }
@@ -399,54 +399,54 @@ class Character {
   describe(): string {
     const parts = [
       `[${this.name}]`,
-      `攻撃: ${this.attackBehavior.constructor.name}`,
-      `防御: ${this.defenseBehavior.constructor.name}`,
-      `移動: ${this.movementBehavior.constructor.name}`,
+      `Attack: ${this.attackBehavior.constructor.name}`,
+      `Defense: ${this.defenseBehavior.constructor.name}`,
+      `Movement: ${this.movementBehavior.constructor.name}`,
     ];
     if (this.elementalPower) {
-      parts.push(`属性: ${this.elementalPower.element()}`);
+      parts.push(`Element: ${this.elementalPower.element()}`);
     }
     return parts.join(" / ");
   }
 }
 
-// === 使用例 ===
-// 炎の剣士: 剣 + 盾 + 歩行 + 炎
+// === Usage examples ===
+// Fire warrior: sword + shield + walking + fire
 const fireWarrior = new Character(
-  "炎の剣士",
+  "Fire Warrior",
   new SwordAttack(),
   new ShieldDefense(),
   new WalkMovement(),
   new FirePower(),
 );
 
-// 氷の魔法使い: 魔法 + 魔法障壁 + テレポート + 氷
+// Ice mage: magic + magic barrier + teleport + ice
 const iceMage = new Character(
-  "氷の魔法使い",
+  "Ice Mage",
   new MagicAttack(),
   new MagicBarrier(),
   new TeleportMovement(),
   new IcePower(),
 );
 
-// 雷の弓使い: 弓 + 回避 + 飛行 + 雷
+// Lightning archer: bow + dodge + fly + lightning
 const lightningArcher = new Character(
-  "雷の弓使い",
+  "Lightning Archer",
   new BowAttack(),
   new DodgeDefense(),
   new FlyMovement(),
   new LightningPower(),
 );
 
-// ゲーム中に装備を変更！
-fireWarrior.setAttackBehavior(new BowAttack()); // 弓に持ち替え
-fireWarrior.setElementalPower(new IcePower());   // 属性変更
+// Change equipment during the game!
+fireWarrior.setAttackBehavior(new BowAttack()); // Switch to bow
+fireWarrior.setElementalPower(new IcePower());   // Change element
 
-console.log(fireWarrior.performAttack("ドラゴン"));  // "弓矢でドラゴンを射た！"
-console.log(fireWarrior.performSpecial("ドラゴン")); // "ドラゴンを氷で凍らせた！"
+console.log(fireWarrior.performAttack("Dragon"));  // "Shot Dragon with a bow and arrow!"
+console.log(fireWarrior.performSpecial("Dragon")); // "Froze Dragon with ice!"
 ```
 
-### 2.3 Python でのコンポジション
+### 2.3 Composition in Python
 
 ```python
 from abc import ABC, abstractmethod
@@ -454,30 +454,30 @@ from dataclasses import dataclass, field
 from typing import Protocol, Optional
 
 
-# === コンポーネントの定義 ===
+# === Component definitions ===
 class Renderer(Protocol):
-    """レンダリング戦略"""
+    """Rendering strategy"""
     def render(self, data: dict) -> str: ...
 
 
 class Validator(Protocol):
-    """バリデーション戦略"""
+    """Validation strategy"""
     def validate(self, data: dict) -> list[str]: ...
 
 
 class Serializer(Protocol):
-    """シリアライズ戦略"""
+    """Serialization strategy"""
     def serialize(self, data: dict) -> str: ...
     def deserialize(self, raw: str) -> dict: ...
 
 
 class Logger(Protocol):
-    """ログ出力戦略"""
+    """Log output strategy"""
     def info(self, message: str) -> None: ...
     def error(self, message: str) -> None: ...
 
 
-# === コンポーネントの実装 ===
+# === Component implementations ===
 class HtmlRenderer:
     def render(self, data: dict) -> str:
         rows = "".join(
@@ -500,7 +500,7 @@ class JsonRenderer:
 
 
 class StrictValidator:
-    """厳密なバリデーション"""
+    """Strict validation"""
     def __init__(self, required_fields: list[str]):
         self.required_fields = required_fields
 
@@ -508,14 +508,14 @@ class StrictValidator:
         errors = []
         for field_name in self.required_fields:
             if field_name not in data or not data[field_name]:
-                errors.append(f"'{field_name}' は必須です")
+                errors.append(f"'{field_name}' is required")
         return errors
 
 
 class LenientValidator:
-    """緩いバリデーション（警告のみ）"""
+    """Lenient validation (warnings only)"""
     def validate(self, data: dict) -> list[str]:
-        return []  # 常に OK
+        return []  # Always OK
 
 
 class JsonSerializer:
@@ -537,7 +537,7 @@ class ConsoleLogger:
 
 
 class NullLogger:
-    """何も出力しないロガー（テスト用）"""
+    """Logger that outputs nothing (for testing)"""
     def info(self, message: str) -> None:
         pass
 
@@ -545,28 +545,28 @@ class NullLogger:
         pass
 
 
-# === コンポジションで組み立てる ===
+# === Build with composition ===
 @dataclass
 class ReportGenerator:
-    """レポート生成器: コンポーネントを組み合わせて構築"""
+    """Report generator: built by combining components"""
     renderer: Renderer
     validator: Validator
     serializer: Serializer
     logger: Logger
 
     def generate(self, data: dict) -> str:
-        self.logger.info(f"レポート生成開始: {len(data)} 項目")
+        self.logger.info(f"Report generation started: {len(data)} items")
 
-        # バリデーション
+        # Validation
         errors = self.validator.validate(data)
         if errors:
             for error in errors:
-                self.logger.error(f"バリデーションエラー: {error}")
-            raise ValueError(f"バリデーション失敗: {errors}")
+                self.logger.error(f"Validation error: {error}")
+            raise ValueError(f"Validation failed: {errors}")
 
-        # レンダリング
+        # Rendering
         rendered = self.renderer.render(data)
-        self.logger.info(f"レンダリング完了: {len(rendered)} 文字")
+        self.logger.info(f"Rendering completed: {len(rendered)} chars")
 
         return rendered
 
@@ -574,7 +574,7 @@ class ReportGenerator:
         serialized = self.serializer.serialize(data)
         with open(filepath, "w") as f:
             f.write(serialized)
-        self.logger.info(f"保存完了: {filepath}")
+        self.logger.info(f"Save completed: {filepath}")
 
     def load(self, filepath: str) -> dict:
         with open(filepath) as f:
@@ -582,9 +582,9 @@ class ReportGenerator:
         return self.serializer.deserialize(raw)
 
 
-# === 使用例: 異なる用途で異なるコンポーネントを組み合わせ ===
+# === Usage example: combine different components for different purposes ===
 
-# 本番環境: HTML + 厳密バリデーション + JSON + コンソールログ
+# Production: HTML + strict validation + JSON + console log
 production_report = ReportGenerator(
     renderer=HtmlRenderer(),
     validator=StrictValidator(["title", "author", "date"]),
@@ -592,7 +592,7 @@ production_report = ReportGenerator(
     logger=ConsoleLogger(),
 )
 
-# 開発環境: Markdown + 緩いバリデーション + JSON + 無出力ログ
+# Development: Markdown + lenient validation + JSON + silent log
 dev_report = ReportGenerator(
     renderer=MarkdownRenderer(),
     validator=LenientValidator(),
@@ -600,7 +600,7 @@ dev_report = ReportGenerator(
     logger=NullLogger(),
 )
 
-# テスト環境: JSON + 緩いバリデーション + JSON + 無出力ログ
+# Test: JSON + lenient validation + JSON + silent log
 test_report = ReportGenerator(
     renderer=JsonRenderer(),
     validator=LenientValidator(),
@@ -608,19 +608,19 @@ test_report = ReportGenerator(
     logger=NullLogger(),
 )
 
-# 同じ ReportGenerator クラスだが、振る舞いが全く異なる
-data = {"title": "月次報告", "author": "田中", "date": "2026-01-01"}
-print(production_report.generate(data))  # HTML形式
-print(dev_report.generate(data))         # Markdown形式
-print(test_report.generate(data))        # JSON形式
+# Same ReportGenerator class, but completely different behavior
+data = {"title": "Monthly Report", "author": "Tanaka", "date": "2026-01-01"}
+print(production_report.generate(data))  # HTML format
+print(dev_report.generate(data))         # Markdown format
+print(test_report.generate(data))        # JSON format
 ```
 
 ---
 
-## 3. Strategy パターンとの関係
+## 3. Relationship with the Strategy Pattern
 
 ```typescript
-// コンポジション + Strategy = 実行時に振る舞いを変更
+// Composition + Strategy = change behavior at runtime
 
 interface SortStrategy {
   sort<T>(data: T[], compareFn: (a: T, b: T) => number): T[];
@@ -628,23 +628,23 @@ interface SortStrategy {
 
 class QuickSort implements SortStrategy {
   sort<T>(data: T[], compareFn: (a: T, b: T) => number): T[] {
-    // クイックソートの実装
+    // Quicksort implementation
     return [...data].sort(compareFn);
   }
 }
 
 class MergeSort implements SortStrategy {
   sort<T>(data: T[], compareFn: (a: T, b: T) => number): T[] {
-    // マージソートの実装
+    // Merge sort implementation
     return [...data].sort(compareFn);
   }
 }
 
 class DataProcessor {
-  // コンポジション: 戦略を外部から注入
+  // Composition: strategy is injected from outside
   constructor(private sortStrategy: SortStrategy) {}
 
-  // 実行時に戦略を変更可能
+  // Strategy can be changed at runtime
   setSortStrategy(strategy: SortStrategy): void {
     this.sortStrategy = strategy;
   }
@@ -656,48 +656,48 @@ class DataProcessor {
 
 const processor = new DataProcessor(new QuickSort());
 processor.process([3, 1, 4, 1, 5]);
-// データ量が増えたら戦略を変更
+// When data size grows, change the strategy
 processor.setSortStrategy(new MergeSort());
 ```
 
-### 3.1 デザインパターンとコンポジション
+### 3.1 Design Patterns and Composition
 
 ```
-コンポジションを活用するデザインパターン:
+Design patterns that leverage composition:
 
-  Strategy パターン:
-    → 振る舞いを交換可能にする
-    → 例: ソートアルゴリズム、認証戦略
+  Strategy pattern:
+    -> Makes behavior interchangeable
+    -> Examples: sort algorithms, authentication strategies
 
-  Decorator パターン:
-    → 既存のオブジェクトに機能を追加
-    → 例: ストリーム処理、ミドルウェア
+  Decorator pattern:
+    -> Adds functionality to existing objects
+    -> Examples: stream processing, middleware
 
-  Observer パターン:
-    → イベントの通知
-    → 例: UIイベント、Pub/Sub
+  Observer pattern:
+    -> Event notification
+    -> Examples: UI events, Pub/Sub
 
-  Composite パターン:
-    → ツリー構造の表現
-    → 例: UIコンポーネント、ファイルシステム
+  Composite pattern:
+    -> Tree structure representation
+    -> Examples: UI components, file systems
 
-  Bridge パターン:
-    → 抽象と実装を分離
-    → 例: プラットフォーム別の描画
+  Bridge pattern:
+    -> Separates abstraction from implementation
+    -> Example: platform-specific rendering
 
-  State パターン:
-    → 状態に応じて振る舞いを変更
-    → 例: ワークフロー、TCP接続
+  State pattern:
+    -> Changes behavior based on state
+    -> Examples: workflow, TCP connection
 
-  Chain of Responsibility パターン:
-    → 処理の連鎖
-    → 例: ミドルウェアチェーン、バリデーション
+  Chain of Responsibility pattern:
+    -> Chain of processing
+    -> Examples: middleware chain, validation
 ```
 
-### 3.2 Decorator パターン（コンポジションの応用）
+### 3.2 Decorator Pattern (Application of Composition)
 
 ```typescript
-// Decorator パターン: 継承ではなくコンポジションで機能拡張
+// Decorator pattern: extend functionality through composition, not inheritance
 
 interface Logger {
   log(message: string): void;
@@ -709,7 +709,7 @@ class ConsoleLogger implements Logger {
   }
 }
 
-// デコレーター: 基本のロガーを包んで機能追加
+// Decorator: wraps the base logger to add functionality
 class TimestampLogger implements Logger {
   constructor(private inner: Logger) {}
 
@@ -743,19 +743,19 @@ class FilterLogger implements Logger {
   constructor(private inner: Logger, private minLevel: string) {}
 
   log(message: string): void {
-    // フィルタリングロジック
+    // Filtering logic
     if (this.shouldLog(message)) {
       this.inner.log(message);
     }
   }
 
   private shouldLog(message: string): boolean {
-    // 簡易的なフィルタリング
+    // Simple filtering
     return !message.startsWith("[DEBUG]");
   }
 }
 
-// デコレーターを組み合わせて使う
+// Combine decorators
 const logger = new TimestampLogger(
   new PrefixLogger(
     new FilterLogger(
@@ -767,17 +767,17 @@ const logger = new TimestampLogger(
 );
 
 logger.log("Hello, World!");
-// → [2026-01-15T10:30:00.000Z] [MyApp] Hello, World!
+// -> [2026-01-15T10:30:00.000Z] [MyApp] Hello, World!
 
-// 継承で同じことをやろうとすると:
+// Trying to do the same with inheritance would produce:
 // TimestampConsoleLogger, TimestampFileLogger,
 // PrefixConsoleLogger, PrefixFileLogger,
 // TimestampPrefixConsoleLogger, TimestampPrefixFileLogger...
-// → クラスの爆発！
+// -> Class explosion!
 ```
 
 ```python
-# Python: デコレーター（関数）を使ったコンポジション
+# Python: composition using decorators (functions)
 from functools import wraps
 from typing import Callable, Any
 import time
@@ -785,7 +785,7 @@ import logging
 
 
 def with_logging(func: Callable) -> Callable:
-    """ログ出力を追加するデコレーター"""
+    """Decorator that adds log output"""
     @wraps(func)
     def wrapper(*args, **kwargs):
         logging.info(f"Calling {func.__name__} with args={args}, kwargs={kwargs}")
@@ -796,7 +796,7 @@ def with_logging(func: Callable) -> Callable:
 
 
 def with_timing(func: Callable) -> Callable:
-    """実行時間計測を追加するデコレーター"""
+    """Decorator that adds execution time measurement"""
     @wraps(func)
     def wrapper(*args, **kwargs):
         start = time.time()
@@ -808,7 +808,7 @@ def with_timing(func: Callable) -> Callable:
 
 
 def with_retry(max_retries: int = 3, delay: float = 1.0):
-    """リトライを追加するデコレーター"""
+    """Decorator that adds retry"""
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -827,7 +827,7 @@ def with_retry(max_retries: int = 3, delay: float = 1.0):
 
 
 def with_cache(func: Callable) -> Callable:
-    """結果をキャッシュするデコレーター"""
+    """Decorator that caches results"""
     cache = {}
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -838,29 +838,29 @@ def with_cache(func: Callable) -> Callable:
     return wrapper
 
 
-# デコレーターを組み合わせ（コンポジション）
+# Combine decorators (composition)
 @with_logging
 @with_timing
 @with_retry(max_retries=3)
 @with_cache
 def fetch_data(url: str) -> dict:
-    """外部APIからデータを取得"""
+    """Fetch data from an external API"""
     import requests
     response = requests.get(url)
     return response.json()
 
-# 実行すると:
-# 1. ログ出力（with_logging）
-# 2. 時間計測開始（with_timing）
-# 3. リトライ処理（with_retry）
-# 4. キャッシュ確認（with_cache）
-# 5. 実際の関数実行
+# When executed:
+# 1. Log output (with_logging)
+# 2. Start time measurement (with_timing)
+# 3. Retry handling (with_retry)
+# 4. Check cache (with_cache)
+# 5. Actual function execution
 ```
 
-### 3.3 State パターン（コンポジションで状態管理）
+### 3.3 State Pattern (State Management with Composition)
 
 ```typescript
-// State パターン: 状態オブジェクトをコンポジションで持つ
+// State pattern: hold the state object via composition
 
 interface OrderState {
   name: string;
@@ -882,18 +882,18 @@ class PendingState implements OrderState {
   canDeliver() { return false; }
 
   confirm(order: Order): void {
-    console.log("注文を確認しました");
+    console.log("Order confirmed");
     order.setState(new ConfirmedState());
   }
   ship(order: Order): void {
-    throw new Error("未確認の注文は出荷できません");
+    throw new Error("Cannot ship an unconfirmed order");
   }
   cancel(order: Order): void {
-    console.log("注文をキャンセルしました");
+    console.log("Order cancelled");
     order.setState(new CancelledState());
   }
   deliver(order: Order): void {
-    throw new Error("未確認の注文は配達できません");
+    throw new Error("Cannot deliver an unconfirmed order");
   }
 }
 
@@ -905,18 +905,18 @@ class ConfirmedState implements OrderState {
   canDeliver() { return false; }
 
   confirm(order: Order): void {
-    throw new Error("既に確認済みです");
+    throw new Error("Already confirmed");
   }
   ship(order: Order): void {
-    console.log("注文を出荷しました");
+    console.log("Order shipped");
     order.setState(new ShippedState());
   }
   cancel(order: Order): void {
-    console.log("確認済み注文をキャンセルしました（返金処理開始）");
+    console.log("Confirmed order cancelled (refund process started)");
     order.setState(new CancelledState());
   }
   deliver(order: Order): void {
-    throw new Error("出荷前に配達はできません");
+    throw new Error("Cannot deliver before shipping");
   }
 }
 
@@ -927,11 +927,11 @@ class ShippedState implements OrderState {
   canCancel() { return false; }
   canDeliver() { return true; }
 
-  confirm(order: Order): void { throw new Error("出荷済み"); }
-  ship(order: Order): void { throw new Error("既に出荷済み"); }
-  cancel(order: Order): void { throw new Error("出荷済みの注文はキャンセルできません"); }
+  confirm(order: Order): void { throw new Error("Already shipped"); }
+  ship(order: Order): void { throw new Error("Already shipped"); }
+  cancel(order: Order): void { throw new Error("Cannot cancel a shipped order"); }
   deliver(order: Order): void {
-    console.log("注文を配達しました");
+    console.log("Order delivered");
     order.setState(new DeliveredState());
   }
 }
@@ -943,10 +943,10 @@ class DeliveredState implements OrderState {
   canCancel() { return false; }
   canDeliver() { return false; }
 
-  confirm() { throw new Error("配達済み"); }
-  ship() { throw new Error("配達済み"); }
-  cancel() { throw new Error("配達済みの注文はキャンセルできません"); }
-  deliver() { throw new Error("既に配達済み"); }
+  confirm() { throw new Error("Already delivered"); }
+  ship() { throw new Error("Already delivered"); }
+  cancel() { throw new Error("Cannot cancel a delivered order"); }
+  deliver() { throw new Error("Already delivered"); }
 }
 
 class CancelledState implements OrderState {
@@ -956,17 +956,17 @@ class CancelledState implements OrderState {
   canCancel() { return false; }
   canDeliver() { return false; }
 
-  confirm() { throw new Error("キャンセル済み"); }
-  ship() { throw new Error("キャンセル済み"); }
-  cancel() { throw new Error("既にキャンセル済み"); }
-  deliver() { throw new Error("キャンセル済み"); }
+  confirm() { throw new Error("Already cancelled"); }
+  ship() { throw new Error("Already cancelled"); }
+  cancel() { throw new Error("Already cancelled"); }
+  deliver() { throw new Error("Already cancelled"); }
 }
 
 class Order {
-  private state: OrderState = new PendingState(); // コンポジション
+  private state: OrderState = new PendingState(); // Composition
 
   setState(state: OrderState): void {
-    console.log(`状態変更: ${this.state.name} → ${state.name}`);
+    console.log(`State change: ${this.state.name} -> ${state.name}`);
     this.state = state;
   }
 
@@ -978,41 +978,41 @@ class Order {
   getStatus(): string { return this.state.name; }
 }
 
-// 使用例
+// Usage example
 const order = new Order();
 console.log(order.getStatus());  // "pending"
-order.confirm();                  // 状態変更: pending → confirmed
-order.ship();                     // 状態変更: confirmed → shipped
-order.deliver();                  // 状態変更: shipped → delivered
-// order.cancel();                // Error: 配達済みの注文はキャンセルできません
+order.confirm();                  // State change: pending -> confirmed
+order.ship();                     // State change: confirmed -> shipped
+order.deliver();                  // State change: shipped -> delivered
+// order.cancel();                // Error: Cannot cancel a delivered order
 ```
 
 ---
 
-## 4. 継承が適切な場面
+## 4. When Inheritance Is Appropriate
 
 ```
-継承を使うべき場面:
-  ✓ 明確な is-a 関係（ListはCollectionである）
-  ✓ フレームワークの拡張ポイント（AbstractController）
-  ✓ テンプレートメソッドパターン
-  ✓ 子クラスが親の全メソッドを意味的に満たす
-  ✓ 型階層が安定している（頻繁に変わらない）
+When to use inheritance:
+  - Clear is-a relationship (List is a Collection)
+  - Framework extension points (AbstractController)
+  - Template method pattern
+  - The subclass semantically satisfies all methods of the parent
+  - Type hierarchy is stable (does not change frequently)
 
-コンポジションを使うべき場面:
-  ✓ has-a 関係（CarはEngineを持つ）
-  ✓ 振る舞いの組み合わせが必要
-  ✓ 実行時に振る舞いを変更したい
-  ✓ 複数の「機能」を組み合わせたい
-  ✓ テスト時にモックに差し替えたい
+When to use composition:
+  - has-a relationship (Car has an Engine)
+  - Combinations of behaviors are needed
+  - Want to change behavior at runtime
+  - Want to combine multiple "features"
+  - Want to replace with a mock during testing
 
-迷ったとき:
-  → コンポジションを選ぶ（より安全）
-  → 「このクラスは本当に親の "一種" か？」を自問
-  → 「コード再利用のためだけの継承」は避ける
+When in doubt:
+  -> Choose composition (safer)
+  -> Ask yourself: "Is this class really a 'kind of' the parent?"
+  -> Avoid "inheritance just for code reuse"
 ```
 
-### 4.1 テンプレートメソッドパターン（継承の適切な使用例）
+### 4.1 Template Method Pattern (Appropriate Use of Inheritance)
 
 ```python
 from abc import ABC, abstractmethod
@@ -1020,65 +1020,65 @@ from typing import Any
 
 
 class ETLPipeline(ABC):
-    """ETL（Extract-Transform-Load）パイプラインの基底クラス
+    """Base class for an ETL (Extract-Transform-Load) pipeline
 
-    テンプレートメソッドパターン: アルゴリズムの骨格を定義し、
-    具体的なステップをサブクラスに委ねる。
+    Template method pattern: defines the skeleton of an algorithm
+    and delegates the concrete steps to subclasses.
     """
 
     def run(self) -> dict:
-        """テンプレートメソッド: ETLの全体フロー（final）"""
-        self._log("パイプライン開始")
+        """Template method: overall ETL flow (final)"""
+        self._log("Pipeline started")
 
-        # 1. データ抽出
+        # 1. Data extraction
         raw_data = self.extract()
-        self._log(f"抽出完了: {len(raw_data)} レコード")
+        self._log(f"Extraction complete: {len(raw_data)} records")
 
-        # 2. データ変換
+        # 2. Data transformation
         transformed = self.transform(raw_data)
-        self._log(f"変換完了: {len(transformed)} レコード")
+        self._log(f"Transformation complete: {len(transformed)} records")
 
-        # 3. バリデーション（オプショナルフック）
+        # 3. Validation (optional hook)
         valid_data = self.validate(transformed)
-        self._log(f"バリデーション完了: {len(valid_data)} レコード")
+        self._log(f"Validation complete: {len(valid_data)} records")
 
-        # 4. データロード
+        # 4. Data loading
         result = self.load(valid_data)
-        self._log(f"ロード完了")
+        self._log(f"Load complete")
 
-        # 5. 後処理（オプショナルフック）
+        # 5. Post-processing (optional hook)
         self.after_load(result)
 
         return result
 
     @abstractmethod
     def extract(self) -> list[dict]:
-        """データを抽出する（サブクラスで実装）"""
+        """Extract data (to be implemented by subclass)"""
         ...
 
     @abstractmethod
     def transform(self, data: list[dict]) -> list[dict]:
-        """データを変換する（サブクラスで実装）"""
+        """Transform data (to be implemented by subclass)"""
         ...
 
     @abstractmethod
     def load(self, data: list[dict]) -> dict:
-        """データをロードする（サブクラスで実装）"""
+        """Load data (to be implemented by subclass)"""
         ...
 
     def validate(self, data: list[dict]) -> list[dict]:
-        """バリデーション（デフォルト: すべて通過）"""
+        """Validation (default: all pass)"""
         return data
 
     def after_load(self, result: dict) -> None:
-        """後処理（デフォルト: 何もしない）"""
+        """Post-processing (default: do nothing)"""
         pass
 
     def _log(self, message: str) -> None:
         print(f"[{self.__class__.__name__}] {message}")
 
 
-# サブクラス: CSV → PostgreSQL のETL
+# Subclass: CSV -> PostgreSQL ETL
 class CsvToPostgresETL(ETLPipeline):
     def __init__(self, csv_path: str, db_connection):
         self.csv_path = csv_path
@@ -1091,18 +1091,18 @@ class CsvToPostgresETL(ETLPipeline):
             return list(reader)
 
     def transform(self, data: list[dict]) -> list[dict]:
-        # 型変換やクレンジング
+        # Type conversion and cleansing
         for row in data:
             row["price"] = float(row.get("price", 0))
             row["name"] = row.get("name", "").strip()
         return data
 
     def validate(self, data: list[dict]) -> list[dict]:
-        # 価格が正の値のデータのみ
+        # Only data with positive prices
         return [row for row in data if row["price"] > 0]
 
     def load(self, data: list[dict]) -> dict:
-        # PostgreSQLにINSERT
+        # INSERT into PostgreSQL
         count = 0
         for row in data:
             self.db.execute(
@@ -1113,7 +1113,7 @@ class CsvToPostgresETL(ETLPipeline):
         return {"inserted": count}
 
 
-# サブクラス: API → Elasticsearch のETL
+# Subclass: API -> Elasticsearch ETL
 class ApiToElasticsearchETL(ETLPipeline):
     def __init__(self, api_url: str, es_client):
         self.api_url = api_url
@@ -1125,7 +1125,7 @@ class ApiToElasticsearchETL(ETLPipeline):
         return response.json()["results"]
 
     def transform(self, data: list[dict]) -> list[dict]:
-        # Elasticsearch用にドキュメント変換
+        # Transform documents for Elasticsearch
         return [
             {
                 "_index": "products",
@@ -1140,29 +1140,29 @@ class ApiToElasticsearchETL(ETLPipeline):
         ]
 
     def load(self, data: list[dict]) -> dict:
-        # Elasticsearchにバルクインサート
+        # Bulk insert into Elasticsearch
         from elasticsearch.helpers import bulk
         success, errors = bulk(self.es, data)
         return {"success": success, "errors": len(errors)}
 
     def after_load(self, result: dict) -> None:
-        # インデックスのリフレッシュ
+        # Refresh the index
         self.es.indices.refresh(index="products")
 ```
 
-### 4.2 フレームワーク拡張（継承の適切な使用例）
+### 4.2 Framework Extension (Appropriate Use of Inheritance)
 
 ```typescript
-// フレームワークが提供する基底クラスの拡張
-// → これは継承が適切な場面
+// Extending base classes provided by a framework
+// -> This is a case where inheritance is appropriate
 
-// React の クラスコンポーネント（歴史的な例）
+// React class components (historical example)
 abstract class Component<P, S> {
   constructor(public props: P) {}
   abstract render(): VNode;
 
   setState(newState: Partial<S>): void {
-    // フレームワーク内部の処理
+    // Framework-internal processing
   }
 
   componentDidMount(): void {}
@@ -1172,18 +1172,18 @@ abstract class Component<P, S> {
   }
 }
 
-// フレームワークの拡張ポイントとして継承
+// Inherit as a framework extension point
 class UserProfile extends Component<UserProps, UserState> {
   componentDidMount(): void {
     this.fetchUser(this.props.userId);
   }
 
   render(): VNode {
-    // UIの描画
+    // UI rendering
   }
 }
 
-// Express のミドルウェア基底クラス（仮想例）
+// Express middleware base class (hypothetical example)
 abstract class Middleware {
   abstract handle(req: Request, res: Response, next: NextFunction): void;
 
@@ -1196,10 +1196,10 @@ class AuthMiddleware extends Middleware {
   handle(req: Request, res: Response, next: NextFunction): void {
     const token = req.headers.authorization;
     if (!token) {
-      this.sendError(res, 401, "認証が必要です");
+      this.sendError(res, 401, "Authentication required");
       return;
     }
-    // トークン検証...
+    // Token validation...
     next();
   }
 }
@@ -1210,13 +1210,13 @@ class RateLimitMiddleware extends Middleware {
   handle(req: Request, res: Response, next: NextFunction): void {
     const ip = req.ip;
     const now = Date.now();
-    const windowMs = 60000; // 1分
+    const windowMs = 60000; // 1 minute
 
     const reqs = this.requests.get(ip) ?? [];
     const recent = reqs.filter(t => now - t < windowMs);
 
     if (recent.length >= 100) {
-      this.sendError(res, 429, "リクエスト制限を超えました");
+      this.sendError(res, 429, "Rate limit exceeded");
       return;
     }
 
@@ -1229,86 +1229,86 @@ class RateLimitMiddleware extends Middleware {
 
 ---
 
-## 5. コンポジション vs 継承の判断フローチャート
+## 5. Decision Flowchart: Composition vs Inheritance
 
 ```
-判断フローチャート:
+Decision flowchart:
 
-  Q1: 「B は A の一種か？」（is-a 関係か？）
-  │
-  ├── No → コンポジション
-  │
-  └── Yes
-      │
-      Q2: 「B は A の全メソッドを正しく実装できるか？」
-      │
-      ├── No → コンポジション（+ ISPでインターフェース分離）
-      │
-      └── Yes
-          │
-          Q3: 「A の実装詳細に B が依存する必要があるか？」
-          │
-          ├── Yes → 継承（ただし protected の使用を最小限に）
-          │
-          └── No
-              │
-              Q4: 「B の振る舞いは実行時に変更する必要があるか？」
-              │
-              ├── Yes → コンポジション（Strategy パターン）
-              │
-              └── No
-                  │
-                  Q5: 「型階層は安定しているか？」
-                  │
-                  ├── Yes → 継承で OK
-                  │
-                  └── No → コンポジション（将来の変更に備える）
+  Q1: "Is B a kind of A?" (is-a relationship?)
+  |
+  |-- No -> Composition
+  |
+  +-- Yes
+      |
+      Q2: "Can B correctly implement all methods of A?"
+      |
+      |-- No -> Composition (+ separate interfaces via ISP)
+      |
+      +-- Yes
+          |
+          Q3: "Does B need to depend on A's implementation details?"
+          |
+          |-- Yes -> Inheritance (but minimize use of protected)
+          |
+          +-- No
+              |
+              Q4: "Does B's behavior need to change at runtime?"
+              |
+              |-- Yes -> Composition (Strategy pattern)
+              |
+              +-- No
+                  |
+                  Q5: "Is the type hierarchy stable?"
+                  |
+                  |-- Yes -> Inheritance is OK
+                  |
+                  +-- No -> Composition (prepare for future changes)
 
-具体的な判断例:
+Concrete decision examples:
 
-  ArrayList extends AbstractList → ✅ 継承（is-a + 安定した型階層）
-  Stack extends Vector → ❌ 継承（Stack is-a Vector ではない）
-  CountingSet extends HashSet → ❌ 継承（脆い基底クラス問題）
-  Button extends Component → ✅ 継承（フレームワーク拡張）
-  Car has-a Engine → ✅ コンポジション（has-a 関係）
-  Logger has-a Formatter → ✅ コンポジション（実行時変更）
+  ArrayList extends AbstractList -> OK inheritance (is-a + stable type hierarchy)
+  Stack extends Vector -> BAD inheritance (Stack is not a Vector)
+  CountingSet extends HashSet -> BAD inheritance (fragile base class problem)
+  Button extends Component -> OK inheritance (framework extension)
+  Car has-a Engine -> OK composition (has-a relationship)
+  Logger has-a Formatter -> OK composition (runtime changes)
 ```
 
-### 5.1 実務でよくあるケースの判断
+### 5.1 Common Cases in Practice
 
 ```typescript
-// ケース1: ログ出力のカスタマイズ
-// ❌ 継承
+// Case 1: Log output customization
+// BAD inheritance
 class FileLogger extends ConsoleLogger { ... }
 class JsonLogger extends FileLogger { ... }
-// → ロガーは is-a 関係ではなく、出力先の違い
+// -> Loggers are not in an is-a relationship; they differ in output destination
 
-// ✅ コンポジション
+// GOOD composition
 class Logger {
   constructor(
-    private transport: LogTransport,  // 出力先
-    private formatter: LogFormatter,  // フォーマット
-    private filter: LogFilter,        // フィルタ
+    private transport: LogTransport,  // Output destination
+    private formatter: LogFormatter,  // Format
+    private filter: LogFilter,        // Filter
   ) {}
 }
 
-// ケース2: HTTPクライアントの認証
-// ❌ 継承
+// Case 2: HTTP client authentication
+// BAD inheritance
 class AuthenticatedHttpClient extends HttpClient { ... }
 class OAuthHttpClient extends AuthenticatedHttpClient { ... }
 
-// ✅ コンポジション
+// GOOD composition
 class HttpClient {
   constructor(private auth: AuthStrategy) {}
-  // BasicAuth, BearerToken, OAuth, NoAuth を差し替え可能
+  // BasicAuth, BearerToken, OAuth, NoAuth are interchangeable
 }
 
-// ケース3: バリデーションロジック
-// ❌ 継承
+// Case 3: Validation logic
+// BAD inheritance
 class EmailValidator extends StringValidator { ... }
 class StrongPasswordValidator extends PasswordValidator { ... }
 
-// ✅ コンポジション
+// GOOD composition
 class CompositeValidator implements Validator {
   constructor(private validators: Validator[]) {}
   validate(value: string): ValidationResult {
@@ -1321,7 +1321,7 @@ class CompositeValidator implements Validator {
   }
 }
 
-// バリデーションルールを組み合わせ
+// Combine validation rules
 const passwordValidator = new CompositeValidator([
   new MinLengthValidator(8),
   new MaxLengthValidator(100),
@@ -1331,12 +1331,12 @@ const passwordValidator = new CompositeValidator([
   new ContainsSpecialCharValidator(),
 ]);
 
-// ケース4: データリポジトリ
-// ❌ 継承
+// Case 4: Data repository
+// BAD inheritance
 class CachedUserRepository extends PostgresUserRepository { ... }
-// → キャッシュは永続化戦略ではない
+// -> Caching is not a persistence strategy
 
-// ✅ コンポジション（Decorator パターン）
+// GOOD composition (Decorator pattern)
 class CachedRepository<T> implements Repository<T> {
   constructor(
     private inner: Repository<T>,
@@ -1360,36 +1360,36 @@ const userRepo = new CachedRepository(
 
 ---
 
-## 6. 言語ごとのコンポジション支援機能
+## 6. Composition Support Features per Language
 
 ```
-各言語のコンポジション支援:
+Composition support in each language:
 
   Rust:
-    → トレイト + impl → 明示的なコンポジション
-    → 継承なし（設計上の意思決定）
-    → derive マクロ → 自動実装
+    -> Traits + impl -> explicit composition
+    -> No inheritance (design decision)
+    -> derive macros -> automatic implementations
 
   Go:
-    → 埋め込み（embedding）→ 委譲の糖衣構文
-    → インターフェースは暗黙的
-    → 継承なし（設計上の意思決定）
+    -> Embedding -> syntactic sugar for delegation
+    -> Interfaces are implicit
+    -> No inheritance (design decision)
 
   Kotlin:
-    → by キーワード → 委譲の糖衣構文
-    → data class → 値オブジェクトの自動生成
+    -> by keyword -> syntactic sugar for delegation
+    -> data class -> automatic generation of value objects
 
   Swift:
-    → protocol extension → プロトコルにデフォルト実装
-    → protocol composition → プロトコルの合成
+    -> Protocol extensions -> default implementations on protocols
+    -> Protocol composition -> composing protocols
 
   TypeScript:
-    → ミックスイン → クラス式による合成
-    → インターセクション型 → 型レベルの合成
+    -> Mixins -> composition via class expressions
+    -> Intersection types -> composition at the type level
 ```
 
 ```go
-// Go: 埋め込み（Embedding）によるコンポジション
+// Go: composition via embedding
 type Logger struct{}
 
 func (l *Logger) Log(msg string) {
@@ -1402,28 +1402,28 @@ func (m *Metrics) RecordLatency(duration time.Duration) {
     fmt.Printf("[METRICS] latency: %v\n", duration)
 }
 
-// 埋め込みによるコンポジション（委譲の糖衣構文）
+// Composition via embedding (syntactic sugar for delegation)
 type Service struct {
-    Logger   // 埋め込み: Service.Log() が使える
-    Metrics  // 埋め込み: Service.RecordLatency() が使える
+    Logger   // Embedded: Service.Log() becomes available
+    Metrics  // Embedded: Service.RecordLatency() becomes available
     db *sql.DB
 }
 
 func (s *Service) GetUser(id string) (*User, error) {
     start := time.Now()
-    s.Log(fmt.Sprintf("Getting user: %s", id))  // Logger のメソッド
+    s.Log(fmt.Sprintf("Getting user: %s", id))  // Method from Logger
 
     var user User
     err := s.db.QueryRow("SELECT * FROM users WHERE id = $1", id).
         Scan(&user.ID, &user.Name)
 
-    s.RecordLatency(time.Since(start))  // Metrics のメソッド
+    s.RecordLatency(time.Since(start))  // Method from Metrics
     return &user, err
 }
 ```
 
 ```kotlin
-// Kotlin: by キーワードによる委譲
+// Kotlin: delegation with the 'by' keyword
 interface Printer {
     fun print(message: String)
 }
@@ -1434,18 +1434,18 @@ class ConsolePrinter : Printer {
     }
 }
 
-// by キーワードで委譲: printer に処理を委譲
+// Delegate with 'by': delegates processing to printer
 class TimestampPrinter(private val printer: Printer) : Printer by printer {
-    // print() は自動的に printer に委譲される
+    // print() is automatically delegated to printer
 
-    // 必要に応じてオーバーライド
+    // Override as needed
     override fun print(message: String) {
         val timestamp = java.time.LocalDateTime.now()
         printer.print("[$timestamp] $message")
     }
 }
 
-// 複数のインターフェースの委譲
+// Delegating multiple interfaces
 interface Logger {
     fun log(message: String)
 }
@@ -1459,8 +1459,8 @@ class MyService(
     logger: Logger,
     cache: Cache,
 ) : Logger by logger, Cache by cache {
-    // Logger と Cache の全メソッドが自動委譲
-    // このクラスでは追加のビジネスロジックのみ定義
+    // All methods of Logger and Cache are automatically delegated
+    // This class only defines additional business logic
 
     fun processRequest(key: String): String {
         log("Processing request for key: $key")
@@ -1477,7 +1477,7 @@ class MyService(
 ```
 
 ```rust
-// Rust: トレイトによるコンポジション（継承なし）
+// Rust: composition via traits (no inheritance)
 trait Drawable {
     fn draw(&self);
 }
@@ -1490,7 +1490,7 @@ trait Resizable {
     fn resize(&mut self, width: u32, height: u32);
 }
 
-// 複数のトレイトを実装（コンポジション的）
+// Implement multiple traits (composition-like)
 struct Button {
     label: String,
     x: u32,
@@ -1520,14 +1520,14 @@ impl Resizable for Button {
     }
 }
 
-// トレイトオブジェクトで動的ディスパッチ
+// Dynamic dispatch via trait objects
 fn draw_all(items: &[&dyn Drawable]) {
     for item in items {
         item.draw();
     }
 }
 
-// トレイト境界でジェネリクスの制約
+// Constrain generics via trait bounds
 fn interactive<T: Drawable + Clickable + Resizable>(widget: &mut T) {
     widget.draw();
     widget.on_click();
@@ -1539,45 +1539,45 @@ fn interactive<T: Drawable + Clickable + Resizable>(widget: &mut T) {
 
 ---
 
-## 実践演習
+## Practical Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that meets the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate input data
+- Implement proper error handling
+- Also write test code
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: basic implementation template
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Exercise in basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main logic for data processing"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Retrieve the processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Test
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1586,26 +1586,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "An exception should have been raised"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation to add the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: advanced patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Exercise in advanced patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1613,7 +1613,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1624,14 +1624,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Look up by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Remove by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1639,7 +1639,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1647,44 +1647,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Test
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # Size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1693,7 +1693,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1708,81 +1708,81 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient: {slow_time:.4f}s")
+    print(f"Efficient:   {fast_time:.6f}s")
+    print(f"Speedup:     {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key points:**
+- Be mindful of the algorithm's computational complexity
+- Choose the appropriate data structure
+- Measure the effect with benchmarks
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Beyond theory, actually writing code and verifying its behavior deepens understanding.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What mistakes do beginners commonly make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently applied in day-to-day development work. It becomes especially important during code reviews and architectural design.
 
 ---
 
-## まとめ
+## Summary
 
-| 観点 | 継承 | コンポジション |
-|------|------|---------------|
-| 関係 | is-a | has-a |
-| 結合度 | 強い | 弱い |
-| 柔軟性 | 低い | 高い |
-| 実行時変更 | 不可 | 可能 |
-| 推奨度 | 限定的 | 優先 |
-| テスト容易性 | 低い | 高い |
-| 再利用性 | 型階層に依存 | 独立して再利用可能 |
+| Aspect | Inheritance | Composition |
+|--------|-------------|-------------|
+| Relationship | is-a | has-a |
+| Coupling | Tight | Loose |
+| Flexibility | Low | High |
+| Runtime change | Not possible | Possible |
+| Recommendation | Limited | Preferred |
+| Testability | Low | High |
+| Reusability | Depends on type hierarchy | Independently reusable |
 
 ```
-実践的な指針:
+Practical guidelines:
 
-  1. デフォルトはコンポジション
-     → 迷ったらコンポジションを選ぶ
-     → 後から継承に変更するより、後からコンポジションに変更する方が困難
+  1. Default to composition
+     -> When in doubt, choose composition
+     -> Changing later from composition to inheritance is easier than the reverse
 
-  2. 継承を使う条件:
-     → 明確な is-a 関係がある
-     → 親クラスの全メソッドがサブクラスで意味を持つ（LSP準拠）
-     → 型階層が安定している
-     → フレームワークが要求している
+  2. Conditions for using inheritance:
+     -> There is a clear is-a relationship
+     -> All methods of the parent class are meaningful in the subclass (LSP compliant)
+     -> The type hierarchy is stable
+     -> The framework requires it
 
-  3. 「コード再利用のための継承」は避ける
-     → 共通コードが欲しいだけならユーティリティクラスやヘルパー関数
-     → 振る舞いの再利用ならトレイト/ミックスイン
+  3. Avoid "inheritance for code reuse"
+     -> If you only want shared code, use utility classes or helper functions
+     -> For behavior reuse, use traits/mixins
 
-  4. 継承の深さは2〜3レベルまで
-     → 深い継承ツリーは理解が困難
-     → 「A → B → C → D → E」は危険信号
+  4. Keep inheritance depth to 2-3 levels
+     -> Deep inheritance trees are hard to understand
+     -> "A -> B -> C -> D -> E" is a red flag
 
-  5. 継承よりインターフェース
-     → 型の互換性が必要ならインターフェースで十分
-     → 実装の共有はコンポジション + 委譲で
+  5. Interfaces over inheritance
+     -> Interfaces are sufficient when only type compatibility is needed
+     -> Share implementation via composition + delegation
 ```
 
 ---
 
-## 次に読むべきガイド
+## Further Reading
 
 ---
 
-## 参考文献
+## References
 1. Gamma, E. et al. "Design Patterns." Addison-Wesley, 1994. (Favor composition over inheritance)
 2. Bloch, J. "Effective Java." Item 18: Favor composition over inheritance. 3rd Edition, 2018.
 3. Martin, R. "Clean Architecture." Prentice Hall, 2017.
