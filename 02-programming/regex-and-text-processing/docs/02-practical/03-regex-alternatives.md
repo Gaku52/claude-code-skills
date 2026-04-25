@@ -1,210 +1,210 @@
-# 正規表現の代替
+# Alternatives to Regular Expressions
 
-> パーサーコンビネータ、PEG、構造化テキスト処理など、正規表現では困難なテキスト解析タスクの代替手法を習得する
+> Master alternative approaches to text analysis tasks where regex falls short, including parser combinators, PEG, and structured text processing
 
-## この章で学ぶこと
+## What You Will Learn
 
-1. **正規表現の限界** -- 再帰構造、ネスト、文脈依存文法が扱えない理由
-2. **パーサーコンビネータ** -- 小さなパーサーを組み合わせて複雑な文法を解析する手法
-3. **PEG と実用ツール** -- Parsing Expression Grammar の特性と tree-sitter 等のツール
-4. **ANTLR と yacc/bison** -- パーサージェネレータによる本格的な言語処理
-5. **構造化データの専用パーサー** -- JSON, HTML, XML, YAML 等の実務的な処理手法
-6. **tree-sitter の活用** -- インクリメンタルパーサーの実践的な利用法
+1. **Limits of regex** -- Why recursive structures, nesting, and context-sensitive grammars cannot be handled
+2. **Parser combinators** -- Composing small parsers to analyze complex grammars
+3. **PEG and practical tools** -- Properties of Parsing Expression Grammar and tools like tree-sitter
+4. **ANTLR and yacc/bison** -- Full-fledged language processing with parser generators
+5. **Dedicated parsers for structured data** -- Practical processing techniques for JSON, HTML, XML, YAML, etc.
+6. **Leveraging tree-sitter** -- Practical use of incremental parsers
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Reading the following beforehand will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [テキスト処理 -- sed/awk/grep、ログ解析、CSV](./02-text-processing.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Familiarity with the content of [Text Processing -- sed/awk/grep, Log Analysis, CSV](./02-text-processing.md)
 
 ---
 
-## 1. 正規表現の限界
+## 1. Limits of Regular Expressions
 
 ```
-チョムスキー階層とパーサーの対応
+Chomsky Hierarchy and Corresponding Parsers
 =================================
 
-Type 0: 句構造文法    <-- チューリングマシン
-Type 1: 文脈依存文法  <-- 線形拘束オートマトン
-Type 2: 文脈自由文法  <-- プッシュダウンオートマトン ★
-Type 3: 正規文法      <-- 有限オートマトン (正規表現)
+Type 0: Phrase structure grammar    <-- Turing machine
+Type 1: Context-sensitive grammar  <-- Linear bounded automaton
+Type 2: Context-free grammar       <-- Pushdown automaton ★
+Type 3: Regular grammar            <-- Finite automaton (regex)
 
-正規表現が扱えないもの:
-  - 対応する括弧:  ((()))     ★ 文脈自由文法
-  - HTML のネスト: <div><div></div></div>
-  - プログラミング言語の構文
-  - 再帰的な構造全般
+What regex cannot handle:
+  - Matching parentheses:  ((()))     ★ Context-free grammar
+  - Nested HTML: <div><div></div></div>
+  - Programming language syntax
+  - Recursive structures in general
 
-正規表現で「やってはいけない」こと:
-  - HTML/XML のパース
-  - JSON のパース
-  - プログラミング言語の解析
-  - ネストした括弧のマッチング
+Things you should NOT do with regex:
+  - Parsing HTML/XML
+  - Parsing JSON
+  - Parsing programming languages
+  - Matching nested parentheses
 ```
 
-### 1.1 正規表現の限界を示す具体例
+### 1.1 Concrete Examples Showing the Limits of Regex
 
 ```python
 import re
 
-# [NG] HTML を正規表現でパース
+# [NG] Parsing HTML with regex
 html = '<div class="outer"><div class="inner">text</div></div>'
-# この正規表現はネストに対応できない
+# This regex cannot handle nesting
 pattern = r'<div[^>]*>(.*?)</div>'
 matches = re.findall(pattern, html)
-# 期待: inner div の中身 → 実際: 最短マッチで不正確な結果
+# Expected: contents of inner div -> Actual: incorrect result due to shortest match
 
-# [OK] 専用パーサーを使う
+# [OK] Use a dedicated parser
 from html.parser import HTMLParser
-# または BeautifulSoup, lxml 等
+# Or BeautifulSoup, lxml, etc.
 
-# [NG] JSON を正規表現でパース
+# [NG] Parsing JSON with regex
 json_str = '{"key": {"nested": [1, 2, 3]}}'
-# 再帰構造は正規表現では不可能
+# Recursive structures are impossible with regex
 
-# [OK] json モジュールを使う
+# [OK] Use the json module
 import json
 data = json.loads(json_str)
 ```
 
-### 1.2 正規表現が失敗する典型的なケース
+### 1.2 Typical Cases Where Regex Fails
 
 ```python
 import re
 
-# ケース1: ネストした括弧のマッチング
-# 正規表現では対応する括弧のペアを認識できない
+# Case 1: Matching nested parentheses
+# Regex cannot recognize matching parenthesis pairs
 text = "f(g(x, y), h(z))"
-# 「f の引数全体」を正しく抽出することは不可能
-# 以下は誤った結果になる
+# Correctly extracting "the entire arguments of f" is impossible
+# The following yields incorrect results
 match = re.search(r'f\((.+)\)', text)
-# match.group(1) = "g(x, y), h(z)" -- たまたま正しいが以下は失敗
+# match.group(1) = "g(x, y), h(z)" -- happens to be correct, but the next case fails
 text2 = "f(g(x), y) + f(a)"
 match2 = re.search(r'f\((.+)\)', text2)
-# match2.group(1) = "g(x), y) + f(a" -- 壊れる（貪欲マッチ）
+# match2.group(1) = "g(x), y) + f(a" -- broken (greedy match)
 
-# ケース2: 文字列リテラル内のエスケープ処理
+# Case 2: Handling escapes inside string literals
 code = 'print("He said \\"hello\\"", end="")'
-# 正規表現ではエスケープされた引用符を含む文字列の正確な抽出が困難
-# 以下は不正確
+# Regex makes it difficult to accurately extract strings containing escaped quotes
+# The following is inaccurate
 strings = re.findall(r'"([^"]*)"', code)
-# エスケープされた \" を正しく処理できない
+# Cannot correctly handle escaped \"
 
-# ケース3: コメント内のコード風テキスト
+# Case 3: Code-like text inside comments
 code2 = """
 # print("this is a comment")
 print("this is real code")
 """
-# コメント行か実行行かを正規表現だけで判断するのは
-# 言語構文の理解が必要で困難
+# Determining whether a line is a comment or executable code with regex alone
+# is difficult because it requires understanding the language syntax
 
-# ケース4: ヒアドキュメントやテンプレートリテラル
+# Case 4: Heredocs and template literals
 ruby_code = '''
 text = <<~HEREDOC
   This contains "quotes" and #{interpolation}
   And even regex: /pattern/
 HEREDOC
 '''
-# ヒアドキュメントの開始と終了を正しく追跡するには
-# ステートマシンが必要
+# Correctly tracking the start and end of a heredoc
+# requires a state machine
 ```
 
-### 1.3 ポンピングレンマ -- 正規言語の限界の数学的証明
+### 1.3 The Pumping Lemma -- Mathematical Proof of the Limits of Regular Languages
 
 ```
-ポンピングレンマ（Pumping Lemma）:
+Pumping Lemma:
 =================================
 
-定理: 言語 L が正規言語であれば、ある定数 p が存在し、
-     |w| >= p なる任意の文字列 w ∈ L に対して、
-     w = xyz と分解でき、以下が成立する:
+Theorem: If a language L is regular, there exists a constant p such that
+     for any string w in L with |w| >= p,
+     w can be decomposed as w = xyz, satisfying:
        1. |y| > 0
        2. |xy| <= p
-       3. 任意の i >= 0 で xy^iz ∈ L
+       3. For any i >= 0, xy^iz is in L
 
-反例: L = { a^n b^n | n >= 0 } は正規言語でない
-     「a が n 個、b が n 個」を正規表現では表現できない
+Counterexample: L = { a^n b^n | n >= 0 } is not a regular language
+     "n a's followed by n b's" cannot be expressed by regex
 
-実用上の意味:
-  - 「対応する括弧」は正規言語ではない
-  - 「対応するタグ」は正規言語ではない
-  - これらを正規表現で完全に処理しようとするのは理論的に不可能
+Practical implications:
+  - "Matching parentheses" is not a regular language
+  - "Matching tags" is not a regular language
+  - Trying to fully process these with regex is theoretically impossible
 
-ただし注意:
-  - Perl/PCRE の「拡張」正規表現は理論的な正規言語を超える
-  - (?R) 等の再帰パターンで一部の文脈自由言語を扱える
-  - しかし可読性・保守性の観点からパーサーを使うべき
+However, note:
+  - The "extended" regex of Perl/PCRE goes beyond theoretical regular languages
+  - Recursive patterns like (?R) can handle some context-free languages
+  - But from a readability/maintainability perspective, you should use a parser
 ```
 
-### 1.4 PCRE の再帰パターン -- 正規表現の拡張
+### 1.4 PCRE Recursive Patterns -- Extensions of Regex
 
 ```python
-import regex  # Python の regex モジュール（re の拡張）
+import regex  # Python's regex module (an extension of re)
 
-# PCRE の再帰パターンで対応する括弧をマッチ
-# (?R) は全体パターンの再帰呼び出し
+# Match matching parentheses with PCRE recursive patterns
+# (?R) is a recursive call to the entire pattern
 pattern = r'\((?:[^()]*|(?R))*\)'
 
 text = "f(g(x, y), h(z))"
 matches = regex.findall(pattern, text)
 # matches = ['(g(x, y), h(z))', '(x, y)', '(z)']
 
-# 名前付きグループの再帰
-# (?P<name>...) と (?&name) を使用
+# Recursion with named groups
+# Use (?P<name>...) and (?&name)
 pattern2 = r'(?P<brackets>\{(?:[^{}]*|(?&brackets))*\})'
 json_like = '{"a": {"b": {"c": 1}}}'
 match = regex.search(pattern2, json_like)
-# マッチ: {"a": {"b": {"c": 1}}}
+# Match: {"a": {"b": {"c": 1}}}
 
-# 注意: これは「可能」であって「推奨」ではない
-# 可読性・保守性の観点から、複雑な再帰パターンには
-# パーサーコンビネータや PEG を使うべき
+# Note: This is "possible" but not "recommended"
+# From a readability/maintainability standpoint, complex recursive patterns
+# should use parser combinators or PEG
 ```
 
 ---
 
-## 2. パーサーコンビネータ
+## 2. Parser Combinators
 
 ```
-パーサーコンビネータの考え方
+The Concept of Parser Combinators
 ==============================
 
-小さなパーサーを組み合わせて大きなパーサーを構築
+Build large parsers by combining small parsers
 
-基本パーサー:
-  digit    : "0"-"9" を1文字パース
-  letter   : "a"-"z" を1文字パース
-  string   : 固定文字列をパース
+Basic parsers:
+  digit    : Parses a single character "0"-"9"
+  letter   : Parses a single character "a"-"z"
+  string   : Parses a fixed string
 
-コンビネータ:
-  seq(a, b)    : a の後に b   (逐次)
-  alt(a, b)    : a または b   (選択)
-  many(a)      : a の0回以上の繰り返し
-  map(a, f)    : a の結果に f を適用
+Combinators:
+  seq(a, b)    : a followed by b   (sequencing)
+  alt(a, b)    : a or b   (choice)
+  many(a)      : zero or more repetitions of a
+  map(a, f)    : apply f to the result of a
 
-例: 整数パーサー
+Example: integer parser
   integer = map(many1(digit), digits => parseInt(digits.join('')))
 
-例: 四則演算パーサー
+Example: arithmetic expression parser
   expr   = alt(addExpr, term)
   term   = alt(mulExpr, factor)
-  factor = alt(number, parens(expr))  ← 再帰!
+  factor = alt(number, parens(expr))  <- recursion!
 ```
 
-### 2.1 TypeScript でのパーサーコンビネータ
+### 2.1 Parser Combinators in TypeScript
 
 ```typescript
-// パーサーの型定義
+// Parser type definition
 type Parser<T> = (input: string, pos: number) => ParseResult<T>;
 type ParseResult<T> =
   | { success: true; value: T; pos: number }
   | { success: false; expected: string; pos: number };
 
-// 基本パーサー
+// Basic parsers
 function char(c: string): Parser<string> {
   return (input, pos) =>
     input[pos] === c
@@ -222,7 +222,7 @@ function regex(pattern: RegExp): Parser<string> {
   };
 }
 
-// コンビネータ
+// Combinators
 function seq<A, B>(pa: Parser<A>, pb: Parser<B>): Parser<[A, B]> {
   return (input, pos) => {
     const ra = pa(input, pos);
@@ -265,7 +265,7 @@ function map<A, B>(parser: Parser<A>, fn: (a: A) => B): Parser<B> {
   };
 }
 
-// 使用例: 四則演算パーサー
+// Usage example: arithmetic expression parser
 const digit = regex(/[0-9]+/);
 const number = map(digit, s => parseInt(s, 10));
 const ws = regex(/\s*/);
@@ -277,22 +277,22 @@ function token<T>(p: Parser<T>): Parser<T> {
   };
 }
 
-// "123 + 456" をパース
+// Parse "123 + 456"
 const addExpr = (input: string, pos: number): ParseResult<number> => {
   const left = token(number)(input, pos);
   if (!left.success) return left;
   const op = token(char('+'))(input, left.pos);
-  if (!op.success) return left;  // 加算なし → 数値のみ
-  const right = addExpr(input, op.pos);  // 再帰
+  if (!op.success) return left;  // No addition -> just a number
+  const right = addExpr(input, op.pos);  // Recursion
   if (!right.success) return right;
   return { success: true, value: left.value + right.value, pos: right.pos };
 };
 ```
 
-### 2.2 TypeScript パーサーコンビネータの拡張: エラーレポート
+### 2.2 Extending the TypeScript Parser Combinator: Error Reporting
 
 ```typescript
-// より実用的なパーサーコンビネータ: エラー位置と期待値のレポート
+// More practical parser combinators: report error position and expected values
 
 interface ParseError {
   pos: number;
@@ -307,13 +307,13 @@ type BetterParseResult<T> =
   | { success: true; value: T; pos: number }
   | { success: false; error: ParseError };
 
-// エラー位置から行と列を計算
+// Compute line and column from an error position
 function getLineAndColumn(input: string, pos: number): { line: number; column: number } {
   const lines = input.slice(0, pos).split('\n');
   return { line: lines.length, column: lines[lines.length - 1].length + 1 };
 }
 
-// エラーメッセージの生成
+// Generate an error message
 function formatError(input: string, error: ParseError): string {
   const lines = input.split('\n');
   const line = lines[error.line - 1] || '';
@@ -327,8 +327,8 @@ function formatError(input: string, error: ParseError): string {
   ].join('\n');
 }
 
-// 実用例: 設定ファイルパーサー
-// key = value 形式の設定ファイルをパースする
+// Practical example: configuration file parser
+// Parse a configuration file in key = value format
 function configParser(input: string): Map<string, string> {
   const result = new Map<string, string>();
   const lines = input.split('\n');
@@ -361,11 +361,11 @@ function configParser(input: string): Map<string, string> {
 }
 ```
 
-### 2.3 Haskell のパーサーコンビネータ (Parsec / Megaparsec)
+### 2.3 Haskell Parser Combinators (Parsec / Megaparsec)
 
 ```haskell
--- Megaparsec は Haskell の最も成熟したパーサーコンビネータライブラリ
--- 正規表現では不可能な文脈自由文法の解析を型安全に実現
+-- Megaparsec is the most mature parser combinator library in Haskell
+-- It enables type-safe parsing of context-free grammars that are impossible with regex
 
 import Text.Megaparsec
 import Text.Megaparsec.Char
@@ -374,29 +374,29 @@ import Data.Void (Void)
 
 type Parser = Parsec Void String
 
--- 空白とコメントのスキップ
+-- Skip whitespace and comments
 sc :: Parser ()
 sc = L.space space1 (L.skipLineComment "//") (L.skipBlockComment "/*" "*/")
 
--- レキサーヘルパー
+-- Lexer helpers
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc
 
 symbol :: String -> Parser String
 symbol = L.symbol sc
 
--- 整数リテラル
+-- Integer literal
 integer :: Parser Integer
 integer = lexeme L.decimal
 
--- 識別子
+-- Identifier
 identifier :: Parser String
 identifier = lexeme $ do
   first <- letterChar
   rest  <- many (alphaNumChar <|> char '_')
   return (first : rest)
 
--- JSON パーサーの例
+-- JSON parser example
 data JsonValue
   = JsonNull
   | JsonBool Bool
@@ -426,20 +426,20 @@ jsonValue = sc *> choice
       val <- jsonValue
       return (key, val)
 
--- 使用例
+-- Usage example
 -- parse jsonValue "" "{\"name\": \"Alice\", \"scores\": [95, 87, 92]}"
 -- Right (JsonObject [("name", JsonString "Alice"), ("scores", JsonArray [...])])
 ```
 
-### 2.4 Python のパーサーコンビネータ (lark)
+### 2.4 Python Parser Combinator (lark)
 
 ```python
 from lark import Lark, Transformer, v_args
 
-# lark は Python で最も使いやすいパーサーライブラリの一つ
-# EBNF 風の文法定義からパーサーを自動生成する
+# lark is one of the most user-friendly parser libraries in Python
+# It auto-generates a parser from an EBNF-style grammar definition
 
-# 四則演算の文法定義
+# Grammar definition for arithmetic expressions
 calc_grammar = """
     ?start: expr
 
@@ -460,7 +460,7 @@ calc_grammar = """
     %ignore WS
 """
 
-# AST を計算結果に変換するトランスフォーマー
+# Transformer that converts the AST into the computed result
 @v_args(inline=True)
 class CalcTransformer(Transformer):
     from operator import add, sub, mul, truediv as div
@@ -471,14 +471,14 @@ class CalcTransformer(Transformer):
     def neg(self, n):
         return -n
 
-# パーサーの生成と使用
+# Generate and use the parser
 calc_parser = Lark(calc_grammar, parser='lalr', transformer=CalcTransformer())
 
-# 計算の実行
+# Run the calculation
 result = calc_parser.parse("(1 + 2) * 3 - 4 / 2")
 print(result)  # 7.0
 
-# より複雑な例: SQL の SELECT 文パーサー
+# More complex example: SQL SELECT statement parser
 sql_grammar = """
     start: select_stmt
 
@@ -518,13 +518,13 @@ print(tree.pretty())
 
 ---
 
-## 3. PEG（Parsing Expression Grammar）
+## 3. PEG (Parsing Expression Grammar)
 
-### 3.1 PEG.js / Peggy による文法定義
+### 3.1 Defining Grammars with PEG.js / Peggy
 
 ```javascript
-// grammar.pegjs (Peggy 形式)
-// JSON パーサーの PEG 文法
+// grammar.pegjs (Peggy format)
+// PEG grammar for a JSON parser
 
 Value
   = Object / Array / String / Number / Boolean / Null
@@ -559,54 +559,54 @@ _ = [ \t\n\r]*
 ```
 
 ```bash
-# Peggy でパーサーを生成
+# Generate a parser with Peggy
 npx peggy grammar.pegjs --output parser.js
 
-# 使用
+# Usage
 node -e "const p = require('./parser'); console.log(p.parse('{\"a\": 1}'))"
 ```
 
-### 3.2 PEG の特性と正規表現との違い
+### 3.2 Properties of PEG and Differences from Regex
 
 ```
-PEG vs 正規表現 vs CFG:
+PEG vs Regex vs CFG:
 ========================
 
-正規表現:
-  - 選択は「最長マッチ」か「最短マッチ」
-  - バックトラッキングによる指数的な実行時間のリスク
-  - 再帰が不可能（PCRE 拡張を除く）
+Regex:
+  - Choice is "longest match" or "shortest match"
+  - Risk of exponential execution time due to backtracking
+  - Recursion is impossible (except in PCRE extensions)
 
 PEG:
-  - 選択は「優先順位付き」（最初にマッチした選択肢を採用）
-  - 曖昧性がない（文法が一意のパースツリーを生成）
-  - 再帰が可能（文脈自由文法を扱える）
-  - packrat パーサーで線形時間を保証可能
+  - Choice is "prioritized" (the first matching alternative is chosen)
+  - No ambiguity (the grammar produces a unique parse tree)
+  - Recursion is possible (handles context-free grammars)
+  - Linear time can be guaranteed with packrat parsers
 
 CFG (Context-Free Grammar):
-  - 選択は「非決定的」（複数のパースツリーの可能性）
-  - 曖昧性を含む可能性がある
-  - LR, LL, Earley 等のアルゴリズムで解析
+  - Choice is "non-deterministic" (multiple parse trees possible)
+  - May contain ambiguity
+  - Parsed with algorithms like LR, LL, Earley
 
-PEG の選択演算子 "/" は「順序付き選択」:
+PEG's choice operator "/" is "ordered choice":
   rule = A / B
-  → まず A を試す
-  → A が成功 → A の結果を採用（B は試さない）
-  → A が失敗 → B を試す
+  -> Try A first
+  -> If A succeeds -> use A's result (don't try B)
+  -> If A fails -> try B
 
-これにより:
-  - 文法の曖昧性が排除される
-  - パーサーの動作が予測可能
-  - ただし「見落とし」のリスク（順序が重要）
+This results in:
+  - Eliminating grammar ambiguity
+  - Predictable parser behavior
+  - But there's risk of "oversights" (order matters)
 ```
 
-### 3.3 PEG の実践的な文法定義パターン
+### 3.3 Practical Grammar Definition Patterns in PEG
 
 ```javascript
-// Peggy での実践的な文法パターン集
+// Practical grammar pattern collection in Peggy
 
-// パターン1: 設定ファイルパーサー (INI 形式)
-// ファイル: ini_parser.pegjs
+// Pattern 1: Configuration file parser (INI format)
+// File: ini_parser.pegjs
 
 IniFile
   = sections:Section* { return Object.fromEntries(sections); }
@@ -640,8 +640,8 @@ Comment
 
 _ = [ \t]*
 
-// パターン2: Markdown のインラインフォーマットパーサー
-// ファイル: markdown_inline.pegjs
+// Pattern 2: Markdown inline format parser
+// File: markdown_inline.pegjs
 
 InlineContent
   = elements:InlineElement* { return elements; }
@@ -668,8 +668,8 @@ Link
 Text
   = chars:$[^*`\[]+ { return { type: "text", content: chars }; }
 
-// パターン3: URL パーサー
-// ファイル: url_parser.pegjs
+// Pattern 3: URL parser
+// File: url_parser.pegjs
 
 URL
   = scheme:Scheme "://" authority:Authority path:Path? query:Query? fragment:Fragment?
@@ -710,9 +710,9 @@ Fragment
 
 ---
 
-## 4. 実用的な代替ツール
+## 4. Practical Alternative Tools
 
-### 4.1 Python の pyparsing
+### 4.1 Python's pyparsing
 
 ```python
 from pyparsing import (
@@ -720,7 +720,7 @@ from pyparsing import (
     Forward, Optional, ZeroOrMore, Literal, quotedString
 )
 
-# SQL の SELECT 文パーサー（簡易版）
+# SQL SELECT statement parser (simplified)
 identifier = Word(alphas + "_", alphanums + "_")
 number = Word(nums)
 string_literal = quotedString
@@ -739,14 +739,14 @@ select_stmt = (
     )
 )
 
-# パース実行
+# Run the parse
 result = select_stmt.parseString("SELECT name, age FROM users WHERE status = 'active'")
 print(result.columns.asList())  # ['name', 'age']
 print(result.table)             # 'users'
 print(result.where_col)         # 'status'
 ```
 
-### 4.2 Rust の nom パーサーコンビネータ
+### 4.2 Rust's nom Parser Combinator
 
 ```rust
 use nom::{
@@ -759,12 +759,12 @@ use nom::{
     branch::alt,
 };
 
-// 整数パーサー
+// Integer parser
 fn integer(input: &str) -> IResult<&str, i64> {
     map_res(digit1, |s: &str| s.parse::<i64>())(input)
 }
 
-// カンマ区切りの整数リスト
+// Comma-separated list of integers
 fn integer_list(input: &str) -> IResult<&str, Vec<i64>> {
     separated_list1(
         delimited(space0, char(','), space0),
@@ -772,7 +772,7 @@ fn integer_list(input: &str) -> IResult<&str, Vec<i64>> {
     )(input)
 }
 
-// "[1, 2, 3]" のパース
+// Parse "[1, 2, 3]"
 fn bracketed_list(input: &str) -> IResult<&str, Vec<i64>> {
     delimited(
         char('['),
@@ -788,7 +788,7 @@ fn main() {
 }
 ```
 
-### 4.3 Rust の nom -- 実践的なログパーサー
+### 4.3 Rust's nom -- A Practical Log Parser
 
 ```rust
 use nom::{
@@ -801,7 +801,7 @@ use nom::{
 };
 use std::net::Ipv4Addr;
 
-// Apache ログの1行をパースする構造体
+// Struct for parsing one line of an Apache log
 #[derive(Debug)]
 struct AccessLogEntry {
     ip: Ipv4Addr,
@@ -813,7 +813,7 @@ struct AccessLogEntry {
     size: u64,
 }
 
-// IP アドレスパーサー
+// IP address parser
 fn ip_address(input: &str) -> IResult<&str, Ipv4Addr> {
     map_res(
         take_while1(|c: char| c.is_ascii_digit() || c == '.'),
@@ -821,7 +821,7 @@ fn ip_address(input: &str) -> IResult<&str, Ipv4Addr> {
     )(input)
 }
 
-// タイムスタンプパーサー: [10/Oct/2000:13:55:36 -0700]
+// Timestamp parser: [10/Oct/2000:13:55:36 -0700]
 fn timestamp(input: &str) -> IResult<&str, String> {
     map(
         delimited(char('['), take_until("]"), char(']')),
@@ -829,7 +829,7 @@ fn timestamp(input: &str) -> IResult<&str, String> {
     )(input)
 }
 
-// リクエスト行パーサー: "GET /path HTTP/1.1"
+// Request line parser: "GET /path HTTP/1.1"
 fn request_line(input: &str) -> IResult<&str, (String, String, String)> {
     let (input, _) = char('"')(input)?;
     let (input, method) = take_while1(|c: char| c.is_ascii_alphabetic())(input)?;
@@ -841,12 +841,12 @@ fn request_line(input: &str) -> IResult<&str, (String, String, String)> {
     Ok((input, (method.to_string(), path.to_string(), protocol.to_string())))
 }
 
-// ステータスコードパーサー
+// Status code parser
 fn status_code(input: &str) -> IResult<&str, u16> {
     map_res(digit1, |s: &str| s.parse::<u16>())(input)
 }
 
-// ログ行全体のパーサー
+// Parser for a full log line
 fn log_entry(input: &str) -> IResult<&str, AccessLogEntry> {
     let (input, ip) = ip_address(input)?;
     let (input, _) = tag(" - - ")(input)?;
@@ -863,7 +863,7 @@ fn log_entry(input: &str) -> IResult<&str, AccessLogEntry> {
     }))
 }
 
-// 使用例
+// Usage example
 fn main() {
     let line = r#"192.168.1.1 - - [11/Feb/2026:10:30:45 +0900] "GET /api/users HTTP/1.1" 200 1234"#;
     match log_entry(line) {
@@ -877,7 +877,7 @@ fn main() {
 }
 ```
 
-### 4.4 Go の participle パーサーライブラリ
+### 4.4 Go's participle Parser Library
 
 ```go
 package main
@@ -888,10 +888,10 @@ import (
     "github.com/alecthomas/participle/v2/lexer"
 )
 
-// Go の participle は構造体のタグからパーサーを自動生成する
-// 正規表現では不可能な再帰構造を型安全にパースできる
+// Go's participle auto-generates parsers from struct tags
+// It can type-safely parse recursive structures that are impossible with regex
 
-// 四則演算の AST 定義
+// AST definition for arithmetic expressions
 type Expression struct {
     Left  *Term   `@@`
     Op    string  `@("+" | "-")?`
@@ -920,7 +920,7 @@ func main() {
     fmt.Printf("Parsed: %+v\n", expr)
 }
 
-// 設定ファイルパーサーの例
+// Configuration file parser example
 type Config struct {
     Sections []*Section `@@*`
 }
@@ -956,15 +956,15 @@ func parseConfig(input string) (*Config, error) {
 
 ---
 
-## 5. ANTLR -- パーサージェネレータ
+## 5. ANTLR -- A Parser Generator
 
-### 5.1 ANTLR の文法定義と使用法
+### 5.1 Defining and Using Grammars in ANTLR
 
 ```antlr
-// Calculator.g4 -- ANTLR 文法ファイル
+// Calculator.g4 -- ANTLR grammar file
 grammar Calculator;
 
-// パーサールール
+// Parser rules
 prog: stat+ ;
 
 stat: expr NEWLINE          # printExpr
@@ -979,7 +979,7 @@ expr: expr op=('*'|'/') expr   # MulDiv
     | '(' expr ')'             # parens
     ;
 
-// レキサールール
+// Lexer rules
 MUL : '*' ;
 DIV : '/' ;
 ADD : '+' ;
@@ -991,30 +991,30 @@ WS  : [ \t]+ -> skip ;
 ```
 
 ```java
-// ANTLR で生成されたパーサーの使用例（Java）
+// Example of using a parser generated by ANTLR (Java)
 import org.antlr.v4.runtime.*;
 import org.antlr.v4.runtime.tree.*;
 
 public class CalcApp {
     public static void main(String[] args) throws Exception {
-        // 入力ストリームの準備
+        // Prepare the input stream
         CharStream input = CharStreams.fromString("x = 1 + 2 * 3\n");
 
-        // レキサー → トークンストリーム → パーサー
+        // Lexer -> token stream -> parser
         CalculatorLexer lexer = new CalculatorLexer(input);
         CommonTokenStream tokens = new CommonTokenStream(lexer);
         CalculatorParser parser = new CalculatorParser(tokens);
 
-        // パースツリーの取得
+        // Get the parse tree
         ParseTree tree = parser.prog();
 
-        // ビジターパターンで AST を走査
+        // Walk the AST with the visitor pattern
         CalcVisitor visitor = new CalcVisitor();
         visitor.visit(tree);
     }
 }
 
-// ビジターの実装
+// Visitor implementation
 class CalcVisitor extends CalculatorBaseVisitor<Integer> {
     Map<String, Integer> memory = new HashMap<>();
 
@@ -1045,71 +1045,71 @@ class CalcVisitor extends CalculatorBaseVisitor<Integer> {
 ```
 
 ```bash
-# ANTLR の使い方
-# 1. 文法ファイルの作成
-# 2. パーサーの生成
-antlr4 Calculator.g4 -Dlanguage=Python3  # Python 向け
-antlr4 Calculator.g4 -Dlanguage=Java     # Java 向け
-antlr4 Calculator.g4 -Dlanguage=Go       # Go 向け
+# How to use ANTLR
+# 1. Create the grammar file
+# 2. Generate the parser
+antlr4 Calculator.g4 -Dlanguage=Python3  # For Python
+antlr4 Calculator.g4 -Dlanguage=Java     # For Java
+antlr4 Calculator.g4 -Dlanguage=Go       # For Go
 
-# 3. grun でテスト（GUI でパースツリーを可視化）
+# 3. Test with grun (visualize the parse tree in a GUI)
 grun Calculator prog -gui
 ```
 
 ---
 
-## 6. tree-sitter -- インクリメンタルパーサー
+## 6. tree-sitter -- An Incremental Parser
 
-### 6.1 tree-sitter の概要と活用法
+### 6.1 Overview and Use of tree-sitter
 
 ```
-tree-sitter の特徴:
+Features of tree-sitter:
 ====================
 
-1. インクリメンタルパース
-   - 変更された部分のみを再パースする
-   - エディタでのリアルタイム構文解析に最適
-   - O(log n) の編集後再パース
+1. Incremental parsing
+   - Re-parses only the modified parts
+   - Optimal for real-time syntax analysis in editors
+   - O(log n) re-parsing after edits
 
-2. エラー回復
-   - 構文エラーがあっても可能な限りパースを続行
-   - エディタが壊れたコードでもハイライトを維持
+2. Error recovery
+   - Continues parsing as much as possible despite syntax errors
+   - The editor can keep highlighting even broken code
 
-3. 多言語対応
-   - 200以上のプログラミング言語の文法が利用可能
+3. Multi-language support
+   - Grammars for 200+ programming languages are available
    - JavaScript, Python, Rust, Go, Java, C/C++, ...
 
-4. クエリシステム
-   - S式によるパターンマッチング
-   - コードのセマンティックな検索が可能
+4. Query system
+   - Pattern matching with S-expressions
+   - Enables semantic code search
 
-利用場面:
-  - エディタのシンタックスハイライト（Neovim, Helix, Zed 等）
-  - コードナビゲーション（定義/参照ジャンプ）
-  - リンター・フォーマッターの実装
-  - コード変換ツール
-  - GitHub のコード検索・セキュリティスキャン
+Use cases:
+  - Editor syntax highlighting (Neovim, Helix, Zed, etc.)
+  - Code navigation (jump to definition/reference)
+  - Implementing linters and formatters
+  - Code transformation tools
+  - GitHub code search and security scanning
 ```
 
-### 6.2 tree-sitter のクエリシステム
+### 6.2 The tree-sitter Query System
 
 ```scheme
-;; tree-sitter のクエリ: S 式でコード構造をマッチング
+;; tree-sitter queries: match code structures using S-expressions
 
-;; Python の関数定義を全てマッチ
+;; Match all Python function definitions
 (function_definition
   name: (identifier) @function.name
   parameters: (parameters) @function.params
   body: (block) @function.body)
 
-;; クラス定義内のメソッドのみをマッチ
+;; Match only methods inside class definitions
 (class_definition
   name: (identifier) @class.name
   body: (block
     (function_definition
       name: (identifier) @method.name)))
 
-;; import 文のマッチ
+;; Match import statements
 (import_statement
   name: (dotted_name) @import.module)
 
@@ -1117,8 +1117,8 @@ tree-sitter の特徴:
   module_name: (dotted_name) @import.from
   name: (dotted_name) @import.name)
 
-;; 特定のパターンを持つ関数呼び出し
-;; 例: logging.error("...") のような呼び出し
+;; Function calls with a specific pattern
+;; Example: calls like logging.error("...")
 (call
   function: (attribute
     object: (identifier) @object (#eq? @object "logging")
@@ -1126,7 +1126,7 @@ tree-sitter の特徴:
   arguments: (argument_list
     (string) @message))
 
-;; TypeScript の型定義をマッチ
+;; Match TypeScript type definitions
 (type_alias_declaration
   name: (type_identifier) @type.name
   value: (_) @type.definition)
@@ -1136,19 +1136,19 @@ tree-sitter の特徴:
   body: (object_type) @interface.body)
 ```
 
-### 6.3 tree-sitter を使ったコード解析ツール (Python)
+### 6.3 A Code Analysis Tool Using tree-sitter (Python)
 
 ```python
-# tree-sitter の Python バインディングを使ったコード解析
+# Code analysis using tree-sitter's Python bindings
 
 from tree_sitter import Language, Parser
 import tree_sitter_python as tspython
 
-# パーサーのセットアップ
+# Set up the parser
 PY_LANGUAGE = Language(tspython.language())
 parser = Parser(PY_LANGUAGE)
 
-# ソースコードのパース
+# Parse the source code
 source_code = b"""
 class UserService:
     def __init__(self, db):
@@ -1169,9 +1169,9 @@ def helper_function():
 tree = parser.parse(source_code)
 root_node = tree.root_node
 
-# 関数定義の抽出
+# Extract function definitions
 def find_functions(node, depth=0):
-    """再帰的に関数定義を探索"""
+    """Recursively explore function definitions"""
     if node.type == 'function_definition':
         name_node = node.child_by_field_name('name')
         params_node = node.child_by_field_name('parameters')
@@ -1184,18 +1184,18 @@ def find_functions(node, depth=0):
             'line': node.start_point[0] + 1,
             'depth': depth,
         }
-        print(f"{'  ' * depth}関数: {info['name']}{info['params']}"
+        print(f"{'  ' * depth}Function: {info['name']}{info['params']}"
               f"{' -> ' + info['return_type'] if info['return_type'] else ''}"
-              f" (行 {info['line']})")
+              f" (line {info['line']})")
 
     for child in node.children:
         find_functions(child, depth + (1 if node.type == 'class_definition' else 0))
 
 find_functions(root_node)
 
-# クラス定義の抽出
+# Extract class definitions
 def find_classes(node):
-    """クラス定義とそのメソッドを抽出"""
+    """Extract class definitions and their methods"""
     if node.type == 'class_definition':
         name = node.child_by_field_name('name').text.decode()
         methods = []
@@ -1205,32 +1205,32 @@ def find_classes(node):
                 if child.type == 'function_definition':
                     method_name = child.child_by_field_name('name').text.decode()
                     methods.append(method_name)
-        print(f"クラス: {name}")
-        print(f"  メソッド: {', '.join(methods)}")
+        print(f"Class: {name}")
+        print(f"  Methods: {', '.join(methods)}")
 
     for child in node.children:
         find_classes(child)
 
 find_classes(root_node)
 
-# SQL インジェクション脆弱性の検出（簡易版）
+# Detect SQL injection vulnerabilities (simplified)
 def find_sql_injection_risks(node):
-    """文字列フォーマットで SQL を構築している箇所を検出"""
+    """Detect places where SQL is built using string formatting"""
     if node.type == 'binary_operator':
-        # 文字列連結（+）による SQL 構築を検出
+        # Detect SQL constructed via string concatenation (+)
         left = node.children[0]
         if left.type == 'string' and any(
             keyword in left.text.decode().upper()
             for keyword in ['SELECT', 'INSERT', 'UPDATE', 'DELETE']
         ):
-            print(f"警告: SQL文字列連結 (行 {node.start_point[0] + 1})")
+            print(f"Warning: SQL string concatenation (line {node.start_point[0] + 1})")
             print(f"  {node.text.decode()}")
 
     if node.type == 'call':
-        # f-string や .format() による SQL 構築を検出
+        # Detect SQL built with f-strings or .format()
         func = node.child_by_field_name('function')
         if func and func.type == 'attribute' and func.text.decode().endswith('.format'):
-            # .format() の呼び出し元が SQL を含むか確認
+            # Check whether the caller of .format() contains SQL
             pass
 
     for child in node.children:
@@ -1241,9 +1241,9 @@ find_sql_injection_risks(root_node)
 
 ---
 
-## 7. 構造化データの専用パーサー
+## 7. Dedicated Parsers for Structured Data
 
-### 7.1 HTML 処理 -- Beautiful Soup と lxml
+### 7.1 HTML Processing -- Beautiful Soup and lxml
 
 ```python
 from bs4 import BeautifulSoup
@@ -1254,15 +1254,15 @@ html = """
 <html>
 <body>
   <div class="container">
-    <h1>タイトル</h1>
+    <h1>Title</h1>
     <ul class="items">
-      <li class="item active">項目1</li>
-      <li class="item">項目2</li>
-      <li class="item">項目3</li>
+      <li class="item active">Item 1</li>
+      <li class="item">Item 2</li>
+      <li class="item">Item 3</li>
     </ul>
     <div class="nested">
       <div class="deep">
-        <p>深くネストされたテキスト</p>
+        <p>Deeply nested text</p>
       </div>
     </div>
   </div>
@@ -1272,74 +1272,74 @@ html = """
 
 soup = BeautifulSoup(html, 'html.parser')
 
-# CSS セレクタで検索（正規表現よりはるかに信頼性が高い）
+# Search with CSS selectors (far more reliable than regex)
 items = soup.select('ul.items li.item')
 for item in items:
-    print(item.text)  # "項目1", "項目2", "項目3"
+    print(item.text)  # "Item 1", "Item 2", "Item 3"
 
-# ネストされた要素の取得
+# Get nested elements
 deep_text = soup.select_one('.nested .deep p').text
-print(deep_text)  # "深くネストされたテキスト"
+print(deep_text)  # "Deeply nested text"
 
-# 属性でフィルタ
+# Filter by attribute
 active = soup.find('li', class_='active')
-print(active.text)  # "項目1"
+print(active.text)  # "Item 1"
 
-# 正規表現では不可能なケース: 自己閉じタグ、属性値の引用符等
+# Cases impossible with regex: self-closing tags, attribute value quotes, etc.
 complex_html = '<img src="photo.jpg" alt="He said &quot;hello&quot;" />'
 soup2 = BeautifulSoup(complex_html, 'html.parser')
 img = soup2.find('img')
-print(img['alt'])  # 'He said "hello"' -- エンティティも正しくデコード
+print(img['alt'])  # 'He said "hello"' -- entities are correctly decoded too
 
 # === lxml (XPath) ===
 doc = lxml.html.fromstring(html)
 
-# XPath で検索
+# Search with XPath
 titles = doc.xpath('//h1/text()')
-print(titles)  # ['タイトル']
+print(titles)  # ['Title']
 
 items_xpath = doc.xpath('//ul[@class="items"]/li/text()')
-print(items_xpath)  # ['項目1', '項目2', '項目3']
+print(items_xpath)  # ['Item 1', 'Item 2', 'Item 3']
 
-# 複雑な条件
+# Complex conditions
 active_xpath = doc.xpath('//li[contains(@class, "active")]/text()')
-print(active_xpath)  # ['項目1']
+print(active_xpath)  # ['Item 1']
 ```
 
-### 7.2 JSON 処理 -- jq と Python
+### 7.2 JSON Processing -- jq and Python
 
 ```bash
-# jq: コマンドラインの JSON プロセッサ
-# 正規表現では不可能なネストした JSON の処理
+# jq: a command-line JSON processor
+# Handles nested JSON that is impossible with regex
 
-# 基本的なフィールド抽出
+# Basic field extraction
 echo '{"name": "Alice", "age": 30}' | jq '.name'
 # "Alice"
 
-# ネストしたフィールド
+# Nested fields
 echo '{"user": {"name": "Alice", "address": {"city": "Tokyo"}}}' | \
     jq '.user.address.city'
 # "Tokyo"
 
-# 配列の処理
+# Array processing
 echo '[{"name": "Alice"}, {"name": "Bob"}]' | jq '.[].name'
 # "Alice"
 # "Bob"
 
-# フィルタリング
+# Filtering
 echo '[{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}]' | \
     jq '.[] | select(.age > 28)'
 # {"name": "Alice", "age": 30}
 
-# 変換
+# Transformation
 echo '[{"name": "Alice", "scores": [90, 85, 92]}]' | \
     jq '.[] | {name, avg_score: (.scores | add / length)}'
 # {"name": "Alice", "avg_score": 89}
 
-# JSON Lines のストリーム処理
+# Stream processing of JSON Lines
 cat events.jsonl | jq -c 'select(.level == "ERROR") | {timestamp, message}'
 
-# CSV への変換
+# Conversion to CSV
 echo '[{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}]' | \
     jq -r '.[] | [.name, .age] | @csv'
 # "Alice",30
@@ -1347,17 +1347,17 @@ echo '[{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}]' | \
 ```
 
 ```python
-# Python での JSON 処理
+# JSON processing in Python
 import json
 from pathlib import Path
 
-# JSON ファイルの読み込みと変換
+# Load and transform a JSON file
 with open('data.json') as f:
     data = json.load(f)
 
-# ネストしたデータの安全なアクセス
+# Safe access to nested data
 def safe_get(data, *keys, default=None):
-    """ネストしたキーに安全にアクセスする"""
+    """Safely access nested keys"""
     current = data
     for key in keys:
         if isinstance(current, dict):
@@ -1370,12 +1370,12 @@ def safe_get(data, *keys, default=None):
             return default
     return current
 
-# 使用例
+# Usage example
 config = {"database": {"host": "localhost", "port": 5432}}
 host = safe_get(config, "database", "host")  # "localhost"
 missing = safe_get(config, "database", "timeout", default=30)  # 30
 
-# JSON スキーマによるバリデーション
+# Validation with JSON Schema
 from jsonschema import validate, ValidationError
 
 schema = {
@@ -1390,18 +1390,18 @@ schema = {
 
 try:
     validate(instance={"name": "Alice", "age": 30}, schema=schema)
-    print("バリデーション成功")
+    print("Validation succeeded")
 except ValidationError as e:
-    print(f"バリデーション失敗: {e.message}")
+    print(f"Validation failed: {e.message}")
 ```
 
-### 7.3 YAML 処理
+### 7.3 YAML Processing
 
 ```python
 import yaml
 from pathlib import Path
 
-# YAML パーサー（正規表現では処理不可能な構造）
+# YAML parser (structures impossible to process with regex)
 yaml_content = """
 server:
   host: localhost
@@ -1416,7 +1416,7 @@ database:
     port: 5432
     credentials:
       username: admin
-      password: ${DB_PASSWORD}  # 環境変数の参照
+      password: ${DB_PASSWORD}  # Environment variable reference
   replicas:
     - host: db-replica-1.example.com
       port: 5432
@@ -1435,11 +1435,11 @@ logging:
 
 config = yaml.safe_load(yaml_content)
 
-# ネストしたアクセス
+# Nested access
 print(config['server']['ssl']['enabled'])  # True
 print(config['database']['replicas'][0]['host'])  # db-replica-1.example.com
 
-# YAML のアンカーとエイリアス（正規表現では処理不可能）
+# YAML anchors and aliases (impossible to process with regex)
 yaml_with_anchors = """
 defaults: &defaults
   adapter: postgres
@@ -1457,22 +1457,22 @@ production:
 """
 
 envs = yaml.safe_load(yaml_with_anchors)
-print(envs['production']['host'])  # db.production.com（オーバーライド）
-print(envs['production']['port'])  # 5432（デフォルトから継承）
+print(envs['production']['host'])  # db.production.com (overridden)
+print(envs['production']['port'])  # 5432 (inherited from defaults)
 ```
 
-### 7.4 XML 処理
+### 7.4 XML Processing
 
 ```python
 import xml.etree.ElementTree as ET
 from lxml import etree
 
-# XML パーサー（名前空間やネストを正しく処理）
+# XML parser (correctly handles namespaces and nesting)
 xml_content = """<?xml version="1.0" encoding="UTF-8"?>
 <bookstore xmlns:bk="http://example.com/books">
   <bk:book category="programming">
-    <bk:title lang="ja">プログラミング入門</bk:title>
-    <bk:author>山田太郎</bk:author>
+    <bk:title lang="ja">Introduction to Programming</bk:title>
+    <bk:author>Taro Yamada</bk:author>
     <bk:price currency="JPY">3000</bk:price>
   </bk:book>
   <bk:book category="science">
@@ -1483,7 +1483,7 @@ xml_content = """<?xml version="1.0" encoding="UTF-8"?>
 </bookstore>
 """
 
-# ElementTree での処理
+# Processing with ElementTree
 root = ET.fromstring(xml_content)
 ns = {'bk': 'http://example.com/books'}
 
@@ -1493,110 +1493,110 @@ for book in root.findall('bk:book', ns):
     price = book.find('bk:price', ns)
     print(f"{title} by {author} - {price.get('currency')} {price.text}")
 
-# lxml + XPath（より強力なクエリ）
+# lxml + XPath (more powerful queries)
 doc = etree.fromstring(xml_content.encode())
 nsmap = {'bk': 'http://example.com/books'}
 
-# プログラミングカテゴリの本のタイトル
+# Title of books in the programming category
 titles = doc.xpath('//bk:book[@category="programming"]/bk:title/text()', namespaces=nsmap)
-print(titles)  # ['プログラミング入門']
+print(titles)  # ['Introduction to Programming']
 
-# 日本語の本を検索
+# Search for Japanese-language books
 ja_books = doc.xpath('//bk:title[@lang="ja"]/text()', namespaces=nsmap)
-print(ja_books)  # ['プログラミング入門']
+print(ja_books)  # ['Introduction to Programming']
 ```
 
 ---
 
-## 手法比較表
+## Comparison Table of Approaches
 
-| 手法 | 表現力 | 性能 | 学習コスト | ユースケース |
+| Approach | Expressiveness | Performance | Learning Cost | Use Cases |
 |---|---|---|---|---|
-| **正規表現** | 正規文法 | 高速 | 低 | パターンマッチ、検索・置換 |
-| **パーサーコンビネータ** | 文脈自由文法 | 中〜高 | 中 | DSL、設定ファイル、プロトコル |
-| **PEG** | 文脈自由文法+ | 高 | 中 | 言語処理、構文解析 |
-| **ANTLR/yacc** | 文脈自由文法 | 高 | 高 | プログラミング言語、SQL |
-| **tree-sitter** | 文脈自由文法 | 非常に高 | 中 | エディタのシンタックスハイライト |
-| **専用パーサー** | 任意 | 最高 | 低 | JSON、HTML、CSV 等の標準形式 |
-| **lark (Python)** | 文脈自由文法 | 中 | 低〜中 | DSL、カスタム文法、プロトタイプ |
-| **nom (Rust)** | 文脈自由文法 | 非常に高 | 中〜高 | バイナリプロトコル、高性能パーサー |
+| **Regex** | Regular grammar | Fast | Low | Pattern matching, search & replace |
+| **Parser combinators** | Context-free grammar | Medium-High | Medium | DSLs, config files, protocols |
+| **PEG** | Context-free grammar+ | High | Medium | Language processing, syntax analysis |
+| **ANTLR/yacc** | Context-free grammar | High | High | Programming languages, SQL |
+| **tree-sitter** | Context-free grammar | Very High | Medium | Editor syntax highlighting |
+| **Dedicated parsers** | Arbitrary | Highest | Low | Standard formats like JSON, HTML, CSV |
+| **lark (Python)** | Context-free grammar | Medium | Low-Medium | DSLs, custom grammars, prototypes |
+| **nom (Rust)** | Context-free grammar | Very High | Medium-High | Binary protocols, high-performance parsers |
 
-### 選択指針比較表
+### Selection Criteria Comparison
 
-| 要件 | 推奨手法 |
+| Requirement | Recommended Approach |
 |---|---|
-| 単純なパターンマッチ | 正規表現 |
-| 標準フォーマット（JSON/HTML/CSV） | 専用パーサーライブラリ |
-| カスタム DSL の設計 | パーサーコンビネータ or PEG |
-| プログラミング言語の解析 | ANTLR / tree-sitter |
-| エディタ統合（ハイライト等） | tree-sitter |
-| 高性能なバイナリプロトコル | nom (Rust) / 手書きパーサー |
-| プロトタイプの高速開発 | lark (Python) / Peggy (JS) |
-| 型安全な文法定義 | participle (Go) / nom (Rust) |
+| Simple pattern matching | Regex |
+| Standard formats (JSON/HTML/CSV) | Dedicated parser library |
+| Designing a custom DSL | Parser combinators or PEG |
+| Parsing programming languages | ANTLR / tree-sitter |
+| Editor integration (highlighting, etc.) | tree-sitter |
+| High-performance binary protocols | nom (Rust) / hand-written parser |
+| Rapid prototyping | lark (Python) / Peggy (JS) |
+| Type-safe grammar definition | participle (Go) / nom (Rust) |
 
-### 言語別の推奨パーサーライブラリ
+### Recommended Parser Libraries by Language
 
-| 言語 | ライブラリ | 特徴 |
+| Language | Library | Features |
 |---|---|---|
-| **Python** | lark | EBNF 風文法、Earley/LALR 対応 |
-| **Python** | pyparsing | 直感的な API、学習コスト低 |
-| **Rust** | nom | ゼロコピー、高性能 |
-| **Rust** | winnow | nom の後継、エラーメッセージ改善 |
-| **Haskell** | megaparsec | 最も理論的に洗練 |
-| **TypeScript** | Peggy | PEG ベース、ブラウザ対応 |
-| **Go** | participle | 構造体タグベース、型安全 |
-| **Java** | ANTLR | 産業標準、ビジュアルデバッガ |
-| **C/C++** | tree-sitter | インクリメンタル、エラー回復 |
+| **Python** | lark | EBNF-style grammar, supports Earley/LALR |
+| **Python** | pyparsing | Intuitive API, low learning cost |
+| **Rust** | nom | Zero-copy, high performance |
+| **Rust** | winnow | Successor to nom, improved error messages |
+| **Haskell** | megaparsec | Most theoretically refined |
+| **TypeScript** | Peggy | PEG-based, browser support |
+| **Go** | participle | Struct-tag based, type-safe |
+| **Java** | ANTLR | Industry standard, visual debugger |
+| **C/C++** | tree-sitter | Incremental, error recovery |
 
 ---
 
-## アンチパターン
+## Anti-patterns
 
-### 1. HTML を正規表現でパース
+### 1. Parsing HTML with Regex
 
-**問題**: HTML はネスト構造を持つため正規文法では表現できない。タグの属性値にクォートが含まれるケースや、自己終了タグなど、正規表現では処理できないエッジケースが無数に存在する。
+**Problem**: HTML has nested structure and cannot be expressed by a regular grammar. Countless edge cases exist that regex cannot handle, such as cases where attribute values contain quotes and self-closing tags.
 
 ```python
-# [NG] 正規表現で HTML をパース
+# [NG] Parsing HTML with regex
 import re
 html = '<div class="outer"><div class="inner">text</div></div>'
-# この正規表現はネストに対応できない
+# This regex cannot handle nesting
 divs = re.findall(r'<div[^>]*>(.*?)</div>', html)
-# 期待: ['text'] → 実際: ['<div class="inner">text'] (壊れている)
+# Expected: ['text'] -> Actual: ['<div class="inner">text'] (broken)
 
-# [OK] Beautiful Soup を使う
+# [OK] Use Beautiful Soup
 from bs4 import BeautifulSoup
 soup = BeautifulSoup(html, 'html.parser')
 inner = soup.find('div', class_='inner')
 print(inner.text)  # "text"
 ```
 
-**対策**: BeautifulSoup、cheerio、lxml 等の専用パーサーを使用する。
+**Solution**: Use dedicated parsers like BeautifulSoup, cheerio, or lxml.
 
-### 2. パーサーコンビネータで全て解決しようとする
+### 2. Trying to Solve Everything with Parser Combinators
 
-**問題**: JSON、CSV、YAML 等の標準フォーマットに対して独自パーサーを書くと、エッジケースの対応漏れやセキュリティ問題が発生する。
+**Problem**: Writing a custom parser for standard formats like JSON, CSV, or YAML leads to missed edge cases and security issues.
 
 ```python
-# [NG] JSON パーサーを自作
+# [NG] Building your own JSON parser
 def parse_json(text):
-    # 文字列エスケープ、Unicode サロゲートペア、数値の精度、
-    # BOM の処理、再帰の深さ制限... 全て自分で実装する必要がある
+    # String escaping, Unicode surrogate pairs, numeric precision,
+    # BOM handling, recursion depth limits... you have to implement them all
     pass
 
-# [OK] 標準ライブラリの json モジュールを使う
+# [OK] Use the standard library's json module
 import json
 data = json.loads('{"key": "value"}')
 ```
 
-**対策**: 標準フォーマットには実績のあるライブラリを使用する。パーサーコンビネータはカスタム DSL や独自プロトコルに限定して使用する。
+**Solution**: Use battle-tested libraries for standard formats. Limit parser combinators to custom DSLs and proprietary protocols.
 
-### 3. 正規表現とパーサーの中間地点を無視する
+### 3. Ignoring the Middle Ground Between Regex and Parsers
 
-**問題**: 「正規表現では足りないが、パーサーは大げさ」という場面で、どちらも選ばずに手書きのステートマシンを書いてしまう。
+**Problem**: In situations where "regex isn't enough but a parser is overkill," people fail to choose either and end up writing a hand-rolled state machine.
 
 ```python
-# [NG] 手書きのステートマシン（保守困難）
+# [NG] Hand-rolled state machine (hard to maintain)
 def parse_key_value(text):
     state = 'KEY'
     key = ''
@@ -1619,135 +1619,135 @@ def parse_key_value(text):
         results[key.strip()] = value.strip()
     return results
 
-# [OK] 正規表現で十分なケースもある
+# [OK] Sometimes regex is sufficient
 import re
 def parse_key_value_regex(text):
     return dict(re.findall(r'([^=\n]+)=([^\n]*)', text))
 
-# [OK] より複雑なら軽量パーサーを使う
+# [OK] If more complex, use a lightweight parser
 from configparser import ConfigParser
 parser = ConfigParser()
 parser.read_string('[DEFAULT]\n' + text)
 ```
 
-### 4. パフォーマンスを考慮せずにパーサーを選択する
+### 4. Choosing a Parser Without Considering Performance
 
-**問題**: 大量データの処理に、パース速度の遅いライブラリを選択してしまう。
+**Problem**: Choosing a slow library for processing large amounts of data.
 
 ```python
-# [注意] Beautiful Soup は便利だが大量 HTML には遅い
-# 100万件の HTML フラグメントをパースする場合
+# [Caution] Beautiful Soup is convenient but slow for huge HTML
+# When parsing a million HTML fragments
 
-# 遅い: Beautiful Soup (pure Python パーサー)
+# Slow: Beautiful Soup (pure Python parser)
 from bs4 import BeautifulSoup
 for html_fragment in million_fragments:
-    soup = BeautifulSoup(html_fragment, 'html.parser')  # 遅い
+    soup = BeautifulSoup(html_fragment, 'html.parser')  # Slow
 
-# 速い: lxml (C 実装)
+# Fast: lxml (C implementation)
 from lxml import html
 for html_fragment in million_fragments:
-    doc = html.fromstring(html_fragment)  # 数倍高速
+    doc = html.fromstring(html_fragment)  # Several times faster
 
-# さらに速い: 正規表現で事前フィルタ + パーサー
+# Even faster: Pre-filter with regex + parser
 import re
 pattern = re.compile(r'class="target"')
 for html_fragment in million_fragments:
-    if pattern.search(html_fragment):  # 正規表現で候補を絞る
-        doc = html.fromstring(html_fragment)  # パーサーは候補のみ
+    if pattern.search(html_fragment):  # Narrow candidates with regex
+        doc = html.fromstring(html_fragment)  # Run parser only on candidates
 ```
 
 ---
 
 ## FAQ
 
-### Q1: パーサーコンビネータの性能は正規表現と比べてどうですか？
+### Q1: How does the performance of parser combinators compare to regex?
 
-**A**: 単純なパターンマッチでは正規表現の方が高速です。ただし、正規表現でバックトラッキングが多発する複雑なパターンでは、PEG やパーサーコンビネータの方が予測可能な性能を発揮します。nom（Rust）は正規表現と同等の性能を達成する場合もあります。
-
-```
-ベンチマーク目安（相対値）:
-  正規表現（単純パターン）  : 1.0x
-  正規表現（複雑パターン）  : 1.0x 〜 100x（バックトラック依存）
-  nom (Rust)               : 1.0x 〜 2.0x
-  Megaparsec (Haskell)     : 2.0x 〜 5.0x
-  lark (Python, LALR)      : 5.0x 〜 20x
-  pyparsing (Python)       : 10x 〜 50x
-  PEG (Peggy, JavaScript)  : 3.0x 〜 10x
-```
-
-### Q2: tree-sitter はエディタ以外でも使えますか？
-
-**A**: はい。tree-sitter はインクリメンタルパーサーとして、コード解析ツール、リンター、コード変換ツールでも活用できます。GitHub のコード検索やセキュリティスキャンでも使用されています。
-
-具体的な活用例:
-
-1. **GitHub Code Search**: tree-sitter でコードの構文構造を理解し、セマンティックな検索を実現
-2. **Semgrep**: tree-sitter ベースの静的解析ツールで、セキュリティ脆弱性を検出
-3. **Difftastic**: tree-sitter を使った構文認識 diff ツール
-4. **Neovim / Helix**: tree-sitter ベースのシンタックスハイライト、折りたたみ、テキストオブジェクト
-
-### Q3: どの言語のパーサーコンビネータライブラリが最も成熟していますか？
-
-**A**: Haskell の `parsec`/`megaparsec` が最も理論的に洗練されています。実用面では Rust の `nom`/`winnow`（高性能）、Python の `pyparsing`（読みやすさ）、JavaScript の `Peggy`（Web 統合）がそれぞれの領域で成熟しています。
-
-### Q4: 正規表現とパーサーの使い分けの具体的な判断基準は？
-
-**A**: 以下のフローチャートで判断する:
+**A**: For simple pattern matching, regex is faster. However, for complex patterns where regex frequently backtracks, PEG and parser combinators deliver more predictable performance. nom (Rust) can sometimes achieve performance on par with regex.
 
 ```
-対象は標準フォーマット（JSON/HTML/CSV/XML/YAML）か？
-  → Yes: 専用パーサーライブラリを使う
-  → No: ↓
-
-ネスト構造や再帰がある か？
-  → Yes: パーサーコンビネータ / PEG を使う
-  → No: ↓
-
-パターンが1行に収まるか？
-  → Yes: 正規表現で十分
-  → No: ↓
-
-複数行にまたがるパターンか？
-  → Yes: 正規表現の multiline / dotall フラグで対応可能なら正規表現
-  → No: パーサーを検討
-
-正規表現パターンが50文字を超えるか？
-  → Yes: パーサーに切り替えることを強く推奨
-  → No: 正規表現で OK（ただしコメント付きで）
+Benchmark guide (relative values):
+  Regex (simple pattern)    : 1.0x
+  Regex (complex pattern)   : 1.0x to 100x (depends on backtracking)
+  nom (Rust)                : 1.0x to 2.0x
+  Megaparsec (Haskell)      : 2.0x to 5.0x
+  lark (Python, LALR)       : 5.0x to 20x
+  pyparsing (Python)        : 10x to 50x
+  PEG (Peggy, JavaScript)   : 3.0x to 10x
 ```
 
-### Q5: PEG と CFG（文脈自由文法）の違いは何ですか？
+### Q2: Can tree-sitter be used outside of editors?
 
-**A**: 主な違いは「選択」の扱い方です:
+**A**: Yes. As an incremental parser, tree-sitter is also useful in code analysis tools, linters, and code transformation tools. It is also used in GitHub's code search and security scanning.
 
-- **CFG の選択 (|)**: 非決定的。複数の選択肢が同時に考慮され、曖昧性が生じうる
-- **PEG の選択 (/)**: 優先順位付き。最初にマッチした選択肢が採用される（曖昧性なし）
+Concrete examples:
+
+1. **GitHub Code Search**: Uses tree-sitter to understand code's syntactic structure and enable semantic search
+2. **Semgrep**: A tree-sitter-based static analysis tool that detects security vulnerabilities
+3. **Difftastic**: A syntax-aware diff tool using tree-sitter
+4. **Neovim / Helix**: tree-sitter-based syntax highlighting, folding, and text objects
+
+### Q3: Which language has the most mature parser combinator library?
+
+**A**: Haskell's `parsec`/`megaparsec` is the most theoretically refined. In practical terms, Rust's `nom`/`winnow` (high performance), Python's `pyparsing` (readability), and JavaScript's `Peggy` (web integration) are mature in their respective domains.
+
+### Q4: What are concrete criteria for choosing between regex and a parser?
+
+**A**: Decide using the following flowchart:
 
 ```
-例: 「if-then-else」の曖昧性
+Is the target a standard format (JSON/HTML/CSV/XML/YAML)?
+  -> Yes: Use a dedicated parser library
+  -> No: v
+
+Is there nested structure or recursion?
+  -> Yes: Use a parser combinator / PEG
+  -> No: v
+
+Does the pattern fit on one line?
+  -> Yes: Regex is sufficient
+  -> No: v
+
+Is it a multi-line pattern?
+  -> Yes: If regex's multiline / dotall flag can handle it, use regex
+  -> No: Consider a parser
+
+Does the regex pattern exceed 50 characters?
+  -> Yes: Strongly recommend switching to a parser
+  -> No: Regex is OK (but with comments)
+```
+
+### Q5: What is the difference between PEG and CFG (context-free grammar)?
+
+**A**: The main difference is how "choice" is handled:
+
+- **CFG choice (|)**: Non-deterministic. Multiple alternatives are considered simultaneously, and ambiguity may arise
+- **PEG choice (/)**: Prioritized. The first matching alternative is chosen (no ambiguity)
+
+```
+Example: ambiguity of "if-then-else"
 
 CFG:
   stmt = "if" expr "then" stmt "else" stmt
        | "if" expr "then" stmt
-  → "if a then if b then x else y" は2通りの解釈が可能（ダングリング else）
+  -> "if a then if b then x else y" has two possible interpretations (dangling else)
 
 PEG:
   stmt = "if" expr "then" stmt "else" stmt
        / "if" expr "then" stmt
-  → 最初のルール（else 付き）が優先され、曖昧性がない
+  -> The first rule (with else) takes priority, eliminating ambiguity
 ```
 
-### Q6: WASM でパーサーを使いたい場合はどうすればよいですか？
+### Q6: What should I do if I want to use a parser in WASM?
 
-**A**: 以下の選択肢がある:
+**A**: There are several options:
 
-1. **tree-sitter**: WASM ビルドが公式サポートされている。ブラウザ上でコード解析が可能
-2. **Peggy**: JavaScript ネイティブのため、ブラウザでそのまま動作
-3. **nom (Rust)**: `wasm-pack` でコンパイルして WASM モジュールとして使用可能
-4. **ANTLR**: JavaScript ターゲットを使えばブラウザで動作
+1. **tree-sitter**: WASM builds are officially supported. Code analysis is possible in the browser
+2. **Peggy**: Native JavaScript, so it runs as-is in the browser
+3. **nom (Rust)**: Can be compiled with `wasm-pack` and used as a WASM module
+4. **ANTLR**: The JavaScript target enables it to run in the browser
 
 ```javascript
-// tree-sitter の WASM 使用例
+// Example of using tree-sitter in WASM
 import Parser from 'web-tree-sitter';
 
 async function initParser() {
@@ -1764,33 +1764,33 @@ async function initParser() {
 
 ---
 
-## まとめ
+## Summary
 
-| 項目 | 要点 |
+| Topic | Key Point |
 |---|---|
-| 正規表現の限界 | ネスト構造・再帰・文脈依存は扱えない |
-| パーサーコンビネータ | 小さなパーサーを合成して複雑な文法を解析 |
-| PEG | 文法定義からパーサーを自動生成。優先順位付き選択 |
-| ANTLR | 産業標準のパーサージェネレータ。多言語対応 |
-| nom (Rust) | ゼロコピーの高性能パーサーコンビネータ |
-| lark (Python) | EBNF 風文法で手軽にパーサーを構築 |
-| tree-sitter | インクリメンタルパーサー。エディタ統合に最適 |
-| 選択基準 | 標準形式には専用ライブラリ、カスタム文法にはコンビネータ/PEG |
-| パフォーマンス | 正規表現 > nom > PEG > pyparsing（一般的な傾向） |
+| Limits of regex | Cannot handle nested structures, recursion, or context dependence |
+| Parser combinators | Compose small parsers to analyze complex grammars |
+| PEG | Auto-generate parsers from grammar definitions. Prioritized choice |
+| ANTLR | Industry-standard parser generator. Multi-language support |
+| nom (Rust) | Zero-copy, high-performance parser combinator |
+| lark (Python) | Easily build parsers with EBNF-style grammar |
+| tree-sitter | Incremental parser. Ideal for editor integration |
+| Selection criteria | Use dedicated libraries for standard formats; combinators/PEG for custom grammars |
+| Performance | Regex > nom > PEG > pyparsing (general trend) |
 
-## 次に読むべきガイド
+## Recommended Next Reading
 
-- 正規表現基礎 -- 正規表現が適切な場面での活用法
-- [テキスト処理実践](../02-practical/02-text-processing.md) -- sed/awk/grep による実務でのテキスト処理パターン
+- Regex Fundamentals -- How to use regex effectively in appropriate situations
+- [Practical Text Processing](../02-practical/02-text-processing.md) -- Practical text-processing patterns with sed/awk/grep
 
-## 参考文献
+## References
 
-1. **Bryan Ford**: [Parsing Expression Grammars (2004)](https://bford.info/pub/lang/peg.pdf) -- PEG の原論文
-2. **nom 公式**: [nom Documentation](https://docs.rs/nom/latest/nom/) -- Rust パーサーコンビネータの包括的ドキュメント
-3. **tree-sitter 公式**: [tree-sitter](https://tree-sitter.github.io/tree-sitter/) -- インクリメンタルパーサーフレームワーク
-4. **ANTLR 公式**: [ANTLR](https://www.antlr.org/) -- パーサージェネレータの公式サイト
-5. **lark 公式**: [lark-parser](https://lark-parser.readthedocs.io/) -- Python のモダンなパーサーライブラリ
-6. **Peggy 公式**: [Peggy](https://peggyjs.org/) -- JavaScript の PEG パーサージェネレータ
-7. **megaparsec 公式**: [megaparsec](https://hackage.haskell.org/package/megaparsec) -- Haskell の産業強度パーサーコンビネータ
-8. **Terence Parr**: "The Definitive ANTLR 4 Reference" Pragmatic Bookshelf, 2013 -- ANTLR の定番書
-9. **Semgrep**: [semgrep.dev](https://semgrep.dev/) -- tree-sitter ベースの静的解析ツール
+1. **Bryan Ford**: [Parsing Expression Grammars (2004)](https://bford.info/pub/lang/peg.pdf) -- The original PEG paper
+2. **nom official**: [nom Documentation](https://docs.rs/nom/latest/nom/) -- Comprehensive documentation for the Rust parser combinator
+3. **tree-sitter official**: [tree-sitter](https://tree-sitter.github.io/tree-sitter/) -- Incremental parser framework
+4. **ANTLR official**: [ANTLR](https://www.antlr.org/) -- Official site of the parser generator
+5. **lark official**: [lark-parser](https://lark-parser.readthedocs.io/) -- Modern parser library for Python
+6. **Peggy official**: [Peggy](https://peggyjs.org/) -- PEG parser generator for JavaScript
+7. **megaparsec official**: [megaparsec](https://hackage.haskell.org/package/megaparsec) -- Industrial-strength parser combinator for Haskell
+8. **Terence Parr**: "The Definitive ANTLR 4 Reference" Pragmatic Bookshelf, 2013 -- The standard book on ANTLR
+9. **Semgrep**: [semgrep.dev](https://semgrep.dev/) -- tree-sitter-based static analysis tool
