@@ -1,32 +1,32 @@
-# よく使うパターン -- メール、URL、日付、電話番号
+# Common Patterns -- Email, URL, Date, Phone Number
 
-> 実務で頻出する正規表現パターンを「実用レベル」と「厳密レベル」の両面から解説する。各パターンの限界を正しく理解し、正規表現だけに頼らない堅牢なバリデーション設計を示す。
+> This guide explains frequently used regular expression patterns from both a "practical level" and a "strict level" perspective. Understand the limits of each pattern correctly and learn robust validation designs that don't rely solely on regular expressions.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-1. **頻出パターンの実用的な実装** -- メール、URL、日付、電話番号、IPアドレス等
-2. **厳密な仕様準拠と実用性のトレードオフ** -- RFC 完全準拠が不要な理由
-3. **正規表現+追加検証の設計パターン** -- パターンマッチだけで完結しないバリデーション
+1. **Practical implementations of common patterns** -- email, URL, date, phone number, IP address, etc.
+2. **Trade-offs between strict specification compliance and practicality** -- why full RFC compliance is usually unnecessary
+3. **Design patterns combining regex + additional validation** -- validation that cannot be completed by pattern matching alone
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+To deepen your understanding of this guide, the following knowledge is helpful:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [言語別正規表現 -- JS/Python/Go/Rust/Java の違い](./00-language-specific.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Familiarity with the content of [Language-specific Regex -- Differences across JS/Python/Go/Rust/Java](./00-language-specific.md)
 
 ---
 
-## 1. メールアドレス
+## 1. Email Address
 
-### 1.1 実用パターン
+### 1.1 Practical Pattern
 
 ```python
 import re
 
-# 実用レベル: ほとんどの実際のメールアドレスにマッチ
+# Practical level: matches most real-world email addresses
 email_pattern = re.compile(
     r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
 )
@@ -37,8 +37,8 @@ test_emails = [
     "user@sub.domain.example.com",# OK
     "user@",                      # NG
     "@domain.com",                # NG
-    "user@domain",                # NG (TLD なし)
-    "user name@domain.com",       # NG (空白)
+    "user@domain",                # NG (no TLD)
+    "user name@domain.com",       # NG (whitespace)
 ]
 
 for email in test_emails:
@@ -46,30 +46,31 @@ for email in test_emails:
     print(f"  {result}: {email}")
 ```
 
-### 1.2 なぜ RFC 5322 完全準拠パターンを使わないのか
+### 1.2 Why You Should Not Use a Fully RFC 5322 Compliant Pattern
 
 ```
-RFC 5322 準拠パターン: 数千文字に及ぶ正規表現
-→ 保守不能、デバッグ不能、パフォーマンスリスク
+RFC 5322 compliant pattern: a regex of thousands of characters
+-> Unmaintainable, undebuggable, performance risk
 
-実用的なアプローチ:
-┌─────────────────────────────────────────┐
-│ 1. 正規表現で基本形式をチェック          │
-│    (@ がある、ドメインがある、TLD がある) │
-│                                         │
-│ 2. 確認メールを送信して実在確認          │
-│    (これが唯一の正しい検証)             │
-└─────────────────────────────────────────┘
+Practical approach:
++-----------------------------------------+
+| 1. Check basic format with regex        |
+|    (has @, has domain, has TLD)         |
+|                                         |
+| 2. Send a confirmation email to verify  |
+|    existence (this is the only          |
+|    correct verification)                |
++-----------------------------------------+
 
-理由:
-- "valid" だが存在しないアドレスは正規表現で検出不能
-- 存在するが RFC 非準拠のアドレスもある
-- 正規表現の仕事は「明らかな誤入力を弾く」だけ
+Reasons:
+- "Valid" but non-existent addresses cannot be detected by regex
+- Some existing addresses don't comply with RFC
+- The job of regex is only to "reject obvious typos"
 ```
 
-### 1.3 メールアドレスのエッジケース詳細
+### 1.3 Email Address Edge Cases in Detail
 
-実務で遭遇するメールアドレスの境界ケースを詳しく解説する。
+This section explains in detail the boundary cases of email addresses encountered in practice.
 
 ```python
 import re
@@ -78,25 +79,25 @@ email_pattern = re.compile(
     r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
 )
 
-# エッジケース集: 実用パターンの限界を理解する
+# Edge cases: understand the limits of the practical pattern
 edge_cases = {
-    # --- RFC 的には有効だが、実用パターンでは NG になるケース ---
-    '"user name"@example.com': "RFC有効: クォート付きローカルパート",
-    'user@[192.168.1.1]':      "RFC有効: IPリテラルドメイン",
-    '(comment)user@example.com': "RFC有効: コメント付き",
-    'user@example':            "RFC有効: TLD なしのローカルドメイン",
+    # --- Cases that are valid per RFC but NG with the practical pattern ---
+    '"user name"@example.com': "RFC valid: quoted local part",
+    'user@[192.168.1.1]':      "RFC valid: IP literal domain",
+    '(comment)user@example.com': "RFC valid: with comment",
+    'user@example':            "RFC valid: local domain without TLD",
 
-    # --- 実用パターンで正しく NG になるケース ---
-    'user@.example.com':       "NG: ドメインがドットで始まる",
-    'user@example..com':       "NG: ドメイン内に連続ドット",
-    '.user@example.com':       "NG: ローカルパートがドットで始まる",
-    'user.@example.com':       "NG: ローカルパートがドットで終わる",
+    # --- Cases that are correctly rejected by the practical pattern ---
+    'user@.example.com':       "NG: domain starts with a dot",
+    'user@example..com':       "NG: consecutive dots in domain",
+    '.user@example.com':       "NG: local part starts with a dot",
+    'user.@example.com':       "NG: local part ends with a dot",
 
-    # --- 新しい TLD への対応 ---
-    'user@example.photography': "OK: 長い TLD (.photography)",
+    # --- Support for new TLDs ---
+    'user@example.photography': "OK: long TLD (.photography)",
     'user@example.museum':      "OK: .museum",
-    'user@example.co.uk':       "OK: 二重 TLD",
-    'user@example.xn--p1ai':    "OK: 国際化 TLD (Punycode)",
+    'user@example.co.uk':       "OK: double TLD",
+    'user@example.xn--p1ai':    "OK: internationalized TLD (Punycode)",
 }
 
 for email, description in edge_cases.items():
@@ -104,36 +105,36 @@ for email, description in edge_cases.items():
     print(f"  {result}: {email:<40} -- {description}")
 ```
 
-### 1.4 改良版メールパターン
+### 1.4 Improved Email Pattern
 
-基本パターンの弱点を補強した改良版を示す。
+This shows an improved version that strengthens the weaknesses of the basic pattern.
 
 ```python
 import re
 
-# 改良版: 連続ドットやドット始まり/終わりを弾く
+# Improved version: rejects consecutive dots and dots at the start/end
 email_improved = re.compile(
     r'^'
-    r'(?![.])'                      # ドットで始まらない
-    r'[a-zA-Z0-9]'                  # 英数字で開始
-    r'(?:[a-zA-Z0-9._%+-]*'         # 中間部分
-    r'[a-zA-Z0-9_%+-])?'            # ドットで終わらない（1文字の場合は省略可）
+    r'(?![.])'                      # does not start with a dot
+    r'[a-zA-Z0-9]'                  # starts with alphanumeric
+    r'(?:[a-zA-Z0-9._%+-]*'         # middle part
+    r'[a-zA-Z0-9_%+-])?'            # does not end with a dot (optional for single character)
     r'@'
-    r'(?![.-])'                     # ドメインがドットやハイフンで始まらない
-    r'[a-zA-Z0-9]'                  # ドメイン先頭
-    r'(?:[a-zA-Z0-9.-]*'            # ドメイン中間
-    r'[a-zA-Z0-9])?'               # ドメインがハイフンで終わらない
+    r'(?![.-])'                     # domain does not start with a dot or hyphen
+    r'[a-zA-Z0-9]'                  # domain head
+    r'(?:[a-zA-Z0-9.-]*'            # domain middle
+    r'[a-zA-Z0-9])?'               # domain does not end with a hyphen
     r'\.[a-zA-Z]{2,}$'             # TLD
 )
 
 test_improved = [
     ("user@example.com",        True),
-    (".user@example.com",       False),  # ドット始まり
-    ("user.@example.com",       False),  # ドット終わり
-    ("user..name@example.com",  False),  # 連続ドット
-    ("u@example.com",           True),   # 1文字ローカルパート
-    ("user@-domain.com",        False),  # ハイフン始まりドメイン
-    ("user@domain-.com",        False),  # ハイフン終わりドメイン
+    (".user@example.com",       False),  # starts with dot
+    ("user.@example.com",       False),  # ends with dot
+    ("user..name@example.com",  False),  # consecutive dots
+    ("u@example.com",           True),   # single-character local part
+    ("user@-domain.com",        False),  # domain starting with hyphen
+    ("user@domain-.com",        False),  # domain ending with hyphen
 ]
 
 for email, expected in test_improved:
@@ -142,14 +143,14 @@ for email, expected in test_improved:
     print(f"  {status}: {email:<30} expected={expected}, got={result}")
 ```
 
-### 1.5 複数言語でのメールバリデーション
+### 1.5 Email Validation in Multiple Languages
 
 ```javascript
-// JavaScript 版
+// JavaScript version
 const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
-// HTML5 の input[type="email"] は独自のパターンを使用
-// ブラウザ標準のバリデーションを活用するのが最善
+// HTML5 input[type="email"] uses its own pattern
+// Leveraging the browser's standard validation is the best approach
 const form = document.createElement('form');
 const input = document.createElement('input');
 input.type = 'email';
@@ -158,7 +159,7 @@ console.log(input.checkValidity()); // true
 ```
 
 ```go
-// Go 版
+// Go version
 package main
 
 import (
@@ -168,21 +169,21 @@ import (
 )
 
 func main() {
-    // 正規表現による基本チェック
+    // Basic check via regex
     pattern := regexp.MustCompile(
         `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`,
     )
     fmt.Println(pattern.MatchString("user@example.com")) // true
 
-    // 推奨: net/mail パッケージを使用
+    // Recommended: use the net/mail package
     _, err := mail.ParseAddress("user@example.com")
     fmt.Println(err == nil) // true
 }
 ```
 
 ```ruby
-# Ruby 版
-# 標準ライブラリの URI::MailTo を活用
+# Ruby version
+# Use the standard library URI::MailTo
 require 'uri'
 
 email = "user@example.com"
@@ -190,7 +191,7 @@ pattern = /\A[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\z/
 
 puts email.match?(pattern)  # => true
 
-# URI::MailTo::EMAIL_REGEXP も利用可能
+# URI::MailTo::EMAIL_REGEXP is also available
 puts email.match?(URI::MailTo::EMAIL_REGEXP)  # => true
 ```
 
@@ -198,26 +199,26 @@ puts email.match?(URI::MailTo::EMAIL_REGEXP)  # => true
 
 ## 2. URL
 
-### 2.1 実用パターン
+### 2.1 Practical Pattern
 
 ```python
 import re
 
-# HTTP/HTTPS URL の実用パターン
+# Practical pattern for HTTP/HTTPS URLs
 url_pattern = re.compile(
-    r'https?://'                # プロトコル
-    r'(?:[a-zA-Z0-9]'          # ドメイン先頭
-    r'(?:[a-zA-Z0-9-]{0,61}'   # ドメイン中間
-    r'[a-zA-Z0-9])?\.)'        # ドメイン末尾 + ドット
+    r'https?://'                # protocol
+    r'(?:[a-zA-Z0-9]'          # domain head
+    r'(?:[a-zA-Z0-9-]{0,61}'   # domain middle
+    r'[a-zA-Z0-9])?\.)'        # domain tail + dot
     r'+[a-zA-Z]{2,}'           # TLD
-    r'(?:/[^\s]*)?'            # パス(任意)
+    r'(?:/[^\s]*)?'            # path (optional)
 )
 
 test_urls = [
     "https://example.com",
     "https://www.example.com/path/to/page",
     "http://sub.domain.example.co.jp/path?q=1&p=2#hash",
-    "ftp://example.com",          # NG (http/https のみ)
+    "ftp://example.com",          # NG (only http/https)
     "not a url",                  # NG
 ]
 
@@ -227,18 +228,18 @@ for url in test_urls:
     print(f"  {result}")
 ```
 
-### 2.2 テキストからURLを抽出
+### 2.2 Extracting URLs from Text
 
 ```python
 import re
 
 text = """
-公式サイト: https://example.com/docs
-参考: http://sub.domain.co.jp/path?key=value
-連絡先: mailto:info@example.com (これはマッチしない)
+Official site: https://example.com/docs
+Reference: http://sub.domain.co.jp/path?key=value
+Contact: mailto:info@example.com (this should not match)
 """
 
-# テキスト中からHTTP URLを抽出
+# Extract HTTP URLs from text
 url_extract = re.compile(r'https?://[^\s<>"]+')
 
 urls = url_extract.findall(text)
@@ -248,25 +249,25 @@ for url in urls:
 # => http://sub.domain.co.jp/path?key=value
 ```
 
-### 2.3 URL の各構成要素を分解して抽出
+### 2.3 Decomposing and Extracting URL Components
 
-URLの構造をキャプチャグループで分解し、各要素を個別に取得するパターンを示す。
+This shows a pattern that decomposes a URL into capture groups so each component can be obtained individually.
 
 ```python
 import re
 
-# URL の各構成要素をキャプチャグループで抽出
+# Extract each URL component using named capture groups
 url_decompose = re.compile(
     r'^'
-    r'(?P<scheme>https?)'              # スキーム
+    r'(?P<scheme>https?)'              # scheme
     r'://'
-    r'(?:(?P<user>[^:@]+)'             # ユーザー（任意）
-    r'(?::(?P<password>[^@]+))?@)?'    # パスワード（任意）
-    r'(?P<host>[a-zA-Z0-9.-]+)'        # ホスト
-    r'(?::(?P<port>\d{1,5}))?'         # ポート（任意）
-    r'(?P<path>/[^?#]*)?'              # パス（任意）
-    r'(?:\?(?P<query>[^#]*))?'         # クエリ（任意）
-    r'(?:#(?P<fragment>.*))?'          # フラグメント（任意）
+    r'(?:(?P<user>[^:@]+)'             # user (optional)
+    r'(?::(?P<password>[^@]+))?@)?'    # password (optional)
+    r'(?P<host>[a-zA-Z0-9.-]+)'        # host
+    r'(?::(?P<port>\d{1,5}))?'         # port (optional)
+    r'(?P<path>/[^?#]*)?'              # path (optional)
+    r'(?:\?(?P<query>[^#]*))?'         # query (optional)
+    r'(?:#(?P<fragment>.*))?'          # fragment (optional)
     r'$'
 )
 
@@ -287,7 +288,7 @@ for url in test_urls_decompose:
                 print(f"    {name:>10}: {value}")
 ```
 
-出力例:
+Example output:
 
 ```
   URL: https://www.example.com/path/to/page?key=value&lang=ja#section1
@@ -307,7 +308,7 @@ for url in test_urls_decompose:
        query: format=json
 ```
 
-### 2.4 クエリパラメータのパースと抽出
+### 2.4 Parsing and Extracting Query Parameters
 
 ```python
 import re
@@ -315,49 +316,49 @@ from urllib.parse import urlparse, parse_qs
 
 url = "https://example.com/search?q=python+regex&page=2&lang=ja&sort=date"
 
-# 方法1: 正規表現でクエリパラメータを個別に抽出
+# Method 1: extract individual query parameters using regex
 param_pattern = re.compile(r'?&=([^&]*)')
 params_regex = param_pattern.findall(url)
-print("正規表現:")
+print("Regex:")
 for key, value in params_regex:
     print(f"  {key} = {value}")
 
-# 方法2: urllib.parse を使用（推奨）
+# Method 2: use urllib.parse (recommended)
 parsed = urlparse(url)
 params_lib = parse_qs(parsed.query)
 print("\nurllib.parse:")
 for key, values in params_lib.items():
     print(f"  {key} = {values}")
 
-# 注意: 正規表現はエンコード済みパラメータの処理が不十分
-# %E6%97%A5%E6%9C%AC → "日本" のようなデコードにはライブラリを使用する
+# Note: regex is insufficient for handling encoded parameters
+# Use a library for decoding things like %E6%97%A5%E6%9C%AC -> "日本"
 ```
 
-### 2.5 マークダウンや HTML からリンクを抽出
+### 2.5 Extracting Links from Markdown or HTML
 
 ```python
 import re
 
-# マークダウンのリンクを抽出: text
+# Extract markdown links: text
 markdown_link = re.compile(
-    r'\[([^\]]+)\]'          # リンクテキスト
+    r'\[([^\]]+)\]'          # link text
     r'\(([^)]+)\)'           # URL
 )
 
 md_text = """
-詳細は[公式ドキュメント](https://docs.example.com/guide)を参照。
-[APIリファレンス](https://api.example.com/v2/docs)も確認してください。
-画像: ![alt text](https://img.example.com/logo.png)
+For details, see [Official Documentation](https://docs.example.com/guide).
+Also check [API Reference](https://api.example.com/v2/docs).
+Image: ![alt text](https://img.example.com/logo.png)
 """
 
 for m in markdown_link.finditer(md_text):
-    print(f"  テキスト: {m.group(1)}")
-    print(f"  URL:     {m.group(2)}\n")
+    print(f"  Text: {m.group(1)}")
+    print(f"  URL:  {m.group(2)}\n")
 
-# HTML の <a> タグからリンクを抽出
+# Extract links from HTML <a> tags
 html_link = re.compile(
-    r'<a\s+[^>]*href="\'["\'][^>]*>'   # href 属性
-    r'(.*?)'                                        # リンクテキスト
+    r'<a\s+[^>]*href="\'["\'][^>]*>'   # href attribute
+    r'(.*?)'                                        # link text
     r'</a>',
     re.DOTALL
 )
@@ -370,14 +371,14 @@ html_text = """
 for m in html_link.finditer(html_text):
     print(f"  href: {m.group(1)}, text: {m.group(2)}")
 
-# 注意: 本格的な HTML パースには BeautifulSoup を使うべき
+# Note: for serious HTML parsing, use BeautifulSoup
 ```
 
 ---
 
-## 3. 日付
+## 3. Date
 
-### 3.1 各形式のパターン
+### 3.1 Patterns for Various Formats
 
 ```python
 import re
@@ -388,16 +389,16 @@ iso_date = re.compile(r'\b(\d{4})-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])\b')
 # YYYY/MM/DD
 slash_date = re.compile(r'\b(\d{4})/(0[1-9]|1[0-2])/(0[1-9]|[12]\d|3[01])\b')
 
-# DD/MM/YYYY (ヨーロッパ式)
+# DD/MM/YYYY (European style)
 eu_date = re.compile(r'\b(0[1-9]|[12]\d|3[01])/(0[1-9]|1[0-2])/(\d{4})\b')
 
-# MM/DD/YYYY (アメリカ式)
+# MM/DD/YYYY (American style)
 us_date = re.compile(r'\b(0[1-9]|1[0-2])/(0[1-9]|[12]\d|3[01])/(\d{4})\b')
 
-# 日本語日付
+# Japanese date
 jp_date = re.compile(r'(\d{4})年(0?[1-9]|1[0-2])月(0?[1-9]|[12]\d|3[01])日')
 
-# テスト
+# Test
 texts = [
     "2026-02-11",
     "2026/02/11",
@@ -408,32 +409,32 @@ texts = [
 
 patterns = {
     "ISO": iso_date,
-    "スラッシュ": slash_date,
+    "Slash": slash_date,
     "EU": eu_date,
     "US": us_date,
-    "日本語": jp_date,
+    "Japanese": jp_date,
 }
 
 for text in texts:
     for name, pat in patterns.items():
         m = pat.search(text)
         if m:
-            print(f"  {text} → {name}: {m.groups()}")
+            print(f"  {text} -> {name}: {m.groups()}")
 ```
 
-### 3.2 日付バリデーションの注意
+### 3.2 Caveats for Date Validation
 
 ```python
 import re
 from datetime import datetime
 
-# 正規表現だけでは不十分な例:
-# "2026-02-30" -- 形式は正しいが、2月30日は存在しない
-# "2025-02-29" -- 閏年ではないので存在しない
-# "2024-02-29" -- 閏年なので存在する
+# Examples where regex alone is insufficient:
+# "2026-02-30" -- format is correct, but February 30 does not exist
+# "2025-02-29" -- not a leap year, so it does not exist
+# "2024-02-29" -- a leap year, so it exists
 
 def validate_date(date_str: str) -> bool:
-    """正規表現 + datetime で日付を検証"""
+    """Validate a date with regex + datetime"""
     if not re.match(r'^\d{4}-\d{2}-\d{2}$', date_str):
         return False
     try:
@@ -443,63 +444,63 @@ def validate_date(date_str: str) -> bool:
         return False
 
 print(validate_date("2026-02-11"))  # => True
-print(validate_date("2026-02-30"))  # => False (30日は存在しない)
-print(validate_date("2025-02-29"))  # => False (閏年でない)
-print(validate_date("2024-02-29"))  # => True  (閏年)
+print(validate_date("2026-02-30"))  # => False (day 30 does not exist)
+print(validate_date("2025-02-29"))  # => False (not a leap year)
+print(validate_date("2024-02-29"))  # => True  (leap year)
 ```
 
-### 3.3 日時（DateTime）パターン
+### 3.3 DateTime Patterns
 
-日付だけでなく時刻まで含むパターンを示す。
+This shows patterns that include time as well as date.
 
 ```python
 import re
 from datetime import datetime
 
-# ISO 8601 日時形式: YYYY-MM-DDTHH:MM:SS
+# ISO 8601 datetime format: YYYY-MM-DDTHH:MM:SS
 iso_datetime = re.compile(
-    r'\b(\d{4})-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])'  # 日付部分
-    r'[T ]'                                                # 区切り（T またはスペース）
-    r'([01]\d|2[0-3]):([0-5]\d):([0-5]\d)'                # 時刻部分
-    r'(?:\.(\d{1,6}))?'                                   # マイクロ秒（任意）
-    r'(?:Z|([+-])([01]\d|2[0-3]):?([0-5]\d))?\b'          # タイムゾーン（任意）
+    r'\b(\d{4})-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])'  # date part
+    r'[T ]'                                                # separator (T or space)
+    r'([01]\d|2[0-3]):([0-5]\d):([0-5]\d)'                # time part
+    r'(?:\.(\d{1,6}))?'                                   # microseconds (optional)
+    r'(?:Z|([+-])([01]\d|2[0-3]):?([0-5]\d))?\b'          # timezone (optional)
 )
 
 test_datetimes = [
-    "2026-02-11T14:30:00",           # ローカル時刻
+    "2026-02-11T14:30:00",           # local time
     "2026-02-11T14:30:00Z",          # UTC
     "2026-02-11T14:30:00+09:00",     # JST
-    "2026-02-11 14:30:00.123456",    # マイクロ秒付き
+    "2026-02-11 14:30:00.123456",    # with microseconds
     "2026-02-11T14:30:00-05:00",     # EST
-    "2026-02-11T25:00:00",           # NG: 25時は存在しない
+    "2026-02-11T25:00:00",           # NG: hour 25 does not exist
 ]
 
 for dt_str in test_datetimes:
     m = iso_datetime.search(dt_str)
     if m:
         print(f"  OK: {dt_str}")
-        print(f"      日付: {m.group(1)}-{m.group(2)}-{m.group(3)}")
-        print(f"      時刻: {m.group(4)}:{m.group(5)}:{m.group(6)}")
+        print(f"      Date: {m.group(1)}-{m.group(2)}-{m.group(3)}")
+        print(f"      Time: {m.group(4)}:{m.group(5)}:{m.group(6)}")
     else:
         print(f"  NG: {dt_str}")
 ```
 
-### 3.4 相対日付表現のパース
+### 3.4 Parsing Relative Date Expressions
 
-ログやテキストから「3日前」「2週間後」のような相対日付表現を抽出する。
+Extract relative date expressions like "3 days ago" or "2 weeks from now" from logs and text.
 
 ```python
 import re
 from datetime import datetime, timedelta
 
-# 日本語の相対日付表現
+# Japanese relative date expressions
 relative_date_jp = re.compile(
     r'(\d+)\s*'
     r'(秒|分|時間|日|週間?|ヶ月|か月|カ月|年)'
     r'\s*(前|後|先|以内)'
 )
 
-# 英語の相対日付表現
+# English relative date expressions
 relative_date_en = re.compile(
     r'(\d+)\s+'
     r'(seconds?|minutes?|hours?|days?|weeks?|months?|years?)'
@@ -519,60 +520,60 @@ for text in test_relative:
     m = relative_date_jp.search(text) or relative_date_en.search(text)
     if m:
         print(f"  '{text}'")
-        print(f"    抽出: {m.group(0)}")
-        print(f"    数値: {m.group(1)}, 単位: {m.group(2)}, 方向: {m.group(3)}")
+        print(f"    Extracted: {m.group(0)}")
+        print(f"    Number: {m.group(1)}, Unit: {m.group(2)}, Direction: {m.group(3)}")
 ```
 
-### 3.5 日付範囲のバリデーション
+### 3.5 Date Range Validation
 
 ```python
 import re
 from datetime import datetime
 
 def validate_date_range(start_str: str, end_str: str) -> dict:
-    """日付範囲のバリデーション"""
+    """Validate a date range"""
     date_pattern = re.compile(r'^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$')
 
     result = {"valid": True, "errors": []}
 
-    # 形式チェック
+    # Format check
     if not date_pattern.match(start_str):
         result["valid"] = False
-        result["errors"].append(f"開始日の形式が不正: {start_str}")
+        result["errors"].append(f"Invalid start date format: {start_str}")
     if not date_pattern.match(end_str):
         result["valid"] = False
-        result["errors"].append(f"終了日の形式が不正: {end_str}")
+        result["errors"].append(f"Invalid end date format: {end_str}")
 
     if not result["valid"]:
         return result
 
-    # 日付の妥当性チェック
+    # Date validity check
     try:
         start = datetime.strptime(start_str, '%Y-%m-%d')
         end = datetime.strptime(end_str, '%Y-%m-%d')
     except ValueError as e:
         result["valid"] = False
-        result["errors"].append(f"日付が存在しない: {e}")
+        result["errors"].append(f"Date does not exist: {e}")
         return result
 
-    # 論理チェック: 開始日 <= 終了日
+    # Logical check: start <= end
     if start > end:
         result["valid"] = False
-        result["errors"].append("開始日が終了日より後です")
+        result["errors"].append("Start date is after end date")
 
-    # 範囲チェック: 最大365日以内
+    # Range check: within 365 days
     if (end - start).days > 365:
         result["valid"] = False
-        result["errors"].append("日付範囲が365日を超えています")
+        result["errors"].append("Date range exceeds 365 days")
 
     return result
 
-# テスト
+# Test
 cases = [
     ("2026-01-01", "2026-12-31"),  # OK
-    ("2026-12-31", "2026-01-01"),  # NG: 逆順
-    ("2026-02-29", "2026-03-01"),  # NG: 2026年2月29日は存在しない
-    ("2025-01-01", "2026-12-31"),  # NG: 365日超過
+    ("2026-12-31", "2026-01-01"),  # NG: reversed
+    ("2026-02-29", "2026-03-01"),  # NG: 2026-02-29 does not exist
+    ("2025-01-01", "2026-12-31"),  # NG: exceeds 365 days
 ]
 
 for start, end in cases:
@@ -585,31 +586,31 @@ for start, end in cases:
 
 ---
 
-## 4. 電話番号
+## 4. Phone Number
 
-### 4.1 各国のパターン
+### 4.1 Patterns by Country
 
 ```python
 import re
 
-# 日本の電話番号
+# Japanese phone numbers
 jp_phone_patterns = {
-    # 携帯電話: 090/080/070-XXXX-XXXX
-    "携帯": re.compile(r'0[789]0-?\d{4}-?\d{4}'),
-    # 固定電話(東京): 03-XXXX-XXXX
-    "固定(東京)": re.compile(r'03-?\d{4}-?\d{4}'),
-    # 固定電話(大阪): 06-XXXX-XXXX
-    "固定(大阪)": re.compile(r'06-?\d{4}-?\d{4}'),
-    # フリーダイヤル: 0120-XXX-XXX
-    "フリーダイヤル": re.compile(r'0120-?\d{3}-?\d{3}'),
-    # 国際形式: +81-XX-XXXX-XXXX
-    "国際": re.compile(r'\+81-?\d{1,4}-?\d{1,4}-?\d{4}'),
+    # Mobile: 090/080/070-XXXX-XXXX
+    "Mobile": re.compile(r'0[789]0-?\d{4}-?\d{4}'),
+    # Landline (Tokyo): 03-XXXX-XXXX
+    "Landline (Tokyo)": re.compile(r'03-?\d{4}-?\d{4}'),
+    # Landline (Osaka): 06-XXXX-XXXX
+    "Landline (Osaka)": re.compile(r'06-?\d{4}-?\d{4}'),
+    # Toll-free: 0120-XXX-XXX
+    "Toll-free": re.compile(r'0120-?\d{3}-?\d{3}'),
+    # International format: +81-XX-XXXX-XXXX
+    "International": re.compile(r'\+81-?\d{1,4}-?\d{1,4}-?\d{4}'),
 }
 
-# 汎用的な日本の電話番号パターン
+# General Japanese phone number pattern
 jp_phone_general = re.compile(
-    r'(?:\+81|0)'           # +81 または 0
-    r'[\d-]{9,13}'          # 数字とハイフンで9-13文字
+    r'(?:\+81|0)'           # +81 or 0
+    r'[\d-]{9,13}'          # 9-13 characters of digits and hyphens
 )
 
 test_phones = [
@@ -625,56 +626,56 @@ for phone in test_phones:
     print(f"  {phone}: {'OK' if m else 'NG'}")
 ```
 
-### 4.2 国際的な電話番号(E.164)
+### 4.2 International Phone Number (E.164)
 
 ```python
 import re
 
-# E.164 形式: +[国番号][電話番号] (最大15桁)
+# E.164 format: +[country code][phone number] (max 15 digits)
 e164_pattern = re.compile(r'^\+[1-9]\d{1,14}$')
 
 test_numbers = [
-    "+819012345678",     # 日本
-    "+14155551234",      # アメリカ
-    "+442012345678",     # イギリス
-    "+0123456789",       # NG (0で始まる国番号はない)
-    "+123456789012345",  # NG (16桁 -- 上限超過)
+    "+819012345678",     # Japan
+    "+14155551234",      # USA
+    "+442012345678",     # UK
+    "+0123456789",       # NG (no country code starts with 0)
+    "+123456789012345",  # NG (16 digits -- exceeds upper limit)
 ]
 
 for num in test_numbers:
     result = "OK" if e164_pattern.match(num) else "NG"
     print(f"  {result}: {num}")
 
-# 注: 電話番号の厳密なバリデーションには
-# Google の libphonenumber ライブラリを推奨
+# Note: for strict phone number validation,
+# Google's libphonenumber library is recommended
 ```
 
-### 4.3 各国の電話番号パターン詳細
+### 4.3 Phone Number Patterns by Country in Detail
 
 ```python
 import re
 
-# 各国の電話番号パターン集
+# Collection of phone number patterns by country
 international_phone_patterns = {
-    # アメリカ/カナダ (NANP): +1-NXX-NXX-XXXX
+    # USA/Canada (NANP): +1-NXX-NXX-XXXX
     "US/CA": re.compile(
-        r'(?:\+1[-.\s]?)?'            # 国番号（任意）
-        r'\(?[2-9]\d{2}\)?'            # エリアコード
+        r'(?:\+1[-.\s]?)?'            # country code (optional)
+        r'\(?[2-9]\d{2}\)?'            # area code
         r'[-.\s]?'
-        r'[2-9]\d{2}'                  # 局番
+        r'[2-9]\d{2}'                  # exchange
         r'[-.\s]?'
-        r'\d{4}'                       # 加入者番号
+        r'\d{4}'                       # subscriber number
     ),
 
-    # イギリス: +44 XXXX XXXXXX
+    # UK: +44 XXXX XXXXXX
     "UK": re.compile(
-        r'(?:\+44[-.\s]?|0)'           # 国番号またはトランクプレフィックス
-        r'[1-9]\d{1,4}'               # エリアコード
+        r'(?:\+44[-.\s]?|0)'           # country code or trunk prefix
+        r'[1-9]\d{1,4}'               # area code
         r'[-.\s]?'
-        r'\d{4,8}'                     # 加入者番号
+        r'\d{4,8}'                     # subscriber number
     ),
 
-    # ドイツ: +49 XXXX XXXXXXX
+    # Germany: +49 XXXX XXXXXXX
     "DE": re.compile(
         r'(?:\+49[-.\s]?|0)'
         r'[1-9]\d{1,4}'
@@ -682,20 +683,20 @@ international_phone_patterns = {
         r'\d{3,8}'
     ),
 
-    # 中国: +86 1XX XXXX XXXX (携帯)
+    # China: +86 1XX XXXX XXXX (mobile)
     "CN_mobile": re.compile(
         r'(?:\+86[-.\s]?)?'
-        r'1[3-9]\d'                    # 携帯プレフィックス
+        r'1[3-9]\d'                    # mobile prefix
         r'[-.\s]?'
         r'\d{4}'
         r'[-.\s]?'
         r'\d{4}'
     ),
 
-    # 韓国: +82 01X-XXXX-XXXX (携帯)
+    # Korea: +82 01X-XXXX-XXXX (mobile)
     "KR_mobile": re.compile(
         r'(?:\+82[-.\s]?|0)'
-        r'1[016789]'                   # 携帯プレフィックス
+        r'1[016789]'                   # mobile prefix
         r'[-.\s]?'
         r'\d{3,4}'
         r'[-.\s]?'
@@ -719,57 +720,57 @@ for country, phone in test_international:
     print(f"  {country:>10}: {phone:<25} {'OK' if m else 'NG'}")
 ```
 
-### 4.4 テキストから電話番号を一括抽出
+### 4.4 Bulk Extraction of Phone Numbers from Text
 
 ```python
 import re
 
-# テキスト中から電話番号らしい文字列を抽出する汎用パターン
+# General-purpose pattern for extracting phone-number-like strings from text
 phone_extractor = re.compile(
     r'(?:'
-    r'\+\d{1,3}[-.\s]?'               # 国番号付き
+    r'\+\d{1,3}[-.\s]?'               # with country code
     r'|'
-    r'0'                               # 国内番号
+    r'0'                               # domestic number
     r')'
-    r'(?:\d[-.\s]?){8,13}'            # 8〜13桁の数字列
+    r'(?:\d[-.\s]?){8,13}'            # sequence of 8 to 13 digits
 )
 
 document = """
-お問い合わせ先:
-  東京本社: 03-1234-5678
-  大阪支社: 06-9876-5432
-  携帯（担当者直通）: 090-1111-2222
-  フリーダイヤル: 0120-456-789
-  海外からのお問い合わせ: +81-3-1234-5678
+Contact Information:
+  Tokyo HQ: 03-1234-5678
+  Osaka Branch: 06-9876-5432
+  Mobile (direct line): 090-1111-2222
+  Toll-free: 0120-456-789
+  International inquiries: +81-3-1234-5678
 
-※ 営業時間: 9:00-18:00（数字だが電話番号ではない）
-※ FAX: 03-1234-5679
+* Business hours: 9:00-18:00 (digits but not a phone number)
+* FAX: 03-1234-5679
 """
 
 phones = phone_extractor.findall(document)
-print("抽出された電話番号:")
+print("Extracted phone numbers:")
 for phone in phones:
-    # 正規化: ハイフンとスペースを除去
+    # Normalize: remove hyphens and spaces
     normalized = re.sub(r'[-.\s]', '', phone)
-    print(f"  原文: {phone:<25} 正規化: {normalized}")
+    print(f"  Original: {phone:<25} Normalized: {normalized}")
 ```
 
 ---
 
-## 5. IPアドレス
+## 5. IP Address
 
 ### 5.1 IPv4
 
 ```python
 import re
 
-# IPv4: 0.0.0.0 から 255.255.255.255
+# IPv4: from 0.0.0.0 to 255.255.255.255
 ipv4_pattern = re.compile(
     r'\b'
-    r'(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.'   # 第1オクテット
-    r'(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.'   # 第2オクテット
-    r'(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.'   # 第3オクテット
-    r'(?:25[0-5]|2[0-4]\d|[01]?\d\d?)'     # 第4オクテット
+    r'(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.'   # 1st octet
+    r'(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.'   # 2nd octet
+    r'(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.'   # 3rd octet
+    r'(?:25[0-5]|2[0-4]\d|[01]?\d\d?)'     # 4th octet
     r'\b'
 )
 
@@ -778,9 +779,9 @@ test_ips = [
     "10.0.0.0",         # OK
     "255.255.255.255",  # OK
     "0.0.0.0",          # OK
-    "256.1.1.1",        # NG (256は範囲外)
-    "192.168.1",        # NG (3オクテットのみ)
-    "192.168.1.1.1",    # NG (5オクテット)
+    "256.1.1.1",        # NG (256 is out of range)
+    "192.168.1",        # NG (only 3 octets)
+    "192.168.1.1.1",    # NG (5 octets)
 ]
 
 for ip in test_ips:
@@ -788,20 +789,20 @@ for ip in test_ips:
     print(f"  {result}: {ip}")
 ```
 
-### 5.2 IPv6(簡易版)
+### 5.2 IPv6 (Simplified)
 
 ```python
 import re
 import ipaddress
 
-# IPv6 は正規表現だけで厳密にマッチするのは困難
-# 簡易パターン + ライブラリでの検証を推奨
+# Strict IPv6 matching with regex alone is difficult
+# Recommendation: simple pattern + library validation
 
 ipv6_simple = re.compile(
-    r'(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}'  # フル形式のみ
+    r'(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}'  # full form only
 )
 
-# 推奨: ipaddress モジュールを使用
+# Recommended: use the ipaddress module
 def validate_ip(addr: str) -> str:
     try:
         obj = ipaddress.ip_address(addr)
@@ -814,51 +815,51 @@ print(validate_ip("2001:db8::1"))                 # => IPv6
 print(validate_ip("fe80::1%eth0"))                # => Invalid
 ```
 
-### 5.3 CIDR 表記のパターン
+### 5.3 CIDR Notation Pattern
 
 ```python
 import re
 import ipaddress
 
-# IPv4 CIDR 表記: 192.168.1.0/24
+# IPv4 CIDR notation: 192.168.1.0/24
 ipv4_cidr = re.compile(
     r'\b'
     r'(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.'
     r'(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.'
     r'(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.'
     r'(?:25[0-5]|2[0-4]\d|[01]?\d\d?)'
-    r'/([12]?\d|3[0-2])'      # サブネットマスク: 0-32
+    r'/([12]?\d|3[0-2])'      # subnet mask: 0-32
     r'\b'
 )
 
 test_cidrs = [
-    "192.168.1.0/24",      # OK: /24 サブネット
-    "10.0.0.0/8",          # OK: クラスA
-    "172.16.0.0/12",       # OK: プライベートアドレス
-    "192.168.1.0/33",      # NG: /33は範囲外
-    "256.0.0.0/24",        # NG: 256は範囲外
+    "192.168.1.0/24",      # OK: /24 subnet
+    "10.0.0.0/8",          # OK: Class A
+    "172.16.0.0/12",       # OK: private address
+    "192.168.1.0/33",      # NG: /33 is out of range
+    "256.0.0.0/24",        # NG: 256 is out of range
 ]
 
 for cidr in test_cidrs:
     m = ipv4_cidr.fullmatch(cidr)
     if m:
-        # ライブラリでも検証
+        # Also validate with the library
         try:
             network = ipaddress.ip_network(cidr, strict=False)
-            print(f"  OK: {cidr:<20} ネットワーク={network.network_address}, "
-                  f"ホスト数={network.num_addresses}")
+            print(f"  OK: {cidr:<20} network={network.network_address}, "
+                  f"hosts={network.num_addresses}")
         except ValueError as e:
             print(f"  NG: {cidr:<20} {e}")
     else:
         print(f"  NG: {cidr}")
 ```
 
-### 5.4 プライベート IP アドレスの識別
+### 5.4 Identifying Private IP Addresses
 
 ```python
 import re
 
-# プライベート IP アドレスの範囲
+# Private IP address ranges
 # 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
 
 private_ipv4 = re.compile(
@@ -869,19 +870,19 @@ private_ipv4 = re.compile(
     r'|'
     r'192\.168\.\d{1,3}\.\d{1,3}'               # 192.168.0.0/16
     r'|'
-    r'127\.\d{1,3}\.\d{1,3}\.\d{1,3}'           # 127.0.0.0/8 (ループバック)
+    r'127\.\d{1,3}\.\d{1,3}\.\d{1,3}'           # 127.0.0.0/8 (loopback)
     r')\b'
 )
 
 test_private = [
-    "10.0.0.1",        # プライベート
-    "172.16.0.1",      # プライベート
-    "172.31.255.255",  # プライベート
-    "172.32.0.1",      # パブリック（172.32 は範囲外）
-    "192.168.1.1",     # プライベート
-    "127.0.0.1",       # ループバック
-    "8.8.8.8",         # パブリック
-    "203.0.113.1",     # パブリック（ドキュメント用）
+    "10.0.0.1",        # private
+    "172.16.0.1",      # private
+    "172.31.255.255",  # private
+    "172.32.0.1",      # public (172.32 is out of range)
+    "192.168.1.1",     # private
+    "127.0.0.1",       # loopback
+    "8.8.8.8",         # public
+    "203.0.113.1",     # public (documentation)
 ]
 
 for ip in test_private:
@@ -889,13 +890,13 @@ for ip in test_private:
     print(f"  {'Private' if is_private else 'Public ':>7}: {ip}")
 ```
 
-### 5.5 ログファイルからの IP アドレス抽出と集計
+### 5.5 Extracting and Aggregating IP Addresses from Log Files
 
 ```python
 import re
 from collections import Counter
 
-# Apache/Nginx アクセスログからの IP 抽出
+# Extract IPs from Apache/Nginx access logs
 ipv4_pattern = re.compile(
     r'\b(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.'
     r'(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.'
@@ -913,36 +914,36 @@ sample_log = """
 10.0.0.50 - - [11/Feb/2026:14:30:06 +0900] "GET /api/health HTTP/1.1" 200 15
 """
 
-# IP を抽出して集計
+# Extract IPs and aggregate
 ips = ipv4_pattern.findall(sample_log)
 ip_counts = Counter(ips)
 
-print("IP アドレス別アクセス数:")
+print("Access counts per IP address:")
 for ip, count in ip_counts.most_common():
-    print(f"  {ip:<16} {count} 回")
+    print(f"  {ip:<16} {count} times")
 
-# 403 エラーの IP を特定
+# Identify IPs with 403 errors
 error_pattern = re.compile(
     r'(\d+\.\d+\.\d+\.\d+).*?"(?:GET|POST|PUT|DELETE)\s+\S+\s+HTTP/\d\.\d"\s+403'
 )
 
 error_ips = error_pattern.findall(sample_log)
 error_counts = Counter(error_ips)
-print("\n403 エラーの IP:")
+print("\nIPs with 403 errors:")
 for ip, count in error_counts.most_common():
-    print(f"  {ip:<16} {count} 回 -- 不正アクセスの可能性")
+    print(f"  {ip:<16} {count} times -- possibly unauthorized access")
 ```
 
 ---
 
-## 6. その他の頻出パターン
+## 6. Other Common Patterns
 
-### 6.1 郵便番号(日本)
+### 6.1 Postal Code (Japan)
 
 ```python
 import re
 
-# 日本の郵便番号: XXX-XXXX
+# Japanese postal code: XXX-XXXX
 jp_postal = re.compile(r'\b\d{3}-?\d{4}\b')
 
 test_codes = ["100-0001", "1000001", "100-001"]
@@ -954,12 +955,12 @@ for code in test_codes:
 # => NG: 100-001
 ```
 
-### 6.2 クレジットカード番号(Luhnチェック付き)
+### 6.2 Credit Card Number (with Luhn Check)
 
 ```python
 import re
 
-# 主要カードブランドのパターン
+# Patterns for major card brands
 card_patterns = {
     "Visa":       re.compile(r'^4\d{12}(?:\d{3})?$'),
     "Mastercard": re.compile(r'^5[1-5]\d{14}$'),
@@ -968,7 +969,7 @@ card_patterns = {
 }
 
 def luhn_check(number: str) -> bool:
-    """Luhn アルゴリズムでチェックディジットを検証"""
+    """Validate the check digit using the Luhn algorithm"""
     digits = [int(d) for d in number]
     checksum = 0
     for i, d in enumerate(reversed(digits)):
@@ -980,7 +981,7 @@ def luhn_check(number: str) -> bool:
     return checksum % 10 == 0
 
 def validate_card(number: str) -> tuple[str, bool]:
-    """カード番号を検証(形式 + Luhn)"""
+    """Validate a card number (format + Luhn)"""
     clean = number.replace(' ', '').replace('-', '')
     for brand, pattern in card_patterns.items():
         if pattern.match(clean):
@@ -990,20 +991,20 @@ def validate_card(number: str) -> tuple[str, bool]:
 print(validate_card("4111 1111 1111 1111"))  # => ('Visa', True)
 ```
 
-### 6.3 パスワード強度
+### 6.3 Password Strength
 
 ```python
 import re
 
 def check_password_strength(password: str) -> dict:
-    """パスワード強度を複数基準でチェック"""
+    """Check password strength against multiple criteria"""
     checks = {
-        "8文字以上": len(password) >= 8,
-        "大文字含む": bool(re.search(r'[A-Z]', password)),
-        "小文字含む": bool(re.search(r'[a-z]', password)),
-        "数字含む":   bool(re.search(r'\d', password)),
-        "記号含む":   bool(re.search(r'[!@#$%^&*(),.?":{}|<>]', password)),
-        "連続文字なし": not bool(re.search(r'(.)\1{2,}', password)),
+        "8 characters or more": len(password) >= 8,
+        "Contains uppercase":   bool(re.search(r'[A-Z]', password)),
+        "Contains lowercase":   bool(re.search(r'[a-z]', password)),
+        "Contains digit":       bool(re.search(r'\d', password)),
+        "Contains symbol":      bool(re.search(r'[!@#$%^&*(),.?":{}|<>]', password)),
+        "No consecutive chars": not bool(re.search(r'(.)\1{2,}', password)),
     }
     strength = sum(checks.values())
     return {"checks": checks, "score": f"{strength}/6"}
@@ -1011,43 +1012,43 @@ def check_password_strength(password: str) -> dict:
 result = check_password_strength("MyP@ssw0rd")
 for check, passed in result["checks"].items():
     print(f"  {'OK' if passed else 'NG'}: {check}")
-print(f"  スコア: {result['score']}")
+print(f"  Score: {result['score']}")
 ```
 
-### 6.4 ユーザー名のバリデーション
+### 6.4 Username Validation
 
-Webサービスで一般的なユーザー名のバリデーションパターンを示す。
+This shows a typical username validation pattern for web services.
 
 ```python
 import re
 
-# ユーザー名の要件:
-# - 3〜20文字
-# - 英数字、アンダースコア、ハイフンのみ
-# - 先頭は英字
-# - 連続するアンダースコアやハイフンは不可
+# Username requirements:
+# - 3 to 20 characters
+# - Only alphanumerics, underscores, and hyphens
+# - Must start with a letter
+# - No consecutive underscores or hyphens
 
 username_pattern = re.compile(
     r'^'
-    r'[a-zA-Z]'                  # 先頭は英字
-    r'(?!.*[-_]{2})'             # 連続記号を否定先読みで禁止
-    r'[a-zA-Z0-9_-]{2,19}'      # 残り2〜19文字（合計3〜20文字）
+    r'[a-zA-Z]'                  # starts with a letter
+    r'(?!.*[-_]{2})'             # forbid consecutive symbols via negative lookahead
+    r'[a-zA-Z0-9_-]{2,19}'      # remaining 2-19 characters (3-20 total)
     r'$'
 )
 
 test_usernames = [
-    ("alice",           True,  "OK: 基本的な名前"),
-    ("user_name",       True,  "OK: アンダースコア入り"),
-    ("user-name",       True,  "OK: ハイフン入り"),
-    ("a1b2c3",          True,  "OK: 英数字混合"),
-    ("ab",              False, "NG: 2文字（最低3文字）"),
-    ("1user",           False, "NG: 数字で始まる"),
-    ("_user",           False, "NG: アンダースコアで始まる"),
-    ("user__name",      False, "NG: 連続アンダースコア"),
-    ("user--name",      False, "NG: 連続ハイフン"),
-    ("user name",       False, "NG: スペース含む"),
-    ("user@name",       False, "NG: 特殊文字含む"),
-    ("a" * 21,          False, "NG: 21文字（最大20文字）"),
+    ("alice",           True,  "OK: basic name"),
+    ("user_name",       True,  "OK: with underscore"),
+    ("user-name",       True,  "OK: with hyphen"),
+    ("a1b2c3",          True,  "OK: alphanumeric mix"),
+    ("ab",              False, "NG: 2 chars (min 3)"),
+    ("1user",           False, "NG: starts with digit"),
+    ("_user",           False, "NG: starts with underscore"),
+    ("user__name",      False, "NG: consecutive underscores"),
+    ("user--name",      False, "NG: consecutive hyphens"),
+    ("user name",       False, "NG: contains space"),
+    ("user@name",       False, "NG: contains special char"),
+    ("a" * 21,          False, "NG: 21 chars (max 20)"),
 ]
 
 for username, expected, description in test_usernames:
@@ -1057,22 +1058,22 @@ for username, expected, description in test_usernames:
     print(f"  {status}: {display_name:<20} -- {description}")
 ```
 
-### 6.5 ファイルパスのパターン
+### 6.5 File Path Patterns
 
 ```python
 import re
 
-# Unix/Linux ファイルパス
+# Unix/Linux file path
 unix_path = re.compile(
     r'^(/[a-zA-Z0-9._-]+)+/?$'
 )
 
-# Windows ファイルパス
+# Windows file path
 windows_path = re.compile(
     r'^[A-Z]:\\(?:[^\\/:*?"<>|\r\n]+\\)*[^\\/:*?"<>|\r\n]*$'
 )
 
-# ファイル拡張子の抽出
+# Extract file extension
 extension = re.compile(r'\.([a-zA-Z0-9]+)$')
 
 test_paths = {
@@ -1086,55 +1087,55 @@ for path, os_type in test_paths.items():
     pattern = unix_path if os_type == "Unix" else windows_path
     valid = bool(pattern.match(path))
     ext_match = extension.search(path)
-    ext = ext_match.group(1) if ext_match else "(なし)"
+    ext = ext_match.group(1) if ext_match else "(none)"
     print(f"  {os_type:>7}: {path:<40} valid={valid}, ext={ext}")
 ```
 
-### 6.6 16進カラーコード
+### 6.6 Hexadecimal Color Codes
 
 ```python
 import re
 
-# CSS カラーコード
+# CSS color codes
 hex_color = re.compile(
     r'^#(?:'
-    r'[0-9a-fA-F]{3}'    # 短縮形: #RGB
+    r'[0-9a-fA-F]{3}'    # short form: #RGB
     r'|'
-    r'[0-9a-fA-F]{4}'    # 短縮形+アルファ: #RGBA
+    r'[0-9a-fA-F]{4}'    # short form + alpha: #RGBA
     r'|'
-    r'[0-9a-fA-F]{6}'    # フル形式: #RRGGBB
+    r'[0-9a-fA-F]{6}'    # full form: #RRGGBB
     r'|'
-    r'[0-9a-fA-F]{8}'    # フル形式+アルファ: #RRGGBBAA
+    r'[0-9a-fA-F]{8}'    # full form + alpha: #RRGGBBAA
     r')$'
 )
 
-# CSS の rgb()/rgba() 関数形式
+# CSS rgb()/rgba() function form
 rgb_color = re.compile(
     r'^rgba?\(\s*'
     r'(\d{1,3})\s*,\s*'     # R: 0-255
     r'(\d{1,3})\s*,\s*'     # G: 0-255
     r'(\d{1,3})'             # B: 0-255
     r'(?:\s*,\s*'
-    r'([01]?\.?\d*)'         # A: 0-1（任意）
+    r'([01]?\.?\d*)'         # A: 0-1 (optional)
     r')?\s*\)$'
 )
 
-# HSL 形式
+# HSL form
 hsl_color = re.compile(
     r'^hsla?\(\s*'
     r'(\d{1,3})\s*,\s*'     # H: 0-360
     r'(\d{1,3})%\s*,\s*'    # S: 0-100%
     r'(\d{1,3})%'            # L: 0-100%
     r'(?:\s*,\s*'
-    r'([01]?\.?\d*)'         # A: 0-1（任意）
+    r'([01]?\.?\d*)'         # A: 0-1 (optional)
     r')?\s*\)$'
 )
 
 test_colors = [
-    "#fff",                 # OK: 短縮形
-    "#FF5733",              # OK: フル形式
-    "#FF573380",            # OK: アルファ付き
-    "#GGHHII",              # NG: 無効な16進
+    "#fff",                 # OK: short form
+    "#FF5733",              # OK: full form
+    "#FF573380",            # OK: with alpha
+    "#GGHHII",              # NG: invalid hex
     "rgb(255, 87, 51)",     # OK: RGB
     "rgba(255, 87, 51, 0.5)", # OK: RGBA
     "hsl(9, 100%, 60%)",    # OK: HSL
@@ -1149,7 +1150,7 @@ for color in test_colors:
     print(f"  {'OK' if matched else 'NG'}: {color}")
 ```
 
-### 6.7 UUID のバリデーション
+### 6.7 UUID Validation
 
 ```python
 import re
@@ -1158,17 +1159,17 @@ import re
 uuid_v4 = re.compile(
     r'^[0-9a-f]{8}-'
     r'[0-9a-f]{4}-'
-    r'4[0-9a-f]{3}-'          # バージョン4
-    r'[89ab][0-9a-f]{3}-'     # バリアント1
+    r'4[0-9a-f]{3}-'          # version 4
+    r'[89ab][0-9a-f]{3}-'     # variant 1
     r'[0-9a-f]{12}$',
     re.IGNORECASE
 )
 
-# 任意バージョンの UUID
+# UUID of any version
 uuid_any = re.compile(
     r'^[0-9a-f]{8}-'
     r'[0-9a-f]{4}-'
-    r'[1-5][0-9a-f]{3}-'      # バージョン1-5
+    r'[1-5][0-9a-f]{3}-'      # versions 1-5
     r'[89ab][0-9a-f]{3}-'
     r'[0-9a-f]{12}$',
     re.IGNORECASE
@@ -1178,8 +1179,8 @@ test_uuids = [
     "550e8400-e29b-41d4-a716-446655440000",  # OK: v4
     "6ba7b810-9dad-11d1-80b4-00c04fd430c8",  # OK: v1
     "not-a-uuid",                              # NG
-    "550e8400-e29b-61d4-a716-446655440000",   # NG: バージョン6（v1-5のみ対応）
-    "550e8400-e29b-41d4-c716-446655440000",   # NG: 無効なバリアント
+    "550e8400-e29b-61d4-a716-446655440000",   # NG: version 6 (only v1-5 supported)
+    "550e8400-e29b-41d4-c716-446655440000",   # NG: invalid variant
 ]
 
 for uuid_str in test_uuids:
@@ -1188,36 +1189,36 @@ for uuid_str in test_uuids:
     print(f"  {any_v}({v4}): {uuid_str}")
 ```
 
-### 6.8 日本語テキストのパターン
+### 6.8 Japanese Text Patterns
 
 ```python
 import re
 
-# ひらがな
+# Hiragana
 hiragana = re.compile(r'^[\u3040-\u309F]+$')
 
-# カタカナ
+# Katakana
 katakana = re.compile(r'^[\u30A0-\u30FF]+$')
 
-# 漢字（CJK統合漢字）
+# Kanji (CJK Unified Ideographs)
 kanji = re.compile(r'^[\u4E00-\u9FFF]+$')
 
-# 全角文字
+# Full-width characters
 zenkaku = re.compile(r'^[\uFF01-\uFF5E]+$')
 
-# 日本語の名前（姓 名）: 漢字+スペース+漢字
+# Japanese name (family given): kanji + space + kanji
 jp_name = re.compile(r'^[\u4E00-\u9FFF\u3040-\u309F]{1,10}\s[\u4E00-\u9FFF\u3040-\u309F]{1,10}$')
 
-# フリガナ（カタカナ）
+# Furigana (katakana)
 furigana = re.compile(r'^[\u30A0-\u30FF\s]{2,20}$')
 
 test_japanese = [
-    ("あいうえお",     hiragana,  "ひらがな"),
-    ("アイウエオ",     katakana,  "カタカナ"),
-    ("漢字",           kanji,     "漢字"),
-    ("山田 太郎",      jp_name,   "日本語名"),
-    ("ヤマダ タロウ",  furigana,  "フリガナ"),
-    ("ABC",            hiragana,  "英字（NG）"),
+    ("あいうえお",     hiragana,  "Hiragana"),
+    ("アイウエオ",     katakana,  "Katakana"),
+    ("漢字",           kanji,     "Kanji"),
+    ("山田 太郎",      jp_name,   "Japanese name"),
+    ("ヤマダ タロウ",  furigana,  "Furigana"),
+    ("ABC",            hiragana,  "Latin letters (NG)"),
 ]
 
 for text, pattern, description in test_japanese:
@@ -1225,39 +1226,39 @@ for text, pattern, description in test_japanese:
     print(f"  {result}: {text:<15} -- {description}")
 ```
 
-### 6.9 数値フォーマットのパターン
+### 6.9 Numeric Format Patterns
 
 ```python
 import re
 
-# 整数（カンマ区切り対応）
+# Integer (with comma separators)
 integer_comma = re.compile(r'^-?(?:\d{1,3}(?:,\d{3})*|\d+)$')
 
-# 小数点数
+# Decimal number
 decimal_number = re.compile(r'^-?\d+(?:\.\d+)?$')
 
-# 科学的記数法
+# Scientific notation
 scientific = re.compile(r'^-?\d+(?:\.\d+)?[eE][+-]?\d+$')
 
-# パーセンテージ
+# Percentage
 percentage = re.compile(r'^-?\d+(?:\.\d+)?%$')
 
-# 通貨（日本円）
+# Currency (Japanese yen)
 yen = re.compile(r'^[¥￥]?\d{1,3}(?:,\d{3})*(?:\.\d{2})?$')
 
-# 通貨（米ドル）
+# Currency (US dollar)
 usd = re.compile(r'^\$?\d{1,3}(?:,\d{3})*(?:\.\d{2})?$')
 
 test_numbers = [
-    ("1,234,567",     integer_comma,  "カンマ区切り整数"),
-    ("-42",           integer_comma,  "負の整数"),
-    ("3.14159",       decimal_number, "小数"),
-    ("6.022e23",      scientific,     "科学的記数法"),
-    ("1.5E-10",       scientific,     "科学的記数法（負の指数）"),
-    ("85.5%",         percentage,     "パーセンテージ"),
-    ("¥1,234,567",    yen,            "日本円"),
-    ("$99.99",        usd,            "米ドル"),
-    ("1,23,456",      integer_comma,  "不正なカンマ区切り（NG）"),
+    ("1,234,567",     integer_comma,  "Comma-separated integer"),
+    ("-42",           integer_comma,  "Negative integer"),
+    ("3.14159",       decimal_number, "Decimal"),
+    ("6.022e23",      scientific,     "Scientific notation"),
+    ("1.5E-10",       scientific,     "Scientific notation (negative exponent)"),
+    ("85.5%",         percentage,     "Percentage"),
+    ("¥1,234,567",    yen,            "Japanese yen"),
+    ("$99.99",        usd,            "US dollar"),
+    ("1,23,456",      integer_comma,  "Invalid comma separation (NG)"),
 ]
 
 for text, pattern, description in test_numbers:
@@ -1267,101 +1268,103 @@ for text, pattern, description in test_numbers:
 
 ---
 
-## 7. ASCII 図解
+## 7. ASCII Diagrams
 
-### 7.1 バリデーション設計のフロー
-
-```
-ユーザー入力
-    │
-    ▼
-┌─────────────────────────┐
-│ ステップ1: 形式チェック   │
-│ (正規表現)               │
-│ 例: メール形式か?        │
-│ → 明らかな誤入力を弾く   │
-└─────────────┬───────────┘
-              │ 通過
-              ▼
-┌─────────────────────────┐
-│ ステップ2: 論理チェック   │
-│ (プログラムロジック)      │
-│ 例: 日付は実在するか?    │
-│ 例: 値の範囲は適切か?    │
-└─────────────┬───────────┘
-              │ 通過
-              ▼
-┌─────────────────────────┐
-│ ステップ3: 実在チェック   │
-│ (外部サービス)           │
-│ 例: メール送達確認       │
-│ 例: API で住所検証       │
-└─────────────┬───────────┘
-              │ 通過
-              ▼
-        入力を受理
-```
-
-### 7.2 メールアドレスパターンの構造
+### 7.1 Validation Design Flow
 
 ```
-パターン: ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$
+User input
+    |
+    v
++-------------------------+
+| Step 1: Format check    |
+| (regex)                 |
+| e.g.: is it email shape?|
+| -> reject obvious typos |
++------------+------------+
+             | pass
+             v
++-------------------------+
+| Step 2: Logical check   |
+| (program logic)         |
+| e.g.: does the date     |
+|       actually exist?   |
+| e.g.: is the value      |
+|       within range?     |
++------------+------------+
+             | pass
+             v
++-------------------------+
+| Step 3: Existence check |
+| (external service)      |
+| e.g.: email deliverable |
+| e.g.: address API check |
++------------+------------+
+             | pass
+             v
+        Accept input
+```
+
+### 7.2 Structure of the Email Address Pattern
+
+```
+Pattern: ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$
 
 ^                              $
-│                              │
-│  ┌──── ローカルパート ────┐   │
-│  │ [a-zA-Z0-9._%+-]+    │   │
-│  │ 英数字と . _ % + -   │   │
-│  │ 1文字以上            │   │
-│  └───────────────────────┘   │
-│              @               │
-│  ┌──── ドメインパート ────┐   │
-│  │ [a-zA-Z0-9.-]+       │   │
-│  │ 英数字と . -          │   │
-│  │ 1文字以上            │   │
-│  └───────────────────────┘   │
-│              .               │
-│  ┌──── TLD ──────────────┐   │
-│  │ [a-zA-Z]{2,}         │   │
-│  │ 英字のみ、2文字以上   │   │
-│  └───────────────────────┘   │
+|                              |
+|  +---- local part --------+  |
+|  | [a-zA-Z0-9._%+-]+      |  |
+|  | alphanumerics + . _ % + - |
+|  | one or more characters |  |
+|  +------------------------+  |
+|              @               |
+|  +---- domain part -------+  |
+|  | [a-zA-Z0-9.-]+         |  |
+|  | alphanumerics + . -    |  |
+|  | one or more characters |  |
+|  +------------------------+  |
+|              .               |
+|  +---- TLD ---------------+  |
+|  | [a-zA-Z]{2,}           |  |
+|  | letters only, 2 or more|  |
+|  +------------------------+  |
 
-例: user.name+tag@sub.domain.co.jp
-    ^^^^^^^^^^^^^^ ^^^^^^^^^^^^^^ ^^
-    ローカル       ドメイン       TLD
+Example: user.name+tag@sub.domain.co.jp
+         ^^^^^^^^^^^^^^ ^^^^^^^^^^^^^^ ^^
+         local          domain         TLD
 ```
 
-### 7.3 IPv4パターンの各オクテット分解
+### 7.3 Decomposition of Each Octet in the IPv4 Pattern
 
 ```
-IPv4 オクテット: 0 から 255
+IPv4 octet: 0 to 255
 
-パターン: (?:25[0-5]|2[0-4]\d|[01]?\d\d?)
+Pattern: (?:25[0-5]|2[0-4]\d|[01]?\d\d?)
 
-分岐1: 25[0-5]     → 250, 251, 252, 253, 254, 255
-分岐2: 2[0-4]\d    → 200-249
-分岐3: [01]?\d\d?  → 0-199
+Branch 1: 25[0-5]     -> 250, 251, 252, 253, 254, 255
+Branch 2: 2[0-4]\d    -> 200-249
+Branch 3: [01]?\d\d?  -> 0-199
 
-分岐の優先順序が重要:
-  25[0-5]  → まず 250-255 をチェック
-  2[0-4]\d → 次に 200-249 をチェック
-  [01]?\d\d? → 残り 0-199 をチェック
+The order of branches is important:
+  25[0-5]  -> first check 250-255
+  2[0-4]\d -> next check 200-249
+  [01]?\d\d? -> finally check 0-199
 
-もし順序を逆にすると:
-  [01]?\d\d? → "25" にマッチ → "5" が余る
-  → 正しくマッチしない可能性
+If you reverse the order:
+  [01]?\d\d? -> matches "25" -> "5" is left over
+  -> may not match correctly
 ```
 
-### 7.4 URL 構造の分解図
+### 7.4 URL Structure Decomposition Diagram
 
 ```
-URL の構造 (RFC 3986):
+URL structure (RFC 3986):
 
   https://user:pass@www.example.com:443/path/to/page?key=val&k2=v2#section
-  └─┬──┘   └─┬──┘ └─────┬────────┘└┬┘└────┬──────┘└────┬──────┘└──┬───┘
+  +-+-+   +-+-+ +-----+--------+++-++----+-+------++----+-+----+
   scheme   userinfo     host     port    path         query     fragment
 
-各コンポーネントの正規表現:
+Regex for each component:
   scheme:    [a-zA-Z][a-zA-Z0-9+.-]*
   userinfo:  [^@]+
   host:      [a-zA-Z0-9.-]+
@@ -1370,7 +1373,7 @@ URL の構造 (RFC 3986):
   query:     [^#]*
   fragment:  .*
 
-完全な分解パターン:
+Full decomposition pattern:
   ^(?P<scheme>[a-zA-Z][a-zA-Z0-9+.-]*)://
    (?:(?P<userinfo>[^@]+)@)?
    (?P<host>[a-zA-Z0-9.-]+)
@@ -1380,88 +1383,88 @@ URL の構造 (RFC 3986):
    (?:#(?P<fragment>.*))?$
 ```
 
-### 7.5 電話番号パターンの国際比較
+### 7.5 International Comparison of Phone Number Patterns
 
 ```
-各国の電話番号形式:
+Phone number formats by country:
 
-日本 (+81):
-  携帯:     0[789]0-XXXX-XXXX     例: 090-1234-5678
-  固定:     0X-XXXX-XXXX          例: 03-1234-5678
-  国際:     +81-X0-XXXX-XXXX      例: +81-90-1234-5678
+Japan (+81):
+  Mobile:        0[789]0-XXXX-XXXX     e.g.: 090-1234-5678
+  Landline:      0X-XXXX-XXXX          e.g.: 03-1234-5678
+  International: +81-X0-XXXX-XXXX      e.g.: +81-90-1234-5678
 
-  パターン: 0[789]0-?\d{4}-?\d{4}
-            ├─┘ ├─┘  ├────┘  ├────┘
-            携帯  ハイフン  4桁   4桁
-            prefix  任意
+  Pattern: 0[789]0-?\d{4}-?\d{4}
+           +-+ +-+  +----+  +----+
+           mobile hyphen  4 digits 4 digits
+           prefix optional
 
-アメリカ (+1):
-  形式:     (NXX) NXX-XXXX        例: (415) 555-1234
-  国際:     +1-NXX-NXX-XXXX       例: +1-415-555-1234
+USA (+1):
+  Format:        (NXX) NXX-XXXX        e.g.: (415) 555-1234
+  International: +1-NXX-NXX-XXXX       e.g.: +1-415-555-1234
 
-  パターン: \(?[2-9]\d{2}\)?[-.\s]?[2-9]\d{2}[-.\s]?\d{4}
-            ├───────────┘          ├──────┘        ├────┘
-            エリアコード            局番           加入者番号
+  Pattern: \(?[2-9]\d{2}\)?[-.\s]?[2-9]\d{2}[-.\s]?\d{4}
+           +-----------+          +------+        +----+
+           area code              exchange         subscriber
 
-イギリス (+44):
-  携帯:     07XXX XXXXXX          例: 07911 123456
-  固定:     0XX XXXX XXXX         例: 020 7946 0958
-  国際:     +44 XXXX XXXXXX       例: +44 20 7946 0958
+UK (+44):
+  Mobile:        07XXX XXXXXX          e.g.: 07911 123456
+  Landline:      0XX XXXX XXXX         e.g.: 020 7946 0958
+  International: +44 XXXX XXXXXX       e.g.: +44 20 7946 0958
 ```
 
 ---
 
-## 8. 比較表
+## 8. Comparison Tables
 
-### 8.1 パターン精度 vs 複雑さ
+### 8.1 Pattern Accuracy vs. Complexity
 
-| パターン | 簡易版 | 実用版 | 厳密版 | 推奨 |
+| Pattern | Simple version | Practical version | Strict version | Recommended |
 |---------|--------|--------|--------|------|
-| メール | `.+@.+\..+` | `[a-zA-Z0-9._%+-]+@...` | RFC 5322 (数千文字) | 実用版 + 送達確認 |
-| URL | `https?://\S+` | ドメイン検証付き | RFC 3986 完全準拠 | 実用版 |
-| 日付 | `\d{4}-\d{2}-\d{2}` | 月/日の範囲チェック | 閏年対応 | 実用版 + datetime |
-| 電話番号 | `[\d-+]+` | 国/地域別パターン | libphonenumber | 実用版 or ライブラリ |
-| IPv4 | `\d+\.\d+\.\d+\.\d+` | 0-255 範囲チェック | 完全検証 | 実用版 |
+| Email | `.+@.+\..+` | `[a-zA-Z0-9._%+-]+@...` | RFC 5322 (thousands of chars) | Practical + delivery confirmation |
+| URL | `https?://\S+` | with domain validation | full RFC 3986 compliance | Practical |
+| Date | `\d{4}-\d{2}-\d{2}` | month/day range check | leap year support | Practical + datetime |
+| Phone number | `[\d-+]+` | per-country/region patterns | libphonenumber | Practical or library |
+| IPv4 | `\d+\.\d+\.\d+\.\d+` | 0-255 range check | full validation | Practical |
 
-### 8.2 正規表現 vs 専用ライブラリ
+### 8.2 Regex vs. Dedicated Libraries
 
-| 検証対象 | 正規表現で十分か | 推奨ライブラリ |
+| Validation target | Is regex sufficient? | Recommended library |
 |---------|---------------|--------------|
-| メールの形式 | 実用レベルなら可 | -- |
-| メールの実在 | 不可 | SMTP検証 / 確認メール |
-| URL の形式 | 実用レベルなら可 | urllib.parse (Python) |
-| 日付の妥当性 | 不可(閏年等) | datetime (Python) |
-| 電話番号 | 基本形式は可 | libphonenumber |
-| クレジットカード | 形式は可 | Luhn + 決済API |
-| HTML | 不可 | BeautifulSoup, lxml |
-| JSON | 不可 | json.loads() |
+| Email format | Sufficient at practical level | -- |
+| Email existence | Not possible | SMTP verification / confirmation email |
+| URL format | Sufficient at practical level | urllib.parse (Python) |
+| Date validity | Not possible (leap years, etc.) | datetime (Python) |
+| Phone number | Basic format possible | libphonenumber |
+| Credit card | Format possible | Luhn + payment API |
+| HTML | Not possible | BeautifulSoup, lxml |
+| JSON | Not possible | json.loads() |
 
-### 8.3 言語別の正規表現サポート比較
+### 8.3 Comparison of Regex Support by Language
 
-| 機能 | Python (`re`) | Python (`regex`) | JavaScript | Go | Ruby | Java |
+| Feature | Python (`re`) | Python (`regex`) | JavaScript | Go | Ruby | Java |
 |------|--------------|-----------------|------------|-----|------|------|
-| 名前付きグループ | `(?P<name>...)` | `(?P<name>...)` | `(?<name>...)` | `(?P<name>...)` | `(?<name>...)` | `(?<name>...)` |
-| 先読み | 対応 | 対応 | 対応 | 非対応 | 対応 | 対応 |
-| 後読み | 固定長のみ | 可変長対応 | 対応 | 非対応 | 対応 | 対応 |
-| Unicode プロパティ | `\p{...}` 非対応 | 対応 | 対応 | 対応 | 対応 | 対応 |
-| 再帰パターン | 非対応 | 対応 | 非対応 | 非対応 | 非対応 | 非対応 |
-| アトミックグループ | 非対応 | 対応 | 非対応 | 非対応 | 対応 | 対応 |
-| POSIX 文字クラス | 非対応 | 対応 | 非対応 | 対応 | 対応 | 対応 |
+| Named groups | `(?P<name>...)` | `(?P<name>...)` | `(?<name>...)` | `(?P<name>...)` | `(?<name>...)` | `(?<name>...)` |
+| Lookahead | Supported | Supported | Supported | Not supported | Supported | Supported |
+| Lookbehind | Fixed-length only | Variable-length supported | Supported | Not supported | Supported | Supported |
+| Unicode properties | `\p{...}` not supported | Supported | Supported | Supported | Supported | Supported |
+| Recursive patterns | Not supported | Supported | Not supported | Not supported | Not supported | Not supported |
+| Atomic groups | Not supported | Supported | Not supported | Not supported | Supported | Supported |
+| POSIX character classes | Not supported | Supported | Not supported | Supported | Supported | Supported |
 
 ---
 
-## 9. アンチパターン
+## 9. Anti-patterns
 
-### 9.1 アンチパターン: 正規表現だけで日付を完全検証する
+### 9.1 Anti-pattern: Fully Validating Dates with Regex Alone
 
 ```python
 import re
 
-# NG: 閏年を正規表現で処理しようとする
-# (パターンが極めて複雑になり保守不能)
-leap_year_pattern = r"""...(数百文字のパターン)..."""
+# NG: trying to handle leap years in regex
+# (the pattern becomes extremely complex and unmaintainable)
+leap_year_pattern = r"""...(pattern of hundreds of characters)..."""
 
-# OK: 正規表現は形式チェックのみ、論理チェックはコードで
+# OK: regex only checks the format; logical checks are done in code
 def validate_date(s: str) -> bool:
     if not re.match(r'^\d{4}-\d{2}-\d{2}$', s):
         return False
@@ -1473,155 +1476,155 @@ def validate_date(s: str) -> bool:
         return False
 ```
 
-### 9.2 アンチパターン: パターンのコピペ
+### 9.2 Anti-pattern: Copy-Pasting Patterns
 
 ```python
 import re
 
-# NG: StackOverflow からコピペしたパターンをそのまま使う
-# 理由: コンテキスト(言語、Unicode設定)が異なる場合がある
+# NG: using a pattern copy-pasted from StackOverflow as-is
+# Reason: the context (language, Unicode settings) may differ
 email_copied = r"(?:[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*|\"(?:[\x01-\x08...]"
-# → 出典不明、メンテナンス不能、エッジケース不明
+# -> unknown source, unmaintainable, unknown edge cases
 
-# OK: 要件に合わせて自分で設計し、テストを書く
+# OK: design the pattern yourself to match your requirements and write tests
 email_own = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
 
-# テストケースを必ず用意
+# Always prepare test cases
 assert email_own.match("user@example.com")
 assert email_own.match("a.b+c@d.co.jp")
 assert not email_own.match("user@")
 assert not email_own.match("@domain.com")
 ```
 
-### 9.3 アンチパターン: 過度に厳密なパターンで正当な入力を拒否する
+### 9.3 Anti-pattern: Rejecting Valid Input with an Overly Strict Pattern
 
 ```python
 import re
 
-# NG: TLD を2-3文字に制限
+# NG: restricting the TLD to 2-3 characters
 email_strict_tld = re.compile(
     r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,3}$'
 )
 
-# この制限だと以下の有効なアドレスが NG になる:
+# With this restriction, the following valid addresses will be rejected:
 rejected_valid = [
-    "user@example.museum",       # .museum (6文字)
-    "user@example.photography",  # .photography (11文字)
-    "user@example.technology",   # .technology (10文字)
-    "user@example.international",# .international (13文字)
+    "user@example.museum",       # .museum (6 chars)
+    "user@example.photography",  # .photography (11 chars)
+    "user@example.technology",   # .technology (10 chars)
+    "user@example.international",# .international (13 chars)
 ]
 
 for email in rejected_valid:
     result = "OK" if email_strict_tld.match(email) else "NG"
-    print(f"  {result}: {email}  -- 有効だが拒否される!")
+    print(f"  {result}: {email}  -- valid but rejected!")
 
-# OK: TLD は2文字以上に設定（上限なし）
+# OK: set TLD to 2 or more characters (no upper limit)
 email_flexible_tld = re.compile(
     r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
 )
 ```
 
-### 9.4 アンチパターン: HTML を正規表現でパースする
+### 9.4 Anti-pattern: Parsing HTML with Regex
 
 ```python
 import re
 
-# NG: 正規表現で HTML をパースしようとする
-# 有名な StackOverflow の回答が示す通り、これは不可能
+# NG: trying to parse HTML with regex
+# As the famous StackOverflow answer shows, this is impossible
 html = '<div class="outer"><div class="inner">text</div></div>'
 
-# この正規表現はネストされたタグを正しく処理できない
+# This regex cannot correctly handle nested tags
 bad_tag_extract = re.compile(r'<div[^>]*>(.*?)</div>')
-# → 最初の </div> でマッチが終わり、ネスト構造が壊れる
+# -> the match ends at the first </div>, breaking the nested structure
 
-# OK: 限定的な用途なら正規表現を使える
-# 例: 自己完結するタグの抽出
+# OK: regex can be used for limited purposes
+# e.g.: extracting self-contained tags
 img_tag = re.compile(r'<img\s+[^>]*src="\'["\'][^>]*/?>')
 link_href = re.compile(r'<a\s+[^>]*href="\'["\'][^>]*>')
 
-# OK: 本格的な HTML パースにはライブラリを使う
+# OK: for serious HTML parsing, use a library
 # from bs4 import BeautifulSoup
 # soup = BeautifulSoup(html, 'html.parser')
 # divs = soup.find_all('div', class_='inner')
 ```
 
-### 9.5 アンチパターン: ReDoS（正規表現サービス拒否攻撃）に脆弱なパターン
+### 9.5 Anti-pattern: Patterns Vulnerable to ReDoS (Regular Expression Denial of Service)
 
 ```python
 import re
 import time
 
-# NG: 壊滅的バックトラッキングが発生するパターン
-# ユーザー入力に対して使用すると DoS 攻撃の危険がある
+# NG: patterns that cause catastrophic backtracking
+# Using these against user input poses a DoS attack risk
 
 vulnerable_patterns = [
-    # パターン1: ネストした量指定子
+    # Pattern 1: nested quantifiers
     (r'(a+)+$', 'a' * 25 + 'b'),
-    # パターン2: 重複する文字クラス
+    # Pattern 2: overlapping character classes
     (r'([a-zA-Z]+)*@', 'a' * 25 + '!'),
-    # パターン3: 交互に重複
+    # Pattern 3: alternation with overlap
     (r'(a|aa)+$', 'a' * 25 + 'b'),
 ]
 
 for pattern, evil_input in vulnerable_patterns:
-    print(f"\n  パターン: {pattern}")
-    print(f"  入力:     '{evil_input[:30]}...' ({len(evil_input)}文字)")
+    print(f"\n  Pattern: {pattern}")
+    print(f"  Input:   '{evil_input[:30]}...' ({len(evil_input)} chars)")
     start = time.time()
     try:
-        # タイムアウト付きで実行（実際のコードではタイムアウトを設定すべき）
-        re.match(pattern, evil_input[:20])  # 短い入力でも遅延が見える
+        # Run with a timeout (in real code, set a timeout)
+        re.match(pattern, evil_input[:20])  # delay is visible even with short input
         elapsed = time.time() - start
-        print(f"  時間:     {elapsed:.4f}秒")
-        print(f"  警告:     入力長が増えると指数関数的に遅くなる!")
+        print(f"  Time:    {elapsed:.4f}s")
+        print(f"  Warning: time grows exponentially as input length increases!")
     except Exception as e:
-        print(f"  エラー:   {e}")
+        print(f"  Error:   {e}")
 
-# OK: ReDoS を防ぐ安全なパターン
+# OK: safe patterns that prevent ReDoS
 safe_patterns = [
-    r'[a-zA-Z]+$',          # ネストしない量指定子
-    r'[a-zA-Z]+@',          # グループの量指定子を排除
-    r'a+$',                 # 単純な量指定子
+    r'[a-zA-Z]+$',          # non-nested quantifier
+    r'[a-zA-Z]+@',          # remove group quantifier
+    r'a+$',                 # simple quantifier
 ]
 
-# 対策:
-# 1. ネストした量指定子 (a+)+ を避ける
-# 2. 入力長の上限を設定する
-# 3. アトミックグループ (?>...) を使う（対応言語のみ）
-# 4. タイムアウトを設定する
-# 5. re2 などの保証付き正規表現エンジンを検討する
+# Mitigations:
+# 1. Avoid nested quantifiers like (a+)+
+# 2. Limit input length
+# 3. Use atomic groups (?>...) (only in supported languages)
+# 4. Set a timeout
+# 5. Consider regex engines with guarantees, such as re2
 ```
 
 ---
 
 ## 10. FAQ
 
-### Q1: メールアドレスの正規表現はどこまで厳密にすべきか？
+### Q1: How strict should an email regex be?
 
-**A**: 実務では「基本形式チェック + 確認メール送信」で十分。RFC 5322 完全準拠は保守性とパフォーマンスの面で非推奨:
+**A**: In practice, "basic format check + sending a confirmation email" is sufficient. Full RFC 5322 compliance is discouraged for maintainability and performance reasons:
 
 ```python
-# 実用的な基準:
-# 1. @ が1つある
-# 2. ローカルパートとドメインパートがある
-# 3. TLD が2文字以上ある
-# → これ以上の厳密性は確認メールで担保する
+# Practical criteria:
+# 1. Has exactly one @
+# 2. Has a local part and a domain part
+# 3. The TLD is 2 or more characters
+# -> Anything beyond this is guaranteed by the confirmation email
 ```
 
-### Q2: URL バリデーションで最も見落としがちなケースは？
+### Q2: What is the most easily overlooked case in URL validation?
 
-**A**: 以下のケースが見落としやすい:
+**A**: The following cases are easy to miss:
 
-- **国際化ドメイン名(IDN)**: `https://日本語.jp` -- Punycode 変換が必要
-- **ポート番号**: `http://localhost:3000`
-- **認証情報**: `http://user:pass@host.com` -- セキュリティリスク
-- **フラグメント**: `https://example.com/page#section`
-- **クエリパラメータのエンコード**: `?q=%E6%97%A5%E6%9C%AC`
+- **Internationalized Domain Names (IDN)**: `https://日本語.jp` -- Punycode conversion required
+- **Port numbers**: `http://localhost:3000`
+- **Authentication info**: `http://user:pass@host.com` -- security risk
+- **Fragment**: `https://example.com/page#section`
+- **Encoded query parameters**: `?q=%E6%97%A5%E6%9C%AC`
 
-ライブラリ(`urllib.parse`、`URL` API)の使用を推奨。
+Using a library (`urllib.parse`, `URL` API) is recommended.
 
-### Q3: 電話番号の国際対応で推奨されるアプローチは？
+### Q3: What is the recommended approach for international phone number support?
 
-**A**: Google の **libphonenumber** ライブラリを使うのが最善。各国の電話番号ルールは複雑で頻繁に変更されるため、正規表現での完全対応は非現実的:
+**A**: Using Google's **libphonenumber** is the best option. Phone number rules vary by country and change frequently, so handling them completely with regex is impractical:
 
 ```python
 # pip install phonenumbers
@@ -1636,50 +1639,50 @@ print(phonenumbers.format_number(
 # => '+81 90-1234-5678'
 ```
 
-### Q4: 正規表現パターンのパフォーマンスを改善するにはどうすればよいか？
+### Q4: How can I improve regex pattern performance?
 
-**A**: 以下の手法が有効:
+**A**: The following techniques are effective:
 
 ```python
 import re
 
-# 1. パターンをコンパイルして再利用する
-# NG: ループ内で毎回コンパイル
+# 1. Compile patterns and reuse them
+# NG: compiling inside the loop every iteration
 for line in lines:
-    if re.match(r'^\d{4}-\d{2}-\d{2}', line):  # 毎回コンパイル
+    if re.match(r'^\d{4}-\d{2}-\d{2}', line):  # compiles every time
         pass
 
-# OK: 事前にコンパイル
+# OK: compile in advance
 date_pattern = re.compile(r'^\d{4}-\d{2}-\d{2}')
 for line in lines:
-    if date_pattern.match(line):  # コンパイル済みを再利用
+    if date_pattern.match(line):  # reuse compiled pattern
         pass
 
-# 2. 不要なキャプチャグループを避ける
-# NG: キャプチャ不要なのにグループ化
+# 2. Avoid unnecessary capture groups
+# NG: grouping when capture is not needed
 pattern_capture = re.compile(r'(https?)://([\w.]+)')
 
-# OK: 非キャプチャグループを使用
+# OK: use non-capturing groups
 pattern_noncapture = re.compile(r'(?:https?)://(?:[\w.]+)')
 
-# 3. 具体的なパターンを先に書く
-# NG: 汎用的なパターンが先
+# 3. Put more specific patterns first
+# NG: generic pattern first
 pattern_slow = re.compile(r'.*error.*fatal')
 
-# OK: アンカーや具体的な文字から始める
+# OK: start with anchors or specific characters
 pattern_fast = re.compile(r'^.*?error.*?fatal', re.MULTILINE)
 
-# 4. 量指定子を最小限にする
-# NG: 貪欲マッチ
-greedy = re.compile(r'<.*>')       # 最長一致
+# 4. Minimize quantifiers
+# NG: greedy matching
+greedy = re.compile(r'<.*>')       # longest match
 
-# OK: 非貪欲マッチ（用途による）
-lazy = re.compile(r'<.*?>')       # 最短一致
+# OK: lazy matching (depending on use case)
+lazy = re.compile(r'<.*?>')       # shortest match
 ```
 
-### Q5: 入力サニタイズと正規表現バリデーションの違いは？
+### Q5: What is the difference between input sanitization and regex validation?
 
-**A**: 両者は目的が異なり、どちらか一方では不十分:
+**A**: They serve different purposes; neither alone is sufficient:
 
 ```python
 import re
@@ -1687,96 +1690,96 @@ import html
 
 user_input = '<script>alert("XSS")</script>Hello, World!'
 
-# バリデーション: 入力が許容される形式かどうかを判定
-# → 不正な入力を拒否する
+# Validation: judge whether input is in an acceptable format
+# -> reject invalid input
 is_safe = bool(re.match(r'^[a-zA-Z0-9\s,.!?]+$', user_input))
-print(f"バリデーション: {'OK' if is_safe else 'NG'}")
-# => NG (HTMLタグが含まれる)
+print(f"Validation: {'OK' if is_safe else 'NG'}")
+# => NG (contains HTML tags)
 
-# サニタイズ: 入力から危険な要素を除去または無害化する
-# → 入力を安全な形に変換する
+# Sanitization: remove or neutralize dangerous elements from input
+# -> transform input into a safe form
 sanitized = html.escape(user_input)
-print(f"サニタイズ後: {sanitized}")
+print(f"After sanitization: {sanitized}")
 # => &lt;script&gt;alert(&quot;XSS&quot;)&lt;/script&gt;Hello, World!
 
-# タグを完全に除去する場合
+# To strip tags entirely
 stripped = re.sub(r'<[^>]+>', '', user_input)
-print(f"タグ除去後: {stripped}")
+print(f"After tag removal: {stripped}")
 # => alert("XSS")Hello, World!
 
-# 鉄則:
-# 1. まずバリデーションで不正入力を拒否
-# 2. 通過した入力をサニタイズして安全に処理
-# 3. 出力時にもエスケープ処理を行う（多層防御）
+# Iron rules:
+# 1. First, reject invalid input via validation
+# 2. Sanitize the passing input for safe handling
+# 3. Also escape on output (defense in depth)
 ```
 
-### Q6: 正規表現で数値の範囲チェックを行うべきか？
+### Q6: Should I do numeric range checks with regex?
 
-**A**: 基本的にはコードで行うべき。正規表現での範囲チェックは可読性が低く、バグが入りやすい:
+**A**: Generally, do them in code. Range checks via regex are less readable and bug-prone:
 
 ```python
 import re
 
-# NG: 正規表現で 0-255 の範囲を表現（IPv4の例）
-# 動作するが、読みにくく保守しにくい
+# NG: expressing the 0-255 range with regex (IPv4 example)
+# It works but is hard to read and maintain
 range_regex = re.compile(r'^(?:25[0-5]|2[0-4]\d|[01]?\d\d?)$')
 
-# OK: 正規表現は「数字である」ことだけチェックし、範囲はコードで
+# OK: regex only checks "is a digit string"; do range in code
 def validate_range(value_str: str, min_val: int, max_val: int) -> bool:
     if not re.match(r'^\d+$', value_str):
         return False
     value = int(value_str)
     return min_val <= value <= max_val
 
-# 使い分けの基準:
-# - 範囲が単純（0-9, 0-99 など）→ 正規表現でも可
-# - 範囲が複雑（0-255, 1-366 など）→ コードで処理
-# - IPv4 のような定番パターン → 正規表現（広く知られているため）
+# Guidelines:
+# - Simple range (0-9, 0-99, etc.) -> regex is fine
+# - Complex range (0-255, 1-366, etc.) -> handle in code
+# - Well-known patterns like IPv4 -> regex (because they are widely known)
 ```
 
-### Q7: テストケースはどのように設計すべきか？
+### Q7: How should I design test cases?
 
-**A**: 境界値テストと等価クラス分割を組み合わせる:
+**A**: Combine boundary value testing with equivalence partitioning:
 
 ```python
 import re
 
 def create_test_cases(pattern_name: str, pattern: re.Pattern) -> list:
-    """正規表現パターンのテストケース設計ガイドライン"""
+    """Test case design guidelines for regex patterns"""
 
-    # テストケースの分類:
+    # Test case categories:
     categories = {
-        "正常系（典型）":     "最も一般的な入力",
-        "正常系（境界）":     "パターンの境界に位置する入力",
-        "正常系（最小）":     "マッチする最短の入力",
-        "正常系（最大）":     "マッチする最長の入力",
-        "異常系（形式違反）": "明らかにマッチしない入力",
-        "異常系（境界）":     "マッチしないが境界に近い入力",
-        "異常系（空入力）":   "空文字列",
-        "異常系（特殊文字）": "制御文字、Unicode、改行等",
+        "Normal (typical)":        "the most common input",
+        "Normal (boundary)":       "input at the pattern's boundary",
+        "Normal (minimum)":        "the shortest matching input",
+        "Normal (maximum)":        "the longest matching input",
+        "Abnormal (format viol.)": "obviously non-matching input",
+        "Abnormal (boundary)":     "non-matching input near the boundary",
+        "Abnormal (empty)":        "empty string",
+        "Abnormal (special)":      "control chars, Unicode, newlines, etc.",
     }
     return categories
 
-# 例: メールアドレスのテストケース
+# Example: email address test cases
 email_pattern = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
 
 test_matrix = [
-    # (入力, 期待結果, カテゴリ)
-    ("user@example.com",          True,  "正常系（典型）"),
-    ("a@b.cd",                    True,  "正常系（最小）"),
-    ("a" * 64 + "@example.com",   True,  "正常系（境界付近）"),
-    ("user.name+tag@domain.co.jp",True,  "正常系（特殊文字）"),
+    # (input, expected, category)
+    ("user@example.com",          True,  "Normal (typical)"),
+    ("a@b.cd",                    True,  "Normal (minimum)"),
+    ("a" * 64 + "@example.com",   True,  "Normal (near boundary)"),
+    ("user.name+tag@domain.co.jp",True,  "Normal (special chars)"),
 
-    ("",                          False, "異常系（空入力）"),
-    ("user",                      False, "異常系（@なし）"),
-    ("user@",                     False, "異常系（ドメインなし）"),
-    ("@domain.com",               False, "異常系（ローカルパートなし）"),
-    ("user@domain",               False, "異常系（TLDなし）"),
-    ("user @domain.com",          False, "異常系（空白含む）"),
-    ("user@domain.c",             False, "異常系（TLD 1文字）"),
+    ("",                          False, "Abnormal (empty)"),
+    ("user",                      False, "Abnormal (no @)"),
+    ("user@",                     False, "Abnormal (no domain)"),
+    ("@domain.com",               False, "Abnormal (no local part)"),
+    ("user@domain",               False, "Abnormal (no TLD)"),
+    ("user @domain.com",          False, "Abnormal (contains space)"),
+    ("user@domain.c",             False, "Abnormal (TLD 1 char)"),
 ]
 
-print(f"メールアドレスパターンのテスト ({len(test_matrix)} ケース):")
+print(f"Email pattern tests ({len(test_matrix)} cases):")
 all_passed = True
 for email, expected, category in test_matrix:
     result = bool(email_pattern.match(email))
@@ -1784,19 +1787,19 @@ for email, expected, category in test_matrix:
     if not passed:
         all_passed = False
     status = "PASS" if passed else "FAIL"
-    display = email if email else "(空文字列)"
+    display = email if email else "(empty string)"
     print(f"  {status}: {display:<40} -- {category}")
 
-print(f"\n結果: {'全テスト合格' if all_passed else 'テスト失敗あり'}")
+print(f"\nResult: {'All tests passed' if all_passed else 'Some tests failed'}")
 ```
 
 ---
 
-## 11. 実践シナリオ
+## 11. Practical Scenarios
 
-### 11.1 フォーム入力の一括バリデーション
+### 11.1 Bulk Validation of Form Input
 
-実際のWebフォームで使用する包括的なバリデーション関数を示す。
+This shows a comprehensive validation function for use in real-world web forms.
 
 ```python
 import re
@@ -1811,7 +1814,7 @@ class ValidationResult:
     error: Optional[str] = None
 
 class FormValidator:
-    """フォーム入力の一括バリデーション"""
+    """Bulk validation of form input"""
 
     PATTERNS = {
         "email": re.compile(
@@ -1829,34 +1832,34 @@ class FormValidator:
     }
 
     MESSAGES = {
-        "email":     "有効なメールアドレスを入力してください",
-        "phone_jp":  "有効な電話番号を入力してください（例: 090-1234-5678）",
-        "postal_jp": "有効な郵便番号を入力してください（例: 100-0001）",
-        "date_iso":  "有効な日付を入力してください（例: 2026-01-01）",
-        "url":       "有効なURLを入力してください",
-        "username":  "3-20文字の英数字（先頭は英字）で入力してください",
+        "email":     "Please enter a valid email address",
+        "phone_jp":  "Please enter a valid phone number (e.g., 090-1234-5678)",
+        "postal_jp": "Please enter a valid postal code (e.g., 100-0001)",
+        "date_iso":  "Please enter a valid date (e.g., 2026-01-01)",
+        "url":       "Please enter a valid URL",
+        "username":  "Please enter 3-20 alphanumeric characters (must start with a letter)",
     }
 
     def validate_field(
         self, field_name: str, value: str, field_type: str, required: bool = True
     ) -> ValidationResult:
-        """単一フィールドのバリデーション"""
+        """Validate a single field"""
         if not value.strip():
             if required:
-                return ValidationResult(field_name, False, value, "必須項目です")
+                return ValidationResult(field_name, False, value, "This field is required")
             return ValidationResult(field_name, True, value)
 
         pattern = self.PATTERNS.get(field_type)
         if pattern and not pattern.match(value.strip()):
             return ValidationResult(
                 field_name, False, value,
-                self.MESSAGES.get(field_type, "入力形式が不正です")
+                self.MESSAGES.get(field_type, "Invalid input format")
             )
 
         return ValidationResult(field_name, True, value)
 
     def validate_form(self, form_data: dict, schema: dict) -> list:
-        """フォーム全体のバリデーション"""
+        """Validate the entire form"""
         results = []
         for field_name, config in schema.items():
             value = form_data.get(field_name, "")
@@ -1869,7 +1872,7 @@ class FormValidator:
         return results
 
 
-# 使用例
+# Usage example
 validator = FormValidator()
 
 form_data = {
@@ -1892,29 +1895,29 @@ for r in results:
     status = "OK" if r.valid else "NG"
     print(f"  {status}: {r.field:<10} = {r.value}")
     if r.error:
-        print(f"         エラー: {r.error}")
+        print(f"         Error: {r.error}")
 ```
 
-### 11.2 ログファイルの構造化パース
+### 11.2 Structured Parsing of Log Files
 
 ```python
 import re
 from datetime import datetime
 from collections import defaultdict
 
-# Apache Combined Log Format のパーサー
+# Parser for the Apache Combined Log Format
 apache_log = re.compile(
-    r'(?P<ip>\d+\.\d+\.\d+\.\d+)\s+'           # クライアントIP
+    r'(?P<ip>\d+\.\d+\.\d+\.\d+)\s+'           # client IP
     r'(?P<ident>\S+)\s+'                         # identd
-    r'(?P<user>\S+)\s+'                          # ユーザー名
-    r'\[(?P<datetime>[^\]]+)\]\s+'               # 日時
-    r'"(?P<method>GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\s+'  # HTTPメソッド
-    r'(?P<path>\S+)\s+'                          # リクエストパス
-    r'(?P<protocol>HTTP/\d\.\d)"\s+'             # プロトコル
-    r'(?P<status>\d{3})\s+'                      # ステータスコード
-    r'(?P<size>\d+|-)\s+'                        # レスポンスサイズ
-    r'"(?P<referer>[^"]*)"\s+'                   # リファラー
-    r'"(?P<useragent>[^"]*)"'                    # ユーザーエージェント
+    r'(?P<user>\S+)\s+'                          # username
+    r'\[(?P<datetime>[^\]]+)\]\s+'               # datetime
+    r'"(?P<method>GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\s+'  # HTTP method
+    r'(?P<path>\S+)\s+'                          # request path
+    r'(?P<protocol>HTTP/\d\.\d)"\s+'             # protocol
+    r'(?P<status>\d{3})\s+'                      # status code
+    r'(?P<size>\d+|-)\s+'                        # response size
+    r'"(?P<referer>[^"]*)"\s+'                   # referer
+    r'"(?P<useragent>[^"]*)"'                    # user agent
 )
 
 sample_logs = [
@@ -1934,24 +1937,24 @@ for line in sample_logs:
         print(f"  {data['method']:>6} {data['path']:<25} "
               f"{data['status']} from {data['ip']}")
 
-print("\nステータス集計:")
+print("\nStatus aggregation:")
 for status_class, count in sorted(stats.items()):
-    print(f"  {status_class}: {count} 件")
+    print(f"  {status_class}: {count} entries")
 ```
 
-### 11.3 設定ファイルのパース
+### 11.3 Parsing Configuration Files
 
 ```python
 import re
 
-# INI 形式の設定ファイルパーサー
+# INI-format configuration file parser
 section_pattern = re.compile(r'^\[([^\]]+)\]$')
 kv_pattern = re.compile(r'^([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(.+?)\s*$')
 comment_pattern = re.compile(r'^\s*[;#]')
 empty_pattern = re.compile(r'^\s*$')
 
 ini_content = """
-; データベース設定
+; Database settings
 [database]
 host = localhost
 port = 5432
@@ -1959,7 +1962,7 @@ name = myapp_production
 user = dbadmin
 password = s3cret!
 
-# アプリケーション設定
+# Application settings
 [application]
 debug = false
 log_level = INFO
@@ -1976,53 +1979,53 @@ config = {}
 current_section = None
 
 for line in ini_content.strip().split('\n'):
-    # 空行とコメントをスキップ
+    # Skip empty lines and comments
     if empty_pattern.match(line) or comment_pattern.match(line):
         continue
 
-    # セクションヘッダー
+    # Section header
     section_match = section_pattern.match(line)
     if section_match:
         current_section = section_match.group(1)
         config[current_section] = {}
         continue
 
-    # キー=値
+    # key=value
     kv_match = kv_pattern.match(line)
     if kv_match and current_section:
         key, value = kv_match.groups()
         config[current_section][key] = value
 
-# 結果表示
+# Display results
 for section, values in config.items():
     print(f"\n  [{section}]")
     for key, value in values.items():
         print(f"    {key} = {value}")
 ```
 
-### 11.4 CSVデータのフィールド抽出（引用符対応）
+### 11.4 CSV Field Extraction (with Quote Support)
 
 ```python
 import re
 
-# CSV フィールドの正規表現パース
-# 引用符付きフィールド（カンマを含む）に対応
+# Regex-based CSV field parsing
+# Supports quoted fields (which may contain commas)
 csv_field = re.compile(
     r'(?:'
-    r'"([^"]*(?:""[^"]*)*)"'   # 引用符付きフィールド（""エスケープ対応）
+    r'"([^"]*(?:""[^"]*)*)"'   # quoted field (supports "" escape)
     r'|'
-    r'([^,]*)'                  # 引用符なしフィールド
+    r'([^,]*)'                  # unquoted field
     r')'
 )
 
 def parse_csv_line(line: str) -> list:
-    """CSVの1行をフィールドリストに分解"""
+    """Decompose a CSV line into a list of fields"""
     fields = []
     for m in csv_field.finditer(line):
         quoted = m.group(1)
         unquoted = m.group(2)
         if quoted is not None:
-            # "" → " に変換
+            # Convert "" -> "
             fields.append(quoted.replace('""', '"'))
         elif unquoted is not None:
             fields.append(unquoted)
@@ -2036,61 +2039,61 @@ test_csv_lines = [
 
 for line in test_csv_lines:
     fields = parse_csv_line(line)
-    print(f"\n  入力: {line}")
+    print(f"\n  Input: {line}")
     for i, field in enumerate(fields):
         print(f"    [{i}] {field}")
 
-# 注意: 本格的な CSV パースには csv モジュールを使用すべき
+# Note: for serious CSV parsing, use the csv module
 # import csv
 # reader = csv.reader(io.StringIO(line))
 ```
 
 ---
 
-## 12. パフォーマンス最適化
+## 12. Performance Optimization
 
-### 12.1 パターンのコンパイルと再利用
+### 12.1 Pattern Compilation and Reuse
 
 ```python
 import re
 import time
 
-# ベンチマーク: コンパイル済み vs 毎回コンパイル
+# Benchmark: precompiled vs. compiled each time
 test_data = ["user@example.com"] * 10000
 
-# 方法1: 毎回 re.match() を呼ぶ（内部キャッシュあり）
+# Method 1: call re.match() each iteration (uses internal cache)
 start = time.time()
 for email in test_data:
     re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email)
 method1_time = time.time() - start
 
-# 方法2: コンパイル済みパターンを使う
+# Method 2: use a precompiled pattern
 pattern = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
 start = time.time()
 for email in test_data:
     pattern.match(email)
 method2_time = time.time() - start
 
-print(f"  毎回 re.match():   {method1_time:.4f}秒")
-print(f"  コンパイル済み:     {method2_time:.4f}秒")
-print(f"  速度比:            {method1_time / method2_time:.1f}x")
+print(f"  re.match() each time: {method1_time:.4f}s")
+print(f"  Precompiled:          {method2_time:.4f}s")
+print(f"  Speed ratio:          {method1_time / method2_time:.1f}x")
 
-# 注: Python の re モジュールは内部で最近使ったパターンをキャッシュするため、
-# 差は小さいが、コンパイル済みを使うのがベストプラクティス
+# Note: Python's re module caches recently used patterns internally,
+# so the difference is small, but using precompiled patterns is best practice
 ```
 
-### 12.2 大量データでの効率的なマッチング
+### 12.2 Efficient Matching on Large Datasets
 
 ```python
 import re
 from typing import Iterator
 
 def efficient_search(pattern: re.Pattern, lines: Iterator[str]) -> list:
-    """大量データに対する効率的な正規表現検索"""
+    """Efficient regex search for large data sets"""
     results = []
 
-    # search() ではなく match() を使う（先頭マッチで高速）
-    # 先頭マッチが必要ない場合のみ search() を使用
+    # Use match() rather than search() (faster for anchored matches)
+    # Use search() only when leading match is not needed
 
     for line in lines:
         m = pattern.match(line)
@@ -2098,19 +2101,19 @@ def efficient_search(pattern: re.Pattern, lines: Iterator[str]) -> list:
             results.append(m.group())
     return results
 
-# ファイル全体を読み込まず、行単位で処理
+# Process line-by-line without loading the whole file
 def search_large_file(filepath: str, pattern: re.Pattern):
-    """大きなファイルを行単位で検索（メモリ効率的）"""
+    """Search a large file line-by-line (memory-efficient)"""
     with open(filepath, 'r', encoding='utf-8') as f:
         for line_num, line in enumerate(f, 1):
             m = pattern.search(line)
             if m:
                 yield (line_num, m.group(), line.rstrip())
 
-# 複数パターンの一括マッチ
+# Bulk matching of multiple patterns
 def multi_pattern_search(patterns: dict, text: str) -> dict:
-    """複数パターンを一度に検索"""
-    # 個別パターンを | で結合して1回のマッチで済ませる
+    """Search multiple patterns in one pass"""
+    # Combine individual patterns with | so a single match suffices
     combined = '|'.join(f'(?P<{name}>{pat.pattern})'
                         for name, pat in patterns.items())
     combined_re = re.compile(combined)
@@ -2128,74 +2131,74 @@ def multi_pattern_search(patterns: dict, text: str) -> dict:
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point in learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining hands-on experience is the most important thing. Beyond theory, writing actual code and verifying behavior deepens your understanding.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What mistakes do beginners commonly make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend firmly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+The knowledge in this topic is frequently applied in everyday development work. It is especially important during code reviews and architecture design.
 
 ---
 
-## まとめ
+## Summary
 
-| パターン | 実用正規表現 | 追加検証 |
+| Pattern | Practical regex | Additional validation |
 |---------|-------------|---------|
-| メール | `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$` | 確認メール送信 |
+| Email | `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$` | Send confirmation email |
 | URL | `https?://[^\s<>"]+` | `urllib.parse` / `URL` API |
-| ISO日付 | `\d{4}-(0[1-9]\|1[0-2])-(0[1-9]\|[12]\d\|3[01])` | datetime でパース |
-| 電話番号(日本) | `0[789]0-?\d{4}-?\d{4}` | libphonenumber |
-| IPv4 | `(?:25[0-5]\|2[0-4]\d\|[01]?\d\d?)\.{4部分}` | `ipaddress` モジュール |
-| 郵便番号(日本) | `\d{3}-?\d{4}` | API検証 |
-| ユーザー名 | `^[a-zA-Z][a-zA-Z0-9_-]{2,19}$` | 重複チェック（DB） |
-| UUID v4 | `^[0-9a-f]{8}-...-[0-9a-f]{12}$` | ライブラリ検証 |
-| カラーコード | `^#[0-9a-fA-F]{3,8}$` | CSS パーサー |
-| 鉄則 | 正規表現は形式チェックのみ。論理・実在チェックはコード/ライブラリで |
+| ISO date | `\d{4}-(0[1-9]\|1[0-2])-(0[1-9]\|[12]\d\|3[01])` | Parse with datetime |
+| Phone (Japan) | `0[789]0-?\d{4}-?\d{4}` | libphonenumber |
+| IPv4 | `(?:25[0-5]\|2[0-4]\d\|[01]?\d\d?)\.{4 parts}` | `ipaddress` module |
+| Postal code (Japan) | `\d{3}-?\d{4}` | API verification |
+| Username | `^[a-zA-Z][a-zA-Z0-9_-]{2,19}$` | Duplicate check (DB) |
+| UUID v4 | `^[0-9a-f]{8}-...-[0-9a-f]{12}$` | Library validation |
+| Color code | `^#[0-9a-fA-F]{3,8}$` | CSS parser |
+| Iron rule | Regex is for format only. Logical and existence checks belong to code/libraries |
 
-### 設計原則の再確認
+### Reaffirming Design Principles
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│                正規表現パターン設計の5原則                      │
-│                                                              │
-│  1. 必要十分の原則                                            │
-│     過度に厳密にせず、実用上十分なレベルに留める                │
-│     正規表現の仕事は「明らかに不正な入力を弾くこと」           │
-│                                                              │
-│  2. 多層防御の原則                                            │
-│     正規表現 → ロジック → 外部検証 の3段階で検証               │
-│     1つのレイヤーに全責任を負わせない                          │
-│                                                              │
-│  3. テスタビリティの原則                                      │
-│     パターンには必ずテストケースを用意する                      │
-│     正常系・異常系・境界値を網羅する                           │
-│                                                              │
-│  4. 保守性の原則                                              │
-│     読めないパターンは使わない                                 │
-│     コメントや名前付きグループで意図を明示する                  │
-│                                                              │
-│  5. 安全性の原則                                              │
-│     ReDoS のリスクを考慮する                                   │
-│     ユーザー入力に対しては入力長制限を設ける                    │
-└──────────────────────────────────────────────────────────────┘
++--------------------------------------------------------------+
+|        Five Principles of Regex Pattern Design                |
+|                                                              |
+|  1. Principle of necessary sufficiency                       |
+|     Avoid being overly strict; stay at a practical level     |
+|     The regex's job is to "reject obviously invalid input"   |
+|                                                              |
+|  2. Principle of defense in depth                            |
+|     Validate in three stages: regex -> logic -> external     |
+|     Don't load all responsibility onto one layer             |
+|                                                              |
+|  3. Principle of testability                                 |
+|     Always prepare test cases for your patterns              |
+|     Cover normal, abnormal, and boundary cases               |
+|                                                              |
+|  4. Principle of maintainability                             |
+|     Don't use unreadable patterns                            |
+|     Express intent with comments and named groups            |
+|                                                              |
+|  5. Principle of safety                                      |
+|     Consider ReDoS risk                                      |
+|     Set input length limits for user input                   |
++--------------------------------------------------------------+
 ```
 
-## 次に読むべきガイド
+## Recommended Next Reading
 
-- [02-text-processing.md](./02-text-processing.md) -- テキスト処理(sed/awk/grep)
-- [03-regex-alternatives.md](./03-regex-alternatives.md) -- 正規表現の代替手法
+- [02-text-processing.md](./02-text-processing.md) -- Text processing (sed/awk/grep)
+- [03-regex-alternatives.md](./03-regex-alternatives.md) -- Alternatives to regular expressions
 
-## 参考文献
+## References
 
-1. **RFC 5322** "Internet Message Format" https://tools.ietf.org/html/rfc5322 -- メールアドレスの公式仕様
-2. **RFC 3986** "Uniform Resource Identifier (URI): Generic Syntax" https://tools.ietf.org/html/rfc3986 -- URI の公式仕様
-3. **Google libphonenumber** https://github.com/google/libphonenumber -- 電話番号検証の事実上の標準ライブラリ
-4. **OWASP Input Validation Cheat Sheet** https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html -- 入力検証のセキュリティベストプラクティス
-5. **Regular Expression Denial of Service (ReDoS)** https://owasp.org/www-community/attacks/Regular_expression_Denial_of_Service_-_ReDoS -- ReDoS 攻撃の解説と対策
-6. **Python re module documentation** https://docs.python.org/3/library/re.html -- Python 標準ライブラリの正規表現リファレンス
-7. **regex101.com** https://regex101.com/ -- 正規表現のオンラインテスト・デバッグツール
+1. **RFC 5322** "Internet Message Format" https://tools.ietf.org/html/rfc5322 -- Official specification of email addresses
+2. **RFC 3986** "Uniform Resource Identifier (URI): Generic Syntax" https://tools.ietf.org/html/rfc3986 -- Official specification of URIs
+3. **Google libphonenumber** https://github.com/google/libphonenumber -- The de facto standard library for phone number validation
+4. **OWASP Input Validation Cheat Sheet** https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html -- Security best practices for input validation
+5. **Regular Expression Denial of Service (ReDoS)** https://owasp.org/www-community/attacks/Regular_expression_Denial_of_Service_-_ReDoS -- Explanation and mitigation of ReDoS attacks
+6. **Python re module documentation** https://docs.python.org/3/library/re.html -- Python standard library regex reference
+7. **regex101.com** https://regex101.com/ -- Online regex testing and debugging tool
