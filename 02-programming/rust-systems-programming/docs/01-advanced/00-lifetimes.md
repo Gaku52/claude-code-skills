@@ -1,84 +1,84 @@
-# ライフタイム詳解 -- 参照の有効期間をコンパイル時に証明する仕組み
+# Lifetimes In Depth -- The Mechanism for Proving Reference Validity at Compile Time
 
-> ライフタイムはRustコンパイラが参照の有効期間を追跡する仕組みであり、ダングリング参照やuse-after-freeをコンパイル時に排除する。
-
----
-
-## この章で学ぶこと
-
-1. **ライフタイム注釈 'a** -- 関数シグネチャにおけるライフタイムパラメータの意味と書き方を理解する
-2. **ライフタイム省略規則** -- コンパイラが暗黙に注釈を推論する3つの規則を習得する
-3. **高度なライフタイム** -- 構造体のライフタイム、HRTB、'static を学ぶ
-4. **NLL (Non-Lexical Lifetimes)** -- Rust 2018以降の改善されたライフタイム解析を理解する
-5. **実践パターン** -- 実務で遭遇する複雑なライフタイムシナリオへの対処法を習得する
-
-
-## 前提知識
-
-このガイドを読む前に、以下の知識があると理解が深まります:
-
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
+> Lifetimes are the mechanism by which the Rust compiler tracks the validity period of references, eliminating dangling references and use-after-free at compile time.
 
 ---
 
-## 1. ライフタイムの基本概念
+## What You Will Learn in This Chapter
 
-### 1.1 なぜライフタイムが必要なのか
+1. **Lifetime annotations 'a** -- Understand the meaning and syntax of lifetime parameters in function signatures
+2. **Lifetime elision rules** -- Master the three rules by which the compiler implicitly infers annotations
+3. **Advanced lifetimes** -- Learn about lifetimes on structs, HRTB, and 'static
+4. **NLL (Non-Lexical Lifetimes)** -- Understand the improved lifetime analysis introduced in Rust 2018
+5. **Practical patterns** -- Master how to handle complex lifetime scenarios encountered in practice
 
-Rustはガベージコレクタ (GC) を持たない言語であり、メモリ安全性をコンパイル時に保証する。ライフタイムはその核心的な仕組みの1つであり、以下の問題を防ぐ:
 
-- **ダングリング参照 (dangling reference)**: 既に解放されたメモリへの参照
-- **Use-after-free**: 解放後のメモリアクセス
-- **データ競合 (data race)**: 参照の有効期間管理による排他制御の基盤
+## Prerequisite Knowledge
 
-C/C++ ではこれらは実行時にクラッシュや未定義動作を引き起こすが、Rustではコンパイル時に検出・排除される。
+Your understanding will be deeper if you have the following knowledge before reading this guide:
+
+- Basic programming knowledge
+- Understanding of related fundamental concepts
+
+---
+
+## 1. Fundamental Concepts of Lifetimes
+
+### 1.1 Why Lifetimes Are Necessary
+
+Rust is a language without a garbage collector (GC), and it guarantees memory safety at compile time. Lifetimes are one of the core mechanisms that achieve this, preventing the following problems:
+
+- **Dangling reference**: A reference to memory that has already been freed
+- **Use-after-free**: Memory access after deallocation
+- **Data race**: The foundation for exclusive control through reference validity management
+
+In C/C++, these issues cause runtime crashes or undefined behavior, but in Rust they are detected and eliminated at compile time.
 
 ```rust
-// C言語で起きる典型的なダングリング参照
+// A typical dangling reference that occurs in C
 // int* create_int() {
 //     int x = 42;
-//     return &x;  // スタックフレームが消える → ダングリング!
+//     return &x;  // The stack frame disappears -> dangling!
 // }
 
-// Rustでは同等のコードがコンパイルエラーになる
+// In Rust, equivalent code becomes a compile error
 // fn create_ref() -> &i32 {
 //     let x = 42;
-//     &x  // コンパイルエラー: `x` does not live long enough
+//     &x  // Compile error: `x` does not live long enough
 // }
 
-// 正しい方法: 所有権を返す
+// Correct approach: return ownership
 fn create_value() -> i32 {
     42
 }
 
-// またはヒープに確保して所有権を返す
+// Or allocate on the heap and return ownership
 fn create_string() -> String {
     String::from("hello")
 }
 ```
 
-### 1.2 ダングリング参照の防止
+### 1.2 Preventing Dangling References
 
 ```rust
-// このコードはコンパイルエラーになる
+// This code becomes a compile error
 // fn dangle() -> &String {
 //     let s = String::from("hello");
-//     &s  // s はこの関数終了時に drop → ダングリング参照！
+//     &s  // s is dropped at the end of this function -> dangling reference!
 // }
 
-// 正しい方法: 所有権を返す
+// Correct approach: return ownership
 fn no_dangle() -> String {
     String::from("hello")
 }
 
 fn main() {
     let s = no_dangle();
-    println!("{}", s); // OK: s が所有権を持っている
+    println!("{}", s); // OK: s holds ownership
 }
 ```
 
-### 1.3 ライフタイムの可視化
+### 1.3 Visualizing Lifetimes
 
 ```
 fn main() {
@@ -87,72 +87,72 @@ fn main() {
     {                     //          |
         let x = 5;       // -+-- 'b  |
         r = &x;          //  |       |
-    }                     // -+       |  ← x が drop される
+    }                     // -+       |  <- x is dropped
                           //          |
-    // println!("{}", r); //          |  ← r は無効な参照 → エラー
+    // println!("{}", r); //          |  <- r is an invalid reference -> error
 }                         // ---------+
 
-'b は 'a より短い → r = &x は不正
+'b is shorter than 'a -> r = &x is invalid
 ```
 
-### 1.4 借用チェッカーの動作原理
+### 1.4 How the Borrow Checker Works
 
-借用チェッカー (borrow checker) は以下のステップでライフタイムを検証する:
+The borrow checker validates lifetimes through the following steps:
 
-1. **ライフタイムの割り当て**: 各参照にライフタイムリージョンを割り当てる
-2. **制約の収集**: 関数シグネチャ、変数の使用箇所から制約を収集する
-3. **制約の解決**: 全ての制約を同時に満たすライフタイムの割り当てが存在するか検証する
-4. **エラー報告**: 制約を満たせない場合、具体的なエラーメッセージを生成する
+1. **Lifetime assignment**: Assigns a lifetime region to each reference
+2. **Constraint collection**: Collects constraints from function signatures and variable usage sites
+3. **Constraint resolution**: Verifies whether an assignment of lifetimes that simultaneously satisfies all constraints exists
+4. **Error reporting**: When constraints cannot be satisfied, generates a concrete error message
 
 ```rust
 fn example() {
-    let x = String::from("hello");  // x のライフタイム開始
-    let r = &x;                      // r は x への参照。'r <= 'x が制約
-    println!("{}", r);               // r の最終使用地点
-    // r のライフタイム終了 (NLL)
-    drop(x);                         // x のライフタイム終了 → OK
+    let x = String::from("hello");  // x's lifetime begins
+    let r = &x;                      // r is a reference to x. The constraint is 'r <= 'x
+    println!("{}", r);               // r's last point of use
+    // r's lifetime ends (NLL)
+    drop(x);                         // x's lifetime ends -> OK
 }
 
 fn failing_example() {
     let r;
     {
         let x = String::from("hello");
-        r = &x;                      // 'r は外側のスコープまで続く
-    }                                // x の drop → 'x 終了
-    // println!("{}", r);            // 'r > 'x → 制約違反 → エラー
+        r = &x;                      // 'r continues to the outer scope
+    }                                // x is dropped -> 'x ends
+    // println!("{}", r);            // 'r > 'x -> constraint violation -> error
 }
 ```
 
 ---
 
-## 2. ライフタイム注釈
+## 2. Lifetime Annotations
 
-### 2.1 ライフタイム注釈の構文
+### 2.1 Lifetime Annotation Syntax
 
-ライフタイム注釈はアポストロフィ `'` に続く小文字のアルファベットで記述する。慣例では `'a`, `'b`, `'c` のように短い名前を使う。
+Lifetime annotations are written as a lowercase alphabetic name following an apostrophe `'`. By convention, short names like `'a`, `'b`, `'c` are used.
 
 ```rust
-// 基本構文
-&'a T        // ライフタイム 'a を持つ不変参照
-&'a mut T    // ライフタイム 'a を持つ可変参照
+// Basic syntax
+&'a T        // An immutable reference with lifetime 'a
+&'a mut T    // A mutable reference with lifetime 'a
 
-// ジェネリックライフタイムパラメータ
+// Generic lifetime parameters
 fn function<'a>(x: &'a str) -> &'a str { x }
 
-// 複数のライフタイムパラメータ
+// Multiple lifetime parameters
 fn function2<'a, 'b>(x: &'a str, y: &'b str) -> &'a str { x }
 
-// ライフタイム境界付き
+// With lifetime bounds
 fn function3<'a, 'b: 'a>(x: &'a str, y: &'b str) -> &'a str {
     if x.len() > 0 { x } else { y }
 }
 ```
 
-### 例1: 基本的なライフタイム注釈
+### Example 1: Basic Lifetime Annotations
 
 ```rust
-// 2つの文字列スライスのうち長い方を返す
-// 戻り値のライフタイムは引数のライフタイムの短い方に制約される
+// Returns the longer of two string slices
+// The lifetime of the return value is constrained to the shorter of the argument lifetimes
 fn longest<'a>(x: &'a str, y: &'a str) -> &'a str {
     if x.len() > y.len() {
         x
@@ -167,18 +167,18 @@ fn main() {
     {
         let string2 = String::from("xyz");
         result = longest(string1.as_str(), string2.as_str());
-        println!("長い方: {}", result); // OK: string2 はまだ有効
+        println!("longer one: {}", result); // OK: string2 is still valid
     }
-    // println!("{}", result); // エラー: string2 が drop 済み
+    // println!("{}", result); // Error: string2 has been dropped
 }
 ```
 
-### 例2: 異なるライフタイムを持つ引数
+### Example 2: Arguments with Different Lifetimes
 
 ```rust
-// x と y が異なるライフタイムでも良い場合
+// When x and y can have different lifetimes
 fn first<'a, 'b>(x: &'a str, _y: &'b str) -> &'a str {
-    x // 戻り値は x のライフタイムにのみ依存
+    x // The return value depends only on x's lifetime
 }
 
 fn main() {
@@ -188,22 +188,22 @@ fn main() {
         let s2 = String::from("world");
         result = first(&s1, &s2);
     }
-    println!("{}", result); // OK: result は s1 のライフタイム
+    println!("{}", result); // OK: result has s1's lifetime
 }
 ```
 
-### 例3: 戻り値が新しい値の場合
+### Example 3: When the Return Value Is a New Value
 
 ```rust
-// 戻り値が引数の参照ではなく新しい値の場合、ライフタイム注釈は不要
+// When the return value is a new value rather than a reference to an argument, no lifetime annotation is needed
 fn combine(x: &str, y: &str) -> String {
-    format!("{}{}", x, y) // 新しい String を返す → ライフタイム不要
+    format!("{}{}", x, y) // Returns a new String -> no lifetime needed
 }
 
-// 以下はコンパイルエラーになる
+// The following is a compile error
 // fn bad_return<'a>(x: &'a str) -> &'a str {
 //     let s = String::from("created inside");
-//     &s  // ローカル変数への参照は返せない
+//     &s  // Cannot return a reference to a local variable
 // }
 
 fn main() {
@@ -212,22 +212,22 @@ fn main() {
 }
 ```
 
-### 例4: 複数の戻り値候補
+### Example 4: Multiple Return Value Candidates
 
 ```rust
-// 条件によって異なる引数を返す場合、ライフタイムの共通化が必要
+// When different arguments may be returned depending on a condition, lifetimes must be unified
 fn select<'a>(condition: bool, x: &'a str, y: &'a str) -> &'a str {
     if condition { x } else { y }
 }
 
-// より精密なライフタイム指定
+// More precise lifetime specification
 fn select_first<'a, 'b>(condition: bool, x: &'a str, _y: &'b str) -> &'a str {
     if condition {
         x
     } else {
-        // y は返せない: 'b != 'a
-        // 代わりにデフォルト値を返す
-        "default"  // &'static str は任意のライフタイムに変換可能
+        // y cannot be returned: 'b != 'a
+        // Return a default value instead
+        "default"  // &'static str can be coerced to any lifetime
     }
 }
 
@@ -246,105 +246,109 @@ fn main() {
         let s4 = String::from("fourth");
         result2 = select_first(false, &s3, &s4);
     }
-    println!("{}", result2); // OK: "default" は 'static
+    println!("{}", result2); // OK: "default" is 'static
 }
 ```
 
 ---
 
-## 3. ライフタイム省略規則
+## 3. Lifetime Elision Rules
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│            ライフタイム省略規則 (Elision Rules)           │
-├──────────────────────────────────────────────────────────┤
-│                                                          │
-│ 規則1 (入力): 各参照パラメータに個別のライフタイムを割当 │
-│   fn f(x: &str, y: &str)                                │
-│   → fn f<'a, 'b>(x: &'a str, y: &'b str)               │
-│                                                          │
-│ 規則2 (出力): 入力ライフタイムが1つなら出力にも適用      │
-│   fn f(x: &str) -> &str                                 │
-│   → fn f<'a>(x: &'a str) -> &'a str                     │
-│                                                          │
-│ 規則3 (メソッド): &self のライフタイムを出力に適用       │
-│   fn f(&self, x: &str) -> &str                          │
-│   → fn f<'a, 'b>(&'a self, x: &'b str) -> &'a str      │
-│                                                          │
-│ 3つの規則で決定できない場合 → 明示的な注釈が必要        │
-└──────────────────────────────────────────────────────────┘
++----------------------------------------------------------+
+|            Lifetime Elision Rules                        |
++----------------------------------------------------------+
+|                                                          |
+| Rule 1 (input): Assign a separate lifetime to each       |
+|   reference parameter                                    |
+|   fn f(x: &str, y: &str)                                 |
+|   -> fn f<'a, 'b>(x: &'a str, y: &'b str)                |
+|                                                          |
+| Rule 2 (output): If there is one input lifetime, it is   |
+|   applied to the output                                  |
+|   fn f(x: &str) -> &str                                  |
+|   -> fn f<'a>(x: &'a str) -> &'a str                     |
+|                                                          |
+| Rule 3 (method): The lifetime of &self is applied to     |
+|   the output                                             |
+|   fn f(&self, x: &str) -> &str                           |
+|   -> fn f<'a, 'b>(&'a self, x: &'b str) -> &'a str       |
+|                                                          |
+| If the three rules cannot determine the lifetime ->      |
+|   explicit annotation is required                        |
++----------------------------------------------------------+
 ```
 
-### 例5: 省略規則の適用例
+### Example 5: Examples of Applying the Elision Rules
 
 ```rust
-// === 規則1 + 規則2 で省略可能 ===
+// === Elidable using Rules 1 + 2 ===
 
-// 省略形
+// Elided form
 fn first_word(s: &str) -> &str {
     s.split_whitespace().next().unwrap_or("")
 }
 
-// 展開するとこうなる
+// When expanded, it looks like this
 fn first_word_explicit<'a>(s: &'a str) -> &'a str {
     s.split_whitespace().next().unwrap_or("")
 }
 
-// === 規則1のみ → 出力ライフタイムが決まらない → 明示必要 ===
+// === Only Rule 1 applies -> output lifetime cannot be determined -> explicit annotation needed ===
 
-// 省略不可能なケース → 明示的注釈が必要
-fn longest<'a>(x: &'a str, y: &'a str) -> &'a str {  // 入力が2つ
+// A non-elidable case -> explicit annotation is required
+fn longest<'a>(x: &'a str, y: &'a str) -> &'a str {  // Two inputs
     if x.len() > y.len() { x } else { y }
 }
 
-// === 規則3 の適用 ===
+// === Application of Rule 3 ===
 
 struct MyString {
     data: String,
 }
 
 impl MyString {
-    // 規則3: &self のライフタイムが戻り値に適用
-    // 省略形
+    // Rule 3: the lifetime of &self is applied to the return value
+    // Elided form
     fn as_str(&self) -> &str {
         &self.data
     }
 
-    // 展開するとこうなる
+    // When expanded, it looks like this
     fn as_str_explicit<'a>(&'a self) -> &'a str {
         &self.data
     }
 
-    // 規則3: 他の引数のライフタイムは無視される
+    // Rule 3: lifetimes of other arguments are ignored
     fn with_prefix(&self, prefix: &str) -> &str {
-        // &self のライフタイムが戻り値に適用される
-        // prefix のライフタイムではない
+        // The lifetime of &self is applied to the return value,
+        // not the lifetime of prefix
         &self.data
     }
 }
 ```
 
-### 例6: 省略規則が適用されない複雑なケース
+### Example 6: Complex Cases Where the Elision Rules Do Not Apply
 
 ```rust
-// ケース1: 2つの入力参照、戻り値がどちらに依存するか不明
-// fn ambiguous(x: &str, y: &str) -> &str { ... }  // コンパイルエラー
+// Case 1: Two input references, ambiguous which the return depends on
+// fn ambiguous(x: &str, y: &str) -> &str { ... }  // Compile error
 fn not_ambiguous<'a>(x: &'a str, y: &'a str) -> &'a str {
     if x.len() > y.len() { x } else { y }
 }
 
-// ケース2: トレイトオブジェクトのライフタイム
-// Box<dyn Trait> のライフタイムはデフォルトで 'static
+// Case 2: Lifetime of trait objects
+// The lifetime of Box<dyn Trait> defaults to 'static
 fn create_trait_obj() -> Box<dyn std::fmt::Display> {
-    Box::new(42)  // i32 は 'static
+    Box::new(42)  // i32 is 'static
 }
 
-// 非 'static のトレイトオブジェクト
+// A non-'static trait object
 fn create_trait_obj_with_ref<'a>(s: &'a str) -> Box<dyn std::fmt::Display + 'a> {
     Box::new(s)
 }
 
-// ケース3: impl Trait のライフタイム
+// Case 3: Lifetime of impl Trait
 fn create_iter<'a>(s: &'a str) -> impl Iterator<Item = char> + 'a {
     s.chars()
 }
@@ -364,9 +368,9 @@ fn main() {
 
 ---
 
-## 4. 構造体のライフタイム
+## 4. Lifetimes on Structs
 
-### 例7: 参照を持つ構造体
+### Example 7: A Struct Holding a Reference
 
 ```rust
 #[derive(Debug)]
@@ -376,31 +380,31 @@ struct Excerpt<'a> {
 
 impl<'a> Excerpt<'a> {
     fn level(&self) -> i32 {
-        3 // 省略規則3: &self のライフタイムが適用
+        3 // Elision rule 3: the lifetime of &self is applied
     }
 
     fn announce_and_return(&self, announcement: &str) -> &str {
-        println!("お知らせ: {}", announcement);
-        self.part // 省略規則3: &self → 戻り値のライフタイム
+        println!("Announcement: {}", announcement);
+        self.part // Elision rule 3: &self -> return value's lifetime
     }
 }
 
 fn main() {
-    let novel = String::from("むかしむかし。ある所に...");
+    let novel = String::from("Once upon a time. In a certain place...");
     let first_sentence;
     {
         let excerpt = Excerpt {
-            part: novel.split('。').next().unwrap(),
+            part: novel.split('.').next().unwrap(),
         };
-        first_sentence = excerpt.announce_and_return("注目！");
+        first_sentence = excerpt.announce_and_return("Attention!");
         println!("{:?}", excerpt);
     }
-    // first_sentence は novel のスライスなので、novel が有効な限りOK
+    // first_sentence is a slice of novel, so it's OK as long as novel is valid
     println!("{}", first_sentence);
 }
 ```
 
-### 例8: 複数のライフタイムを持つ構造体
+### Example 8: A Struct with Multiple Lifetimes
 
 ```rust
 #[derive(Debug)]
@@ -422,10 +426,10 @@ impl<'a, 'b> Pair<'a, 'b> {
         self.second
     }
 
-    // 両方のライフタイムに依存する戻り値
+    // A return value that depends on both lifetimes
     fn longer(&self) -> &str
     where
-        'a: 'b,  // 'a が 'b より長生きする制約
+        'a: 'b,  // Constraint: 'a outlives 'b
     {
         if self.first.len() > self.second.len() {
             self.first
@@ -442,15 +446,15 @@ fn main() {
         let s2 = String::from("world!!!");
         let pair = Pair::new(&s1, &s2);
         println!("first: {}, second: {}", pair.first(), pair.second());
-        // pair.longer() は 'b の制約内でのみ使用可能
+        // pair.longer() can only be used within the constraint of 'b
         let longer = pair.longer();
         println!("longer: {}", longer);
     }
-    // result = pair.longer(); // pair が drop 済みなのでエラー
+    // result = pair.longer(); // Error because pair has been dropped
 }
 ```
 
-### 例9: 構造体のライフタイムとジェネリクスの組み合わせ
+### Example 9: Combining Struct Lifetimes and Generics
 
 ```rust
 use std::fmt::Display;
@@ -482,24 +486,24 @@ impl<'a, T: Display> std::fmt::Display for Annotated<'a, T> {
 }
 
 fn main() {
-    let label = String::from("温度");
+    let label = String::from("Temperature");
     let annotated = Annotated::new(&label, 36.5_f64);
     annotated.display();
     println!("{}", annotated);
-    println!("ラベル: {}", annotated.label());
+    println!("Label: {}", annotated.label());
 }
 ```
 
-### 例10: 自己参照構造体の問題と解決策
+### Example 10: The Self-Referential Struct Problem and Workarounds
 
 ```rust
-// 自己参照構造体は直接作れない
+// Self-referential structs cannot be created directly
 // struct SelfRef {
 //     data: String,
-//     reference: &str,  // data を参照したいが、ライフタイムを指定できない
+//     reference: &str,  // We want to refer to data, but cannot specify a lifetime
 // }
 
-// 解決策1: インデックスで間接参照
+// Workaround 1: Indirect reference via index
 #[derive(Debug)]
 struct TextWithHighlight {
     text: String,
@@ -527,7 +531,7 @@ impl TextWithHighlight {
     }
 }
 
-// 解決策2: 分離した構造体
+// Workaround 2: Separated structs
 #[derive(Debug)]
 struct TextOwner {
     text: String,
@@ -552,106 +556,110 @@ impl<'a> TextRef<'a> {
 }
 
 fn main() {
-    // 解決策1
+    // Workaround 1
     let tw = TextWithHighlight::new("Hello, Rust World!".to_string(), 7, 11);
-    println!("全体: {}", tw.full_text());
-    println!("強調: {}", tw.highlighted());
+    println!("Full: {}", tw.full_text());
+    println!("Highlighted: {}", tw.highlighted());
 
-    // 解決策2
+    // Workaround 2
     let owner = TextOwner {
         text: "Hello, Rust World!".to_string(),
     };
     let text_ref = TextRef::new(&owner, 7, 11);
-    println!("参照: {}", text_ref.get());
+    println!("Reference: {}", text_ref.get());
 }
 ```
 
 ---
 
-## 5. 'static ライフタイム
+## 5. The 'static Lifetime
 
-### 5.1 'static の2つの意味
+### 5.1 The Two Meanings of 'static
 
-`'static` には2つの異なる意味があり、混同しやすい:
+`'static` has two distinct meanings that are easily confused:
 
-1. **`&'static T`**: プログラム全期間にわたって有効な参照
-2. **`T: 'static`**: 型 T が 'static ライフタイム境界を満たす (所有型は全て満たす)
+1. **`&'static T`**: A reference valid for the entire duration of the program
+2. **`T: 'static`**: The type T satisfies the 'static lifetime bound (all owned types satisfy this)
 
 ```
-┌──────────────────────────────────────────────────────┐
-│  'static の2つの意味                                  │
-├──────────────────────────────────────────────────────┤
-│                                                      │
-│  &'static T = プログラム全期間有効な参照              │
-│    例: 文字列リテラル &'static str                    │
-│    例: static 変数への参照                            │
-│    例: Box::leak() で作った参照                       │
-│                                                      │
-│  T: 'static = T が参照を含まないか、'static参照のみ  │
-│    例: String, Vec<i32>, i32 (所有型は全て満たす)     │
-│    例: &'static str (参照なら 'static であること)     │
-│                                                      │
-│  重要: T: 'static は「永遠に生きる」ではなく          │
-│        「永遠に生きることが"可能"」という意味          │
-└──────────────────────────────────────────────────────┘
++------------------------------------------------------+
+|  The two meanings of 'static                         |
++------------------------------------------------------+
+|                                                      |
+|  &'static T = a reference valid for the entire       |
+|    program duration                                  |
+|    Example: string literals &'static str             |
+|    Example: references to static variables           |
+|    Example: references created with Box::leak()      |
+|                                                      |
+|  T: 'static = T contains no references, or only      |
+|    'static references                                |
+|    Example: String, Vec<i32>, i32 (all owned types   |
+|    satisfy this)                                     |
+|    Example: &'static str (if a reference, it must    |
+|    be 'static)                                       |
+|                                                      |
+|  Important: T: 'static does not mean "lives forever" |
+|    but rather "is *able* to live forever"            |
++------------------------------------------------------+
 ```
 
-### 例11: 'static の正しい使い方
+### Example 11: Correct Use of 'static
 
 ```rust
-// 文字列リテラルは 'static
-let s: &'static str = "この文字列はバイナリに埋め込まれる";
+// String literals are 'static
+let s: &'static str = "This string is embedded in the binary";
 
-// 'static 境界: 型が参照を含まない or 'static 参照のみ
+// 'static bound: the type contains no references, or only 'static references
 fn spawn_task<T: Send + 'static>(value: T) {
     std::thread::spawn(move || {
-        println!("スレッドで処理中");
+        println!("Processing in thread");
         drop(value);
     });
 }
 
-// 'static は「永遠に生きる」ではなく「永遠に生きられる」という意味
-// 所有型(String, Vec<T>)は全て 'static 境界を満たす
+// 'static does not mean "lives forever" but "is able to live forever"
+// All owned types (String, Vec<T>) satisfy the 'static bound
 fn accepts_static<T: 'static>(val: T) {
-    // T が参照を含むなら 'static 参照のみ
-    // T が所有型なら常に満たす
+    // If T contains references, only 'static references are allowed
+    // If T is an owned type, it always satisfies the bound
 }
 
 fn main() {
     let owned = String::from("hello");
-    accepts_static(owned); // OK: String は所有型
+    accepts_static(owned); // OK: String is an owned type
 
     let s: &'static str = "hello";
-    accepts_static(s); // OK: 'static 参照
+    accepts_static(s); // OK: 'static reference
 
     // let local = String::from("hello");
-    // accepts_static(&local); // エラー: &local は 'static ではない
+    // accepts_static(&local); // Error: &local is not 'static
 }
 ```
 
-### 例12: Box::leak と 'static 参照の作成
+### Example 12: Box::leak and Creating 'static References
 
 ```rust
 fn create_static_str(s: String) -> &'static str {
-    // Box::leak でヒープメモリを意図的にリークし、'static 参照を得る
-    // 注意: メモリが解放されないので、限定的な場面でのみ使用すること
+    // Box::leak intentionally leaks the heap memory to obtain a 'static reference
+    // Note: the memory is never freed, so use this only in limited situations
     Box::leak(s.into_boxed_str())
 }
 
-// lazy_static! やOnceCellの内部実装でも使われるパターン
+// A pattern also used internally by lazy_static! and OnceCell
 use std::sync::OnceLock;
 
 static CONFIG: OnceLock<String> = OnceLock::new();
 
 fn get_config() -> &'static str {
     CONFIG.get_or_init(|| {
-        // 実際にはファイルや環境変数から読み込む
+        // In practice, read from a file or environment variable
         String::from("production")
     })
 }
 
 fn main() {
-    let dynamic_string = String::from("動的に作った文字列");
+    let dynamic_string = String::from("Dynamically created string");
     let static_ref = create_static_str(dynamic_string);
     println!("{}", static_ref);
 
@@ -660,70 +668,71 @@ fn main() {
 }
 ```
 
-### 例13: 'static の誤用と修正
+### Example 13: Misuse of 'static and How to Fix It
 
 ```rust
-// 誤用1: 不必要な 'static 制約
-// BAD: 'static を要求しすぎ
+// Misuse 1: unnecessary 'static constraint
+// BAD: requires 'static more than necessary
 fn process_bad(data: &'static str) {
     println!("{}", data);
 }
 
-// GOOD: 任意のライフタイムを受け入れる
+// GOOD: accepts any lifetime
 fn process_good(data: &str) {
     println!("{}", data);
 }
 
-// 誤用2: トレイトオブジェクトのデフォルト 'static
-// BAD: 意図せず 'static を要求
+// Misuse 2: default 'static for trait objects
+// BAD: unintentionally requires 'static
 fn take_display_bad(item: Box<dyn std::fmt::Display>) {
-    // Box<dyn Display> は Box<dyn Display + 'static> と同じ
+    // Box<dyn Display> is the same as Box<dyn Display + 'static>
     println!("{}", item);
 }
 
-// GOOD: 明示的にライフタイムを指定
+// GOOD: explicitly specify the lifetime
 fn take_display_good<'a>(item: Box<dyn std::fmt::Display + 'a>) {
     println!("{}", item);
 }
 
 fn main() {
-    // process_bad には String の参照を渡せない
+    // process_bad cannot accept a reference to a String
     // let s = String::from("hello");
-    // process_bad(&s); // エラー
+    // process_bad(&s); // Error
 
-    process_bad("リテラルはOK");
-    process_good("リテラルもOK");
-    let s = String::from("変数もOK");
+    process_bad("Literals are OK");
+    process_good("Literals are also OK");
+    let s = String::from("Variables are also OK");
     process_good(&s);
 }
 ```
 
 ---
 
-## 6. 高ランクトレイト境界 (HRTB)
+## 6. Higher-Rank Trait Bounds (HRTB)
 
 ```
-┌──────────────────────────────────────────────────────┐
-│  HRTB (Higher-Rank Trait Bounds)                     │
-│                                                      │
-│  for<'a> は「任意のライフタイム 'a に対して」の意味   │
-│                                                      │
-│  fn apply<F>(f: F)                                   │
-│  where                                               │
-│      F: for<'a> Fn(&'a str) -> &'a str               │
-│                                                      │
-│  → F は「どんなライフタイムの参照を渡されても        │
-│     動作する関数」でなければならない                  │
-│                                                      │
-│  HRTB が必要な典型的な場面:                           │
-│  - クロージャ引数が参照を受け取り参照を返す場合      │
-│  - トレイトオブジェクトがジェネリックなライフタイムの │
-│    メソッドを持つ場合                                 │
-│  - Iterator::for_each のようなコールバック系API       │
-└──────────────────────────────────────────────────────┘
++------------------------------------------------------+
+|  HRTB (Higher-Rank Trait Bounds)                     |
+|                                                      |
+|  for<'a> means "for any lifetime 'a"                 |
+|                                                      |
+|  fn apply<F>(f: F)                                   |
+|  where                                               |
+|      F: for<'a> Fn(&'a str) -> &'a str               |
+|                                                      |
+|  -> F must be "a function that works no matter       |
+|     what lifetime of reference is passed to it"      |
+|                                                      |
+|  Typical situations where HRTB is needed:            |
+|  - Closure arguments that take a reference and       |
+|    return a reference                                |
+|  - Trait objects with methods having generic         |
+|    lifetimes                                         |
+|  - Callback-style APIs like Iterator::for_each       |
++------------------------------------------------------+
 ```
 
-### 例14: HRTB の実用例
+### Example 14: Practical Use of HRTB
 
 ```rust
 fn apply_to_both<F>(f: F, a: &str, b: &str)
@@ -750,10 +759,10 @@ fn main() {
 }
 ```
 
-### 例15: HRTB とクロージャの組み合わせ
+### Example 15: Combining HRTB and Closures
 
 ```rust
-// HRTB を使ったパーサーコンビネータのような設計
+// A parser-combinator-like design using HRTB
 trait Parser {
     fn parse<'input>(&self, input: &'input str) -> Option<(&'input str, &'input str)>;
 }
@@ -802,10 +811,10 @@ where
     for input in inputs {
         match parser(input) {
             Some((matched, rest)) => {
-                println!("マッチ: '{}', 残り: '{}'", matched, rest);
+                println!("Match: '{}', remaining: '{}'", matched, rest);
             }
             None => {
-                println!("マッチなし: '{}'", input);
+                println!("No match: '{}'", input);
             }
         }
     }
@@ -819,12 +828,12 @@ fn main() {
     let inputs = ["hello world", "hello", "goodbye", "hello!"];
     for input in &inputs {
         match literal.parse(input) {
-            Some((matched, rest)) => println!("'{}' → matched='{}', rest='{}'", input, matched, rest),
-            None => println!("'{}' → no match", input),
+            Some((matched, rest)) => println!("'{}' -> matched='{}', rest='{}'", input, matched, rest),
+            None => println!("'{}' -> no match", input),
         }
     }
 
-    // クロージャ版
+    // Closure version
     let prefix_parser = |input: &str| -> Option<(&str, &str)> {
         if input.starts_with("rust") {
             Some((&input[..4], &input[4..]))
@@ -840,38 +849,38 @@ fn main() {
 
 ---
 
-## 7. ライフタイムのサブタイピング
+## 7. Lifetime Subtyping
 
 ```
-ライフタイムの包含関係:
-  'a: 'b は「'a は 'b より長く生きる」(outlives)
+Lifetime containment relationship:
+  'a: 'b means "'a outlives 'b"
 
-  ┌─────────────────────────────────┐
-  │ 'static                        │
-  │  ┌───────────────────────────┐  │
-  │  │ 'a                       │  │
-  │  │  ┌─────────────────────┐ │  │
-  │  │  │ 'b                  │ │  │
-  │  │  └─────────────────────┘ │  │
-  │  └───────────────────────────┘  │
-  └─────────────────────────────────┘
+  +---------------------------------+
+  | 'static                         |
+  |  +---------------------------+  |
+  |  | 'a                        |  |
+  |  |  +---------------------+  |  |
+  |  |  | 'b                  |  |  |
+  |  |  +---------------------+  |  |
+  |  +---------------------------+  |
+  +---------------------------------+
 
   'static: 'a: 'b
-  'static は全てのライフタイムより長い
-  より長いライフタイムの参照は、
-  短いライフタイムが期待される場所で使える
-  (共変性: covariance)
+  'static is longer than every lifetime
+  A reference with a longer lifetime can be used
+  where a shorter lifetime is expected
+  (covariance)
 ```
 
-### 例16: ライフタイム境界
+### Example 16: Lifetime Bounds
 
 ```rust
-// 'a: 'b は「'a は少なくとも 'b と同じ長さ」
+// 'a: 'b means "'a is at least as long as 'b"
 fn select<'a, 'b: 'a>(first: &'a str, second: &'b str) -> &'a str {
     if first.len() > second.len() {
         first
     } else {
-        second // 'b: 'a なので 'b の参照を 'a として返せる
+        second // Since 'b: 'a, a 'b reference can be returned as 'a
     }
 }
 
@@ -883,34 +892,34 @@ fn main() {
         result = select(&s1, &s2);
         println!("{}", result);
     }
-    // result は s1 のライフタイム ('a) に制約される
-    // s2 のライフタイム ('b) は 'a 以上なので OK
+    // result is constrained to s1's lifetime ('a)
+    // s2's lifetime ('b) is at least 'a, so it's OK
 }
 ```
 
-### 例17: 共変性と反変性
+### Example 17: Covariance and Contravariance
 
 ```rust
-// ライフタイムの共変性 (covariance)
-// &'long T を &'short T として使える (サブタイプ)
+// Covariance of lifetimes
+// &'long T can be used as &'short T (subtype)
 fn demonstrate_covariance() {
     let long_lived = String::from("long");
 
-    // 'long を 'short として使う
+    // Use 'long as 'short
     fn take_short<'short>(s: &'short str) -> &'short str {
         s
     }
 
-    // 'static は全てのライフタイムのサブタイプ
+    // 'static is a subtype of every lifetime
     let static_str: &'static str = "static";
-    let result = take_short(static_str); // 'static → 'short は OK
+    let result = take_short(static_str); // 'static -> 'short is OK
     println!("{}", result);
 
-    let result2 = take_short(&long_lived); // 通常のライフタイムも OK
+    let result2 = take_short(&long_lived); // Ordinary lifetimes are also OK
     println!("{}", result2);
 }
 
-// ライフタイム境界の実践例
+// Practical example of lifetime bounds
 struct Container<'a> {
     data: Vec<&'a str>,
 }
@@ -920,8 +929,8 @@ impl<'a> Container<'a> {
         Container { data: Vec::new() }
     }
 
-    // 'b: 'a → 'b は 'a より長生きする
-    // つまり、'a より長いライフタイムの参照を追加できる
+    // 'b: 'a -> 'b outlives 'a
+    // That is, a reference with a longer lifetime than 'a can be added
     fn add<'b: 'a>(&mut self, item: &'b str) {
         self.data.push(item);
     }
@@ -940,7 +949,7 @@ fn main() {
     let mut container = Container::new();
     container.add(&s1);
     container.add(&s2);
-    container.add("static string"); // &'static str も追加可能
+    container.add("static string"); // &'static str can also be added
 
     for item in container.get_all() {
         println!("{}", item);
@@ -952,50 +961,51 @@ fn main() {
 
 ## 8. NLL (Non-Lexical Lifetimes)
 
-### 8.1 NLL の概要
+### 8.1 Overview of NLL
 
-Rust 2018 Edition で導入された NLL (Non-Lexical Lifetimes) は、ライフタイムの終了地点をレキシカルスコープ (ブロック終端) ではなく「最後に使用された地点」に基づいて判断する仕組みである。
+NLL (Non-Lexical Lifetimes), introduced in the Rust 2018 Edition, is a mechanism that determines the end point of a lifetime based on "the last point of use" rather than on the lexical scope (block boundary).
 
 ```
-┌──────────────────────────────────────────────────────┐
-│  NLL 以前 (Rust 2015)                                │
-│                                                      │
-│  let mut data = vec![1, 2, 3];                       │
-│  let r = &data[0];         // 'r がスコープ終端まで  │
-│  println!("{}", r);                                  │
-│  // r はもう使わないのに...                           │
-│  data.push(4);             // エラー！'r がまだ有効   │
-│                                                      │
-├──────────────────────────────────────────────────────┤
-│  NLL 以後 (Rust 2018+)                               │
-│                                                      │
-│  let mut data = vec![1, 2, 3];                       │
-│  let r = &data[0];         // 'r 開始                │
-│  println!("{}", r);        // 'r の最後の使用 → 終了 │
-│  data.push(4);             // OK！'r は終了済み       │
-└──────────────────────────────────────────────────────┘
++------------------------------------------------------+
+|  Before NLL (Rust 2015)                              |
+|                                                      |
+|  let mut data = vec![1, 2, 3];                       |
+|  let r = &data[0];         // 'r continues to scope  |
+|                            // boundary               |
+|  println!("{}", r);                                  |
+|  // r is no longer used, but...                      |
+|  data.push(4);             // Error! 'r still active |
+|                                                      |
++------------------------------------------------------+
+|  After NLL (Rust 2018+)                              |
+|                                                      |
+|  let mut data = vec![1, 2, 3];                       |
+|  let r = &data[0];         // 'r begins              |
+|  println!("{}", r);        // last use of 'r -> end  |
+|  data.push(4);             // OK! 'r has ended       |
++------------------------------------------------------+
 ```
 
-### 例18: NLL による改善
+### Example 18: Improvements via NLL
 
 ```rust
 fn main() {
-    // NLL がなければコンパイルエラーになるコード
+    // Code that would not compile without NLL
 
-    // ケース1: 条件分岐での借用
+    // Case 1: borrowing in a conditional branch
     let mut data = vec![1, 2, 3, 4, 5];
     let first = &data[0];
     println!("first: {}", first);
-    // NLL: first の最後の使用はここ → ライフタイム終了
+    // NLL: first's last use is here -> lifetime ends
     data.push(6); // OK
     println!("data: {:?}", data);
 
-    // ケース2: HashMap の entry パターン
+    // Case 2: HashMap entry pattern
     use std::collections::HashMap;
     let mut map = HashMap::new();
     map.insert("key", vec![1]);
 
-    // NLL がなければ、get と insert を同時に使えなかった
+    // Without NLL, get and insert could not be used together
     match map.get("key") {
         Some(v) => println!("found: {:?}", v),
         None => {
@@ -1003,28 +1013,28 @@ fn main() {
         }
     }
 
-    // ケース3: 条件付き可変借用
+    // Case 3: conditional mutable borrow
     let mut v = vec![1, 2, 3];
     let r = &v;
-    println!("不変借用: {:?}", r);
-    // r はもう使わない → NLL でライフタイム終了
+    println!("immutable borrow: {:?}", r);
+    // r is no longer used -> NLL ends the lifetime
     v.push(4);
-    println!("変更後: {:?}", v);
+    println!("after modification: {:?}", v);
 }
 ```
 
-### 例19: NLL でも解決できないケース
+### Example 19: Cases NLL Cannot Resolve
 
 ```rust
 fn main() {
-    // ケース1: 不変と可変の同時借用が本当に重なる場合
+    // Case 1: an immutable and mutable borrow that genuinely overlap
     let mut data = vec![1, 2, 3];
     let r = &data[0];
-    // data.push(4); // エラー: r はまだこの後で使用される
+    // data.push(4); // Error: r is still used after this
     println!("{}", r);
-    data.push(4); // OK: r はもう使わない
+    data.push(4); // OK: r is no longer used
 
-    // ケース2: 構造体のフィールドごとの借用
+    // Case 2: per-field borrowing of a struct
     struct Pair {
         first: String,
         second: String,
@@ -1035,29 +1045,29 @@ fn main() {
         second: String::from("world"),
     };
 
-    // 別々のフィールドへの同時可変借用は OK
+    // Simultaneous mutable borrows of different fields are OK
     let r1 = &mut pair.first;
     let r2 = &mut pair.second;
     r1.push_str("!");
     r2.push_str("!");
     println!("{}, {}", r1, r2);
 
-    // ケース3: メソッド経由だと借用が分離できない
+    // Case 3: borrows cannot be split when going through a method
     // let r3 = &pair.first;
-    // pair.second.push_str("!"); // OK: 別フィールド
+    // pair.second.push_str("!"); // OK: different field
     // println!("{}", r3);
 
-    // しかしメソッド経由は全体への借用
-    // let r4 = pair.get_first(); // &self → 全体を不変借用
-    // pair.set_second("!"); // エラー: &mut self が必要だが全体が借用中
+    // However, going through a method borrows the whole thing
+    // let r4 = pair.get_first(); // &self -> immutably borrows the whole
+    // pair.set_second("!"); // Error: needs &mut self but the whole is borrowed
 }
 ```
 
 ---
 
-## 9. 高度なライフタイムパターン
+## 9. Advanced Lifetime Patterns
 
-### 例20: ライフタイムとトレイトの組み合わせ
+### Example 20: Combining Lifetimes and Traits
 
 ```rust
 trait Processor<'a> {
@@ -1101,11 +1111,11 @@ fn main() {
 
     let processors: Vec<&dyn Processor> = vec![&trim, &prefix];
     let result = apply_processors(&input, &processors);
-    println!("結果: '{}'", result); // "Hello"
+    println!("Result: '{}'", result); // "Hello"
 }
 ```
 
-### 例21: ライフタイムとイテレータ
+### Example 21: Lifetimes and Iterators
 
 ```rust
 struct WordIterator<'a> {
@@ -1123,7 +1133,7 @@ impl<'a> Iterator for WordIterator<'a> {
     type Item = &'a str;
 
     fn next(&mut self) -> Option<Self::Item> {
-        // 先頭の空白をスキップ
+        // Skip leading whitespace
         while self.position < self.text.len()
             && self.text.as_bytes()[self.position] == b' '
         {
@@ -1136,7 +1146,7 @@ impl<'a> Iterator for WordIterator<'a> {
 
         let start = self.position;
 
-        // 単語の終端を探す
+        // Find the end of the word
         while self.position < self.text.len()
             && self.text.as_bytes()[self.position] != b' '
         {
@@ -1153,19 +1163,19 @@ fn main() {
     println!("{:?}", words);
     // ["Rust", "is", "a", "systems", "programming", "language"]
 
-    // イテレータアダプタとの組み合わせ
+    // Combination with iterator adapters
     let long_words: Vec<&str> = WordIterator::new(&text)
         .filter(|w| w.len() > 3)
         .collect();
-    println!("長い単語: {:?}", long_words);
+    println!("Long words: {:?}", long_words);
     // ["Rust", "systems", "programming", "language"]
 }
 ```
 
-### 例22: GAT (Generic Associated Types) とライフタイム
+### Example 22: GAT (Generic Associated Types) and Lifetimes
 
 ```rust
-// GAT を使ったストリーミング処理パターン
+// A streaming-processing pattern using GAT
 trait StreamingIterator {
     type Item<'a> where Self: 'a;
 
@@ -1200,7 +1210,7 @@ fn main() {
     };
 
     while let Some(window) = iter.next() {
-        println!("ウィンドウ: {:?}", window);
+        println!("Window: {:?}", window);
     }
     // [1, 2, 3]
     // [2, 3, 4]
@@ -1208,115 +1218,115 @@ fn main() {
 }
 ```
 
-### 例23: ライフタイムと非同期プログラミング
+### Example 23: Lifetimes and Asynchronous Programming
 
 ```rust
 use std::future::Future;
 
-// 非同期関数のライフタイム
-// async fn は戻り値が impl Future + 'lifetime であり、
-// 引数のライフタイムに依存する
+// Lifetimes of async functions
+// An async fn returns impl Future + 'lifetime,
+// and depends on the lifetime of its arguments
 
 async fn process_data(data: &str) -> usize {
-    // data の参照は Future が完了するまで有効でなければならない
+    // The reference data must remain valid until the Future completes
     data.len()
 }
 
-// 明示的なライフタイム注釈付き async
+// async with explicit lifetime annotation
 fn process_data_explicit<'a>(data: &'a str) -> impl Future<Output = usize> + 'a {
     async move {
         data.len()
     }
 }
 
-// トレイトオブジェクトとしての async 関数
+// async function as a trait object
 fn create_async_processor<'a>(
     data: &'a str,
 ) -> Box<dyn Future<Output = String> + 'a> {
     Box::new(async move {
-        format!("処理結果: {}", data.to_uppercase())
+        format!("Processing result: {}", data.to_uppercase())
     })
 }
 
-// async ブロックとライフタイムの注意点
+// Considerations regarding async blocks and lifetimes
 fn example_async_lifetime() {
     let data = String::from("hello");
 
-    // async ブロックは内部の参照のライフタイムに依存
+    // async blocks depend on the lifetimes of references inside them
     let _future = async {
         println!("{}", &data);
     };
 
-    // move async ブロックは所有権を取得
+    // A move async block takes ownership
     let _future_move = async move {
         println!("{}", data);
     };
-    // data はムーブされたのでここでは使えない
+    // data has been moved, so it cannot be used here
 }
 ```
 
 ---
 
-## 10. 比較表
+## 10. Comparison Tables
 
-### 10.1 ライフタイムの種類
+### 10.1 Kinds of Lifetimes
 
-| 種類 | 記法 | 意味 | 例 |
-|------|------|------|-----|
-| 名前付き | `'a` | 明示的なライフタイムパラメータ | `fn f<'a>(x: &'a str)` |
-| 省略 | なし | コンパイラが推論 | `fn f(x: &str) -> &str` |
-| 'static | `'static` | プログラム全期間 | `&'static str` |
-| 匿名 | `'_` | 推論を明示的に要求 | `impl Iterator<Item = &'_ str>` |
-| HRTB | `for<'a>` | 任意のライフタイムに対して | `F: for<'a> Fn(&'a str)` |
+| Kind | Notation | Meaning | Example |
+|------|----------|---------|---------|
+| Named | `'a` | Explicit lifetime parameter | `fn f<'a>(x: &'a str)` |
+| Elided | (none) | Inferred by the compiler | `fn f(x: &str) -> &str` |
+| 'static | `'static` | Entire program duration | `&'static str` |
+| Anonymous | `'_` | Explicitly request inference | `impl Iterator<Item = &'_ str>` |
+| HRTB | `for<'a>` | For any lifetime | `F: for<'a> Fn(&'a str)` |
 
-### 10.2 'static の誤解と実際
+### 10.2 Misconceptions vs. Reality of 'static
 
-| 誤解 | 実際 |
-|------|------|
-| 永遠にメモリに残る | 永遠に有効な「資格がある」 |
-| 文字列リテラルだけ | 所有型は全て `'static` を満たす |
-| ヒープにある | バイナリの静的領域にある(リテラルの場合) |
-| 使うべきでない | スレッドに渡す値には必要 |
-| メモリリークする | 所有型なら通常通り drop される |
+| Misconception | Reality |
+|---------------|---------|
+| It stays in memory forever | It is "qualified" to be valid forever |
+| Only string literals are 'static | All owned types satisfy `'static` |
+| It lives on the heap | It lives in the binary's static area (in the case of literals) |
+| It should not be used | It is necessary for values passed to threads |
+| It leaks memory | Owned types are dropped normally |
 
-### 10.3 ライフタイム省略規則の適用パターン
+### 10.3 Application Patterns of Lifetime Elision Rules
 
-| パターン | 省略前 | 省略後 | 適用規則 |
-|----------|--------|--------|----------|
-| 単一入力 | `fn f<'a>(x: &'a str) -> &'a str` | `fn f(x: &str) -> &str` | 規則1+2 |
-| メソッド | `fn f<'a>(&'a self) -> &'a str` | `fn f(&self) -> &str` | 規則1+3 |
-| 複数入力 | 省略不可 | `fn f<'a>(x: &'a str, y: &'a str) -> &'a str` | なし |
-| メソッド+引数 | `fn f<'a,'b>(&'a self, x: &'b str) -> &'a str` | `fn f(&self, x: &str) -> &str` | 規則1+3 |
-| 参照なし | `fn f(x: i32) -> i32` | `fn f(x: i32) -> i32` | 不要 |
+| Pattern | Before elision | After elision | Applied rules |
+|---------|----------------|---------------|---------------|
+| Single input | `fn f<'a>(x: &'a str) -> &'a str` | `fn f(x: &str) -> &str` | Rules 1+2 |
+| Method | `fn f<'a>(&'a self) -> &'a str` | `fn f(&self) -> &str` | Rules 1+3 |
+| Multiple inputs | Cannot be elided | `fn f<'a>(x: &'a str, y: &'a str) -> &'a str` | none |
+| Method + argument | `fn f<'a,'b>(&'a self, x: &'b str) -> &'a str` | `fn f(&self, x: &str) -> &str` | Rules 1+3 |
+| No references | `fn f(x: i32) -> i32` | `fn f(x: i32) -> i32` | not needed |
 
 ---
 
-## 11. アンチパターン
+## 11. Anti-Patterns
 
-### アンチパターン1: 不要な 'static 制約
+### Anti-Pattern 1: Unnecessary 'static Constraint
 
 ```rust
-// BAD: 'static を要求しすぎ
+// BAD: requires 'static more than necessary
 fn process(data: &'static str) {
     println!("{}", data);
 }
 
-// GOOD: 任意のライフタイムを受け入れる
+// GOOD: accepts any lifetime
 fn process_good(data: &str) {
     println!("{}", data);
 }
 
-// BAD: トレイトオブジェクトに不要な 'static
+// BAD: unnecessary 'static on a trait object
 fn take_processor(p: Box<dyn Fn(&str) -> String + 'static>) {
     println!("{}", p("hello"));
 }
 
-// GOOD: 必要な場合のみ 'static を指定
+// GOOD: specify 'static only when needed
 fn take_processor_good(p: Box<dyn Fn(&str) -> String>) {
-    // Box<dyn Fn + 'static> と同じだが、意図が明確
+    // Same as Box<dyn Fn + 'static>, but the intent is clearer
     println!("{}", p("hello"));
 }
-// もしスレッドに渡すなど 'static が本当に必要な場合は明示する
+// If 'static is genuinely needed, e.g. for passing to a thread, state it explicitly
 fn take_processor_thread(p: Box<dyn Fn(&str) -> String + Send + 'static>) {
     std::thread::spawn(move || {
         println!("{}", p("hello"));
@@ -1324,17 +1334,17 @@ fn take_processor_thread(p: Box<dyn Fn(&str) -> String + Send + 'static>) {
 }
 ```
 
-### アンチパターン2: ライフタイムで戦うより所有型を使う
+### Anti-Pattern 2: Use Owned Types Rather Than Fighting with Lifetimes
 
 ```rust
-// BAD: ライフタイムが複雑になりすぎ
+// BAD: lifetimes become too complex
 // struct Parser<'input, 'config, 'db> {
 //     input: &'input str,
 //     config: &'config Config,
 //     db: &'db Database,
 // }
 
-// GOOD: 所有型で簡潔にする
+// GOOD: simplify with owned types
 struct Config {
     max_depth: usize,
 }
@@ -1351,27 +1361,27 @@ struct Parser {
 
 impl Parser {
     fn parse(&self) -> Result<Vec<String>, String> {
-        // 処理
+        // processing
         Ok(vec![self.input.clone()])
     }
 }
-// パフォーマンスが問題になったら後でライフタイムを導入
+// Introduce lifetimes later if performance becomes an issue
 ```
 
-### アンチパターン3: ライフタイムの過剰な伝播
+### Anti-Pattern 3: Excessive Lifetime Propagation
 
 ```rust
-// BAD: ライフタイムが構造体の利用者すべてに伝播する
+// BAD: the lifetime propagates to all users of the struct
 struct BadTokenizer<'a> {
     source: &'a str,
     tokens: Vec<&'a str>,
 }
 
-// すべての使用箇所でライフタイムを指定する必要がある
+// Every usage site must specify the lifetime
 // fn process_tokens<'a>(tokenizer: &BadTokenizer<'a>) { ... }
 // fn analyze<'a>(tokens: &[&'a str]) { ... }
 
-// GOOD: インデックスベースで所有権の問題を回避
+// GOOD: avoid ownership issues with index-based access
 struct GoodTokenizer {
     source: String,
     token_ranges: Vec<(usize, usize)>,
@@ -1412,18 +1422,18 @@ fn main() {
 }
 ```
 
-### アンチパターン4: コレクションに参照を詰め込む
+### Anti-Pattern 4: Stuffing References into a Collection
 
 ```rust
-// BAD: Vec に参照を詰め込もうとしてライフタイムで苦労する
+// BAD: trying to stuff references into a Vec leads to lifetime headaches
 fn collect_references_bad<'a>() -> Vec<&'a str> {
     let mut results = Vec::new();
     // let s = String::from("hello");
-    // results.push(&s);  // エラー: s のライフタイムが足りない
+    // results.push(&s);  // Error: s's lifetime is not long enough
     results
 }
 
-// GOOD: 所有型のコレクションを使う
+// GOOD: use a collection of owned types
 fn collect_owned() -> Vec<String> {
     let mut results = Vec::new();
     let s = String::from("hello");
@@ -1431,7 +1441,7 @@ fn collect_owned() -> Vec<String> {
     results
 }
 
-// GOOD: 入力のスライスから参照を集める
+// GOOD: collect references from an input slice
 fn collect_from_input<'a>(input: &'a str) -> Vec<&'a str> {
     input.split_whitespace().collect()
 }
@@ -1448,45 +1458,45 @@ fn main() {
 
 ---
 
-## 12. 実践的なライフタイムのデバッグ
+## 12. Practical Lifetime Debugging
 
-### 12.1 よくあるコンパイルエラーと対処法
+### 12.1 Common Compile Errors and How to Address Them
 
 ```rust
-// エラー1: "lifetime may not live long enough"
+// Error 1: "lifetime may not live long enough"
 // fn bad1<'a>(x: &str) -> &'a str { x }
-// 修正: 入力と出力のライフタイムを一致させる
+// Fix: align the input and output lifetimes
 fn good1<'a>(x: &'a str) -> &'a str { x }
 
-// エラー2: "cannot return reference to local variable"
+// Error 2: "cannot return reference to local variable"
 // fn bad2() -> &str {
 //     let s = String::from("hello");
 //     &s
 // }
-// 修正: 所有型を返す
+// Fix: return an owned type
 fn good2() -> String {
     String::from("hello")
 }
 
-// エラー3: "borrowed value does not live long enough"
+// Error 3: "borrowed value does not live long enough"
 fn good3() {
     let result;
     let s = String::from("hello");
-    result = &s; // s と同じスコープなので OK
+    result = &s; // OK because s is in the same scope
     println!("{}", result);
-} // s と result が同時に drop
+} // s and result are dropped together
 
-// エラー4: "cannot borrow as mutable because it is also borrowed as immutable"
+// Error 4: "cannot borrow as mutable because it is also borrowed as immutable"
 fn good4() {
     let mut v = vec![1, 2, 3];
-    let first = v[0]; // コピー（i32 は Copy）
+    let first = v[0]; // Copy (i32 is Copy)
     v.push(4);
     println!("{}, {:?}", first, v);
 
-    // 参照の場合は NLL で解決
+    // For references, NLL resolves it
     let r = &v[0];
-    println!("{}", r); // r の最後の使用
-    v.push(5); // OK: r はもう使わない
+    println!("{}", r); // last use of r
+    v.push(5); // OK: r is no longer used
 }
 
 fn main() {
@@ -1498,68 +1508,68 @@ fn main() {
 }
 ```
 
-### 12.2 ライフタイムエラーの読み方
+### 12.2 How to Read Lifetime Errors
 
 ```
 error[E0597]: `x` does not live long enough
   --> src/main.rs:4:13
    |
 3  |     let r;
-   |         - borrow later stored here     ← r が参照を保持
+   |         - borrow later stored here     <- r holds the reference
 4  |     let x = 5;
 5  |     r = &x;
-   |         ^^ borrowed value does not live long enough  ← x の寿命が足りない
+   |         ^^ borrowed value does not live long enough  <- x's lifetime is too short
 6  | }
-   | - `x` dropped here while still borrowed  ← x がドロップされる地点
+   | - `x` dropped here while still borrowed  <- the point where x is dropped
 
-対処法:
-1. r と x のスコープを合わせる
-2. r に x の値をコピー/クローンする
-3. x を外側のスコープに移動する
+How to fix:
+1. Align the scopes of r and x
+2. Copy/clone x's value into r
+3. Move x to an outer scope
 ```
 
 
 ---
 
-## 実践演習
+## Practical Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that satisfies the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate input data
+- Implement appropriate error handling
+- Also write test code
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: template for basic implementation
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Practice basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main logic for data processing"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Get processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1568,26 +1578,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "An exception should be raised"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation to add the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: advanced patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Practice advanced patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1595,7 +1605,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1606,14 +1616,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Remove by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1621,7 +1631,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1629,44 +1639,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1675,7 +1685,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1690,49 +1700,49 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient version: {slow_time:.4f}s")
+    print(f"Efficient version:   {fast_time:.6f}s")
+    print(f"Speedup: {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key points:**
+- Be conscious of algorithmic complexity
+- Choose appropriate data structures
+- Measure the effect with benchmarks
 ---
 
 ## 13. FAQ
 
-### Q1: ライフタイム注釈は実行時に何か影響しますか？
+### Q1: Do lifetime annotations have any effect at runtime?
 
-**A:** いいえ。ライフタイム注釈は完全にコンパイル時の情報です。実行時のコードやパフォーマンスには一切影響しません。バイナリにライフタイムの情報は含まれません。これはRustの「ゼロコスト抽象化」の一例です。
+**A:** No. Lifetime annotations are entirely compile-time information. They have no effect whatsoever on runtime code or performance. Lifetime information is not included in the binary. This is one example of Rust's "zero-cost abstractions."
 
-### Q2: NLL (Non-Lexical Lifetimes) とは何ですか？
+### Q2: What is NLL (Non-Lexical Lifetimes)?
 
-**A:** Rust 2018 Editionで導入された改善です。従来、参照のライフタイムはレキシカルスコープ(ブロック終端)まで続きましたが、NLLでは「最後に使用された地点」で終了します。これにより、以前はコンパイルエラーだった正当なコードが通るようになりました。NLL は現在のRustではデフォルトで有効です。
+**A:** It is an improvement introduced in the Rust 2018 Edition. Previously, the lifetime of a reference continued until the lexical scope (block boundary), but with NLL it ends at the "last point of use." As a result, valid code that previously caused compile errors now compiles. NLL is enabled by default in current Rust.
 
-### Q3: `'_` (匿名ライフタイム)はいつ使いますか？
+### Q3: When do you use `'_` (the anonymous lifetime)?
 
-**A:** ライフタイムの存在を明示しつつ、具体的な名前は不要な場合に使います:
+**A:** Use it when you want to make the existence of a lifetime explicit while not needing to give it a concrete name:
 ```rust
-// impl ブロックでライフタイムの存在だけ示す
+// In an impl block, just indicate that a lifetime exists
 impl fmt::Display for ImportantExcerpt<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.part)
     }
 }
 
-// 関数のシグネチャで明示的に省略を示す
+// In a function signature, indicate elision explicitly
 fn takes_ref(s: &'_ str) -> &'_ str {
     s
 }
 ```
 
-### Q4: ライフタイムとジェネリクスの相互作用は？
+### Q4: How do lifetimes interact with generics?
 
-**A:** ライフタイムパラメータはジェネリクスパラメータの一種です。慣例として型パラメータの前にライフタイムパラメータを書きます:
+**A:** Lifetime parameters are a kind of generic parameter. By convention, lifetime parameters are written before type parameters:
 ```rust
 fn example<'a, 'b, T, U>(x: &'a T, y: &'b U) -> &'a T
 where
@@ -1745,39 +1755,39 @@ where
 }
 ```
 
-### Q5: ライフタイムの分散 (variance) とは何ですか？
+### Q5: What is lifetime variance?
 
-**A:** ライフタイムの分散とは、ライフタイムパラメータの代入互換性に関する規則です:
-- **共変 (covariant)**: `&'long T` を `&'short T` として使える。ほとんどの参照型がこれ
-- **反変 (contravariant)**: `fn(&'short T)` を `fn(&'long T)` として使える。関数引数の位置
-- **不変 (invariant)**: `&mut T` の `T` に対するライフタイムは不変。`Cell<&'a T>` も不変
+**A:** Lifetime variance is the set of rules concerning the substitutability of lifetime parameters:
+- **Covariant**: `&'long T` can be used as `&'short T`. Most reference types are covariant
+- **Contravariant**: `fn(&'short T)` can be used as `fn(&'long T)`. Applies to function-argument positions
+- **Invariant**: The lifetime of `T` in `&mut T` is invariant. `Cell<&'a T>` is also invariant
 
 ```rust
-// 共変の例
+// Example of covariance
 fn covariant_example<'short>(s: &'short str) {
     let static_str: &'static str = "hello";
-    let _: &'short str = static_str; // 'static → 'short OK (共変)
+    let _: &'short str = static_str; // 'static -> 'short OK (covariant)
 }
 
-// 不変の例
+// Example of invariance
 fn invariant_example() {
     let mut x: &str = "hello";
     let y: &str = "world";
-    x = y; // OK: 両方とも &str
+    x = y; // OK: both are &str
 
-    // Cell は不変なので以下は制約が厳しい
+    // Cell is invariant, so the constraints are stricter
     use std::cell::Cell;
     let cell: Cell<&str> = Cell::new("hello");
-    // Cell<&'a str> は 'a に対して不変
+    // Cell<&'a str> is invariant in 'a
 }
 ```
 
-### Q6: Polonius とは何ですか？
+### Q6: What is Polonius?
 
-**A:** Polonius はRustの次世代借用チェッカーで、現在のNLLベースのチェッカーよりも正確にライフタイムを解析します。NLLでもまだ「安全なのにコンパイルエラーになる」ケースがいくつかあり、Poloniusはこれらを解決します。2024年時点ではnightly版で `-Z polonius` フラグにより試験的に使用可能です。
+**A:** Polonius is Rust's next-generation borrow checker, which analyzes lifetimes more accurately than the current NLL-based checker. There are still some "actually safe but compile-error" cases under NLL, and Polonius resolves these. As of 2024, it can be used experimentally on the nightly version via the `-Z polonius` flag.
 
 ```rust
-// 現在のNLLでは通らないがPoloniusでは通るコード例
+// Example of code that does not compile under current NLL but does under Polonius
 // fn get_or_insert(map: &mut HashMap<String, String>, key: &str) -> &String {
 //     if let Some(value) = map.get(key) {
 //         return value;
@@ -1792,47 +1802,47 @@ fn invariant_example() {
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point in studying this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is most important. Beyond theory, your understanding deepens by actually writing code and observing its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What mistakes do beginners commonly make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping into advanced material. We recommend firmly grasping the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## 14. まとめ
-
-| 概念 | 要点 |
-|------|------|
-| ライフタイム | 参照の有効期間をコンパイラが追跡する仕組み |
-| 'a 注釈 | 参照間の関係をコンパイラに伝える |
-| 省略規則 | 3つの規則で多くの場合は注釈不要 |
-| 構造体のLT | 参照フィールドを持つ構造体にはLT注釈が必要 |
-| 'static | プログラム全体の期間。所有型は全て満たす |
-| HRTB | `for<'a>` で任意のライフタイムに対する制約 |
-| NLL | 最後の使用地点でライフタイム終了 |
-| サブタイピング | 'a: 'b で outlives 関係を表現 |
-| 共変性 | &'long T を &'short T として使える |
-| GAT | ジェネリック関連型でライフタイム依存の型を表現 |
-| Polonius | 次世代借用チェッカー (開発中) |
+The knowledge of this topic is frequently used in everyday development work. It becomes especially important during code reviews and architectural design.
 
 ---
 
-## 次に読むべきガイド
+## 14. Summary
 
-- [01-smart-pointers.md](01-smart-pointers.md) -- Box/Rc/Arc でライフタイムの制約を緩和する
-- [02-closures-fn-traits.md](02-closures-fn-traits.md) -- クロージャとライフタイムの関係
-- [03-unsafe-rust.md](03-unsafe-rust.md) -- unsafe でライフタイムチェックを回避する危険性
+| Concept | Key Point |
+|---------|-----------|
+| Lifetimes | A mechanism by which the compiler tracks the validity period of references |
+| 'a annotation | Conveys relationships between references to the compiler |
+| Elision rules | Three rules that make annotations unnecessary in most cases |
+| Lifetimes on structs | Structs with reference fields require lifetime annotations |
+| 'static | Spans the entire program duration. All owned types satisfy it |
+| HRTB | `for<'a>` expresses constraints over any lifetime |
+| NLL | Lifetimes end at the last point of use |
+| Subtyping | `'a: 'b` expresses the outlives relationship |
+| Covariance | `&'long T` can be used as `&'short T` |
+| GAT | Generic associated types express types that depend on lifetimes |
+| Polonius | Next-generation borrow checker (under development) |
 
 ---
 
-## 参考文献
+## What to Read Next
+
+- [01-smart-pointers.md](01-smart-pointers.md) -- Use Box/Rc/Arc to relax lifetime constraints
+- [02-closures-fn-traits.md](02-closures-fn-traits.md) -- The relationship between closures and lifetimes
+- [03-unsafe-rust.md](03-unsafe-rust.md) -- The dangers of bypassing lifetime checking with unsafe
+
+---
+
+## References
 
 1. **The Rust Programming Language - Ch.10.3 Validating References with Lifetimes** -- https://doc.rust-lang.org/book/ch10-03-lifetime-syntax.html
 2. **The Rustonomicon - Lifetimes** -- https://doc.rust-lang.org/nomicon/lifetimes.html
