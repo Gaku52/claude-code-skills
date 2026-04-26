@@ -1,29 +1,29 @@
-# Tokioランタイム — タスク管理とチャネル
+# Tokio Runtime — Task Management and Channels
 
-> Tokio のマルチスレッドランタイムの内部構造、タスクスポーン、チャネルを使った非同期メッセージパッシングを習得する
+> Master the internals of Tokio's multi-threaded runtime, task spawning, and asynchronous message passing using channels.
 
-## この章で学ぶこと
+## What You'll Learn in This Chapter
 
-1. **ランタイム構成** — マルチスレッド/シングルスレッドランタイムの選択と設定
-2. **タスク管理** — spawn, JoinSet, abort, タスクローカルストレージ
-3. **非同期チャネル** — mpsc, oneshot, broadcast, watch の使い分け
-4. **同期プリミティブ** — Mutex, RwLock, Semaphore, Notify, Barrier
-5. **タスクローカルストレージ** — task_local! によるタスクごとのコンテキスト伝搬
+1. **Runtime configuration** — Choosing and configuring multi-threaded vs. single-threaded runtimes
+2. **Task management** — spawn, JoinSet, abort, task-local storage
+3. **Asynchronous channels** — When to use mpsc, oneshot, broadcast, and watch
+4. **Synchronization primitives** — Mutex, RwLock, Semaphore, Notify, Barrier
+5. **Task-local storage** — Per-task context propagation with task_local!
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Reading the following beforehand will deepen your understanding of this guide:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [async/await基礎 — Rustの非同期プログラミングモデル](./00-async-basics.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Content of [async/await Basics — Rust's Asynchronous Programming Model](./00-async-basics.md)
 
 ---
 
-## 1. Tokio ランタイムのアーキテクチャ
+## 1. Tokio Runtime Architecture
 
-### 1.1 全体構造
+### 1.1 Overall Structure
 
 ```
 ┌────────────────────── Tokio Runtime ──────────────────────┐
@@ -53,7 +53,7 @@
 └────────────────────────────────────────────────────────────┘
 ```
 
-### 1.2 ワークスティーリングスケジューラの動作
+### 1.2 How the Work-Stealing Scheduler Works
 
 ```
 ┌──────────── Work-Stealing Scheduler ──────────────┐
@@ -61,93 +61,95 @@
 │  Worker #1          Worker #2          Worker #3    │
 │  ┌──────┐          ┌──────┐          ┌──────┐    │
 │  │ T1   │          │ T4   │          │      │    │
-│  │ T2   │          │ T5   │          │ (空) │    │
+│  │ T2   │          │ T5   │          │(empty)│   │
 │  │ T3   │          │      │          │      │    │
 │  └──────┘          └──────┘          └──────┘    │
 │      │                                    ▲        │
-│      │         ワークスティーリング         │        │
+│      │           Work-stealing             │        │
 │      └────────────────────────────────────┘        │
-│      Worker #3 が Worker #1 からタスクを盗む       │
+│      Worker #3 steals a task from Worker #1        │
 │                                                      │
-│  メリット:                                           │
-│  - 負荷の自動分散                                    │
-│  - アイドルスレッドの最小化                           │
-│  - キャッシュ局所性の維持 (ローカルキュー優先)       │
+│  Benefits:                                           │
+│  - Automatic load balancing                          │
+│  - Minimization of idle threads                      │
+│  - Cache locality preserved (local queue first)      │
 └──────────────────────────────────────────────────────┘
 ```
 
-### 1.3 I/O Driver の役割
+### 1.3 Role of the I/O Driver
 
-I/O Driver は OS のイベント通知機構（Linux: epoll、macOS: kqueue、Windows: IOCP）を抽象化し、非同期 I/O イベントを Tokio ランタイムに橋渡しします。
+The I/O Driver abstracts the OS event-notification mechanism (Linux: epoll, macOS: kqueue, Windows: IOCP) and bridges asynchronous I/O events to the Tokio runtime.
 
 ```
-┌─────────── I/O Driver の動作フロー ───────────┐
+┌─────────── I/O Driver Operation Flow ──────────┐
 │                                                  │
-│  ① タスクがソケット読み取りを要求               │
-│     → I/O Driver に関心を登録 (epoll_ctl)       │
-│     → タスクは Pending を返して中断              │
+│  (1) A task requests a socket read              │
+│     → Register interest with I/O Driver         │
+│       (epoll_ctl)                               │
+│     → Task returns Pending and is suspended     │
 │                                                  │
-│  ② I/O Driver がイベントを監視                  │
-│     → epoll_wait でブロック (他タスクは実行中)   │
+│  (2) I/O Driver monitors events                 │
+│     → Blocks on epoll_wait                      │
+│       (other tasks keep running)                │
 │                                                  │
-│  ③ データ到着                                   │
-│     → epoll_wait が返る                          │
-│     → 対応する Waker を呼ぶ                      │
+│  (3) Data arrives                               │
+│     → epoll_wait returns                        │
+│     → The corresponding Waker is called         │
 │                                                  │
-│  ④ タスクが再スケジュール                       │
-│     → ワーカースレッドが poll() を再実行         │
-│     → Ready(data) を返す                         │
+│  (4) Task is rescheduled                        │
+│     → A worker thread polls() it again          │
+│     → It returns Ready(data)                    │
 └──────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 2. ランタイムの構築と設定
+## 2. Building and Configuring the Runtime
 
-### コード例1: ランタイム構成の選択
+### Code Example 1: Choosing a Runtime Configuration
 
 ```rust
-// パターン1: マクロによる簡易設定 (マルチスレッド)
+// Pattern 1: Simple setup via macro (multi-threaded)
 #[tokio::main]
 async fn main() {
-    println!("マルチスレッドランタイム");
+    println!("Multi-threaded runtime");
 }
 
-// パターン2: シングルスレッド (テスト・軽量用途)
+// Pattern 2: Single-threaded (for tests and lightweight use cases)
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
-    println!("シングルスレッドランタイム");
+    println!("Single-threaded runtime");
 }
 
-// パターン3: ワーカースレッド数を指定
+// Pattern 3: Specify the number of worker threads
 #[tokio::main(flavor = "multi_thread", worker_threads = 4)]
 async fn main() {
-    println!("4スレッドランタイム");
+    println!("4-thread runtime");
 }
 
-// パターン4: 手動ビルド (詳細制御)
+// Pattern 4: Manual build (fine-grained control)
 fn main() {
     let runtime = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(4)                       // ワーカースレッド数
-        .max_blocking_threads(64)                // ブロッキングスレッド上限
-        .thread_name("my-worker")                // スレッド名
-        .thread_stack_size(3 * 1024 * 1024)     // スタックサイズ 3MB
-        .enable_all()                             // I/O + Timer ドライバ有効
+        .worker_threads(4)                       // Number of worker threads
+        .max_blocking_threads(64)                // Upper bound on blocking threads
+        .thread_name("my-worker")                // Thread name
+        .thread_stack_size(3 * 1024 * 1024)     // Stack size: 3MB
+        .enable_all()                             // Enable I/O + Timer drivers
         .on_thread_start(|| {
-            println!("スレッド開始: {:?}", std::thread::current().id());
+            println!("Thread start: {:?}", std::thread::current().id());
         })
         .on_thread_stop(|| {
-            println!("スレッド停止: {:?}", std::thread::current().id());
+            println!("Thread stop: {:?}", std::thread::current().id());
         })
         .build()
         .unwrap();
 
     runtime.block_on(async {
-        println!("手動構築ランタイム");
+        println!("Manually built runtime");
     });
 }
 
-// パターン5: シングルスレッドランタイムの手動構築
+// Pattern 5: Manual build of a single-threaded runtime
 fn main_single() {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -155,17 +157,17 @@ fn main_single() {
         .unwrap();
 
     runtime.block_on(async {
-        println!("シングルスレッドランタイム (手動)");
+        println!("Single-threaded runtime (manual)");
     });
 }
 ```
 
-### コード例2: 複数ランタイムの使い分け
+### Code Example 2: Using Multiple Runtimes Selectively
 
 ```rust
 use tokio::runtime::Runtime;
 
-/// CPU集中処理用とI/O処理用のランタイムを分離
+/// Separate runtimes for CPU-bound work and I/O-bound work
 struct AppRuntime {
     io_runtime: Runtime,
     cpu_runtime: Runtime,
@@ -190,7 +192,7 @@ impl AppRuntime {
         AppRuntime { io_runtime, cpu_runtime }
     }
 
-    /// I/Oバウンドタスクを実行
+    /// Run an I/O-bound task
     fn spawn_io<F>(&self, future: F) -> tokio::task::JoinHandle<F::Output>
     where
         F: std::future::Future + Send + 'static,
@@ -199,7 +201,7 @@ impl AppRuntime {
         self.io_runtime.spawn(future)
     }
 
-    /// CPUバウンドタスクをブロッキングプールで実行
+    /// Run a CPU-bound task on the blocking pool
     fn spawn_cpu<F, R>(&self, f: F) -> tokio::task::JoinHandle<R>
     where
         F: FnOnce() -> R + Send + 'static,
@@ -210,7 +212,7 @@ impl AppRuntime {
 }
 ```
 
-### コード例3: ランタイムメトリクスの監視
+### Code Example 3: Monitoring Runtime Metrics
 
 ```rust
 use tokio::runtime::Handle;
@@ -219,16 +221,16 @@ use tokio::runtime::Handle;
 async fn main() {
     let handle = Handle::current();
 
-    // ランタイムメトリクスの取得 (tokio_unstable が必要)
+    // Obtain runtime metrics (requires tokio_unstable)
     // RUSTFLAGS="--cfg tokio_unstable" cargo run
     #[cfg(tokio_unstable)]
     {
         let metrics = handle.metrics();
-        println!("ワーカースレッド数: {}", metrics.num_workers());
-        println!("アクティブタスク数: {}", metrics.active_tasks_count());
-        println!("ブロッキングスレッド数: {}", metrics.num_blocking_threads());
+        println!("Worker threads: {}", metrics.num_workers());
+        println!("Active tasks: {}", metrics.active_tasks_count());
+        println!("Blocking threads: {}", metrics.num_blocking_threads());
 
-        // 定期的にメトリクスを出力
+        // Periodically emit metrics
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(5));
             loop {
@@ -243,62 +245,62 @@ async fn main() {
         });
     }
 
-    // メインアプリケーション処理
+    // Main application logic
     tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
 }
 ```
 
 ---
 
-## 3. タスク管理
+## 3. Task Management
 
-### コード例4: spawn と JoinHandle
+### Code Example 4: spawn and JoinHandle
 
 ```rust
 use tokio::time::{sleep, Duration};
 
 #[tokio::main]
 async fn main() {
-    // spawn — 新しいタスクを非同期に実行
+    // spawn — run a new task asynchronously
     let handle = tokio::spawn(async {
         sleep(Duration::from_millis(100)).await;
         42
     });
 
-    // JoinHandle で結果を取得
+    // Retrieve the result via JoinHandle
     let result = handle.await.unwrap();
-    println!("結果: {}", result); // 結果: 42
+    println!("Result: {}", result); // Result: 42
 
-    // spawn で生成したタスクは即座に実行開始
-    // .await は結果の「取得」であり「開始」ではない
+    // Tasks created with spawn start executing immediately.
+    // .await is for "retrieving" the result, not "starting" it.
     let h1 = tokio::spawn(async { sleep(Duration::from_secs(1)).await; "A" });
     let h2 = tokio::spawn(async { sleep(Duration::from_secs(1)).await; "B" });
 
-    // h1 と h2 は並行実行される → 合計約1秒
+    // h1 and h2 run concurrently → about 1 second total
     let (a, b) = (h1.await.unwrap(), h2.await.unwrap());
     println!("{}, {}", a, b);
 
-    // JoinHandle の is_finished() で完了チェック (ノンブロッキング)
+    // Use is_finished() on JoinHandle to check completion (non-blocking)
     let h3 = tokio::spawn(async {
         sleep(Duration::from_secs(2)).await;
         "done"
     });
 
-    // ポーリング的な完了チェック
+    // Polling-style completion check
     for _ in 0..5 {
         if h3.is_finished() {
-            println!("タスク完了!");
+            println!("Task complete!");
             break;
         }
-        println!("まだ実行中...");
+        println!("Still running...");
         sleep(Duration::from_millis(500)).await;
     }
     let result = h3.await.unwrap();
-    println!("結果: {}", result);
+    println!("Result: {}", result);
 }
 ```
 
-### コード例5: JoinSet による動的タスク管理
+### Code Example 5: Dynamic Task Management with JoinSet
 
 ```rust
 use tokio::task::JoinSet;
@@ -306,27 +308,27 @@ use tokio::time::{sleep, Duration};
 
 async fn process_item(id: u32) -> String {
     sleep(Duration::from_millis(50 * id as u64)).await;
-    format!("Item#{} 処理完了", id)
+    format!("Item#{} processing complete", id)
 }
 
 #[tokio::main]
 async fn main() {
     let mut set = JoinSet::new();
 
-    // 動的にタスクを追加
+    // Add tasks dynamically
     for id in 1..=10 {
         set.spawn(process_item(id));
     }
 
-    // 完了順に結果を取得
+    // Retrieve results in completion order
     while let Some(result) = set.join_next().await {
         match result {
             Ok(msg) => println!("{}", msg),
-            Err(e) => eprintln!("タスクエラー: {}", e),
+            Err(e) => eprintln!("Task error: {}", e),
         }
     }
 
-    // abort_all で全タスクをキャンセル
+    // Cancel all tasks with abort_all
     let mut set2 = JoinSet::new();
     for i in 0..5 {
         set2.spawn(async move {
@@ -334,47 +336,47 @@ async fn main() {
             i
         });
     }
-    set2.abort_all(); // 全タスクを即座にキャンセル
+    set2.abort_all(); // Cancel all tasks immediately
 
-    // JoinSet の len() でアクティブタスク数を確認
-    println!("残りタスク: {}", set2.len());
+    // Use len() on JoinSet to check the active task count
+    println!("Remaining tasks: {}", set2.len());
 }
 ```
 
-### コード例6: JoinSet を使った並行度制限付きタスク実行
+### Code Example 6: Task Execution with Concurrency Limit Using JoinSet
 
 ```rust
 use tokio::task::JoinSet;
 use tokio::time::{sleep, Duration};
 
-/// 最大 max_concurrent 個のタスクを同時実行する
+/// Run at most max_concurrent tasks at once
 async fn process_with_limit(items: Vec<u32>, max_concurrent: usize) -> Vec<String> {
     let mut set = JoinSet::new();
     let mut results = Vec::new();
     let mut iter = items.into_iter();
 
-    // 最初に max_concurrent 個のタスクを投入
+    // Initially submit max_concurrent tasks
     for _ in 0..max_concurrent {
         if let Some(item) = iter.next() {
             set.spawn(async move {
                 sleep(Duration::from_millis(100)).await;
-                format!("Item#{} 処理完了", item)
+                format!("Item#{} processing complete", item)
             });
         }
     }
 
-    // 1つ完了するたびに次のタスクを投入
+    // Submit the next task each time one completes
     while let Some(result) = set.join_next().await {
         match result {
             Ok(msg) => results.push(msg),
-            Err(e) => eprintln!("エラー: {}", e),
+            Err(e) => eprintln!("Error: {}", e),
         }
 
-        // 次のアイテムがあればタスクを追加
+        // Add the next task if there are remaining items
         if let Some(item) = iter.next() {
             set.spawn(async move {
                 sleep(Duration::from_millis(100)).await;
-                format!("Item#{} 処理完了", item)
+                format!("Item#{} processing complete", item)
             });
         }
     }
@@ -385,15 +387,15 @@ async fn process_with_limit(items: Vec<u32>, max_concurrent: usize) -> Vec<Strin
 #[tokio::main]
 async fn main() {
     let items: Vec<u32> = (1..=20).collect();
-    let results = process_with_limit(items, 5).await; // 最大5並行
-    println!("処理完了: {} 件", results.len());
+    let results = process_with_limit(items, 5).await; // up to 5 concurrent
+    println!("Processing complete: {} items", results.len());
 }
 ```
 
-### タスクキャンセルの仕組み
+### How Task Cancellation Works
 
 ```
-┌────────────── タスクのライフサイクル ──────────────┐
+┌────────────── Task Lifecycle ──────────────────────┐
 │                                                     │
 │  spawn()                                            │
 │    │                                                │
@@ -405,19 +407,19 @@ async fn main() {
 │    │                                                │
 │    ├── abort() ──→ Cancelled (JoinError)           │
 │    │                                                │
-│    └── 正常完了 ──→ Completed (Ok(T))               │
+│    └── normal completion ──→ Completed (Ok(T))      │
 │                                                     │
 │  drop(JoinHandle):                                  │
-│    タスクは継続 (デタッチ)。結果は取得不可           │
+│    Task continues (detached). Result unobtainable.  │
 │                                                     │
-│  abort() 呼び出し時:                                │
-│    - 次の .await ポイントでキャンセルされる          │
-│    - 実行中の同期コードは完了まで実行される          │
-│    - Drop が正しく実行される (RAII安全)             │
+│  When abort() is called:                            │
+│    - Cancellation occurs at the next .await point   │
+│    - In-flight synchronous code runs to completion  │
+│    - Drop is run correctly (RAII-safe)              │
 └─────────────────────────────────────────────────────┘
 ```
 
-### コード例7: タスクのキャンセルとクリーンアップ
+### Code Example 7: Task Cancellation and Cleanup
 
 ```rust
 use tokio::time::{sleep, Duration};
@@ -428,45 +430,45 @@ struct Resource {
 
 impl Resource {
     fn new(name: &str) -> Self {
-        println!("  [{}] リソース作成", name);
+        println!("  [{}] Resource created", name);
         Resource { name: name.to_string() }
     }
 }
 
 impl Drop for Resource {
     fn drop(&mut self) {
-        println!("  [{}] リソース解放 (Drop)", self.name);
+        println!("  [{}] Resource released (Drop)", self.name);
     }
 }
 
 #[tokio::main]
 async fn main() {
-    // abort によるキャンセル
+    // Cancellation via abort
     let handle = tokio::spawn(async {
         let _resource = Resource::new("task-resource");
-        println!("  タスク開始。長い処理...");
+        println!("  Task started. Long operation...");
         sleep(Duration::from_secs(60)).await;
-        println!("  タスク完了 (この行は実行されない)");
+        println!("  Task complete (this line is never executed)");
     });
 
-    // 500ms 後にキャンセル
+    // Cancel after 500ms
     sleep(Duration::from_millis(500)).await;
     handle.abort();
 
     match handle.await {
-        Ok(_) => println!("タスク正常完了"),
-        Err(e) if e.is_cancelled() => println!("タスクはキャンセルされた"),
-        Err(e) => println!("タスクがパニック: {}", e),
+        Ok(_) => println!("Task completed normally"),
+        Err(e) if e.is_cancelled() => println!("Task was cancelled"),
+        Err(e) => println!("Task panicked: {}", e),
     }
-    // 出力:
-    //   [task-resource] リソース作成
-    //   タスク開始。長い処理...
-    //   [task-resource] リソース解放 (Drop)
-    //   タスクはキャンセルされた
+    // Output:
+    //   [task-resource] Resource created
+    //   Task started. Long operation...
+    //   [task-resource] Resource released (Drop)
+    //   Task was cancelled
 }
 ```
 
-### コード例8: タスクローカルストレージ
+### Code Example 8: Task-Local Storage
 
 ```rust
 use tokio::task_local;
@@ -479,22 +481,22 @@ task_local! {
 async fn handle_request() {
     let req_id = REQUEST_ID.with(|id| id.clone());
     let user_id = USER_ID.with(|id| *id);
-    println!("リクエスト {} (ユーザー {}): 処理中...", req_id, user_id);
+    println!("Request {} (user {}): processing...", req_id, user_id);
 
-    // サブ関数でもアクセス可能
+    // Accessible from sub-functions as well
     process_data().await;
 }
 
 async fn process_data() {
     let req_id = REQUEST_ID.with(|id| id.clone());
-    println!("  [{}] データ処理中...", req_id);
+    println!("  [{}] processing data...", req_id);
     tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-    println!("  [{}] データ処理完了", req_id);
+    println!("  [{}] data processing complete", req_id);
 }
 
 #[tokio::main]
 async fn main() {
-    // task_local! 変数にスコープを設定して実行
+    // Run with scoped task_local! variables
     let handle1 = tokio::spawn(
         REQUEST_ID.scope("req-001".to_string(),
             USER_ID.scope(42,
@@ -515,7 +517,7 @@ async fn main() {
 }
 ```
 
-### コード例9: spawn_local と LocalSet
+### Code Example 9: spawn_local and LocalSet
 
 ```rust
 use tokio::task::LocalSet;
@@ -523,19 +525,19 @@ use std::rc::Rc;
 
 #[tokio::main]
 async fn main() {
-    // LocalSet: !Send な Future を実行するための環境
+    // LocalSet: an environment for running !Send Futures
     let local = LocalSet::new();
 
     local.run_until(async {
-        // Rc は Send ではないが、spawn_local なら使える
+        // Rc is not Send, but it works with spawn_local
         let data = Rc::new(vec![1, 2, 3]);
 
         let data_clone = data.clone();
         tokio::task::spawn_local(async move {
-            println!("ローカルタスク: {:?}", data_clone);
+            println!("Local task: {:?}", data_clone);
         }).await.unwrap();
 
-        // 複数のローカルタスクを生成
+        // Spawn multiple local tasks
         let mut handles = Vec::new();
         for i in 0..5 {
             let d = data.clone();
@@ -555,9 +557,9 @@ async fn main() {
 
 ---
 
-## 4. チャネル
+## 4. Channels
 
-### コード例10: mpsc (多対一) チャネル
+### Code Example 10: mpsc (Many-to-One) Channel
 
 ```rust
 use tokio::sync::mpsc;
@@ -572,10 +574,10 @@ enum Command {
 
 #[tokio::main]
 async fn main() {
-    // バッファ付き mpsc チャネル
+    // Buffered mpsc channel
     let (tx, mut rx) = mpsc::channel::<Command>(32);
 
-    // ワーカータスク (受信側)
+    // Worker task (receiver)
     let worker = tokio::spawn(async move {
         let mut store = std::collections::HashMap::new();
 
@@ -591,21 +593,21 @@ async fn main() {
                 }
                 Command::Delete { key } => {
                     if store.remove(&key).is_some() {
-                        println!("[worker] DELETE {} (成功)", key);
+                        println!("[worker] DELETE {} (success)", key);
                     } else {
-                        println!("[worker] DELETE {} (キー未存在)", key);
+                        println!("[worker] DELETE {} (key not present)", key);
                     }
                 }
                 Command::Shutdown => {
-                    println!("[worker] シャットダウン");
+                    println!("[worker] shutdown");
                     break;
                 }
             }
         }
-        println!("[worker] ストア最終状態: {:?}", store);
+        println!("[worker] final store state: {:?}", store);
     });
 
-    // 複数の送信者
+    // Multiple senders
     let tx2 = tx.clone();
     tokio::spawn(async move {
         tx2.send(Command::Set {
@@ -635,7 +637,7 @@ async fn main() {
 }
 ```
 
-### コード例11: mpsc を使ったリクエスト-レスポンスパターン
+### Code Example 11: Request-Response Pattern with mpsc
 
 ```rust
 use tokio::sync::{mpsc, oneshot};
@@ -653,7 +655,7 @@ enum DbCommand {
     },
 }
 
-/// データベースアクタータスク
+/// Database actor task
 async fn db_actor(mut rx: mpsc::Receiver<DbCommand>) {
     let mut store = std::collections::HashMap::new();
 
@@ -671,7 +673,7 @@ async fn db_actor(mut rx: mpsc::Receiver<DbCommand>) {
     }
 }
 
-/// データベースクライアント
+/// Database client
 #[derive(Clone)]
 struct DbClient {
     tx: mpsc::Sender<DbCommand>,
@@ -705,7 +707,7 @@ async fn main() {
 
     let client = DbClient { tx };
 
-    // 複数クライアントが並行アクセス
+    // Multiple clients accessing concurrently
     let c1 = client.clone();
     let c2 = client.clone();
 
@@ -726,7 +728,7 @@ async fn main() {
 }
 ```
 
-### コード例12: oneshot (一対一・一回限り)
+### Code Example 12: oneshot (One-to-One, Single-Use)
 
 ```rust
 use tokio::sync::oneshot;
@@ -734,7 +736,7 @@ use tokio::sync::oneshot;
 async fn compute_answer(reply: oneshot::Sender<u64>) {
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
     let answer = 42;
-    let _ = reply.send(answer); // 一回だけ送信
+    let _ = reply.send(answer); // Send only once
 }
 
 #[tokio::main]
@@ -743,84 +745,84 @@ async fn main() {
 
     tokio::spawn(compute_answer(tx));
 
-    // タイムアウト付き受信
+    // Receive with a timeout
     tokio::select! {
         result = rx => {
-            println!("回答: {}", result.unwrap());
+            println!("Answer: {}", result.unwrap());
         }
         _ = tokio::time::sleep(tokio::time::Duration::from_secs(5)) => {
-            println!("タイムアウト");
+            println!("Timeout");
         }
     }
 
-    // oneshot の drop 検出
+    // Detect drop of a oneshot
     let (tx2, rx2) = oneshot::channel::<String>();
-    drop(tx2); // 送信側を drop
+    drop(tx2); // Drop the sender side
 
     match rx2.await {
-        Ok(value) => println!("受信: {}", value),
-        Err(_) => println!("送信側が閉じた (値が送られなかった)"),
+        Ok(value) => println!("Received: {}", value),
+        Err(_) => println!("Sender closed (no value sent)"),
     }
 }
 ```
 
-### コード例13: broadcast と watch
+### Code Example 13: broadcast and watch
 
 ```rust
 use tokio::sync::{broadcast, watch};
 
 #[tokio::main]
 async fn main() {
-    // ── broadcast — 多対多。全受信者にクローン送信 ──
+    // ── broadcast — many-to-many. Send a clone to every receiver ──
     let (btx, _) = broadcast::channel::<String>(16);
     let mut brx1 = btx.subscribe();
     let mut brx2 = btx.subscribe();
 
-    btx.send("ブロードキャスト!".into()).unwrap();
+    btx.send("Broadcast!".into()).unwrap();
 
     println!("rx1: {}", brx1.recv().await.unwrap());
     println!("rx2: {}", brx2.recv().await.unwrap());
 
-    // 遅延サブスクライバー: subscribe した後に送信されたメッセージのみ受信
+    // Late subscriber: only receives messages sent after subscribing
     let mut brx3 = btx.subscribe();
-    btx.send("新メッセージ".into()).unwrap();
+    btx.send("New message".into()).unwrap();
     println!("rx3: {}", brx3.recv().await.unwrap());
 
-    // バッファオーバーフロー時のエラーハンドリング
-    let (btx2, _) = broadcast::channel::<u32>(2); // バッファサイズ2
+    // Error handling for buffer overflow
+    let (btx2, _) = broadcast::channel::<u32>(2); // Buffer size 2
     let mut brx = btx2.subscribe();
     btx2.send(1).unwrap();
     btx2.send(2).unwrap();
-    btx2.send(3).unwrap(); // バッファオーバーフロー → 最も古いメッセージが失われる
+    btx2.send(3).unwrap(); // Buffer overflow → the oldest message is lost
 
     match brx.recv().await {
-        Ok(val) => println!("受信: {}", val),
+        Ok(val) => println!("Received: {}", val),
         Err(broadcast::error::RecvError::Lagged(n)) => {
-            println!("{} メッセージが失われた", n);
+            println!("{} messages were lost", n);
         }
         Err(broadcast::error::RecvError::Closed) => {
-            println!("チャネル閉鎖");
+            println!("Channel closed");
         }
     }
 
-    // ── watch — 最新値のみ保持。設定変更通知に最適 ──
-    let (wtx, mut wrx) = watch::channel("初期値".to_string());
+    // ── watch — keeps only the latest value. Ideal for config-change notifications ──
+    let (wtx, mut wrx) = watch::channel("initial value".to_string());
 
     tokio::spawn(async move {
         loop {
             wrx.changed().await.unwrap();
-            println!("設定変更: {}", *wrx.borrow());
+            println!("Config changed: {}", *wrx.borrow());
         }
     });
 
-    wtx.send("更新値1".into()).unwrap();
+    wtx.send("updated value 1".into()).unwrap();
     tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
-    wtx.send("更新値2".into()).unwrap();
+    wtx.send("updated value 2".into()).unwrap();
     tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 }
 ```
 
-### コード例14: watch を使った設定ホットリロード
+### Code Example 14: Configuration Hot-Reload Using watch
 
 ```rust
 use tokio::sync::watch;
@@ -845,40 +847,40 @@ impl Default for AppConfig {
 }
 
 async fn config_watcher(config_tx: watch::Sender<Arc<AppConfig>>) {
-    // 設定ファイルの変更を監視 (簡易版)
+    // Watch the configuration file for changes (simplified version)
     let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(5));
 
     loop {
         interval.tick().await;
 
-        // 設定ファイルを読み込み (実際にはファイルシステムウォッチャーを使う)
+        // Load the configuration file (in practice, use a filesystem watcher)
         match tokio::fs::read_to_string("config.toml").await {
             Ok(content) => {
                 match toml::from_str::<AppConfig>(&content) {
                     Ok(new_config) => {
-                        println!("設定リロード: {:?}", new_config);
+                        println!("Config reloaded: {:?}", new_config);
                         let _ = config_tx.send(Arc::new(new_config));
                     }
-                    Err(e) => eprintln!("設定パースエラー: {}", e),
+                    Err(e) => eprintln!("Config parse error: {}", e),
                 }
             }
-            Err(_) => {} // ファイルが存在しない場合はスキップ
+            Err(_) => {} // Skip if the file does not exist
         }
     }
 }
 
 async fn worker(id: u32, mut config_rx: watch::Receiver<Arc<AppConfig>>) {
     loop {
-        // 設定変更の通知を待つ
+        // Wait for config change notifications
         tokio::select! {
             Ok(()) = config_rx.changed() => {
                 let config = config_rx.borrow().clone();
-                println!("ワーカー {} が新設定を受信: log_level={}", id, config.log_level);
+                println!("Worker {} received new config: log_level={}", id, config.log_level);
             }
             _ = tokio::time::sleep(tokio::time::Duration::from_secs(1)) => {
                 let config = config_rx.borrow().clone();
                 println!(
-                    "ワーカー {} 処理中 (max_conn={})",
+                    "Worker {} processing (max_conn={})",
                     id, config.max_connections
                 );
             }
@@ -889,9 +891,9 @@ async fn worker(id: u32, mut config_rx: watch::Receiver<Arc<AppConfig>>) {
 
 ---
 
-## 5. 同期プリミティブ
+## 5. Synchronization Primitives
 
-### コード例15: tokio::sync::Mutex と RwLock
+### Code Example 15: tokio::sync::Mutex and RwLock
 
 ```rust
 use std::sync::Arc;
@@ -906,30 +908,30 @@ struct SharedCache {
 
 #[tokio::main]
 async fn main() {
-    // Mutex: await 中も安全にロックを保持できる
+    // Mutex: it is safe to hold the lock across await points
     let cache = Arc::new(Mutex::new(SharedCache {
         data: std::collections::HashMap::new(),
         hits: 0,
         misses: 0,
     }));
 
-    // 複数タスクからのアクセス
+    // Access from multiple tasks
     let mut handles = Vec::new();
     for i in 0..10 {
         let cache = cache.clone();
         handles.push(tokio::spawn(async move {
-            let mut c = cache.lock().await; // 非同期ロック取得
+            let mut c = cache.lock().await; // Asynchronously acquire the lock
             c.data.insert(format!("key_{}", i), format!("value_{}", i));
-            // ロック中に await しても安全 (tokio::sync::Mutex の場合)
+            // Awaiting while holding the lock is safe (with tokio::sync::Mutex)
             tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
         }));
     }
     for h in handles { h.await.unwrap(); }
 
-    // RwLock: 読み取りは並行、書き込みは排他
+    // RwLock: reads are concurrent; writes are exclusive
     let config = Arc::new(RwLock::new(vec!["setting1".to_string()]));
 
-    // 読み取りタスク (並行実行可能)
+    // Reader tasks (can run concurrently)
     let c1 = config.clone();
     let c2 = config.clone();
     let r1 = tokio::spawn(async move {
@@ -941,19 +943,19 @@ async fn main() {
         println!("Reader 2: {:?}", *guard);
     });
 
-    // 書き込みタスク (排他)
+    // Writer task (exclusive)
     let c3 = config.clone();
     let w1 = tokio::spawn(async move {
         let mut guard = c3.write().await;
         guard.push("setting2".to_string());
-        println!("Writer: 設定追加");
+        println!("Writer: setting added");
     });
 
     let _ = tokio::join!(r1, r2, w1);
 }
 ```
 
-### コード例16: Notify — イベント通知
+### Code Example 16: Notify — Event Notification
 
 ```rust
 use std::sync::Arc;
@@ -964,22 +966,22 @@ use tokio::time::{sleep, Duration};
 async fn main() {
     let notify = Arc::new(Notify::new());
 
-    // 待機側
+    // Waiter
     let n1 = notify.clone();
     let waiter = tokio::spawn(async move {
-        println!("通知を待機中...");
+        println!("Waiting for notification...");
         n1.notified().await;
-        println!("通知を受信!");
+        println!("Notification received!");
     });
 
-    // 通知側
+    // Notifier
     sleep(Duration::from_millis(500)).await;
-    println!("通知を送信");
-    notify.notify_one(); // 1つの待機タスクを起床
+    println!("Sending notification");
+    notify.notify_one(); // Wake one waiting task
 
     waiter.await.unwrap();
 
-    // notify_waiters(): 全ての待機タスクを起床
+    // notify_waiters(): wake all waiting tasks
     let notify = Arc::new(Notify::new());
     let mut handles = Vec::new();
 
@@ -987,18 +989,18 @@ async fn main() {
         let n = notify.clone();
         handles.push(tokio::spawn(async move {
             n.notified().await;
-            println!("ワーカー {} が起床", i);
+            println!("Worker {} woke up", i);
         }));
     }
 
     sleep(Duration::from_millis(100)).await;
-    notify.notify_waiters(); // 全員起床
+    notify.notify_waiters(); // Wake everyone
 
     for h in handles { h.await.unwrap(); }
 }
 ```
 
-### コード例17: Barrier — 同期ポイント
+### Code Example 17: Barrier — Synchronization Point
 
 ```rust
 use std::sync::Arc;
@@ -1007,25 +1009,25 @@ use tokio::time::{sleep, Duration};
 
 #[tokio::main]
 async fn main() {
-    let barrier = Arc::new(Barrier::new(4)); // 4タスクが揃うまで待機
+    let barrier = Arc::new(Barrier::new(4)); // Wait until 4 tasks are gathered
 
     let mut handles = Vec::new();
     for i in 0..4 {
         let b = barrier.clone();
         handles.push(tokio::spawn(async move {
-            // フェーズ1: 初期化
-            println!("ワーカー {}: 初期化中...", i);
+            // Phase 1: initialization
+            println!("Worker {}: initializing...", i);
             sleep(Duration::from_millis(i as u64 * 100)).await;
-            println!("ワーカー {}: 初期化完了。バリアで待機", i);
+            println!("Worker {}: initialization complete. Waiting at barrier", i);
 
-            // 全ワーカーが到達するまで待機
+            // Wait until all workers have arrived
             let result = b.wait().await;
             if result.is_leader() {
-                println!("ワーカー {} はリーダー (最後に到達)", i);
+                println!("Worker {} is the leader (last to arrive)", i);
             }
 
-            // フェーズ2: 全員揃ったら実行
-            println!("ワーカー {}: メイン処理開始!", i);
+            // Phase 2: run once everyone has arrived
+            println!("Worker {}: starting main processing!", i);
         }));
     }
 
@@ -1035,86 +1037,86 @@ async fn main() {
 
 ---
 
-## 6. 比較表
+## 6. Comparison Tables
 
-### チャネル種別比較
+### Channel Type Comparison
 
-| チャネル | 送信者 | 受信者 | バッファ | ユースケース |
+| Channel | Senders | Receivers | Buffer | Use Case |
 |---|---|---|---|---|
-| `mpsc` | 複数 | 1つ | 有限サイズ | コマンドキュー、ワーカープール |
-| `mpsc::unbounded` | 複数 | 1つ | 無制限 | メモリ許容時の簡易キュー |
-| `oneshot` | 1つ | 1つ | 1メッセージ | リクエスト-レスポンス |
-| `broadcast` | 複数 | 複数 | リングバッファ | イベント通知、Pub/Sub |
-| `watch` | 1つ | 複数 | 最新値のみ | 設定変更、状態監視 |
+| `mpsc` | Many | One | Bounded size | Command queues, worker pools |
+| `mpsc::unbounded` | Many | One | Unlimited | Simple queue when memory is acceptable |
+| `oneshot` | One | One | Single message | Request-response |
+| `broadcast` | Many | Many | Ring buffer | Event notification, Pub/Sub |
+| `watch` | One | Many | Latest value only | Config changes, state monitoring |
 
-### spawn 種別比較
+### spawn Type Comparison
 
-| API | スレッド | 用途 | 制約 |
+| API | Thread | Use Case | Constraints |
 |---|---|---|---|
-| `tokio::spawn` | ワーカー | 非同期タスク | `Send + 'static` |
-| `spawn_blocking` | ブロッキングプール | 同期 I/O、CPU処理 | `Send + 'static` |
-| `spawn_local` | カレントスレッド | `!Send` な Future | `LocalSet` 内のみ |
-| `block_on` | 呼び出しスレッド | ランタイム外→内 | ランタイム内では使用不可 |
+| `tokio::spawn` | Worker | Async tasks | `Send + 'static` |
+| `spawn_blocking` | Blocking pool | Sync I/O, CPU work | `Send + 'static` |
+| `spawn_local` | Current thread | `!Send` Futures | Only inside `LocalSet` |
+| `block_on` | Calling thread | Outside runtime → inside | Cannot be used inside the runtime |
 
-### 同期プリミティブ比較
+### Synchronization Primitive Comparison
 
-| プリミティブ | 用途 | std 版との違い |
+| Primitive | Use Case | Difference From the std Version |
 |---|---|---|
-| `tokio::sync::Mutex` | 排他ロック | `.await` 中も安全にロック保持可能 |
-| `tokio::sync::RwLock` | 読み書きロック | 非同期コンテキスト対応 |
-| `tokio::sync::Semaphore` | リソース制限 | 非同期 `acquire().await` |
-| `tokio::sync::Notify` | イベント通知 | `std` に相当なし。条件変数的用途 |
-| `tokio::sync::Barrier` | 同期ポイント | 非同期対応。全タスク到達まで待機 |
-| `tokio::sync::OnceCell` | 遅延初期化 | 非同期初期化関数に対応 |
+| `tokio::sync::Mutex` | Exclusive lock | Safe to hold across `.await` |
+| `tokio::sync::RwLock` | Read/write lock | Async-context aware |
+| `tokio::sync::Semaphore` | Resource limiting | Async `acquire().await` |
+| `tokio::sync::Notify` | Event notification | No std equivalent. Condition-variable-like usage |
+| `tokio::sync::Barrier` | Synchronization point | Async-aware. Waits until all tasks arrive |
+| `tokio::sync::OnceCell` | Lazy initialization | Supports async initializer functions |
 
-### std::sync vs tokio::sync の使い分け
+### When to Use std::sync vs tokio::sync
 
-| 状況 | 推奨 | 理由 |
+| Situation | Recommendation | Reason |
 |---|---|---|
-| ロック範囲に `.await` を含まない | `std::sync::Mutex` | 軽量、オーバーヘッド小 |
-| ロック範囲に `.await` を含む | `tokio::sync::Mutex` | デッドロック防止 |
-| 短時間のアトミック操作 | `std::sync::atomic` | 最軽量 |
-| 複数タスク間の通知 | `tokio::sync::Notify` | 非同期対応必須 |
-| 設定共有 (読み取り多) | `Arc<std::sync::RwLock>` | 読み取りロックが軽量 |
-| 設定変更通知 | `tokio::sync::watch` | 変更通知が組み込み |
+| Lock scope contains no `.await` | `std::sync::Mutex` | Lightweight, low overhead |
+| Lock scope contains `.await` | `tokio::sync::Mutex` | Prevents deadlock |
+| Short atomic operations | `std::sync::atomic` | Lightest weight |
+| Notification across multiple tasks | `tokio::sync::Notify` | Async support is required |
+| Configuration sharing (read-heavy) | `Arc<std::sync::RwLock>` | Read locks are lightweight |
+| Configuration change notifications | `tokio::sync::watch` | Built-in change notification |
 
 ---
 
-## 7. アンチパターン
+## 7. Anti-patterns
 
-### アンチパターン1: チャネルバッファの不適切なサイズ
+### Anti-pattern 1: Inappropriate Channel Buffer Sizes
 
 ```rust
-// NG: バッファサイズ1は送信者をほぼ常にブロック
+// BAD: a buffer size of 1 nearly always blocks the sender
 let (tx, rx) = mpsc::channel(1);
 
-// NG: unbounded で無制限にメモリ消費
+// BAD: unbounded consumes memory without limit
 let (tx, rx) = mpsc::unbounded_channel();
-// → 受信側が遅いと送信側がメモリを無限に使う
+// → if the receiver is slow, the sender uses memory indefinitely
 
-// OK: 想定負荷に基づいたバッファサイズ
-let (tx, rx) = mpsc::channel(256);  // 想定ピーク負荷の2-4倍
+// GOOD: buffer size based on expected load
+let (tx, rx) = mpsc::channel(256);  // 2-4x the expected peak load
 
-// OK: バックプレッシャーを意識した設計
+// GOOD: design that takes back-pressure into account
 let (tx, rx) = mpsc::channel(64);
-// send().await は バッファ満杯時に待機する → 自然な流量制御
+// send().await waits when the buffer is full → natural flow control
 ```
 
-### アンチパターン2: タスクリークの放置
+### Anti-pattern 2: Leaving Task Leaks
 
 ```rust
-// NG: spawn したタスクの JoinHandle を捨てる
+// BAD: discarding the JoinHandle from spawn
 fn start_background() {
     tokio::spawn(async {
         loop {
-            // 永遠に動き続けるタスク — 誰も止められない
+            // A task that runs forever — no one can stop it
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         }
     });
-    // JoinHandle が drop → タスクはデタッチされ制御不能
+    // JoinHandle is dropped → the task is detached and uncontrollable
 }
 
-// OK: JoinHandle を保持してグレースフルシャットダウン
+// GOOD: keep the JoinHandle and shut down gracefully
 struct Service {
     handle: tokio::task::JoinHandle<()>,
     shutdown_tx: tokio::sync::watch::Sender<bool>,
@@ -1130,11 +1132,11 @@ impl Service {
                         if *shutdown_rx.borrow() { break; }
                     }
                     _ = tokio::time::sleep(tokio::time::Duration::from_secs(1)) => {
-                        println!("処理中...");
+                        println!("Processing...");
                     }
                 }
             }
-            println!("グレースフルに停止");
+            println!("Stopped gracefully");
         });
         Service { handle, shutdown_tx }
     }
@@ -1146,50 +1148,50 @@ impl Service {
 }
 ```
 
-### アンチパターン3: tokio::sync::Mutex の不必要な使用
+### Anti-pattern 3: Unnecessary Use of tokio::sync::Mutex
 
 ```rust
-// NG: await を含まないのに tokio::sync::Mutex を使う
+// BAD: using tokio::sync::Mutex even though there is no await
 use tokio::sync::Mutex;
 async fn bad_counter(counter: &Mutex<u64>) {
     let mut c = counter.lock().await;
     *c += 1;
-    // await ポイントなし → std::sync::Mutex で十分
+    // No await point → std::sync::Mutex would suffice
 }
 
-// OK: await がないなら std::sync::Mutex が軽量
+// GOOD: when there is no await, std::sync::Mutex is lighter
 use std::sync::Mutex;
 async fn good_counter(counter: &Mutex<u64>) {
     let mut c = counter.lock().unwrap();
     *c += 1;
-    // drop(c); — スコープ終了で自動解放
+    // drop(c); — released automatically at end of scope
 }
 
-// ベスト: 単純なカウンタならアトミック
+// BEST: for a simple counter, use atomics
 use std::sync::atomic::{AtomicU64, Ordering};
 async fn best_counter(counter: &AtomicU64) {
     counter.fetch_add(1, Ordering::Relaxed);
 }
 ```
 
-### アンチパターン4: ランタイム内での block_on 呼び出し
+### Anti-pattern 4: Calling block_on Inside the Runtime
 
 ```rust
-// NG: 既に非同期ランタイム内で block_on を呼ぶとパニック
+// BAD: calling block_on from within an async runtime panics
 #[tokio::main]
 async fn main() {
     let rt = tokio::runtime::Runtime::new().unwrap();
-    // rt.block_on(some_future()); // パニック: "Cannot start a runtime from within a runtime"
+    // rt.block_on(some_future()); // panic: "Cannot start a runtime from within a runtime"
 }
 
-// OK: 非同期ランタイム内では .await を使う
+// GOOD: use .await inside an async runtime
 #[tokio::main]
 async fn main() {
     let result = some_future().await;
     println!("{}", result);
 }
 
-// OK: 同期コンテキストから非同期コードを呼ぶ場合
+// GOOD: when calling async code from a synchronous context
 fn sync_function() {
     let rt = tokio::runtime::Runtime::new().unwrap();
     let result = rt.block_on(async { some_future().await });
@@ -1203,21 +1205,21 @@ async fn some_future() -> String {
 
 ---
 
-## 8. 実践パターン集
+## 8. Practical Patterns
 
-### 8.1 アクターパターン
+### 8.1 Actor Pattern
 
 ```rust
 use tokio::sync::{mpsc, oneshot};
 
-/// アクターが処理するメッセージ
+/// Messages that the actor processes
 enum ActorMessage {
     Increment,
     Decrement,
     GetValue { reply: oneshot::Sender<i64> },
 }
 
-/// カウンターアクター
+/// Counter actor
 struct CounterActor {
     value: i64,
     rx: mpsc::Receiver<ActorMessage>,
@@ -1241,7 +1243,7 @@ impl CounterActor {
     }
 }
 
-/// アクターへのハンドル (クローン可能)
+/// Handle to the actor (cloneable)
 #[derive(Clone)]
 struct CounterHandle {
     tx: mpsc::Sender<ActorMessage>,
@@ -1274,7 +1276,7 @@ impl CounterHandle {
 async fn main() {
     let counter = CounterHandle::new();
 
-    // 複数タスクから並行操作
+    // Concurrent operations from multiple tasks
     let mut handles = Vec::new();
     for _ in 0..100 {
         let c = counter.clone();
@@ -1285,11 +1287,11 @@ async fn main() {
     for h in handles { h.await.unwrap(); }
 
     let value = counter.get_value().await;
-    println!("最終値: {}", value); // 100
+    println!("Final value: {}", value); // 100
 }
 ```
 
-### 8.2 ワーカープールパターン
+### 8.2 Worker Pool Pattern
 
 ```rust
 use tokio::sync::mpsc;
@@ -1322,13 +1324,13 @@ impl WorkerPool {
 
                     match job {
                         Some(job) => {
-                            println!("ワーカー {}: ジョブ {} 処理中 ({})",
+                            println!("Worker {}: processing job {} ({})",
                                 worker_id, job.id, job.data);
                             sleep(Duration::from_millis(100)).await;
-                            println!("ワーカー {}: ジョブ {} 完了", worker_id, job.id);
+                            println!("Worker {}: job {} complete", worker_id, job.id);
                         }
                         None => {
-                            println!("ワーカー {}: シャットダウン", worker_id);
+                            println!("Worker {}: shutdown", worker_id);
                             break;
                         }
                     }
@@ -1345,7 +1347,7 @@ impl WorkerPool {
     }
 
     async fn shutdown(self) {
-        drop(self.job_tx); // チャネルを閉じる
+        drop(self.job_tx); // Close the channel
         for handle in self.handles {
             let _ = handle.await;
         }
@@ -1356,20 +1358,20 @@ impl WorkerPool {
 async fn main() {
     let pool = WorkerPool::new(4);
 
-    // ジョブ投入
+    // Submit jobs
     for i in 0..20 {
         pool.submit(Job {
             id: i,
-            data: format!("データ_{}", i),
+            data: format!("data_{}", i),
         }).await.unwrap();
     }
 
     pool.shutdown().await;
-    println!("全ジョブ完了");
+    println!("All jobs complete");
 }
 ```
 
-### 8.3 定期タスクスケジューラー
+### 8.3 Periodic Task Scheduler
 
 ```rust
 use tokio::time::{interval, Duration, Instant};
@@ -1409,7 +1411,7 @@ impl Scheduler {
             let interval_duration = scheduled.interval;
             let mut shutdown_rx = shutdown.clone();
 
-            // 各タスクのスケジューラーループ
+            // Scheduler loop for each task
             let handle = tokio::spawn(async move {
                 let mut ticker = interval(interval_duration);
 
@@ -1417,14 +1419,14 @@ impl Scheduler {
                     tokio::select! {
                         _ = ticker.tick() => {
                             let start = Instant::now();
-                            println!("[{}] 実行開始", name);
-                            // ここで実際のタスクを実行
+                            println!("[{}] starting", name);
+                            // Run the actual task here
                             tokio::time::sleep(Duration::from_millis(50)).await;
-                            println!("[{}] 実行完了 ({:?})", name, start.elapsed());
+                            println!("[{}] completed ({:?})", name, start.elapsed());
                         }
                         Ok(()) = shutdown_rx.changed() => {
                             if *shutdown_rx.borrow() {
-                                println!("[{}] シャットダウン", name);
+                                println!("[{}] shutdown", name);
                                 break;
                             }
                         }
@@ -1445,28 +1447,28 @@ impl Scheduler {
 
 ## FAQ
 
-### Q1: `spawn_blocking` と `block_on` の違いは?
+### Q1: What is the difference between `spawn_blocking` and `block_on`?
 
-**A:** `spawn_blocking` は非同期ランタイム内からブロッキング処理を専用スレッドに逃がす手段です。`block_on` は同期コードから非同期ランタイムを起動する手段です。
+**A:** `spawn_blocking` is a means of offloading blocking work from inside an async runtime onto a dedicated thread. `block_on` is a means of starting an async runtime from synchronous code.
 
 ```rust
-// spawn_blocking: async内 → 同期処理を別スレッドへ
+// spawn_blocking: from async → run sync work on a separate thread
 async fn example() {
     let result = tokio::task::spawn_blocking(|| {
-        std::fs::read_to_string("large.txt") // ブロッキング I/O
+        std::fs::read_to_string("large.txt") // Blocking I/O
     }).await.unwrap();
 }
 
-// block_on: 同期コード → async を実行
+// block_on: from sync code → run async code
 fn sync_context() {
     let rt = tokio::runtime::Runtime::new().unwrap();
     let result = rt.block_on(async { fetch_data().await });
 }
 ```
 
-### Q2: `select!` でキャンセルされたブランチはどうなる?
+### Q2: What happens to branches that are not selected by `select!`?
 
-**A:** 選ばれなかったブランチの Future は drop されます。リソースリークを避けるため、途中状態のクリーンアップが必要な処理は `CancellationToken` で明示的に管理しましょう。
+**A:** The Futures of unselected branches are dropped. To avoid resource leaks, manage processes that need cleanup of intermediate state explicitly with a `CancellationToken`.
 
 ```rust
 use tokio_util::sync::CancellationToken;
@@ -1478,16 +1480,16 @@ async fn careful_select() {
     let task = tokio::spawn(async move {
         tokio::select! {
             _ = token_clone.cancelled() => {
-                println!("キャンセルされた。クリーンアップ...");
-                // リソースの明示的解放
+                println!("Cancelled. Cleaning up...");
+                // Explicitly release resources
             }
             result = long_running_task() => {
-                println!("タスク完了: {:?}", result);
+                println!("Task complete: {:?}", result);
             }
         }
     });
 
-    // 条件に応じてキャンセル
+    // Cancel based on a condition
     tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
     token.cancel();
     let _ = task.await;
@@ -1499,93 +1501,93 @@ async fn long_running_task() -> String {
 }
 ```
 
-### Q3: tokio と OS スレッドのパフォーマンス差は?
+### Q3: What is the performance difference between tokio and OS threads?
 
-**A:** tokio タスクは約 256 バイト、OS スレッドは約 8MB(スタック)のメモリを消費します。10万同時接続では tokio が圧倒的に有利です。ただし CPU バウンドの処理ではスレッドプールの方が適切です。
+**A:** A tokio task consumes about 256 bytes, while an OS thread consumes about 8MB (stack). For 100,000 concurrent connections, tokio is overwhelmingly more favorable. However, for CPU-bound work a thread pool is more appropriate.
 
-| 指標 | tokio タスク | OS スレッド |
+| Metric | Tokio Task | OS Thread |
 |---|---|---|
-| メモリ (初期) | ~256 バイト | ~8 MB (スタック) |
-| 生成コスト | ~数マイクロ秒 | ~数ミリ秒 |
-| コンテキストスイッチ | ユーザー空間 (~ns) | カーネル空間 (~μs) |
-| 10万タスク時のメモリ | ~25 MB | ~800 GB (非現実的) |
-| 最適な用途 | I/Oバウンド | CPUバウンド |
+| Memory (initial) | ~256 bytes | ~8 MB (stack) |
+| Spawn cost | ~a few microseconds | ~a few milliseconds |
+| Context switch | User space (~ns) | Kernel space (~μs) |
+| Memory at 100k tasks | ~25 MB | ~800 GB (impractical) |
+| Best suited for | I/O-bound work | CPU-bound work |
 
-### Q4: mpsc チャネルのバッファサイズの目安は?
+### Q4: What is a good rule of thumb for mpsc channel buffer sizes?
 
-**A:** 一般的な指針として、ピーク時の秒間メッセージ数の 2〜4 倍を設定します。小さすぎると送信側がブロックされ、大きすぎるとメモリを無駄に消費します。バックプレッシャーが効くサイズにするのがポイントです。
+**A:** A common guideline is 2 to 4 times the peak number of messages per second. Too small and the sender blocks; too large and memory is wasted. The key is to choose a size that allows back-pressure to work effectively.
 
 ```rust
-// ウェブサーバー (100 req/s 想定): 256 程度
+// Web server (assumed 100 req/s): around 256
 let (tx, rx) = mpsc::channel(256);
 
-// 高スループットパイプライン (10K msg/s): 1024〜4096
+// High-throughput pipeline (10K msg/s): 1024-4096
 let (tx, rx) = mpsc::channel(4096);
 
-// 低頻度コマンド (設定変更等): 8〜32
+// Low-frequency commands (config changes, etc.): 8-32
 let (tx, rx) = mpsc::channel(16);
 ```
 
-### Q5: タスクがパニックした場合の挙動は?
+### Q5: What happens if a task panics?
 
-**A:** `tokio::spawn` で生成したタスクがパニックした場合、他のタスクには影響しません。JoinHandle の `.await` が `JoinError` を返します。
+**A:** If a task spawned with `tokio::spawn` panics, other tasks are not affected. `.await` on the JoinHandle returns a `JoinError`.
 
 ```rust
 #[tokio::main]
 async fn main() {
     let handle = tokio::spawn(async {
-        panic!("タスク内でパニック!");
+        panic!("Panic inside task!");
     });
 
     match handle.await {
-        Ok(_) => println!("正常完了"),
+        Ok(_) => println!("Completed normally"),
         Err(e) if e.is_panic() => {
-            // パニックの値を取得
+            // Retrieve the panic value
             let panic_value = e.into_panic();
             if let Some(msg) = panic_value.downcast_ref::<&str>() {
-                eprintln!("パニック: {}", msg);
+                eprintln!("Panic: {}", msg);
             }
         }
-        Err(e) if e.is_cancelled() => println!("キャンセル"),
-        Err(e) => eprintln!("その他のエラー: {}", e),
+        Err(e) if e.is_cancelled() => println!("Cancelled"),
+        Err(e) => eprintln!("Other error: {}", e),
     }
-    // 他のタスクは正常に動作を継続
+    // Other tasks continue to run normally
 }
 ```
 
 ---
 
-## まとめ
+## Summary
 
-| 項目 | 要点 |
+| Item | Key Point |
 |---|---|
-| ランタイム選択 | `multi_thread` がデフォルト。テストは `current_thread` |
-| ワークスティーリング | 負荷の自動分散。ローカルキュー → グローバルキュー → 他スレッドから盗む |
-| タスク spawn | `Send + 'static` 制約。JoinHandle で結果取得 |
-| JoinSet | 動的タスク集合。完了順に結果取得。一括キャンセル可 |
-| spawn_local | `!Send` な Future 用。LocalSet 内でのみ使用 |
-| task_local! | タスクごとのコンテキスト情報 (リクエストID等) |
-| mpsc | 最も汎用的。バックプレッシャー付きキュー |
-| oneshot | リクエスト-レスポンスパターン |
-| broadcast | Pub/Sub パターン |
-| watch | 状態監視・設定変更通知 |
-| Mutex / RwLock | await を含むクリティカルセクションには tokio 版を使用 |
-| Notify | イベント通知。条件変数的な用途 |
-| Barrier | 全タスクの同期ポイント |
-| シャットダウン | watch + select! でグレースフル停止 |
-| アクターパターン | mpsc + oneshot で安全なメッセージパッシング |
+| Runtime selection | `multi_thread` is the default. Use `current_thread` for tests |
+| Work-stealing | Automatic load balancing. Local queue → global queue → steal from other threads |
+| Task spawn | `Send + 'static` bound. Retrieve results via JoinHandle |
+| JoinSet | Dynamic task collection. Retrieve results in completion order. Bulk cancellation possible |
+| spawn_local | For `!Send` Futures. Usable only inside a LocalSet |
+| task_local! | Per-task context information (request IDs, etc.) |
+| mpsc | The most general-purpose. A queue with back-pressure |
+| oneshot | Request-response pattern |
+| broadcast | Pub/Sub pattern |
+| watch | State monitoring and configuration-change notifications |
+| Mutex / RwLock | Use the tokio versions for critical sections that contain awaits |
+| Notify | Event notifications. Condition-variable-like usage |
+| Barrier | Synchronization point across all tasks |
+| Shutdown | Graceful stop using watch + select! |
+| Actor pattern | Safe message passing using mpsc + oneshot |
 
-## 次に読むべきガイド
+## Recommended Next Reads
 
-- [非同期パターン](./02-async-patterns.md) — Stream、並行制限、リトライパターン
-- [ネットワーク](./03-networking.md) — 非同期HTTP/WebSocket/gRPC
-- [並行性](../03-systems/01-concurrency.md) — スレッドとロックの基礎
+- [Async Patterns](./02-async-patterns.md) — Stream, concurrency limiting, retry patterns
+- [Networking](./03-networking.md) — Asynchronous HTTP/WebSocket/gRPC
+- [Concurrency](../03-systems/01-concurrency.md) — Fundamentals of threads and locks
 
-## 参考文献
+## References
 
 1. **Tokio Documentation**: https://docs.rs/tokio/latest/tokio/
 2. **Tokio Tutorial**: https://tokio.rs/tokio/tutorial
 3. **Alice Ryhl - Actors with Tokio**: https://ryhl.io/blog/actors-with-tokio/
-4. **Tokio Mini-Redis (学習用実装)**: https://github.com/tokio-rs/mini-redis
+4. **Tokio Mini-Redis (educational implementation)**: https://github.com/tokio-rs/mini-redis
 5. **Tokio Metrics**: https://docs.rs/tokio-metrics/latest/tokio_metrics/
 6. **Jon Gjengset - Decrusting tokio**: https://www.youtube.com/watch?v=o2ob8zkeq2s
