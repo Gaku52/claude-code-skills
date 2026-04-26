@@ -1,99 +1,99 @@
-# エラーハンドリング -- Rustの型安全なエラー処理パターン
+# Error Handling -- Rust's Type-Safe Error Handling Patterns
 
-> Rustは例外機構を持たず、Result<T, E> と Option<T> を用いた明示的なエラー処理により、全てのエラーパスをコンパイル時に検証する。
-
----
-
-## この章で学ぶこと
-
-1. **Result と Option** -- 失敗可能性を型で表現し、パターンマッチで安全に処理する方法を理解する
-2. **? 演算子とエラー伝播** -- ボイラープレートを減らす構文糖衣と変換の仕組みを習得する
-3. **カスタムエラー型** -- 独自のエラー型を定義し、From トレイトで変換を自動化する方法を学ぶ
-4. **thiserror / anyhow** -- 実務で使われるエラー処理クレートの使い分けを学ぶ
-5. **実践的なエラー設計** -- ライブラリとアプリケーションでのエラー設計パターンを身につける
-
-
-## 前提知識
-
-このガイドを読む前に、以下の知識があると理解が深まります:
-
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [型とトレイト -- Rustの型システムとポリモーフィズムの基盤](./02-types-and-traits.md) の内容を理解していること
+> Rust has no exception mechanism. Instead, it uses explicit error handling via `Result<T, E>` and `Option<T>`, ensuring all error paths are verified at compile time.
 
 ---
 
-## 1. Rust のエラー処理哲学
+## What You Will Learn in This Chapter
+
+1. **Result and Option** -- Understand how to express failure possibilities through types and handle them safely with pattern matching
+2. **The ? Operator and Error Propagation** -- Master the syntactic sugar that reduces boilerplate and the conversion mechanism behind it
+3. **Custom Error Types** -- Learn how to define your own error types and automate conversions with the `From` trait
+4. **thiserror / anyhow** -- Learn how to choose between the error-handling crates used in practice
+5. **Practical Error Design** -- Acquire error design patterns for both libraries and applications
+
+## Prerequisites
+
+Reading the following before this guide will deepen your understanding:
+
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding the contents of [Types and Traits -- The Foundation of Rust's Type System and Polymorphism](./02-types-and-traits.md)
+
+---
+
+## 1. Rust's Error Handling Philosophy
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│           Rust のエラー分類                           │
+│           Rust's Error Classification                │
 ├──────────────────┬──────────────────────────────────┤
-│ 回復不能エラー   │ panic!() -- プログラム中断        │
-│                  │ 配列の範囲外アクセス等             │
+│ Unrecoverable    │ panic!() -- Aborts the program   │
+│ errors           │ Out-of-bounds array access, etc. │
 ├──────────────────┼──────────────────────────────────┤
-│ 回復可能エラー   │ Result<T, E> -- 呼び出し元が処理  │
-│                  │ ファイル未発見、パースエラー等     │
+│ Recoverable      │ Result<T, E> -- Caller handles   │
+│ errors           │ File not found, parse errors,etc.│
 ├──────────────────┼──────────────────────────────────┤
-│ 値の不在         │ Option<T> -- None は正常な状態     │
-│                  │ 検索結果なし、設定項目なし等       │
+│ Absence of value │ Option<T> -- None is a normal    │
+│                  │ state. No search result, no      │
+│                  │ config item, etc.                │
 └──────────────────┴──────────────────────────────────┘
 ```
 
-Rustのエラー処理哲学は「全てのエラーを型で表現する」というものである。多くの言語が例外機構（try/catch）を採用しているのに対し、Rustは意図的に例外を排除し、戻り値としてエラーを返す方式を採用した。この設計の利点は:
+Rust's error handling philosophy is "express all errors through types." While many languages adopt exception mechanisms (try/catch), Rust deliberately excludes exceptions and adopts a method of returning errors as values. The advantages of this design are:
 
-1. **明示性**: 関数のシグネチャを見るだけでエラーが発生しうるかがわかる
-2. **網羅性**: コンパイラがエラー処理の漏れを検出する
-3. **パフォーマンス**: 例外のスタック巻き戻しコストがない
-4. **合成可能性**: `?` 演算子やコンビネータでエラー処理を簡潔に連鎖できる
+1. **Explicitness**: You can tell whether a function may produce an error simply by looking at its signature
+2. **Exhaustiveness**: The compiler detects missing error handling
+3. **Performance**: There is no cost for stack unwinding from exceptions
+4. **Composability**: The `?` operator and combinators enable concise chaining of error handling
 
-### 1.1 panic! と回復不能エラー
+### 1.1 panic! and Unrecoverable Errors
 
 ```rust
 fn main() {
-    // 明示的なパニック
-    // panic!("致命的なエラー！");
+    // Explicit panic
+    // panic!("Fatal error!");
 
-    // 暗黙的なパニック（境界外アクセス）
+    // Implicit panic (out-of-bounds access)
     let v = vec![1, 2, 3];
-    // let x = v[10]; // パニック: index out of bounds
+    // let x = v[10]; // panic: index out of bounds
 
-    // パニック時のバックトレースを有効にするには:
+    // To enable a backtrace on panic:
     // RUST_BACKTRACE=1 cargo run
 
-    // unwrap / expect もパニックを引き起こす
-    let result: Result<i32, &str> = Err("エラー");
-    // result.unwrap();  // パニック
-    // result.expect("カスタムメッセージ");  // パニック（メッセージ付き）
+    // unwrap / expect also cause panics
+    let result: Result<i32, &str> = Err("error");
+    // result.unwrap();  // panic
+    // result.expect("custom message");  // panic (with message)
 }
 ```
 
-パニックはプログラムの不変条件が破られた場合（バグ）に使うものであり、通常のエラーハンドリングには `Result` を使用すべきである。
+A panic is used when an invariant of the program is broken (a bug); for ordinary error handling, you should use `Result`.
 
-### 1.2 パニックの伝播と catch_unwind
+### 1.2 Panic Propagation and catch_unwind
 
 ```rust
 use std::panic;
 
 fn risky_operation() {
-    panic!("何かがおかしい！");
+    panic!("Something is wrong!");
 }
 
 fn main() {
-    // catch_unwind でパニックをキャッチ（FFI境界などで使用）
+    // Catch a panic with catch_unwind (used at FFI boundaries, etc.)
     let result = panic::catch_unwind(|| {
         risky_operation();
     });
 
     match result {
-        Ok(()) => println!("正常終了"),
-        Err(_) => println!("パニックが発生しましたが、回復しました"),
+        Ok(()) => println!("Completed normally"),
+        Err(_) => println!("A panic occurred, but we recovered"),
     }
 
-    println!("プログラムは続行中...");
+    println!("The program continues...");
 
-    // 注意: catch_unwind は一般的なエラーハンドリングには使わない
-    // FFI 境界やスレッドプール内での使用が主な用途
+    // Note: catch_unwind is not used for general error handling.
+    // Its main uses are at FFI boundaries or inside thread pools.
 }
 ```
 
@@ -101,78 +101,78 @@ fn main() {
 
 ## 2. Option<T>
 
-### 例1: Option の基本
+### Example 1: The Basics of Option
 
 ```rust
 fn find_user(id: u64) -> Option<String> {
     match id {
-        1 => Some(String::from("田中")),
-        2 => Some(String::from("鈴木")),
+        1 => Some(String::from("Tanaka")),
+        2 => Some(String::from("Suzuki")),
         _ => None,
     }
 }
 
 fn main() {
-    // パターンマッチ
+    // Pattern matching
     match find_user(1) {
-        Some(name) => println!("ユーザー: {}", name),
-        None => println!("見つかりません"),
+        Some(name) => println!("User: {}", name),
+        None => println!("Not found"),
     }
 
     // if let
     if let Some(name) = find_user(2) {
-        println!("ユーザー: {}", name);
+        println!("User: {}", name);
     }
 
-    // let-else（Rust 2021+）
+    // let-else (Rust 2021+)
     let Some(name) = find_user(1) else {
-        println!("見つかりません");
+        println!("Not found");
         return;
     };
-    println!("見つかった: {}", name);
+    println!("Found: {}", name);
 
-    // unwrap_or でデフォルト値
-    let name = find_user(99).unwrap_or(String::from("不明"));
-    println!("ユーザー: {}", name);
+    // unwrap_or with a default value
+    let name = find_user(99).unwrap_or(String::from("Unknown"));
+    println!("User: {}", name);
 }
 ```
 
-### 例2: Option のコンビネータ
+### Example 2: Option Combinators
 
 ```rust
 fn main() {
     let numbers = vec![1, 2, 3, 4, 5];
 
-    // map: Some の中の値を変換
+    // map: transforms the value inside Some
     let first_doubled: Option<i32> = numbers.first().map(|x| x * 2);
     println!("{:?}", first_doubled); // Some(2)
 
-    // and_then: ネストした Option をフラットに（flatMap に相当）
+    // and_then: flattens nested Options (equivalent to flatMap)
     let result = Some("42")
         .and_then(|s| s.parse::<i32>().ok())
         .map(|n| n * 2);
     println!("{:?}", result); // Some(84)
 
-    // filter: 条件を満たさなければ None
+    // filter: returns None if the predicate is not satisfied
     let even = Some(4).filter(|x| x % 2 == 0);
     let odd = Some(3).filter(|x| x % 2 == 0);
     println!("{:?}, {:?}", even, odd); // Some(4), None
 
-    // unwrap_or_else: デフォルト値を遅延評価
+    // unwrap_or_else: lazily evaluates the default value
     let value = None::<i32>.unwrap_or_else(|| {
-        println!("デフォルト値を計算中...");
+        println!("Computing default value...");
         0
     });
     println!("{}", value);
 
-    // or / or_else: 最初の Some を返す
+    // or / or_else: returns the first Some
     let a: Option<i32> = None;
     let b: Option<i32> = Some(42);
     let c: Option<i32> = Some(100);
     println!("{:?}", a.or(b));        // Some(42)
-    println!("{:?}", b.or(c));        // Some(42) -- 最初の Some
+    println!("{:?}", b.or(c));        // Some(42) -- the first Some
 
-    // zip: 2つの Option を結合
+    // zip: combines two Options
     let x = Some(1);
     let y = Some("hello");
     let z: Option<i32> = None;
@@ -190,7 +190,7 @@ fn main() {
 }
 ```
 
-### Option の連鎖パターン
+### Option Chaining Patterns
 
 ```rust
 #[derive(Debug)]
@@ -205,7 +205,7 @@ struct DatabaseConfig {
 }
 
 fn get_db_url(config: &Config) -> Option<String> {
-    // Option のチェーン: 各段階で None なら早期に None を返す
+    // Option chain: at any stage, if it is None, return None early
     let db = config.database.as_ref()?;
     let host = db.host.as_ref()?;
     let port = db.port?;
@@ -222,17 +222,17 @@ fn main() {
 
     match get_db_url(&config) {
         Some(url) => println!("DB URL: {}", url),
-        None => println!("データベース設定が不完全です"),
+        None => println!("Database configuration is incomplete"),
     }
 
-    // host が None の場合
+    // Case where host is None
     let incomplete_config = Config {
         database: Some(DatabaseConfig {
             host: None,
             port: Some(5432),
         }),
     };
-    println!("不完全: {:?}", get_db_url(&incomplete_config)); // None
+    println!("Incomplete: {:?}", get_db_url(&incomplete_config)); // None
 }
 ```
 
@@ -240,7 +240,7 @@ fn main() {
 
 ## 3. Result<T, E>
 
-### 例3: Result の基本
+### Example 3: The Basics of Result
 
 ```rust
 use std::fs;
@@ -253,19 +253,19 @@ fn read_username() -> Result<String, io::Error> {
 
 fn main() {
     match read_username() {
-        Ok(name) => println!("ユーザー名: {}", name),
-        Err(e) => println!("エラー: {}", e),
+        Ok(name) => println!("Username: {}", name),
+        Err(e) => println!("Error: {}", e),
     }
 }
 ```
 
-### 例4: ? 演算子によるエラー伝播
+### Example 4: Error Propagation with the ? Operator
 
 ```rust
 use std::fs::File;
 use std::io::{self, Read};
 
-// ? 演算子なし (冗長)
+// Without the ? operator (verbose)
 fn read_file_verbose(path: &str) -> Result<String, io::Error> {
     let file = match File::open(path) {
         Ok(f) => f,
@@ -278,7 +278,7 @@ fn read_file_verbose(path: &str) -> Result<String, io::Error> {
     }
 }
 
-// ? 演算子あり (簡潔)
+// With the ? operator (concise)
 fn read_file_concise(path: &str) -> Result<String, io::Error> {
     let mut file = File::open(path)?;
     let mut buf = String::new();
@@ -286,13 +286,13 @@ fn read_file_concise(path: &str) -> Result<String, io::Error> {
     Ok(buf)
 }
 
-// さらに簡潔
+// Even more concise
 fn read_file_short(path: &str) -> Result<String, io::Error> {
     std::fs::read_to_string(path)
 }
 ```
 
-### ? 演算子の動作フロー
+### Behavior Flow of the ? Operator
 
 ```
          read_file_concise()
@@ -303,7 +303,7 @@ fn read_file_short(path: &str) -> Result<String, io::Error> {
          │         │
       Ok(file)  Err(e)
          │         │
-         │    return Err(e)  ← 早期リターン
+         │    return Err(e)  ← early return
          │
     file.read_to_string(&mut buf)?
               │
@@ -314,7 +314,7 @@ fn read_file_short(path: &str) -> Result<String, io::Error> {
     Ok(buf)   return Err(e)
 ```
 
-### 例5: Result のコンビネータ
+### Example 5: Result Combinators
 
 ```rust
 use std::num::ParseIntError;
@@ -324,22 +324,22 @@ fn parse_and_double(s: &str) -> Result<i32, ParseIntError> {
 }
 
 fn main() {
-    // map: Ok の中の値を変換
+    // map: transforms the value inside Ok
     let result = "21".parse::<i32>().map(|n| n * 2);
     println!("{:?}", result); // Ok(42)
 
-    // map_err: Err の中の値を変換
+    // map_err: transforms the value inside Err
     let result = "abc".parse::<i32>()
-        .map_err(|e| format!("パースエラー: {}", e));
-    println!("{:?}", result); // Err("パースエラー: ...")
+        .map_err(|e| format!("Parse error: {}", e));
+    println!("{:?}", result); // Err("Parse error: ...")
 
-    // and_then: Result の連鎖
+    // and_then: chaining Results
     let result = "42".parse::<i32>()
         .and_then(|n| {
             if n > 0 {
                 Ok(n)
             } else {
-                Err("0以下".parse::<i32>().unwrap_err())
+                Err("0 or below".parse::<i32>().unwrap_err())
             }
         });
     println!("{:?}", result);
@@ -349,9 +349,9 @@ fn main() {
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(8080);
-    println!("ポート: {}", port);
+    println!("Port: {}", port);
 
-    // 複数の Result を collect
+    // collecting multiple Results
     let strings = vec!["1", "2", "3", "4", "5"];
     let numbers: Result<Vec<i32>, _> = strings
         .iter()
@@ -359,7 +359,7 @@ fn main() {
         .collect();
     println!("{:?}", numbers); // Ok([1, 2, 3, 4, 5])
 
-    // エラーが含まれる場合
+    // When an error is included
     let mixed = vec!["1", "abc", "3"];
     let result: Result<Vec<i32>, _> = mixed
         .iter()
@@ -369,20 +369,20 @@ fn main() {
 }
 ```
 
-### 例6: 複数のエラー型を扱う
+### Example 6: Handling Multiple Error Types
 
 ```rust
 use std::io;
 use std::num::ParseIntError;
 
-// 方法1: Box<dyn Error>
+// Approach 1: Box<dyn Error>
 fn process_file_boxed(path: &str) -> Result<i32, Box<dyn std::error::Error>> {
     let content = std::fs::read_to_string(path)?;  // io::Error
     let number: i32 = content.trim().parse()?;       // ParseIntError
     Ok(number * 2)
 }
 
-// 方法2: カスタムエラー enum
+// Approach 2: Custom error enum
 #[derive(Debug)]
 enum ProcessError {
     Io(io::Error),
@@ -392,8 +392,8 @@ enum ProcessError {
 impl std::fmt::Display for ProcessError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ProcessError::Io(e) => write!(f, "IOエラー: {}", e),
-            ProcessError::Parse(e) => write!(f, "パースエラー: {}", e),
+            ProcessError::Io(e) => write!(f, "IO error: {}", e),
+            ProcessError::Parse(e) => write!(f, "Parse error: {}", e),
         }
     }
 }
@@ -427,18 +427,18 @@ fn process_file(path: &str) -> Result<i32, ProcessError> {
 
 fn main() {
     match process_file("number.txt") {
-        Ok(n) => println!("結果: {}", n),
-        Err(ProcessError::Io(e)) => eprintln!("ファイルエラー: {}", e),
-        Err(ProcessError::Parse(e)) => eprintln!("数値変換エラー: {}", e),
+        Ok(n) => println!("Result: {}", n),
+        Err(ProcessError::Io(e)) => eprintln!("File error: {}", e),
+        Err(ProcessError::Parse(e)) => eprintln!("Number conversion error: {}", e),
     }
 }
 ```
 
 ---
 
-## 4. カスタムエラー型
+## 4. Custom Error Types
 
-### 例7: 手動でカスタムエラーを定義
+### Example 7: Defining a Custom Error Manually
 
 ```rust
 use std::fmt;
@@ -456,14 +456,14 @@ enum AppError {
 impl fmt::Display for AppError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            AppError::IoError(e) => write!(f, "IOエラー: {}", e),
-            AppError::ParseError(e) => write!(f, "パースエラー: {}", e),
-            AppError::ValidationError(msg) => write!(f, "検証エラー: {}", msg),
+            AppError::IoError(e) => write!(f, "IO error: {}", e),
+            AppError::ParseError(e) => write!(f, "Parse error: {}", e),
+            AppError::ValidationError(msg) => write!(f, "Validation error: {}", msg),
             AppError::NotFoundError { resource, id } => {
-                write!(f, "{} (ID={}) が見つかりません", resource, id)
+                write!(f, "{} (ID={}) was not found", resource, id)
             }
             AppError::AuthError { user, reason } => {
-                write!(f, "認証エラー (ユーザー: {}): {}", user, reason)
+                write!(f, "Authentication error (user: {}): {}", user, reason)
             }
         }
     }
@@ -492,11 +492,11 @@ impl From<ParseIntError> for AppError {
 }
 
 fn load_config(path: &str) -> Result<u32, AppError> {
-    let content = std::fs::read_to_string(path)?; // IoError に自動変換
-    let port: u32 = content.trim().parse()?;       // ParseError に自動変換
+    let content = std::fs::read_to_string(path)?; // automatically converts to IoError
+    let port: u32 = content.trim().parse()?;       // automatically converts to ParseError
     if port < 1024 {
         return Err(AppError::ValidationError(
-            format!("ポート {} は予約済み", port),
+            format!("Port {} is reserved", port),
         ));
     }
     Ok(port)
@@ -505,7 +505,7 @@ fn load_config(path: &str) -> Result<u32, AppError> {
 fn find_user(id: u64) -> Result<String, AppError> {
     if id == 0 {
         return Err(AppError::NotFoundError {
-            resource: "ユーザー".to_string(),
+            resource: "User".to_string(),
             id,
         });
     }
@@ -515,29 +515,29 @@ fn find_user(id: u64) -> Result<String, AppError> {
 
 ---
 
-## 5. thiserror と anyhow
+## 5. thiserror and anyhow
 
-### 例8: thiserror(ライブラリ向け)
+### Example 8: thiserror (for libraries)
 
 ```rust
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 enum DatabaseError {
-    #[error("接続エラー: {0}")]
+    #[error("Connection error: {0}")]
     ConnectionFailed(String),
 
-    #[error("クエリエラー: {query}")]
+    #[error("Query error: {query}")]
     QueryFailed {
         query: String,
         #[source]
         source: std::io::Error,
     },
 
-    #[error("レコードが見つかりません: ID={id}")]
+    #[error("Record not found: ID={id}")]
     NotFound { id: u64 },
 
-    #[error("認証エラー: ユーザー '{user}' のアクセスが拒否されました")]
+    #[error("Authentication error: access denied for user '{user}'")]
     AuthFailed { user: String },
 
     #[error(transparent)]
@@ -547,16 +547,16 @@ enum DatabaseError {
     Parse(#[from] std::num::ParseIntError),
 }
 
-// thiserror の利点:
-// 1. Display の自動実装（#[error("...")] アトリビュート）
-// 2. From の自動実装（#[from] アトリビュート）
-// 3. source() の自動実装（#[source] アトリビュート）
-// 4. ボイラープレートの大幅削減
+// Advantages of thiserror:
+// 1. Automatic implementation of Display (via the #[error("...")] attribute)
+// 2. Automatic implementation of From (via the #[from] attribute)
+// 3. Automatic implementation of source() (via the #[source] attribute)
+// 4. Significant reduction of boilerplate
 
 fn connect_db(url: &str) -> Result<(), DatabaseError> {
     if url.is_empty() {
         return Err(DatabaseError::ConnectionFailed(
-            "URLが空です".to_string(),
+            "URL is empty".to_string(),
         ));
     }
     Ok(())
@@ -570,7 +570,7 @@ fn find_record(id: u64) -> Result<String, DatabaseError> {
 }
 ```
 
-### 例9: anyhow(アプリケーション向け)
+### Example 9: anyhow (for applications)
 
 ```rust
 use anyhow::{Context, Result, bail, ensure, anyhow};
@@ -584,30 +584,30 @@ struct Config {
 
 fn load_config(path: &str) -> Result<Config> {
     let content = std::fs::read_to_string(path)
-        .with_context(|| format!("設定ファイル '{}' を読み込めません", path))?;
+        .with_context(|| format!("Cannot read configuration file '{}'", path))?;
 
     let lines: Vec<&str> = content.lines().collect();
 
-    ensure!(lines.len() >= 3, "設定ファイルには少なくとも3行必要です");
+    ensure!(lines.len() >= 3, "The configuration file requires at least 3 lines");
 
     let host = lines[0].trim().to_string();
     let port: u16 = lines[1].trim().parse()
-        .context("ポート番号のパースに失敗")?;
+        .context("Failed to parse the port number")?;
     let database = lines[2].trim().to_string();
 
     if host.is_empty() {
-        bail!("ホストが指定されていません");
+        bail!("Host is not specified");
     }
 
     if port == 0 {
-        return Err(anyhow!("ポート0は無効です"));
+        return Err(anyhow!("Port 0 is invalid"));
     }
 
     Ok(Config { host, port, database })
 }
 
 fn run_server(config: &Config) -> Result<()> {
-    println!("サーバー起動: {}:{}/{}", config.host, config.port, config.database);
+    println!("Starting server: {}:{}/{}", config.host, config.port, config.database);
     Ok(())
 }
 
@@ -615,37 +615,37 @@ fn main() {
     match load_config("config.txt") {
         Ok(config) => {
             if let Err(e) = run_server(&config) {
-                // エラーチェーンを全て表示
-                eprintln!("エラー: {:#}", e);
-                // エラーチェーンを個別に表示
+                // Print the entire error chain
+                eprintln!("Error: {:#}", e);
+                // Print each cause in the error chain individually
                 for cause in e.chain() {
-                    eprintln!("  原因: {}", cause);
+                    eprintln!("  Cause: {}", cause);
                 }
                 std::process::exit(1);
             }
         }
         Err(e) => {
-            eprintln!("設定読み込みエラー: {:#}", e);
+            eprintln!("Configuration loading error: {:#}", e);
             std::process::exit(1);
         }
     }
 }
 ```
 
-### 例10: anyhow と thiserror の組み合わせ
+### Example 10: Combining anyhow and thiserror
 
 ```rust
-// ライブラリ層: thiserror で具体的なエラー型を定義
+// Library layer: define concrete error types with thiserror
 mod db {
     use thiserror::Error;
 
     #[derive(Debug, Error)]
     pub enum DbError {
-        #[error("接続エラー: {0}")]
+        #[error("Connection error: {0}")]
         Connection(String),
-        #[error("クエリエラー: {0}")]
+        #[error("Query error: {0}")]
         Query(String),
-        #[error("レコード未発見: {0}")]
+        #[error("Record not found: {0}")]
         NotFound(u64),
     }
 
@@ -657,31 +657,31 @@ mod db {
     }
 }
 
-// アプリケーション層: anyhow でエラーを集約
+// Application layer: aggregate errors with anyhow
 mod app {
     use anyhow::{Context, Result};
     use super::db;
 
     pub fn get_user_name(id: u64) -> Result<String> {
         let user = db::find_user(id)
-            .with_context(|| format!("ユーザーID {} の取得に失敗", id))?;
+            .with_context(|| format!("Failed to retrieve user with ID {}", id))?;
         Ok(user)
     }
 }
 
 fn main() {
     match app::get_user_name(0) {
-        Ok(name) => println!("ユーザー: {}", name),
+        Ok(name) => println!("User: {}", name),
         Err(e) => {
-            eprintln!("エラー: {:#}", e);
-            // anyhow のエラーチェーンが表示される:
-            // エラー: ユーザーID 0 の取得に失敗: レコード未発見: 0
+            eprintln!("Error: {:#}", e);
+            // The anyhow error chain is displayed:
+            // Error: Failed to retrieve user with ID 0: Record not found: 0
 
-            // ダウンキャストで具体的なエラー型を取得
+            // Use downcast to obtain the concrete error type
             if let Some(db_err) = e.downcast_ref::<db::DbError>() {
                 match db_err {
                     db::DbError::NotFound(id) => {
-                        eprintln!("ヒント: ID {} は存在しません", id);
+                        eprintln!("Hint: ID {} does not exist", id);
                     }
                     _ => {}
                 }
@@ -693,13 +693,13 @@ fn main() {
 
 ---
 
-## 6. エラーチェーンの図解
+## 6. Diagram of the Error Chain
 
 ```
 ┌────────────────────────────────────────┐
 │ anyhow::Error                          │
-│ "設定ファイル 'config.toml' を         │
-│  読み込めません"                        │
+│ "Cannot read configuration file        │
+│  'config.toml'"                        │
 │                                        │
 │  Caused by:                            │
 │  ┌──────────────────────────────────┐  │
@@ -709,53 +709,54 @@ fn main() {
 │  └──────────────────────────────────┘  │
 └────────────────────────────────────────┘
 
-.with_context() で文脈を追加すると、
-エラーチェーンとして階層的にたどれる
+When you add context with .with_context(),
+you can traverse the error chain hierarchically.
 ```
 
 ```
 ┌────────────────────────────────────────────┐
-│  使い分けフローチャート                      │
+│  Decision Flowchart                        │
 │                                            │
-│  ライブラリ開発？                           │
-│    ├── Yes → thiserror で具体的なエラー型   │
-│    │         (利用者が match できる)         │
+│  Library development?                      │
+│    ├── Yes → thiserror with concrete       │
+│    │         error types                   │
+│    │         (users can match on them)     │
 │    └── No                                  │
-│         アプリケーション開発？              │
+│         Application development?           │
 │           ├── Yes → anyhow                 │
-│           │         (エラーチェーン重視)     │
-│           └── プロトタイプ → anyhow         │
+│           │         (focus on error chains)│
+│           └── Prototype → anyhow           │
 │                                            │
-│  ハイブリッドアプローチ:                    │
-│    ライブラリ層 → thiserror                 │
-│    アプリ層 → anyhow (thiserror を包む)     │
+│  Hybrid approach:                          │
+│    Library layer → thiserror               │
+│    App layer → anyhow (wraps thiserror)    │
 └────────────────────────────────────────────┘
 ```
 
 ---
 
-## 7. 実践的なエラーハンドリングパターン
+## 7. Practical Error Handling Patterns
 
-### 7.1 関数内でのエラー変換
+### 7.1 Error Conversion Within a Function
 
 ```rust
 use std::io;
 use std::num::ParseIntError;
 
-// エラー変換の様々なパターン
+// Various patterns of error conversion
 fn demo_error_conversion() -> Result<(), Box<dyn std::error::Error>> {
-    // map_err: エラー型を変換
+    // map_err: convert the error type
     let _port: u16 = "8080".parse()
         .map_err(|e: ParseIntError| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
-    // From トレイトによる自動変換（? 演算子が使う）
-    // ? は Err(e) を Err(From::from(e)) に変換する
+    // Automatic conversion via the From trait (used by the ? operator)
+    // ? converts Err(e) into Err(From::from(e))
 
-    // ok_or: Option → Result 変換
+    // ok_or: Option → Result conversion
     let env_var = std::env::var("HOME").ok();
     let home = env_var.ok_or_else(|| io::Error::new(
         io::ErrorKind::NotFound,
-        "HOME環境変数が設定されていません"
+        "The HOME environment variable is not set"
     ))?;
     println!("HOME: {}", home);
 
@@ -763,7 +764,7 @@ fn demo_error_conversion() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-### 7.2 エラーのログとリカバリ
+### 7.2 Logging and Recovering from Errors
 
 ```rust
 fn process_items(items: &[&str]) -> Vec<i32> {
@@ -772,8 +773,8 @@ fn process_items(items: &[&str]) -> Vec<i32> {
             match item.parse::<i32>() {
                 Ok(n) => Some(n),
                 Err(e) => {
-                    eprintln!("警告: '{}' をパースできません: {}", item, e);
-                    None  // エラーをスキップして続行
+                    eprintln!("Warning: cannot parse '{}': {}", item, e);
+                    None  // skip the error and continue
                 }
             }
         })
@@ -784,7 +785,7 @@ fn process_with_defaults(items: &[&str]) -> Vec<i32> {
     items.iter()
         .map(|item| {
             item.parse::<i32>().unwrap_or_else(|_| {
-                eprintln!("'{}' をデフォルト値 0 に置換", item);
+                eprintln!("Replacing '{}' with the default value 0", item);
                 0
             })
         })
@@ -795,14 +796,14 @@ fn main() {
     let items = vec!["1", "abc", "3", "def", "5"];
 
     let filtered = process_items(&items);
-    println!("フィルタ結果: {:?}", filtered); // [1, 3, 5]
+    println!("Filtered result: {:?}", filtered); // [1, 3, 5]
 
     let defaulted = process_with_defaults(&items);
-    println!("デフォルト結果: {:?}", defaulted); // [1, 0, 3, 0, 5]
+    println!("Default result: {:?}", defaulted); // [1, 0, 3, 0, 5]
 }
 ```
 
-### 7.3 リトライパターン
+### 7.3 Retry Pattern
 
 ```rust
 use std::time::Duration;
@@ -816,9 +817,9 @@ fn unreliable_operation() -> Result<String, String> {
         .subsec_nanos();
 
     if secs % 3 == 0 {
-        Ok("成功！".to_string())
+        Ok("Success!".to_string())
     } else {
-        Err("一時的なエラー".to_string())
+        Err("Transient error".to_string())
     }
 }
 
@@ -832,7 +833,7 @@ where
         match operation() {
             Ok(value) => return Ok(value),
             Err(e) => {
-                eprintln!("試行 {}/{}: {}", attempt, max_retries, e);
+                eprintln!("Attempt {}/{}: {}", attempt, max_retries, e);
                 last_err = Some(e);
                 if attempt < max_retries {
                     thread::sleep(delay);
@@ -845,13 +846,13 @@ where
 
 fn main() {
     match retry(unreliable_operation, 5, Duration::from_millis(100)) {
-        Ok(result) => println!("結果: {}", result),
-        Err(e) => eprintln!("全ての試行が失敗: {}", e),
+        Ok(result) => println!("Result: {}", result),
+        Err(e) => eprintln!("All attempts failed: {}", e),
     }
 }
 ```
 
-### 7.4 エラーの集約
+### 7.4 Aggregating Errors
 
 ```rust
 fn validate_user_input(
@@ -862,16 +863,16 @@ fn validate_user_input(
     let mut errors = Vec::new();
 
     if name.is_empty() {
-        errors.push("名前は必須です".to_string());
+        errors.push("Name is required".to_string());
     }
 
     if !email.contains('@') {
-        errors.push("メールアドレスの形式が不正です".to_string());
+        errors.push("Invalid email address format".to_string());
     }
 
     let age_result = age.parse::<u32>();
     if age_result.is_err() {
-        errors.push("年齢は数値で入力してください".to_string());
+        errors.push("Age must be a number".to_string());
     }
 
     if !errors.is_empty() {
@@ -888,10 +889,10 @@ fn validate_user_input(
 fn main() {
     match validate_user_input("", "invalid-email", "abc") {
         Ok((name, email, age)) => {
-            println!("有効: {} / {} / {}歳", name, email, age);
+            println!("Valid: {} / {} / age {}", name, email, age);
         }
         Err(errors) => {
-            eprintln!("入力エラー:");
+            eprintln!("Input errors:");
             for error in &errors {
                 eprintln!("  - {}", error);
             }
@@ -902,102 +903,102 @@ fn main() {
 
 ---
 
-## 8. 比較表
+## 8. Comparison Tables
 
-### 8.1 エラー処理手法の比較
+### 8.1 Comparison of Error Handling Techniques
 
-| 手法 | 用途 | 利点 | 欠点 |
+| Technique | Use Case | Advantages | Disadvantages |
 |------|------|------|------|
-| `match` | 個別パターン処理 | 網羅的、安全 | 冗長 |
-| `?` | エラー伝播 | 簡潔 | エラー変換が必要 |
-| `unwrap()` | テスト/プロト | 短い | 本番で危険 |
-| `expect("msg")` | テスト/不変条件 | メッセージ付き | 本番で危険 |
-| `unwrap_or(v)` | デフォルト値 | 安全、簡潔 | 常にデフォルト計算 |
-| `unwrap_or_else(f)` | 遅延デフォルト | 安全、効率的 | やや冗長 |
-| `unwrap_or_default()` | Default実装型 | 非常に簡潔 | Default必要 |
-| `if let` | 特定パターンのみ | 簡潔 | Err/None 処理なし |
-| `let-else` | 早期リターン | 読みやすい | Rust 2021+ |
-| `map` / `and_then` | 変換チェーン | 関数型スタイル | 慣れが必要 |
+| `match` | Handling individual patterns | Exhaustive, safe | Verbose |
+| `?` | Error propagation | Concise | Requires error conversion |
+| `unwrap()` | Tests/prototypes | Short | Dangerous in production |
+| `expect("msg")` | Tests/invariants | Has a message | Dangerous in production |
+| `unwrap_or(v)` | Default values | Safe, concise | Always computes the default |
+| `unwrap_or_else(f)` | Lazy default | Safe, efficient | Slightly verbose |
+| `unwrap_or_default()` | Types implementing Default | Very concise | Requires Default |
+| `if let` | Specific pattern only | Concise | No Err/None handling |
+| `let-else` | Early return | Readable | Rust 2021+ |
+| `map` / `and_then` | Conversion chain | Functional style | Takes getting used to |
 
 ### 8.2 thiserror vs anyhow
 
-| 特性 | thiserror | anyhow |
+| Characteristic | thiserror | anyhow |
 |------|-----------|--------|
-| 目的 | ライブラリのエラー型定義 | アプリのエラー処理 |
-| エラー型 | 具体的な enum | anyhow::Error (型消去) |
-| パターンマッチ | 可能 | downcast が必要 |
-| エラーチェーン | 手動で source 実装 | 自動 (context) |
-| From 実装 | #[from] で自動 | 暗黙の型変換 |
-| 推奨場面 | 公開API、ライブラリ | バイナリ、CLI、サーバー |
-| コードサイズ | やや多い | 少ない |
-| 依存クレート数 | 少ない（proc-macro） | 少ない |
+| Purpose | Defining error types for libraries | Error handling for applications |
+| Error type | Concrete enum | anyhow::Error (type-erased) |
+| Pattern matching | Possible | Requires downcast |
+| Error chain | Manually implement source | Automatic (context) |
+| From implementation | Automatic via #[from] | Implicit type conversion |
+| Recommended for | Public APIs, libraries | Binaries, CLIs, servers |
+| Code size | Slightly larger | Smaller |
+| Number of dependencies | Few (proc-macro) | Few |
 
-### 8.3 エラー型の選択ガイド
+### 8.3 Error Type Selection Guide
 
-| 場面 | 推奨エラー型 | 理由 |
+| Scenario | Recommended Error Type | Rationale |
 |------|-------------|------|
-| ライブラリの公開API | thiserror enum | 利用者がパターンマッチ可能 |
-| CLI アプリ | anyhow::Error | エラーメッセージが重要 |
-| Web サーバー | thiserror + anyhow | レスポンスコードのマッピング |
-| プロトタイプ | anyhow / Box<dyn Error> | 素早い開発 |
-| 内部モジュール | thiserror enum | 型安全なエラー処理 |
-| テストコード | unwrap / expect | 失敗時のスタックトレース |
+| Public library API | thiserror enum | Allows users to pattern-match |
+| CLI app | anyhow::Error | Error messages are important |
+| Web server | thiserror + anyhow | Mapping to response codes |
+| Prototype | anyhow / Box<dyn Error> | Rapid development |
+| Internal modules | thiserror enum | Type-safe error handling |
+| Test code | unwrap / expect | Stack trace on failure |
 
 ---
 
-## 9. アンチパターン
+## 9. Anti-patterns
 
-### アンチパターン1: unwrap の乱用
+### Anti-pattern 1: Overusing unwrap
 
 ```rust
-// BAD: 本番コードで unwrap
+// BAD: using unwrap in production code
 fn get_port() -> u16 {
     std::env::var("PORT").unwrap().parse().unwrap()
 }
 
-// GOOD: 適切なエラー処理
+// GOOD: appropriate error handling
 fn get_port_good() -> Result<u16, anyhow::Error> {
     let port = std::env::var("PORT")
-        .context("PORT 環境変数が設定されていません")?
+        .context("The PORT environment variable is not set")?
         .parse()
-        .context("PORT の値が数値ではありません")?;
+        .context("The value of PORT is not a number")?;
     Ok(port)
 }
 ```
 
-### アンチパターン2: エラーの握りつぶし
+### Anti-pattern 2: Swallowing Errors
 
 ```rust
-// BAD: エラーを無視
+// BAD: ignoring the error
 fn save_data(data: &str) {
-    let _ = std::fs::write("data.txt", data);  // エラーを捨てている！
+    let _ = std::fs::write("data.txt", data);  // The error is discarded!
 }
 
-// GOOD: エラーを適切に伝播
+// GOOD: propagate the error appropriately
 fn save_data_good(data: &str) -> Result<(), std::io::Error> {
     std::fs::write("data.txt", data)?;
     Ok(())
 }
 
-// GOOD: エラーを明示的にログして続行
+// GOOD: log the error explicitly and continue
 fn save_data_with_logging(data: &str) {
     if let Err(e) = std::fs::write("data.txt", data) {
-        eprintln!("警告: データの保存に失敗しました: {}", e);
-        // 重要でない場合は続行
+        eprintln!("Warning: failed to save data: {}", e);
+        // Continue if not critical
     }
 }
 ```
 
-### アンチパターン3: 過度に広いエラー型
+### Anti-pattern 3: Overly Broad Error Types
 
 ```rust
-// BAD: Box<dyn Error> を安易に使う（型情報が失われる）
+// BAD: casually using Box<dyn Error> (loses type information)
 fn do_something() -> Result<(), Box<dyn std::error::Error>> {
-    // 何のエラーが返るか呼び出し元にわからない
+    // The caller cannot tell what kinds of errors are returned
     Ok(())
 }
 
-// GOOD: 具体的なエラー型を定義
+// GOOD: define a concrete error type
 #[derive(Debug, thiserror::Error)]
 enum MyError {
     #[error("IO error: {0}")]
@@ -1011,14 +1012,14 @@ fn do_something_good() -> Result<(), MyError> {
 }
 ```
 
-### アンチパターン4: panic! をエラーハンドリングに使う
+### Anti-pattern 4: Using panic! for Error Handling
 
 ```rust
-// BAD: パニックで「エラーハンドリング」
+// BAD: "error handling" via panic
 fn parse_config(s: &str) -> Config {
     let parts: Vec<&str> = s.split(':').collect();
     if parts.len() != 2 {
-        panic!("不正な設定形式");  // パニックはバグ検出用！
+        panic!("Invalid configuration format");  // panic is for detecting bugs!
     }
     Config {
         key: parts[0].to_string(),
@@ -1026,11 +1027,11 @@ fn parse_config(s: &str) -> Config {
     }
 }
 
-// GOOD: Result で返す
+// GOOD: return a Result
 fn parse_config_good(s: &str) -> Result<Config, String> {
     let parts: Vec<&str> = s.split(':').collect();
     if parts.len() != 2 {
-        return Err(format!("不正な設定形式: '{}'", s));
+        return Err(format!("Invalid configuration format: '{}'", s));
     }
     Ok(Config {
         key: parts[0].to_string(),
@@ -1044,67 +1045,67 @@ struct Config {
 }
 ```
 
-### アンチパターン5: エラーメッセージの情報不足
+### Anti-pattern 5: Insufficiently Informative Error Messages
 
 ```rust
-// BAD: 曖昧なエラーメッセージ
+// BAD: vague error message
 fn load_user(id: u64) -> Result<String, String> {
-    Err("エラー".to_string())  // 何のエラー？どこで？
+    Err("error".to_string())  // What error? Where?
 }
 
-// GOOD: 文脈付きのエラーメッセージ
+// GOOD: error message with context
 fn load_user_good(id: u64) -> Result<String, anyhow::Error> {
     let path = format!("/data/users/{}.json", id);
     let content = std::fs::read_to_string(&path)
-        .with_context(|| format!("ユーザーID {} のファイル '{}' を読み込めません", id, path))?;
+        .with_context(|| format!("Cannot read file '{}' for user ID {}", path, id))?;
     let user: serde_json::Value = serde_json::from_str(&content)
-        .with_context(|| format!("ユーザーID {} のJSONパースに失敗", id))?;
-    Ok(user["name"].as_str().unwrap_or("不明").to_string())
+        .with_context(|| format!("Failed to parse JSON for user ID {}", id))?;
+    Ok(user["name"].as_str().unwrap_or("Unknown").to_string())
 }
 ```
 
 
 ---
 
-## 実践演習
+## Hands-on Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that satisfies the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate the input data
+- Implement appropriate error handling
+- Also write test code
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Template for the basic implementation
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Practice for basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate the input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("The input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main logic for data processing"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Retrieve the processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1113,26 +1114,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "An exception should be raised"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation by adding the following functionality.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Advanced patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Practice for advanced patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1140,7 +1141,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1151,14 +1152,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Look up by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Remove by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1166,7 +1167,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1174,44 +1175,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1220,7 +1221,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1235,35 +1236,35 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient version: {slow_time:.4f} sec")
+    print(f"Efficient version:   {fast_time:.6f} sec")
+    print(f"Speedup factor:     {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key points:**
+- Be conscious of the algorithm's computational complexity
+- Choose appropriate data structures
+- Measure the effect with a benchmark
 ---
 
 ## 10. FAQ
 
-### Q1: panic! はいつ使うべきですか？
+### Q1: When should I use panic!?
 
-**A:** 以下のケースのみです:
-- **プログラムの不変条件が破れた場合** (バグ)
-- **テストコード** (assert!, unwrap)
-- **プロトタイプ段階** (後で適切なエラー処理に置き換え)
-- **回復不可能な初期化エラー** (main の最初期のみ)
-- **assert! / debug_assert!** による契約プログラミング
+**A:** Only in the following cases:
+- **When an invariant of the program is broken** (a bug)
+- **In test code** (assert!, unwrap)
+- **In the prototyping stage** (replace with proper error handling later)
+- **For unrecoverable initialization errors** (only at the very start of main)
+- **assert! / debug_assert!** for contract programming
 
-本番コードのビジネスロジック内では原則として Result を使用してください。
+In production business logic, you should always use `Result` as a rule.
 
-### Q2: `?` 演算子は main 関数で使えますか？
+### Q2: Can the `?` operator be used in the main function?
 
-**A:** はい。main の戻り値型を `Result` にすれば使えます:
+**A:** Yes. You can use it by setting the return type of `main` to `Result`:
 
 ```rust
 fn main() -> Result<(), anyhow::Error> {
@@ -1273,82 +1274,82 @@ fn main() -> Result<(), anyhow::Error> {
 }
 ```
 
-`std::process::ExitCode` を使えばより細かい終了コード制御も可能です:
+For finer control over the exit code, you can use `std::process::ExitCode`:
 
 ```rust
 fn main() -> std::process::ExitCode {
     match run() {
         Ok(()) => std::process::ExitCode::SUCCESS,
         Err(e) => {
-            eprintln!("エラー: {:#}", e);
+            eprintln!("Error: {:#}", e);
             std::process::ExitCode::FAILURE
         }
     }
 }
 
 fn run() -> anyhow::Result<()> {
-    // ここで ? が使える
+    // ? can be used here
     Ok(())
 }
 ```
 
-### Q3: Option と Result を相互変換するには？
+### Q3: How do I convert between Option and Result?
 
 **A:**
 ```rust
 // Option → Result
 let opt: Option<i32> = Some(42);
-let res: Result<i32, &str> = opt.ok_or("値がありません");
+let res: Result<i32, &str> = opt.ok_or("Value is missing");
 
-// Option → Result (遅延評価)
-let res2: Result<i32, String> = opt.ok_or_else(|| format!("値が見つかりません"));
+// Option → Result (lazy evaluation)
+let res2: Result<i32, String> = opt.ok_or_else(|| format!("Value not found"));
 
 // Result → Option (Ok → Some, Err → None)
 let res: Result<i32, String> = Ok(42);
-let opt: Option<i32> = res.ok();  // Err は None になる
+let opt: Option<i32> = res.ok();  // Err becomes None
 
 // Result → Option (Ok → None, Err → Some)
 let res: Result<i32, String> = Err("error".to_string());
-let opt: Option<String> = res.err();  // Ok は None になる
+let opt: Option<String> = res.err();  // Ok becomes None
 ```
 
-### Q4: `expect` と `unwrap` はどう使い分けますか？
+### Q4: How should I choose between `expect` and `unwrap`?
 
-**A:** `expect` は `unwrap` の上位互換です。パニック時にカスタムメッセージを表示できるため、デバッグが容易になります。プロトタイプ段階でも `expect` を使うことを推奨します。
+**A:** `expect` is a strict superset of `unwrap`. Because it can display a custom message on panic, debugging becomes easier. Even at the prototyping stage, using `expect` is recommended.
 
 ```rust
-// unwrap: "called `Result::unwrap()` on an `Err` value: ..." というメッセージ
+// unwrap: a message like "called `Result::unwrap()` on an `Err` value: ..."
 let file = File::open("config.toml").unwrap();
 
-// expect: カスタムメッセージでなぜこの操作が成功すべきかを説明
+// expect: a custom message explaining why this operation should succeed
 let file = File::open("config.toml")
-    .expect("config.toml はプロジェクトルートに存在するはず");
+    .expect("config.toml should exist at the project root");
 ```
 
-### Q5: `Box<dyn Error>` と `anyhow::Error` の違いは？
+### Q5: What is the difference between `Box<dyn Error>` and `anyhow::Error`?
 
 **A:**
-- `Box<dyn Error>`: 標準ライブラリのみで使える型消去されたエラー型。最小限の機能
-- `anyhow::Error`: `context()` によるエラーチェーン、`downcast()` による元の型の復元、`{:#}` による詳細表示など、豊富な機能を提供
+- `Box<dyn Error>`: A type-erased error type usable with only the standard library. Minimal functionality.
+- `anyhow::Error`: Provides rich features such as error chains via `context()`, restoration of the original type via `downcast()`, and detailed display via `{:#}`.
 
-実務では `anyhow::Error` の方が圧倒的に便利です。ただし、ライブラリの公開APIには使わないでください。
+In practice, `anyhow::Error` is overwhelmingly more convenient. However, do not use it for the public API of a library.
 
-### Q6: エラー型を設計する際のベストプラクティスは？
+### Q6: What are the best practices for designing an error type?
 
 **A:**
-1. **ライブラリ**: `thiserror` で enum を定義。利用者が `match` で分岐できるようにする
-2. **アプリケーション**: `anyhow` で `context` を活用。エラーメッセージの質を重視
-3. **エラーメッセージ**: 「何が起こったか」「何をしようとしていたか」「どう対処すべきか」を含める
-4. **エラーの粒度**: 呼び出し元が異なる処理をする必要がある場合のみバリアントを分ける
+1. **Library**: Define an enum with `thiserror`. Allow users to branch with `match`.
+2. **Application**: Leverage `context` with `anyhow`. Place importance on error message quality.
+3. **Error messages**: Include "what happened," "what was being attempted," and "how to address it."
+4. **Granularity of errors**: Split into variants only when the caller needs to handle them differently.
 
 ---
 
-## 11. std::error::Error トレイトの詳細
+## 11. Details of the std::error::Error Trait
 
-### 11.1 Error トレイトの定義
+### 11.1 Definition of the Error Trait
 
 ```rust
-// std::error::Error の定義（簡略版）
+// Definition of std::error::Error (simplified)
 pub trait Error: Debug + Display {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         None
@@ -1356,27 +1357,27 @@ pub trait Error: Debug + Display {
 }
 ```
 
-`Error` トレイトは `Debug` と `Display` の両方をスーパートレイトとして要求する。これにより、エラー型は常に人間が読める形式（`Display`）と開発者向けの詳細形式（`Debug`）の両方で表示できる。
+The `Error` trait requires both `Debug` and `Display` as supertraits. As a result, error types can always be displayed in both a human-readable form (`Display`) and a developer-oriented detailed form (`Debug`).
 
-### 11.2 エラーチェーンの走査
+### 11.2 Traversing the Error Chain
 
 ```rust
 use std::error::Error;
 use std::fmt;
 
-// エラーチェーンを全て表示するヘルパー関数
+// Helper function to display the entire error chain
 fn print_error_chain(err: &dyn Error) {
-    eprintln!("エラー: {}", err);
+    eprintln!("Error: {}", err);
     let mut current = err.source();
     let mut depth = 1;
     while let Some(cause) = current {
-        eprintln!("  {}. 原因: {}", depth, cause);
+        eprintln!("  {}. Cause: {}", depth, cause);
         current = cause.source();
         depth += 1;
     }
 }
 
-// カスタムエラー型でチェーンを構成
+// Build a chain with a custom error type
 #[derive(Debug)]
 struct ServiceError {
     message: String,
@@ -1385,7 +1386,7 @@ struct ServiceError {
 
 impl fmt::Display for ServiceError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "サービスエラー: {}", self.message)
+        write!(f, "Service error: {}", self.message)
     }
 }
 
@@ -1411,54 +1412,54 @@ impl ServiceError {
 fn connect_database() -> Result<(), ServiceError> {
     let io_err = std::io::Error::new(
         std::io::ErrorKind::ConnectionRefused,
-        "ポート5432への接続が拒否されました"
+        "Connection to port 5432 was refused"
     );
-    Err(ServiceError::with_source("データベース接続に失敗", io_err))
+    Err(ServiceError::with_source("Failed to connect to the database", io_err))
 }
 
 fn main() {
     if let Err(e) = connect_database() {
         print_error_chain(&e);
-        // 出力:
-        // エラー: サービスエラー: データベース接続に失敗
-        //   1. 原因: ポート5432への接続が拒否されました
+        // Output:
+        // Error: Service error: Failed to connect to the database
+        //   1. Cause: Connection to port 5432 was refused
     }
 }
 ```
 
-### 11.3 Send + Sync とエラー型
+### 11.3 Send + Sync and Error Types
 
-マルチスレッド環境でエラーを安全に扱うためには `Send + Sync` バウンドが重要である。
+To handle errors safely in a multithreaded environment, the `Send + Sync` bounds are important.
 
 ```rust
 use std::error::Error;
 
-// スレッド安全なエラー型
+// Thread-safe error type
 type BoxError = Box<dyn Error + Send + Sync + 'static>;
 
-// スレッド間でエラーを送信する例
+// Example of sending errors between threads
 fn spawn_worker() -> Result<String, BoxError> {
     let handle = std::thread::spawn(|| -> Result<String, BoxError> {
         let content = std::fs::read_to_string("data.txt")?;
         let number: i32 = content.trim().parse()?;
-        Ok(format!("結果: {}", number * 2))
+        Ok(format!("Result: {}", number * 2))
     });
 
     match handle.join() {
         Ok(result) => result,
-        Err(_) => Err("ワーカースレッドがパニックしました".into()),
+        Err(_) => Err("Worker thread panicked".into()),
     }
 }
 
 fn main() {
     match spawn_worker() {
         Ok(value) => println!("{}", value),
-        Err(e) => eprintln!("ワーカーエラー: {}", e),
+        Err(e) => eprintln!("Worker error: {}", e),
     }
 }
 ```
 
-### 11.4 ダウンキャストによるエラー型の復元
+### 11.4 Restoring the Error Type via Downcasting
 
 ```rust
 use std::error::Error;
@@ -1471,16 +1472,16 @@ fn might_fail() -> Result<(), Box<dyn Error>> {
 
 fn main() {
     if let Err(e) = might_fail() {
-        // ダウンキャスト: Box<dyn Error> → 具体的な型
+        // Downcast: Box<dyn Error> → concrete type
         if let Some(parse_err) = e.downcast_ref::<std::num::ParseIntError>() {
-            eprintln!("パースエラーを検出: {}", parse_err);
+            eprintln!("Detected parse error: {}", parse_err);
         } else if let Some(io_err) = e.downcast_ref::<std::io::Error>() {
-            eprintln!("IOエラーを検出: {}", io_err);
+            eprintln!("Detected IO error: {}", io_err);
         } else {
-            eprintln!("不明なエラー: {}", e);
+            eprintln!("Unknown error: {}", e);
         }
 
-        // downcast で所有権を取得することも可能
+        // It is also possible to take ownership via downcast
         // let concrete: Box<std::num::ParseIntError> = e.downcast().unwrap();
     }
 }
@@ -1488,60 +1489,60 @@ fn main() {
 
 ---
 
-## 12. 実務で使われるエラーハンドリング設計パターン
+## 12. Practical Error-Handling Design Patterns
 
-### 12.1 レイヤードアーキテクチャでのエラー設計
+### 12.1 Error Design in a Layered Architecture
 
 ```rust
-// === インフラ層 ===
+// === Infrastructure layer ===
 mod infra {
     use thiserror::Error;
 
     #[derive(Debug, Error)]
     pub enum InfraError {
-        #[error("DB接続エラー: {0}")]
+        #[error("DB connection error: {0}")]
         Database(String),
-        #[error("ネットワークエラー: {0}")]
+        #[error("Network error: {0}")]
         Network(String),
-        #[error("ファイルシステムエラー: {0}")]
+        #[error("Filesystem error: {0}")]
         FileSystem(#[from] std::io::Error),
     }
 }
 
-// === ドメイン層 ===
+// === Domain layer ===
 mod domain {
     use thiserror::Error;
 
     #[derive(Debug, Error)]
     pub enum DomainError {
-        #[error("ユーザーが見つかりません: ID={0}")]
+        #[error("User not found: ID={0}")]
         UserNotFound(u64),
-        #[error("残高不足: 必要額={required}, 現在額={current}")]
+        #[error("Insufficient balance: required={required}, current={current}")]
         InsufficientBalance { required: u64, current: u64 },
-        #[error("不正な操作: {0}")]
+        #[error("Invalid operation: {0}")]
         InvalidOperation(String),
-        #[error("インフラエラー")]
+        #[error("Infrastructure error")]
         Infrastructure(#[from] super::infra::InfraError),
     }
 }
 
-// === アプリケーション層 ===
+// === Application layer ===
 mod application {
     use anyhow::{Context, Result};
     use super::domain::DomainError;
 
     pub fn transfer_money(from: u64, to: u64, amount: u64) -> Result<()> {
-        // ドメインエラーは anyhow でラップされ、コンテキストが付与される
+        // Domain errors are wrapped by anyhow and given context
         let _from_user = find_user(from)
-            .with_context(|| format!("送金元ユーザー {} の取得に失敗", from))?;
+            .with_context(|| format!("Failed to retrieve sender user {}", from))?;
         let _to_user = find_user(to)
-            .with_context(|| format!("送金先ユーザー {} の取得に失敗", to))?;
+            .with_context(|| format!("Failed to retrieve receiver user {}", to))?;
 
-        // ドメインバリデーション
+        // Domain validation
         validate_transfer(amount)
-            .context("送金バリデーションに失敗")?;
+            .context("Transfer validation failed")?;
 
-        println!("送金成功: {} → {} ({}円)", from, to, amount);
+        println!("Transfer succeeded: {} → {} ({} yen)", from, to, amount);
         Ok(())
     }
 
@@ -1555,7 +1556,7 @@ mod application {
 
     fn validate_transfer(amount: u64) -> Result<(), DomainError> {
         if amount == 0 {
-            Err(DomainError::InvalidOperation("送金額は0より大きくなければなりません".into()))
+            Err(DomainError::InvalidOperation("Transfer amount must be greater than 0".into()))
         } else {
             Ok(())
         }
@@ -1563,20 +1564,20 @@ mod application {
 }
 ```
 
-### 12.2 HTTP API でのエラーマッピング
+### 12.2 Error Mapping in an HTTP API
 
 ```rust
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 enum ApiError {
-    #[error("リソースが見つかりません: {0}")]
+    #[error("Resource not found: {0}")]
     NotFound(String),
-    #[error("認証エラー: {0}")]
+    #[error("Authentication error: {0}")]
     Unauthorized(String),
-    #[error("バリデーションエラー: {0}")]
+    #[error("Validation error: {0}")]
     BadRequest(String),
-    #[error("内部エラー")]
+    #[error("Internal error")]
     Internal(#[source] anyhow::Error),
 }
 
@@ -1601,10 +1602,10 @@ impl ApiError {
 
 fn handle_request(path: &str) -> Result<String, ApiError> {
     match path {
-        "/users/1" => Ok(r#"{"id": 1, "name": "田中"}"#.to_string()),
-        "/users/0" => Err(ApiError::NotFound("ユーザーID 0".to_string())),
-        "/admin" => Err(ApiError::Unauthorized("管理者権限が必要です".to_string())),
-        _ => Err(ApiError::NotFound(format!("パス '{}'", path))),
+        "/users/1" => Ok(r#"{"id": 1, "name": "Tanaka"}"#.to_string()),
+        "/users/0" => Err(ApiError::NotFound("User ID 0".to_string())),
+        "/admin" => Err(ApiError::Unauthorized("Administrator privileges required".to_string())),
+        _ => Err(ApiError::NotFound(format!("path '{}'", path))),
     }
 }
 
@@ -1624,61 +1625,61 @@ fn main() {
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining hands-on experience is the most important. Beyond theory, writing code and verifying its behavior deepens understanding.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What mistakes do beginners commonly make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the basics and jumping into advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently applied in everyday development work. It becomes especially important during code reviews and architectural design.
 
 ---
 
-## 13. まとめ
+## 13. Summary
 
-| 概念 | 要点 |
+| Concept | Key Point |
 |------|------|
-| Option<T> | 値の有無を型で表現。None は正常な不在 |
-| Result<T, E> | 成功/失敗を型で表現。全エラーパスを明示 |
-| ? 演算子 | Err/None を早期リターンする構文糖衣 |
-| From トレイト | ? でのエラー型自動変換の仕組み |
-| thiserror | ライブラリ向け。カスタムエラー型の derive |
-| anyhow | アプリ向け。エラーチェーンと context |
-| panic! | 回復不能なバグのみ。本番ロジックでは使わない |
-| コンビネータ | map/and_then/or_else で関数型エラー処理 |
-| エラー集約 | Vec<Error> で複数エラーを一括報告 |
-| リトライ | Result を返す操作の再試行パターン |
-| Error トレイト | Debug + Display。source() でチェーン走査 |
-| Send + Sync | マルチスレッドでのエラー転送に必須 |
-| ダウンキャスト | Box<dyn Error> から具体型を復元 |
-| レイヤード設計 | インフラ→ドメイン→アプリで段階的にエラー変換 |
+| Option<T> | Express the presence/absence of a value through types. None is a normal absence. |
+| Result<T, E> | Express success/failure through types. Make all error paths explicit. |
+| ? operator | Syntactic sugar for early-returning Err/None. |
+| From trait | The mechanism for automatic error type conversion in ?. |
+| thiserror | For libraries. Derive macro for custom error types. |
+| anyhow | For applications. Error chains and context. |
+| panic! | For unrecoverable bugs only. Do not use it in production logic. |
+| Combinators | Functional error handling with map/and_then/or_else. |
+| Error aggregation | Use Vec<Error> to report multiple errors at once. |
+| Retry | Pattern for retrying operations that return Result. |
+| Error trait | Debug + Display. Traverse the chain via source(). |
+| Send + Sync | Required for transferring errors in multithreaded code. |
+| Downcast | Restore the concrete type from Box<dyn Error>. |
+| Layered design | Convert errors stepwise across infrastructure → domain → application. |
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Reads
 
-- [04-collections-iterators.md](04-collections-iterators.md) -- コレクションとイテレータ
-- [../01-advanced/02-closures-fn-traits.md](../01-advanced/02-closures-fn-traits.md) -- クロージャと Fn トレイト
-- [../04-ecosystem/04-best-practices.md](../04-ecosystem/04-best-practices.md) -- エラー設計のベストプラクティス
+- [04-collections-iterators.md](04-collections-iterators.md) -- Collections and iterators
+- [../01-advanced/02-closures-fn-traits.md](../01-advanced/02-closures-fn-traits.md) -- Closures and Fn traits
+- [../04-ecosystem/04-best-practices.md](../04-ecosystem/04-best-practices.md) -- Best practices for error design
 
 ---
 
-## 14. 参考文献
+## 14. References
 
 1. **The Rust Programming Language - Ch.9 Error Handling** -- https://doc.rust-lang.org/book/ch09-00-error-handling.html
-2. **thiserror ドキュメント** -- https://docs.rs/thiserror/
-3. **anyhow ドキュメント** -- https://docs.rs/anyhow/
+2. **thiserror Documentation** -- https://docs.rs/thiserror/
+3. **anyhow Documentation** -- https://docs.rs/anyhow/
 4. **Rust Error Handling Best Practices (Andrew Gallant)** -- https://blog.burntsushi.net/rust-error-handling/
 5. **The Rust API Guidelines - Error Handling** -- https://rust-lang.github.io/api-guidelines/interoperability.html
 6. **Error Handling in Rust (Nick Cameron)** -- https://www.ncameron.org/blog/error-handling-in-rust/
 
 ---
 
-## 参考文献
+## References
 
-- [MDN Web Docs](https://developer.mozilla.org/) - Web技術のリファレンス
-- [Wikipedia](https://ja.wikipedia.org/) - 技術概念の概要
+- [MDN Web Docs](https://developer.mozilla.org/) - Reference for web technologies
+- [Wikipedia](https://ja.wikipedia.org/) - Overview of technical concepts
