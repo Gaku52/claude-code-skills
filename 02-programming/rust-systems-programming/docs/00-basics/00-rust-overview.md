@@ -1,123 +1,124 @@
-# Rust概要 -- 安全性・パフォーマンス・所有権が融合したシステムプログラミング言語
+# Rust Overview -- A Systems Programming Language That Combines Safety, Performance, and Ownership
 
-> Rustは「安全性」「速度」「並行性」の3つを同時に達成する唯一のシステムプログラミング言語であり、ガベージコレクタなしでメモリ安全を保証する。
-
----
-
-## この章で学ぶこと
-
-1. **Rustの設計哲学** -- ゼロコスト抽象化・所有権・型安全の3本柱を理解する
-2. **他言語との違い** -- C/C++/Go/Pythonとの比較で立ち位置を把握する
-3. **エコシステムの全体像** -- Cargo、crates.io、ツールチェーンの構成を掴む
-4. **言語の基本構文** -- 変数、関数、制御フロー、パターンマッチングの基礎を学ぶ
-5. **実践的な開発フロー** -- プロジェクト作成からテスト・ドキュメント生成までの一連の流れを体験する
-
-
-## 前提知識
-
-このガイドを読む前に、以下の知識があると理解が深まります:
-
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
+> Rust is the only systems programming language that simultaneously achieves "safety," "speed," and "concurrency," guaranteeing memory safety without a garbage collector.
 
 ---
 
-## 1. Rustの歴史と設計哲学
+## What You Will Learn in This Chapter
 
-### 1.1 誕生の経緯
+1. **Rust's design philosophy** -- Understand the three pillars of zero-cost abstractions, ownership, and type safety
+2. **Differences from other languages** -- Grasp Rust's positioning through comparison with C/C++/Go/Python
+3. **The big picture of the ecosystem** -- Get a handle on Cargo, crates.io, and the structure of the toolchain
+4. **The basic syntax of the language** -- Learn the basics of variables, functions, control flow, and pattern matching
+5. **A practical development workflow** -- Experience the entire flow from project creation to testing and documentation generation
+
+## Prerequisite Knowledge
+
+Your understanding will be deeper if you have the following knowledge before reading this guide:
+
+- Basic programming knowledge
+- Understanding of related fundamental concepts
+
+---
+
+## 1. The History and Design Philosophy of Rust
+
+### 1.1 The Origins
 
 ```
 +-----------------------------------------------------------+
-|  2006  Graydon Hoare が個人プロジェクトとして開始          |
-|  2009  Mozilla が公式にスポンサー                          |
-|  2010  初の公開発表                                        |
-|  2012  Rust 0.1 リリース（初の公式プレリリース）           |
-|  2015  Rust 1.0 安定版リリース                             |
-|  2018  Rust 2018 Edition (NLL, async 準備)                 |
-|  2020  Mozilla リストラ後もコミュニティが継続               |
-|  2021  Rust 2021 Edition / Rust Foundation 設立            |
-|  2022  Linux カーネルが Rust を公式サポート                |
+|  2006  Graydon Hoare started it as a personal project      |
+|  2009  Mozilla officially sponsored it                     |
+|  2010  First public announcement                           |
+|  2012  Rust 0.1 released (first official pre-release)      |
+|  2015  Rust 1.0 stable release                             |
+|  2018  Rust 2018 Edition (NLL, async preparation)          |
+|  2020  Community continued after Mozilla layoffs           |
+|  2021  Rust 2021 Edition / Rust Foundation established     |
+|  2022  Linux kernel officially supports Rust               |
 |  2024  Rust 2024 Edition                                   |
 +-----------------------------------------------------------+
 ```
 
-Rustは元々、Mozilla のエンジニアである Graydon Hoare が2006年に個人プロジェクトとして開発を始めた言語である。Hoare は C++ でブラウザエンジンの開発に携わる中で、メモリ安全性とパフォーマンスを両立する言語の必要性を感じ、Rust の設計を開始した。
+Rust was originally a language whose development was started in 2006 as a personal project by Graydon Hoare, an engineer at Mozilla. While working on browser engine development with C++, Hoare felt the need for a language that combines memory safety and performance, and so he began designing Rust.
 
-2009年に Mozilla が公式スポンサーとなり、Servo ブラウザエンジンの開発言語として採用された。Servo プロジェクトは Rust の実用性を証明する場となり、並行処理やメモリ安全性に関する多くの知見がフィードバックされた。
+In 2009, Mozilla became the official sponsor and adopted it as the development language for the Servo browser engine. The Servo project became a place that proved Rust's practicality, and a great deal of insight regarding concurrent processing and memory safety was fed back.
 
-2015年5月15日に Rust 1.0 が安定版としてリリースされ、後方互換性の保証が始まった。以降、6週間ごとのリリースサイクルで継続的に改善が続けられている。
+On May 15, 2015, Rust 1.0 was released as a stable version, and the guarantee of backward compatibility began. Since then, continuous improvements have been made on a six-week release cycle.
 
-2021年には Rust Foundation が設立され、AWS、Google、Huawei、Microsoft、Mozilla の5社が創設メンバーとなった。これにより、言語の長期的な持続可能性が確保された。
+In 2021, the Rust Foundation was established, with AWS, Google, Huawei, Microsoft, and Mozilla as the five founding members. This secured the long-term sustainability of the language.
 
-### 1.2 設計原則
+### 1.2 Design Principles
 
 ```
 +---------------------+---------------------+---------------------+
-|  安全性 (Safety)    |  速度 (Speed)       |  並行性 (Concur.)   |
+|  Safety             |  Speed              |  Concurrency        |
 +---------------------+---------------------+---------------------+
-| - 所有権システム    | - ゼロコスト抽象化  | - Send / Sync       |
-| - 借用チェッカー    | - LLVMバックエンド  | - データ競合防止     |
-| - ライフタイム      | - インライン展開    | - fearless concur.  |
-| - Optionでnull排除  | - 単態化           | - async/await       |
-| - Result型でエラー  | - スタック優先      | - チャネル通信       |
-| - unsafe境界の明示  | - SIMD対応         | - Arc/Mutex          |
+| - Ownership system  | - Zero-cost abstr.  | - Send / Sync       |
+| - Borrow checker    | - LLVM backend      | - Data race prev.   |
+| - Lifetimes         | - Inline expansion  | - fearless concur.  |
+| - Option eliminates | - Monomorphization  | - async/await       |
+|   null              | - Stack-first       | - Channel comm.     |
+| - Result for errors | - SIMD support      | - Arc/Mutex         |
+| - Explicit unsafe   |                     |                     |
+|   boundaries        |                     |                     |
 +---------------------+---------------------+---------------------+
 ```
 
-#### ゼロコスト抽象化 (Zero-Cost Abstractions)
+#### Zero-Cost Abstractions
 
-Rustの最も重要な設計原則の一つがゼロコスト抽象化である。Bjarne Stroustrup が C++ で提唱した原則を Rust は徹底している:
+One of Rust's most important design principles is zero-cost abstractions. Rust thoroughly applies the principle that Bjarne Stroustrup advocated in C++:
 
-> 「使わないものにはコストを払わない。使うものについては、手書きでこれ以上効率的に書くことはできない」
+> "What you don't use, you don't pay for. And further, what you do use, you couldn't hand-code any better."
 
-Rustではイテレータ、ジェネリクス、トレイトなどの高レベルな抽象化を使っても、コンパイラが最適化した結果は手書きの低レベルコードと同等の性能を発揮する。
+In Rust, even when you use high-level abstractions such as iterators, generics, and traits, the compiler-optimized result delivers performance equivalent to hand-written low-level code.
 
 ```rust
-// 高レベルなイテレータチェーン
+// High-level iterator chain
 let sum: i32 = (0..1000)
     .filter(|x| x % 2 == 0)
     .map(|x| x * x)
     .sum();
 
-// コンパイラはこれを手書きのループと同等の機械語に最適化する
-// LLVM の最適化パスにより、中間的なイテレータオブジェクトは完全に消去される
+// The compiler optimizes this into machine code equivalent to a hand-written loop.
+// Through LLVM optimization passes, intermediate iterator objects are completely eliminated.
 ```
 
-#### 型安全性 (Type Safety)
+#### Type Safety
 
-Rustの型システムは、C/C++ では実行時にしか発見できない多くのバグをコンパイル時に検出する。null ポインタの代わりに `Option<T>`、例外の代わりに `Result<T, E>` を使うことで、エラー処理のパスが型レベルで強制される。
+Rust's type system detects, at compile time, many bugs that in C/C++ can only be discovered at runtime. By using `Option<T>` instead of null pointers and `Result<T, E>` instead of exceptions, error-handling paths are enforced at the type level.
 
 ```rust
-// null の代わりに Option を使う
+// Use Option instead of null
 fn find_user(id: u64) -> Option<User> {
-    // None を返すことで「見つからなかった」を安全に表現
+    // Returning None safely expresses "not found"
     if id == 0 { return None; }
     Some(User { id, name: "example".to_string() })
 }
 
-// 呼び出し側は None のケースを必ず処理する必要がある
+// The caller must always handle the None case
 match find_user(42) {
-    Some(user) => println!("見つかった: {}", user.name),
-    None => println!("ユーザーが見つかりません"),
+    Some(user) => println!("Found: {}", user.name),
+    None => println!("User not found"),
 }
 ```
 
-#### unsafe の境界
+#### The unsafe Boundary
 
-Rustは完全な安全性を保証しつつも、`unsafe` キーワードによって低レベルな操作を行う「脱出ハッチ」を提供する。これにより、OSのシステムコール、FFI（外部関数インターフェース）、パフォーマンスに特化した最適化が可能になる。
+While Rust guarantees complete safety, it provides an "escape hatch" for performing low-level operations through the `unsafe` keyword. This makes possible OS system calls, FFI (Foreign Function Interface), and performance-specialized optimizations.
 
 ```rust
-// unsafe ブロックでは以下の操作が許可される:
-// 1. 生ポインタのデリファレンス
-// 2. unsafe な関数・メソッドの呼び出し
-// 3. 可変なスタティック変数へのアクセス
-// 4. unsafe トレイトの実装
-// 5. union のフィールドアクセス
+// In an unsafe block, the following operations are permitted:
+// 1. Dereferencing raw pointers
+// 2. Calling unsafe functions and methods
+// 3. Accessing mutable static variables
+// 4. Implementing unsafe traits
+// 5. Accessing fields of a union
 
 fn raw_pointer_example() {
     let mut num = 5;
-    let r1 = &num as *const i32;     // 生ポインタ（不変）
-    let r2 = &mut num as *mut i32;   // 生ポインタ（可変）
+    let r1 = &num as *const i32;     // Raw pointer (immutable)
+    let r2 = &mut num as *mut i32;   // Raw pointer (mutable)
 
     unsafe {
         println!("r1 = {}", *r1);
@@ -127,32 +128,38 @@ fn raw_pointer_example() {
 }
 ```
 
-重要なのは、`unsafe` はコンパイラの安全性チェックを「一部」無効にするだけであり、所有権やライフタイムのルール自体は依然として適用されるという点である。
+The important point is that `unsafe` only disables "some" of the compiler's safety checks; the rules of ownership and lifetimes themselves still apply.
 
-### 1.3 Rustが解決する問題
+### 1.3 Problems Rust Solves
 
-Rustは主に以下の問題を解決するために設計された:
+Rust was designed primarily to solve the following problems:
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ C/C++ の問題              │ Rust の解決策                     │
+│ Problem in C/C++          │ Rust's solution                   │
 ├───────────────────────────┼──────────────────────────────────┤
-│ ダングリングポインタ       │ 所有権 + ライフタイムで防止      │
-│ ダブルフリー              │ ムーブセマンティクスで防止        │
-│ バッファオーバーフロー     │ 境界チェック + スライスで防止    │
-│ データ競合                │ 借用規則 + Send/Sync で防止      │
-│ null ポインタ参照         │ Option<T> で型レベルで防止       │
-│ メモリリーク（一般的）    │ RAII + Drop で自動管理           │
-│ 未初期化変数の使用        │ コンパイラが初期化を強制         │
-│ 整数オーバーフロー        │ デバッグビルドでパニック         │
+│ Dangling pointers         │ Prevented by ownership +          │
+│                           │ lifetimes                        │
+│ Double free               │ Prevented by move semantics       │
+│ Buffer overflow           │ Prevented by bounds checking +    │
+│                           │ slices                           │
+│ Data races                │ Prevented by borrow rules +       │
+│                           │ Send/Sync                        │
+│ Null pointer dereference  │ Prevented at the type level by    │
+│                           │ Option<T>                        │
+│ Memory leaks (general)    │ Automatically managed by RAII +   │
+│                           │ Drop                             │
+│ Use of uninitialized      │ Compiler enforces initialization  │
+│ variables                 │                                  │
+│ Integer overflow          │ Panics in debug builds            │
 └───────────────────────────┴──────────────────────────────────┘
 ```
 
 ---
 
-## 2. コード例
+## 2. Code Examples
 
-### 例1: Hello, World!
+### Example 1: Hello, World!
 
 ```rust
 fn main() {
@@ -160,48 +167,48 @@ fn main() {
 }
 ```
 
-`println!` はマクロであり（末尾の `!` が目印）、コンパイル時にフォーマット文字列を検証する。C の `printf` のようなフォーマット文字列の不整合はコンパイルエラーになる。
+`println!` is a macro (the trailing `!` is the marker), and it validates the format string at compile time. Format string mismatches like those in C's `printf` become compilation errors.
 
-### 例2: 変数とイミュータビリティ
+### Example 2: Variables and Immutability
 
 ```rust
 fn main() {
-    let x = 5;          // デフォルトで不変
-    // x = 6;           // コンパイルエラー！
-    let mut y = 10;     // mut で可変宣言
+    let x = 5;          // Immutable by default
+    // x = 6;           // Compilation error!
+    let mut y = 10;     // Declared mutable with mut
     y += 1;
     println!("x={}, y={}", x, y);
 
-    // シャドウイング: 同じ名前で新しい変数を束縛
-    let x = x + 1;      // 新しい x（型を変えることも可能）
+    // Shadowing: bind a new variable with the same name
+    let x = x + 1;      // New x (the type can also be changed)
     let x = x * 2;
-    println!("シャドウイング後の x = {}", x); // 12
+    println!("x after shadowing = {}", x); // 12
 
-    // シャドウイングでは型を変更できる
-    let spaces = "   ";           // &str 型
-    let spaces = spaces.len();    // usize 型に変更
-    println!("スペース数: {}", spaces);
+    // With shadowing you can change the type
+    let spaces = "   ";           // &str type
+    let spaces = spaces.len();    // Changed to usize type
+    println!("Number of spaces: {}", spaces);
 }
 ```
 
-Rustではデフォルトで変数は不変（immutable）である。これは関数型プログラミングの影響を受けた設計であり、不変性をデフォルトにすることでコードの安全性と予測可能性が向上する。可変にする必要がある場合は `mut` キーワードを明示的に付ける。
+In Rust, variables are immutable by default. This is a design influenced by functional programming; making immutability the default improves code safety and predictability. When a variable needs to be mutable, the `mut` keyword must be added explicitly.
 
-### 例3: 所有権の基本
+### Example 3: Basics of Ownership
 
 ```rust
 fn main() {
     let s1 = String::from("hello");
-    let s2 = s1;        // s1 の所有権が s2 にムーブ
-    // println!("{}", s1); // コンパイルエラー: s1 は無効
+    let s2 = s1;        // Ownership of s1 is moved to s2
+    // println!("{}", s1); // Compilation error: s1 is invalid
     println!("{}", s2);
 }
 ```
 
-### 例4: 関数と戻り値
+### Example 4: Functions and Return Values
 
 ```rust
 fn add(a: i32, b: i32) -> i32 {
-    a + b   // セミコロンなし = 式として返却
+    a + b   // No semicolon = returned as an expression
 }
 
 fn main() {
@@ -210,9 +217,9 @@ fn main() {
 }
 ```
 
-Rustでは関数の最後の式がセミコロンなしで書かれると、それが戻り値として扱われる。`return` キーワードは早期リターンの場合にのみ使用するのが慣例である。
+In Rust, when the last expression of a function is written without a semicolon, it is treated as the return value. By convention, the `return` keyword is used only for early returns.
 
-### 例5: パターンマッチング
+### Example 5: Pattern Matching
 
 ```rust
 enum Direction {
@@ -224,10 +231,10 @@ enum Direction {
 
 fn describe(dir: Direction) -> &'static str {
     match dir {
-        Direction::North => "北",
-        Direction::South => "南",
-        Direction::East  => "東",
-        Direction::West  => "西",
+        Direction::North => "North",
+        Direction::South => "South",
+        Direction::East  => "East",
+        Direction::West  => "West",
     }
 }
 
@@ -236,9 +243,9 @@ fn main() {
 }
 ```
 
-`match` 式は網羅的（exhaustive）であることが要求される。全てのパターンをカバーしていないとコンパイルエラーになるため、パターンの漏れを防止できる。
+`match` expressions are required to be exhaustive. If not all patterns are covered, a compilation error occurs, which prevents pattern omissions.
 
-### 例6: 構造体とメソッド
+### Example 6: Structs and Methods
 
 ```rust
 struct Point {
@@ -247,22 +254,22 @@ struct Point {
 }
 
 impl Point {
-    // 関連関数（コンストラクタの慣例）
+    // Associated function (constructor convention)
     fn new(x: f64, y: f64) -> Self {
         Self { x, y }
     }
 
-    // メソッド（&self を受け取る）
+    // Method (takes &self)
     fn distance(&self, other: &Point) -> f64 {
         ((self.x - other.x).powi(2) + (self.y - other.y).powi(2)).sqrt()
     }
 
-    // 原点からの距離
+    // Distance from the origin
     fn magnitude(&self) -> f64 {
         (self.x.powi(2) + self.y.powi(2)).sqrt()
     }
 
-    // 可変メソッド（&mut self を受け取る）
+    // Mutable method (takes &mut self)
     fn translate(&mut self, dx: f64, dy: f64) {
         self.x += dx;
         self.y += dy;
@@ -272,96 +279,96 @@ impl Point {
 fn main() {
     let a = Point::new(0.0, 0.0);
     let b = Point::new(3.0, 4.0);
-    println!("距離: {}", a.distance(&b)); // 5.0
-    println!("bの大きさ: {}", b.magnitude()); // 5.0
+    println!("Distance: {}", a.distance(&b)); // 5.0
+    println!("Magnitude of b: {}", b.magnitude()); // 5.0
 
     let mut c = Point::new(1.0, 1.0);
     c.translate(2.0, 3.0);
-    println!("移動後: ({}, {})", c.x, c.y); // (3.0, 4.0)
+    println!("After translation: ({}, {})", c.x, c.y); // (3.0, 4.0)
 }
 ```
 
-### 例7: 制御フロー
+### Example 7: Control Flow
 
 ```rust
 fn main() {
-    // if 式（Rustでは if は式として値を返す）
+    // if expression (in Rust, if returns a value as an expression)
     let number = 7;
-    let kind = if number % 2 == 0 { "偶数" } else { "奇数" };
-    println!("{} は {}", number, kind);
+    let kind = if number % 2 == 0 { "even" } else { "odd" };
+    println!("{} is {}", number, kind);
 
-    // loop（無限ループ、break で値を返せる）
+    // loop (infinite loop, can return a value with break)
     let mut counter = 0;
     let result = loop {
         counter += 1;
         if counter == 10 {
-            break counter * 2; // 20 が result に束縛される
+            break counter * 2; // 20 is bound to result
         }
     };
-    println!("loop の結果: {}", result);
+    println!("Result of loop: {}", result);
 
-    // while ループ
+    // while loop
     let mut n = 5;
     while n > 0 {
         println!("{}!", n);
         n -= 1;
     }
-    println!("発射！");
+    println!("Liftoff!");
 
-    // for ループ（Range）
+    // for loop (Range)
     for i in 1..=5 {
         print!("{} ", i); // 1 2 3 4 5
     }
     println!();
 
-    // for ループ（コレクション）
-    let fruits = vec!["りんご", "みかん", "バナナ"];
+    // for loop (collection)
+    let fruits = vec!["apple", "orange", "banana"];
     for (i, fruit) in fruits.iter().enumerate() {
         println!("{}: {}", i, fruit);
     }
 
-    // while let（パターンマッチングと組み合わせ）
+    // while let (combined with pattern matching)
     let mut stack = vec![1, 2, 3];
     while let Some(top) = stack.pop() {
-        println!("ポップ: {}", top);
+        println!("Pop: {}", top);
     }
 }
 ```
 
-### 例8: クロージャの基本
+### Example 8: Basics of Closures
 
 ```rust
 fn main() {
-    // クロージャ（無名関数）
+    // Closure (anonymous function)
     let add = |a: i32, b: i32| -> i32 { a + b };
     println!("3 + 4 = {}", add(3, 4));
 
-    // 型推論でより簡潔に
+    // More concise with type inference
     let multiply = |a, b| a * b;
     println!("3 * 4 = {}", multiply(3, 4));
 
-    // 環境のキャプチャ
+    // Capturing the environment
     let offset = 10;
     let add_offset = |x| x + offset;
     println!("5 + 10 = {}", add_offset(5));
 
-    // イテレータとの組み合わせ
+    // Combined with iterators
     let numbers = vec![1, 2, 3, 4, 5];
     let sum: i32 = numbers.iter()
         .filter(|&&x| x > 2)
         .map(|&x| x * x)
         .sum();
-    println!("2より大きい数の二乗和: {}", sum); // 9 + 16 + 25 = 50
+    println!("Sum of squares of numbers greater than 2: {}", sum); // 9 + 16 + 25 = 50
 }
 ```
 
-### 例9: トレイトの基本
+### Example 9: Basics of Traits
 
 ```rust
 trait Printable {
     fn format_string(&self) -> String;
 
-    // デフォルト実装
+    // Default implementation
     fn print(&self) {
         println!("{}", self.format_string());
     }
@@ -374,7 +381,7 @@ struct Article {
 
 impl Printable for Article {
     fn format_string(&self) -> String {
-        format!("【記事】{}\n{}", self.title, self.content)
+        format!("[Article] {}\n{}", self.title, self.content)
     }
 }
 
@@ -389,15 +396,15 @@ impl Printable for Tweet {
     }
 }
 
-// トレイト境界を使った関数
+// Function using trait bounds
 fn display_item(item: &impl Printable) {
     item.print();
 }
 
 fn main() {
     let article = Article {
-        title: "Rust入門".to_string(),
-        content: "Rustは素晴らしい言語です".to_string(),
+        title: "Introduction to Rust".to_string(),
+        content: "Rust is a wonderful language.".to_string(),
     };
     let tweet = Tweet {
         user: "rustlang".to_string(),
@@ -409,7 +416,7 @@ fn main() {
 }
 ```
 
-### 例10: エラーハンドリングの基本
+### Example 10: Basics of Error Handling
 
 ```rust
 use std::fs;
@@ -422,64 +429,64 @@ fn read_username_from_file() -> Result<String, io::Error> {
 
 fn main() {
     match read_username_from_file() {
-        Ok(name) => println!("ユーザー名: {}", name),
-        Err(e) => eprintln!("エラー: {}", e),
+        Ok(name) => println!("Username: {}", name),
+        Err(e) => eprintln!("Error: {}", e),
     }
 
-    // Option の活用例
+    // Example using Option
     let numbers = vec![10, 20, 30];
     let first = numbers.first();
     match first {
-        Some(n) => println!("最初の要素: {}", n),
-        None => println!("空のベクタ"),
+        Some(n) => println!("First element: {}", n),
+        None => println!("Empty vector"),
     }
 
-    // if let による簡潔なパターンマッチ
+    // Concise pattern matching with if let
     if let Some(n) = numbers.get(1) {
-        println!("2番目の要素: {}", n);
+        println!("Second element: {}", n);
     }
 }
 ```
 
 ---
 
-## 3. 図解
+## 3. Diagrams
 
-### 3.1 ビルドパイプライン
+### 3.1 Build Pipeline
 
 ```
 ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐
-│  .rs     │───>│  rustc   │───>│   LLVM   │───>│ バイナリ  │
-│ ソース   │    │ フロント │    │  IR/最適化│    │  実行可能 │
-│          │    │ エンド   │    │          │    │  ファイル │
+│  .rs     │───>│  rustc   │───>│   LLVM   │───>│  Binary  │
+│  source  │    │ frontend │    │ IR/optim.│    │  exec.   │
+│          │    │          │    │          │    │  file    │
 └──────────┘    └──────────┘    └──────────┘    └──────────┘
                      │                │
                      ▼                ▼
               ┌──────────────┐  ┌──────────────┐
-              │ 借用チェック │  │ 最適化パス   │
-              │ 型チェック   │  │ インライン化  │
-              │ ライフタイム │  │ デッドコード  │
-              │ パターン検査 │  │ 除去、SIMD   │
+              │ Borrow check │  │ Optim. pass  │
+              │ Type check   │  │ Inlining     │
+              │ Lifetimes    │  │ Dead-code    │
+              │ Pattern check│  │ removal,SIMD │
               └──────────────┘  └──────────────┘
 ```
 
-ビルドパイプラインの詳細:
+Details of the build pipeline:
 
-1. **字句解析・構文解析**: `.rs` ファイルを AST（抽象構文木）に変換
-2. **名前解決**: 変数名・型名・モジュール名を解決
-3. **型チェック**: 型の整合性を検証（型推論含む）
-4. **借用チェック**: 所有権・借用・ライフタイムの規則を検証
-5. **MIR生成**: 中間表現（Mid-level IR）を生成
-6. **MIR最適化**: 定数伝播、デッドコード除去など
-7. **LLVM IR生成**: LLVM が理解する中間表現に変換
-8. **LLVM最適化**: インライン展開、ループ最適化、SIMD 変換など
-9. **コード生成**: ターゲットアーキテクチャ向けの機械語を生成
-10. **リンク**: オブジェクトファイルをリンクして実行可能バイナリを生成
+1. **Lexical analysis & parsing**: Convert the `.rs` file into an AST (Abstract Syntax Tree)
+2. **Name resolution**: Resolve variable names, type names, and module names
+3. **Type checking**: Verify type consistency (including type inference)
+4. **Borrow checking**: Verify the rules of ownership, borrowing, and lifetimes
+5. **MIR generation**: Generate the intermediate representation (Mid-level IR)
+6. **MIR optimization**: Constant propagation, dead-code elimination, etc.
+7. **LLVM IR generation**: Convert to the intermediate representation that LLVM understands
+8. **LLVM optimization**: Inline expansion, loop optimization, SIMD conversion, etc.
+9. **Code generation**: Generate machine code for the target architecture
+10. **Linking**: Link object files to generate the executable binary
 
-### 3.2 メモリモデル(スタック vs ヒープ)
+### 3.2 Memory Model (Stack vs. Heap)
 
 ```
-       スタック                      ヒープ
+       Stack                          Heap
   ┌─────────────────┐         ┌───────────────┐
   │ ptr ──────────────────────>│ h e l l o     │
   │ len = 5         │         └───────────────┘
@@ -491,75 +498,81 @@ fn main() {
   ├─────────────────┤
   │ x: i32 = 42     │
   ├─────────────────┤
-  │ y: bool = true   │
+  │ y: bool = true  │
   ├─────────────────┤
   │ z: f64 = 3.14   │
   └─────────────────┘
-    固定サイズ・高速            可変サイズ・動的
-    LIFO（後入れ先出し）       OS が管理（malloc/free）
-    自動的に確保・解放          Rust が RAII で自動管理
+   Fixed size, fast        Variable size, dynamic
+   LIFO (last-in,          Managed by the OS
+   first-out)              (malloc/free)
+   Allocated and freed     Rust manages it
+   automatically           automatically via RAII
 ```
 
-スタックとヒープの使い分け:
+How to use the stack and the heap:
 
-- **スタック**: コンパイル時にサイズがわかる型（`i32`, `f64`, `bool`, 固定長配列, タプル）
-- **ヒープ**: 実行時にサイズが変わる型（`String`, `Vec<T>`, `HashMap<K,V>`, `Box<T>`）
+- **Stack**: Types whose size is known at compile time (`i32`, `f64`, `bool`, fixed-length arrays, tuples)
+- **Heap**: Types whose size changes at runtime (`String`, `Vec<T>`, `HashMap<K,V>`, `Box<T>`)
 
-Rustの `String` 型はスタック上に3つのフィールド（ポインタ、長さ、容量）を持ち、実際の文字列データはヒープ上に格納される。所有者がスコープを抜けると、`Drop` トレイトによってヒープメモリが自動的に解放される。
+Rust's `String` type holds three fields on the stack (pointer, length, capacity), and the actual string data is stored on the heap. When the owner goes out of scope, the heap memory is automatically released by the `Drop` trait.
 
-### 3.3 ツールチェーン構成
+### 3.3 Toolchain Composition
 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                      rustup                             │
-│  (ツールチェーン管理: stable/beta/nightly)              │
+│  (Toolchain management: stable/beta/nightly)            │
 ├──────────┬──────────┬───────────────────────────────────┤
-│  rustc   │  cargo   │  その他ツール                     │
-│ コンパイラ│ ビルド   │  rustfmt   -- コードフォーマッタ  │
-│          │ パッケージ│  clippy    -- 静的解析リンター    │
-│          │ テスト   │  rust-analyzer -- LSP サーバー    │
-│          │ ドキュメント│ miri    -- 未定義動作検出        │
-│          │ ベンチマーク│ cargo-audit -- 脆弱性検査       │
-│          │          │  cargo-expand -- マクロ展開確認   │
+│  rustc   │  cargo   │  Other tools                      │
+│ Compiler │ Build    │  rustfmt   -- Code formatter      │
+│          │ Package  │  clippy    -- Static-analysis     │
+│          │ Test     │              linter               │
+│          │ Docs     │  rust-analyzer -- LSP server      │
+│          │ Bench    │  miri    -- Undefined-behavior    │
+│          │          │            detector               │
+│          │          │  cargo-audit -- Vulnerability     │
+│          │          │                  scan             │
+│          │          │  cargo-expand -- Macro-expansion  │
+│          │          │                   inspection      │
 └──────────┴──────────┴───────────────────────────────────┘
                 │
                 ▼
          ┌────────────┐
          │ crates.io  │
-         │ レジストリ │  15万以上のクレートが公開
+         │ Registry   │  Over 150,000 crates published
          └────────────┘
 ```
 
-### 3.4 Rustのモジュールシステム
+### 3.4 Rust's Module System
 
 ```
 my_project/
-├── Cargo.toml          # プロジェクト設定・依存関係
-├── Cargo.lock          # 依存関係のロックファイル
+├── Cargo.toml          # Project settings & dependencies
+├── Cargo.lock          # Dependency lock file
 ├── src/
-│   ├── main.rs         # バイナリクレートのエントリポイント
-│   ├── lib.rs          # ライブラリクレートのルート
-│   ├── config.rs       # モジュールファイル
-│   └── utils/          # サブモジュールディレクトリ
-│       ├── mod.rs      # utils モジュールのルート
-│       ├── parser.rs   # utils::parser サブモジュール
-│       └── formatter.rs# utils::formatter サブモジュール
+│   ├── main.rs         # Entry point of the binary crate
+│   ├── lib.rs          # Root of the library crate
+│   ├── config.rs       # Module file
+│   └── utils/          # Submodule directory
+│       ├── mod.rs      # Root of the utils module
+│       ├── parser.rs   # utils::parser submodule
+│       └── formatter.rs# utils::formatter submodule
 ├── tests/
-│   └── integration_test.rs  # 統合テスト
+│   └── integration_test.rs  # Integration tests
 ├── benches/
-│   └── benchmark.rs    # ベンチマーク
+│   └── benchmark.rs    # Benchmarks
 └── examples/
-    └── demo.rs         # サンプルコード
+    └── demo.rs         # Sample code
 ```
 
 ```rust
 // src/lib.rs
-pub mod config;       // config.rs を読み込む
-pub mod utils;        // utils/mod.rs を読み込む
+pub mod config;       // Loads config.rs
+pub mod utils;        // Loads utils/mod.rs
 
 // src/utils/mod.rs
-pub mod parser;       // utils/parser.rs を読み込む
-pub mod formatter;    // utils/formatter.rs を読み込む
+pub mod parser;       // Loads utils/parser.rs
+pub mod formatter;    // Loads utils/formatter.rs
 
 // src/main.rs
 use my_project::config::Config;
@@ -568,129 +581,129 @@ use my_project::utils::parser::parse;
 fn main() {
     let config = Config::load("settings.toml").unwrap();
     let data = parse(&config.input_file).unwrap();
-    println!("パース完了: {} 件", data.len());
+    println!("Parsing complete: {} items", data.len());
 }
 ```
 
-### 3.5 Rustの所有権モデル概要図
+### 3.5 Overview Diagram of Rust's Ownership Model
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│                    所有権システム                          │
+│                  Ownership System                         │
 ├──────────────────────────────────────────────────────────┤
 │                                                          │
-│  ┌────────┐  ムーブ  ┌────────┐                         │
-│  │ 変数 A │ ──────> │ 変数 B │  A は無効化される        │
+│  ┌────────┐  Move    ┌────────┐                         │
+│  │ Var. A │ ──────>  │ Var. B │  A is invalidated       │
 │  └────────┘          └────────┘                         │
 │                                                          │
-│  ┌────────┐  借用    ┌────────┐                         │
-│  │ 変数 A │ <────── │ 参照&A │  A は有効なまま          │
+│  ┌────────┐  Borrow  ┌────────┐                         │
+│  │ Var. A │ <──────  │ Ref &A │  A remains valid        │
 │  └────────┘          └────────┘                         │
 │                                                          │
-│  ┌────────┐  クローン ┌────────┐                        │
-│  │ 変数 A │ ──────── │ 変数 B │  独立したコピー         │
-│  └────────┘           └────────┘                        │
+│  ┌────────┐  Clone   ┌────────┐                         │
+│  │ Var. A │ ──────── │ Var. B │  An independent copy    │
+│  └────────┘          └────────┘                         │
 │                                                          │
-│  ルール:                                                 │
-│  1. 各値は唯一の所有者を持つ                             │
-│  2. 所有者がスコープを抜けると Drop が呼ばれる           │
-│  3. 不変参照は同時に複数可能                             │
-│  4. 可変参照は同時に1つだけ                              │
-│  5. 参照は常に有効でなければならない                     │
+│  Rules:                                                  │
+│  1. Each value has a single owner                        │
+│  2. When the owner goes out of scope, Drop is called     │
+│  3. Multiple immutable references can coexist            │
+│  4. Only one mutable reference at a time                 │
+│  5. References must always be valid                      │
 └──────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 4. 比較表
+## 4. Comparison Tables
 
-### 4.1 Rust vs 他のシステム言語
+### 4.1 Rust vs. Other Systems Languages
 
-| 特性 | Rust | C | C++ | Go | Python |
+| Property | Rust | C | C++ | Go | Python |
 |------|------|---|-----|----|--------|
-| メモリ安全 | コンパイル時保証 | 手動管理 | 手動+RAII | GC | GC |
-| データ競合防止 | コンパイル時保証 | なし | なし | 実行時検出 | GIL |
-| ゼロコスト抽象化 | あり | N/A | あり | なし(GC) | なし |
-| パッケージマネージャ | Cargo (標準) | なし (CMakeなど) | なし (vcpkgなど) | go mod | pip |
-| 学習曲線 | 急峻 | 中程度 | 急峻 | 緩やか | 緩やか |
-| コンパイル速度 | 遅め | 速い | 遅い | 非常に速い | N/A |
-| null | Option型 | NULLポインタ | nullptr | nil | None |
-| エラー処理 | Result型 | 戻り値/errno | 例外 | error戻り値 | 例外 |
-| 並行処理 | async/await, スレッド | pthread | std::thread | goroutine | asyncio |
-| バイナリサイズ | 小さい | 最小 | 大きめ | やや大きい | N/A |
-| クロスコンパイル | 容易 | 複雑 | 複雑 | 非常に容易 | N/A |
-| Wasm対応 | 優秀 | Emscripten | Emscripten | TinyGo | Pyodide |
+| Memory safety | Compile-time guaranteed | Manual management | Manual + RAII | GC | GC |
+| Data race prevention | Compile-time guaranteed | None | None | Runtime detection | GIL |
+| Zero-cost abstractions | Yes | N/A | Yes | No (GC) | No |
+| Package manager | Cargo (standard) | None (CMake, etc.) | None (vcpkg, etc.) | go mod | pip |
+| Learning curve | Steep | Moderate | Steep | Gentle | Gentle |
+| Compilation speed | Slow-ish | Fast | Slow | Very fast | N/A |
+| null | Option type | NULL pointer | nullptr | nil | None |
+| Error handling | Result type | Return value/errno | Exceptions | error return value | Exceptions |
+| Concurrent processing | async/await, threads | pthread | std::thread | goroutine | asyncio |
+| Binary size | Small | Smallest | Largish | Slightly large | N/A |
+| Cross-compilation | Easy | Complex | Complex | Very easy | N/A |
+| Wasm support | Excellent | Emscripten | Emscripten | TinyGo | Pyodide |
 
-### 4.2 Rust Edition 比較
+### 4.2 Comparison of Rust Editions
 
-| 機能 | 2015 | 2018 | 2021 | 2024 |
+| Feature | 2015 | 2018 | 2021 | 2024 |
 |------|------|------|------|------|
-| NLL (Non-Lexical Lifetimes) | - | 導入 | 安定 | 安定 |
-| async/await | - | 導入 | 安定 | 改善 |
-| モジュールパス | 旧方式 | 新方式 | 新方式 | 新方式 |
-| クロージャキャプチャ | 全体 | 全体 | 部分 | 部分 |
-| dyn Trait | 暗黙 | 明示必須 | 明示必須 | 明示必須 |
-| try ブロック | - | - | - | 安定化へ |
-| let-else | - | - | 導入 | 安定 |
-| impl Trait in type aliases | - | - | - | 安定化へ |
+| NLL (Non-Lexical Lifetimes) | - | Introduced | Stable | Stable |
+| async/await | - | Introduced | Stable | Improved |
+| Module paths | Old style | New style | New style | New style |
+| Closure capture | Whole | Whole | Partial | Partial |
+| dyn Trait | Implicit | Explicit required | Explicit required | Explicit required |
+| try blocks | - | - | - | Toward stabilization |
+| let-else | - | - | Introduced | Stable |
+| impl Trait in type aliases | - | - | - | Toward stabilization |
 
-### 4.3 Rustの適用領域
+### 4.3 Application Areas of Rust
 
-| 領域 | 代表的なプロジェクト | Rustの強み |
+| Area | Representative projects | Strengths of Rust |
 |------|---------------------|-----------|
-| Webバックエンド | Actix Web, Axum, Rocket | 高スループット、低メモリ |
-| CLI ツール | ripgrep, bat, fd, exa | 高速起動、シングルバイナリ |
-| WebAssembly | wasm-bindgen, Yew, Leptos | 小さなバイナリ、高速実行 |
-| 組み込み | embedded-hal, RTIC | ゼロコスト、no_std対応 |
-| OS/カーネル | Redox OS, Linux ドライバ | メモリ安全、低レベル制御 |
-| ゲーム | Bevy, Amethyst | 高パフォーマンス、ECS |
-| ブロックチェーン | Solana, Polkadot, Near | 安全性、パフォーマンス |
-| データベース | TiKV, SurrealDB | 並行処理、信頼性 |
-| ネットワーク | Tokio, Hyper, Cloudflare | 非同期I/O、低レイテンシ |
+| Web backends | Actix Web, Axum, Rocket | High throughput, low memory |
+| CLI tools | ripgrep, bat, fd, exa | Fast startup, single binary |
+| WebAssembly | wasm-bindgen, Yew, Leptos | Small binaries, fast execution |
+| Embedded | embedded-hal, RTIC | Zero cost, no_std support |
+| OS/kernel | Redox OS, Linux drivers | Memory safety, low-level control |
+| Games | Bevy, Amethyst | High performance, ECS |
+| Blockchain | Solana, Polkadot, Near | Safety, performance |
+| Databases | TiKV, SurrealDB | Concurrent processing, reliability |
+| Networking | Tokio, Hyper, Cloudflare | Asynchronous I/O, low latency |
 
 ---
 
-## 5. Cargoの使い方
+## 5. How to Use Cargo
 
-### 5.1 基本コマンド
+### 5.1 Basic Commands
 
 ```bash
-# プロジェクト作成
-cargo new my_project          # バイナリプロジェクト
-cargo new my_lib --lib        # ライブラリプロジェクト
-cargo init                    # 既存ディレクトリで初期化
+# Project creation
+cargo new my_project          # Binary project
+cargo new my_lib --lib        # Library project
+cargo init                    # Initialize an existing directory
 
-# ビルドと実行
-cargo build                   # デバッグビルド
-cargo build --release         # リリースビルド（最適化あり）
-cargo run                     # ビルドして実行
-cargo run --release           # リリースモードで実行
-cargo run -- arg1 arg2        # 引数付き実行
+# Build and run
+cargo build                   # Debug build
+cargo build --release         # Release build (with optimization)
+cargo run                     # Build and run
+cargo run --release           # Run in release mode
+cargo run -- arg1 arg2        # Run with arguments
 
-# テスト
-cargo test                    # 全テスト実行
-cargo test test_name          # 特定テスト実行
-cargo test -- --nocapture     # println! を表示
-cargo test --doc              # ドキュメントテストのみ
+# Tests
+cargo test                    # Run all tests
+cargo test test_name          # Run a specific test
+cargo test -- --nocapture     # Show println! output
+cargo test --doc              # Doc tests only
 
-# 品質ツール
-cargo clippy                  # 静的解析
-cargo fmt                     # コードフォーマット
-cargo doc --open              # ドキュメント生成・表示
-cargo audit                   # セキュリティ監査（要インストール）
+# Quality tools
+cargo clippy                  # Static analysis
+cargo fmt                     # Code formatting
+cargo doc --open              # Generate and view documentation
+cargo audit                   # Security audit (requires installation)
 
-# 依存関係
-cargo add serde               # 依存関係追加（cargo-edit）
-cargo update                  # 依存関係更新
-cargo tree                    # 依存関係ツリー表示
+# Dependencies
+cargo add serde               # Add a dependency (cargo-edit)
+cargo update                  # Update dependencies
+cargo tree                    # Display dependency tree
 
-# その他
-cargo bench                   # ベンチマーク実行
-cargo clean                   # ビルド成果物を削除
-cargo check                   # コンパイルチェック（バイナリ生成なし・高速）
+# Others
+cargo bench                   # Run benchmarks
+cargo clean                   # Remove build artifacts
+cargo check                   # Compile check (no binary generation, fast)
 ```
 
-### 5.2 Cargo.toml の構成
+### 5.2 Structure of Cargo.toml
 
 ```toml
 [package]
@@ -713,32 +726,32 @@ criterion = "0.5"
 mockall = "0.12"
 
 [profile.release]
-opt-level = 3      # 最大最適化
-lto = true          # リンク時最適化
-codegen-units = 1   # コード生成ユニット数（遅いがより最適化）
-strip = true        # デバッグシンボル除去
+opt-level = 3      # Maximum optimization
+lto = true          # Link-time optimization
+codegen-units = 1   # Number of code-generation units (slower but more optimized)
+strip = true        # Strip debug symbols
 
 [profile.dev]
-opt-level = 0       # 最適化なし（ビルド高速）
-debug = true        # デバッグ情報あり
+opt-level = 0       # No optimization (fast build)
+debug = true        # With debug information
 ```
 
 ---
 
-## 6. アンチパターン
+## 6. Anti-Patterns
 
-### アンチパターン1: 何でも `clone()` で解決する
+### Anti-Pattern 1: Solving everything with `clone()`
 
 ```rust
-// BAD: 所有権エラーを全て clone で回避
+// BAD: Avoiding all ownership errors with clone
 fn process(data: Vec<String>) {
-    let copy = data.clone(); // 不必要なヒープアロケーション
+    let copy = data.clone(); // Unnecessary heap allocation
     for item in data.clone() {
         println!("{}", item);
     }
 }
 
-// GOOD: 参照を活用する
+// GOOD: Make use of references
 fn process_good(data: &[String]) {
     for item in data {
         println!("{}", item);
@@ -746,46 +759,46 @@ fn process_good(data: &[String]) {
 }
 ```
 
-### アンチパターン2: `unwrap()` の乱用
+### Anti-Pattern 2: Overuse of `unwrap()`
 
 ```rust
-// BAD: 本番コードで unwrap は危険
+// BAD: unwrap is dangerous in production code
 fn read_config() -> String {
-    std::fs::read_to_string("config.toml").unwrap() // パニック！
+    std::fs::read_to_string("config.toml").unwrap() // Panic!
 }
 
-// GOOD: Result を適切に伝播
+// GOOD: Properly propagate Result
 fn read_config_good() -> Result<String, std::io::Error> {
     std::fs::read_to_string("config.toml")
 }
 ```
 
-### アンチパターン3: 不必要な `String` の所有
+### Anti-Pattern 3: Unnecessarily owning a `String`
 
 ```rust
-// BAD: 引数に String を要求する
+// BAD: Requiring a String as the argument
 fn greet(name: String) {
-    println!("こんにちは、{}さん", name);
+    println!("Hello, {}!", name);
 }
 
-// GOOD: &str を受け取れば String も &str も渡せる
+// GOOD: Accepting &str allows passing both String and &str
 fn greet_good(name: &str) {
-    println!("こんにちは、{}さん", name);
+    println!("Hello, {}!", name);
 }
 
 fn main() {
-    let owned = String::from("太郎");
-    let borrowed = "花子";
+    let owned = String::from("Taro");
+    let borrowed = "Hanako";
 
-    greet_good(&owned);    // String → &str (自動 Deref)
-    greet_good(borrowed);  // &str そのまま
+    greet_good(&owned);    // String -> &str (automatic Deref)
+    greet_good(borrowed);  // &str passed as is
 }
 ```
 
-### アンチパターン4: 過度に深いネスト
+### Anti-Pattern 4: Excessively deep nesting
 
 ```rust
-// BAD: match のネストが深い
+// BAD: Deeply nested match
 fn process_data(input: Option<Result<String, io::Error>>) {
     match input {
         Some(result) => {
@@ -793,19 +806,19 @@ fn process_data(input: Option<Result<String, io::Error>>) {
                 Ok(data) => {
                     match data.parse::<i32>() {
                         Ok(num) => println!("{}", num),
-                        Err(e) => eprintln!("パースエラー: {}", e),
+                        Err(e) => eprintln!("Parse error: {}", e),
                     }
                 }
-                Err(e) => eprintln!("IOエラー: {}", e),
+                Err(e) => eprintln!("IO error: {}", e),
             }
         }
-        None => eprintln!("入力なし"),
+        None => eprintln!("No input"),
     }
 }
 
-// GOOD: 早期リターンやコンビネータで平坦化
+// GOOD: Flatten with early returns and combinators
 fn process_data_good(input: Option<Result<String, io::Error>>) -> Result<(), Box<dyn std::error::Error>> {
-    let data = input.ok_or("入力なし")?;
+    let data = input.ok_or("No input")?;
     let text = data?;
     let num: i32 = text.parse()?;
     println!("{}", num);
@@ -813,19 +826,19 @@ fn process_data_good(input: Option<Result<String, io::Error>>) -> Result<(), Box
 }
 ```
 
-### アンチパターン5: C スタイルの for ループ
+### Anti-Pattern 5: C-style for loops
 
 ```rust
-// BAD: インデックスベースのループ
+// BAD: Index-based loop
 fn sum_vec(v: &[i32]) -> i32 {
     let mut sum = 0;
     for i in 0..v.len() {
-        sum += v[i]; // 毎回境界チェックが走る
+        sum += v[i]; // Bounds check runs every time
     }
     sum
 }
 
-// GOOD: イテレータを使う
+// GOOD: Use an iterator
 fn sum_vec_good(v: &[i32]) -> i32 {
     v.iter().sum()
 }
@@ -833,9 +846,9 @@ fn sum_vec_good(v: &[i32]) -> i32 {
 
 ---
 
-## 7. Rustのテスト
+## 7. Testing in Rust
 
-### 7.1 ユニットテスト
+### 7.1 Unit Tests
 
 ```rust
 pub fn add(a: i32, b: i32) -> i32 {
@@ -844,7 +857,7 @@ pub fn add(a: i32, b: i32) -> i32 {
 
 pub fn divide(a: f64, b: f64) -> Result<f64, String> {
     if b == 0.0 {
-        Err("ゼロ除算エラー".to_string())
+        Err("Division by zero error".to_string())
     } else {
         Ok(a / b)
     }
@@ -872,14 +885,14 @@ mod tests {
     fn test_divide_by_zero() {
         let result = divide(10.0, 0.0);
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), "ゼロ除算エラー");
+        assert_eq!(result.unwrap_err(), "Division by zero error");
     }
 
     #[test]
     #[should_panic(expected = "index out of bounds")]
     fn test_out_of_bounds() {
         let v = vec![1, 2, 3];
-        let _ = v[10]; // パニック！
+        let _ = v[10]; // Panic!
     }
 
     #[test]
@@ -891,21 +904,21 @@ mod tests {
 }
 ```
 
-### 7.2 ドキュメントテスト
+### 7.2 Documentation Tests
 
 ```rust
-/// 2つの数値を加算する。
+/// Adds two numbers.
 ///
-/// # 引数
+/// # Arguments
 ///
-/// * `a` - 最初の数値
-/// * `b` - 2番目の数値
+/// * `a` - The first number
+/// * `b` - The second number
 ///
-/// # 戻り値
+/// # Returns
 ///
-/// 2つの数値の合計
+/// The sum of the two numbers
 ///
-/// # 例
+/// # Examples
 ///
 /// ```
 /// use my_crate::add;
@@ -917,50 +930,50 @@ pub fn add(a: i32, b: i32) -> i32 {
 }
 ```
 
-`cargo test --doc` でドキュメント内のコード例がテストとして実行される。これにより、ドキュメントのコード例が常に正しいことが保証される。
+With `cargo test --doc`, the code examples inside the documentation are run as tests. This guarantees that the code examples in the documentation are always correct.
 
 
 ---
 
-## 実践演習
+## Hands-on Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that satisfies the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate the input data
+- Implement appropriate error handling
+- Also create test code
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Template for basic implementation
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Practice with basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate the input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main logic for data processing"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Retrieve the processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -969,26 +982,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "An exception should have occurred"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation by adding the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Advanced patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Practice with advanced patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -996,7 +1009,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1007,14 +1020,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Remove by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1022,7 +1035,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1030,44 +1043,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # Size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1076,7 +1089,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1091,47 +1104,47 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient version: {slow_time:.4f} sec")
+    print(f"Efficient version:   {fast_time:.6f} sec")
+    print(f"Speedup factor: {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key Points:**
+- Be conscious of algorithmic complexity
+- Choose appropriate data structures
+- Measure the effect with benchmarks
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
+| Error | Cause | Solution |
 |--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Initialization error | Defective configuration file | Check the path and format of the configuration file |
+| Timeout | Network latency / insufficient resources | Adjust timeout values, add retry logic |
+| Out of memory | Increase in data volume | Introduce batch processing, implement pagination |
+| Permission error | Insufficient access rights | Check the executing user's permissions, review settings |
+| Data inconsistency | Concurrency conflicts | Introduce locking mechanisms, manage transactions |
 
-### デバッグの手順
+### Debugging Procedure
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check the error message**: Read the stack trace and identify the location of occurrence
+2. **Establish a reproduction procedure**: Reproduce the error with minimal code
+3. **Formulate a hypothesis**: List the conceivable causes
+4. **Step-by-step verification**: Use logging output and debuggers to verify the hypothesis
+5. **Fix and regression testing**: After fixing, also run tests for related parts
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utilities
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Configure the logger
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -1139,102 +1152,103 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs function input and output"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Call: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return value: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception occurred: {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (target of debugging)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Problems
 
-パフォーマンス問題が発生した場合の診断手順:
+Diagnostic procedure when a performance problem occurs:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify the bottleneck**: Measure with profiling tools
+2. **Check memory usage**: Check whether there is a memory leak
+3. **Check I/O wait**: Check the status of disk and network I/O
+4. **Check the number of concurrent connections**: Check the state of the connection pool
 
-| 問題の種類 | 診断ツール | 対策 |
+| Type of problem | Diagnostic tool | Countermeasure |
 |-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| CPU load | cProfile, py-spy | Algorithm improvement, parallelization |
+| Memory leak | tracemalloc, objgraph | Properly release references |
+| I/O bottleneck | strace, iostat | Asynchronous I/O, caching |
+| DB latency | EXPLAIN, slow query log | Indexes, query optimization |
 
 ---
 
-## 設計判断ガイド
+## Design Decision Guide
 
-### 選択基準マトリクス
+### Selection Criteria Matrix
 
-技術選択を行う際の判断基準を以下にまとめます。
+The criteria for making technical choices are summarized below.
 
-| 判断基準 | 重視する場合 | 妥協できる場合 |
+| Decision criterion | When emphasized | When can be compromised |
 |---------|------------|-------------|
-| パフォーマンス | リアルタイム処理、大規模データ | 管理画面、バッチ処理 |
-| 保守性 | 長期運用、チーム開発 | プロトタイプ、短期プロジェクト |
-| スケーラビリティ | 成長が見込まれるサービス | 社内ツール、固定ユーザー |
-| セキュリティ | 個人情報、金融データ | 公開データ、社内利用 |
-| 開発速度 | MVP、市場投入スピード | 品質重視、ミッションクリティカル |
+| Performance | Real-time processing, large-scale data | Admin screens, batch processing |
+| Maintainability | Long-term operation, team development | Prototypes, short-term projects |
+| Scalability | Services expected to grow | Internal tools, fixed user base |
+| Security | Personal information, financial data | Public data, internal use |
+| Development speed | MVP, time-to-market | Quality-focused, mission-critical |
 
-### アーキテクチャパターンの選択
+### Choosing an Architecture Pattern
 
 ```
 ┌─────────────────────────────────────────────────┐
-│              アーキテクチャ選択フロー              │
+│            Architecture Selection Flow           │
 ├─────────────────────────────────────────────────┤
 │                                                 │
-│  ① チーム規模は？                                │
-│    ├─ 小規模（1-5人）→ モノリス                   │
-│    └─ 大規模（10人+）→ ②へ                       │
+│  (1) What is the team size?                      │
+│    ├─ Small (1-5 people) -> Monolith              │
+│    └─ Large (10+ people) -> go to (2)             │
 │                                                 │
-│  ② デプロイ頻度は？                               │
-│    ├─ 週1回以下 → モノリス + モジュール分割         │
-│    └─ 毎日/複数回 → ③へ                          │
+│  (2) What is the deployment frequency?            │
+│    ├─ Once a week or less -> Monolith +          │
+│    │                          module split        │
+│    └─ Daily / multiple times -> go to (3)        │
 │                                                 │
-│  ③ チーム間の独立性は？                            │
-│    ├─ 高い → マイクロサービス                      │
-│    └─ 中程度 → モジュラーモノリス                   │
+│  (3) How independent are the teams?               │
+│    ├─ High -> Microservices                       │
+│    └─ Moderate -> Modular monolith                │
 │                                                 │
 └─────────────────────────────────────────────────┘
 ```
 
-### トレードオフの分析
+### Trade-off Analysis
 
-技術的な判断には必ずトレードオフが伴います。以下の観点で分析を行いましょう:
+Technical decisions always involve trade-offs. Conduct your analysis from the following perspectives:
 
-**1. 短期 vs 長期のコスト**
-- 短期的に速い方法が長期的には技術的負債になることがある
-- 逆に、過剰な設計は短期的なコストが高く、プロジェクトの遅延を招く
+**1. Short-term vs. long-term cost**
+- A method that is fast in the short term can become technical debt in the long term
+- Conversely, over-engineering has a high short-term cost and can cause project delays
 
-**2. 一貫性 vs 柔軟性**
-- 統一された技術スタックは学習コストが低い
-- 多様な技術の採用は適材適所が可能だが、運用コストが増加
+**2. Consistency vs. flexibility**
+- A unified technology stack has a low learning cost
+- Adopting diverse technologies allows for the right tool for the right job, but operating costs increase
 
-**3. 抽象化のレベル**
-- 高い抽象化は再利用性が高いが、デバッグが困難になる場合がある
-- 低い抽象化は直感的だが、コードの重複が発生しやすい
+**3. Level of abstraction**
+- High abstraction has high reusability but can make debugging difficult
+- Low abstraction is intuitive but tends to cause code duplication
 
 ```python
-# 設計判断の記録テンプレート
+# Template for recording design decisions
 class ArchitectureDecisionRecord:
-    """ADR (Architecture Decision Record) の作成"""
+    """Creating an ADR (Architecture Decision Record)"""
 
     def __init__(self, title: str):
         self.title = title
@@ -1244,17 +1258,17 @@ class ArchitectureDecisionRecord:
         self.alternatives = []
 
     def set_context(self, context: str):
-        """背景と課題の記述"""
+        """Describe the background and the issue"""
         self.context = context
         return self
 
     def set_decision(self, decision: str):
-        """決定内容の記述"""
+        """Describe the decided content"""
         self.decision = decision
         return self
 
     def add_consequence(self, consequence: str, positive: bool = True):
-        """結果の追加"""
+        """Add a consequence"""
         self.consequences.append({
             'description': consequence,
             'type': 'positive' if positive else 'negative'
@@ -1262,7 +1276,7 @@ class ArchitectureDecisionRecord:
         return self
 
     def add_alternative(self, name: str, reason_rejected: str):
-        """却下した代替案の追加"""
+        """Add a rejected alternative"""
         self.alternatives.append({
             'name': name,
             'reason_rejected': reason_rejected
@@ -1270,15 +1284,15 @@ class ArchitectureDecisionRecord:
         return self
 
     def to_markdown(self) -> str:
-        """Markdown形式で出力"""
+        """Output in Markdown format"""
         md = f"# ADR: {self.title}\n\n"
-        md += f"## 背景\n{self.context}\n\n"
-        md += f"## 決定\n{self.decision}\n\n"
-        md += "## 結果\n"
+        md += f"## Background\n{self.context}\n\n"
+        md += f"## Decision\n{self.decision}\n\n"
+        md += "## Consequences\n"
         for c in self.consequences:
-            icon = "✅" if c['type'] == 'positive' else "⚠️"
+            icon = "[+]" if c['type'] == 'positive' else "[!]"
             md += f"- {icon} {c['description']}\n"
-        md += "\n## 却下した代替案\n"
+        md += "\n## Rejected Alternatives\n"
         for a in self.alternatives:
             md += f"- **{a['name']}**: {a['reason_rejected']}\n"
         return md
@@ -1286,53 +1300,53 @@ class ArchitectureDecisionRecord:
 
 ---
 
-## 実務での適用シナリオ
+## Application Scenarios in Practice
 
-### シナリオ1: スタートアップでのMVP開発
+### Scenario 1: MVP Development at a Startup
 
-**状況:** 限られたリソースで素早くプロダクトをリリースする必要がある
+**Situation:** Need to release a product quickly with limited resources
 
-**アプローチ:**
-- シンプルなアーキテクチャを選択
-- 必要最小限の機能に集中
-- 自動テストはクリティカルパスのみ
-- モニタリングは早期から導入
+**Approach:**
+- Choose a simple architecture
+- Focus on the bare-minimum features
+- Automated tests only on critical paths
+- Introduce monitoring early
 
-**学んだ教訓:**
-- 完璧を求めすぎない（YAGNI原則）
-- ユーザーフィードバックを早期に取得
-- 技術的負債は意識的に管理する
+**Lessons learned:**
+- Don't seek perfection too much (YAGNI principle)
+- Get user feedback early
+- Manage technical debt consciously
 
-### シナリオ2: レガシーシステムのモダナイゼーション
+### Scenario 2: Modernization of a Legacy System
 
-**状況:** 10年以上運用されているシステムを段階的に刷新する
+**Situation:** Gradually renovate a system that has been in operation for over 10 years
 
-**アプローチ:**
-- Strangler Fig パターンで段階的に移行
-- 既存のテストがない場合はCharacterization Testを先に作成
-- APIゲートウェイで新旧システムを共存
-- データ移行は段階的に実施
+**Approach:**
+- Migrate gradually with the Strangler Fig pattern
+- If there are no existing tests, first create Characterization Tests
+- Coexist old and new systems with an API gateway
+- Carry out data migration in stages
 
-| フェーズ | 作業内容 | 期間目安 | リスク |
+| Phase | Work content | Estimated duration | Risk |
 |---------|---------|---------|--------|
-| 1. 調査 | 現状分析、依存関係の把握 | 2-4週間 | 低 |
-| 2. 基盤 | CI/CD構築、テスト環境 | 4-6週間 | 低 |
-| 3. 移行開始 | 周辺機能から順次移行 | 3-6ヶ月 | 中 |
-| 4. コア移行 | 中核機能の移行 | 6-12ヶ月 | 高 |
-| 5. 完了 | 旧システム廃止 | 2-4週間 | 中 |
+| 1. Investigation | Current-state analysis, mapping dependencies | 2-4 weeks | Low |
+| 2. Foundation | Build CI/CD, set up test environment | 4-6 weeks | Low |
+| 3. Migration start | Migrate peripheral features sequentially | 3-6 months | Medium |
+| 4. Core migration | Migrate core features | 6-12 months | High |
+| 5. Completion | Decommission the old system | 2-4 weeks | Medium |
 
-### シナリオ3: 大規模チームでの開発
+### Scenario 3: Development with a Large Team
 
-**状況:** 50人以上のエンジニアが同一プロダクトを開発する
+**Situation:** 50 or more engineers develop the same product
 
-**アプローチ:**
-- ドメイン駆動設計で境界を明確化
-- チームごとにオーナーシップを設定
-- 共通ライブラリはInner Source方式で管理
-- APIファーストで設計し、チーム間の依存を最小化
+**Approach:**
+- Clarify boundaries with Domain-Driven Design
+- Set ownership per team
+- Manage shared libraries via the Inner Source approach
+- Design API-first to minimize inter-team dependencies
 
 ```python
-# チーム間のAPI契約定義
+# Defining API contracts between teams
 from dataclasses import dataclass
 from typing import List, Optional
 from enum import Enum
@@ -1345,20 +1359,20 @@ class Priority(Enum):
 
 @dataclass
 class APIContract:
-    """チーム間のAPI契約"""
+    """API contract between teams"""
     endpoint: str
     method: str
     owner_team: str
     consumers: List[str]
-    sla_ms: int  # レスポンスタイムSLA
+    sla_ms: int  # Response-time SLA
     priority: Priority
 
     def validate_sla(self, actual_ms: int) -> bool:
-        """SLA準拠の確認"""
+        """Check SLA compliance"""
         return actual_ms <= self.sla_ms
 
     def to_openapi(self) -> dict:
-        """OpenAPI形式で出力"""
+        """Output in OpenAPI format"""
         return {
             'path': self.endpoint,
             'method': self.method,
@@ -1367,7 +1381,7 @@ class APIContract:
             'x-sla-ms': self.sla_ms
         }
 
-# 使用例
+# Usage example
 contracts = [
     APIContract(
         endpoint="/api/v1/users",
@@ -1388,77 +1402,77 @@ contracts = [
 ]
 ```
 
-### シナリオ4: パフォーマンスクリティカルなシステム
+### Scenario 4: A Performance-Critical System
 
-**状況:** ミリ秒単位のレスポンスが求められるシステム
+**Situation:** A system that requires millisecond-level responses
 
-**最適化ポイント:**
-1. キャッシュ戦略（L1: インメモリ、L2: Redis、L3: CDN）
-2. 非同期処理の活用
-3. コネクションプーリング
-4. クエリ最適化とインデックス設計
+**Optimization points:**
+1. Caching strategy (L1: in-memory, L2: Redis, L3: CDN)
+2. Use of asynchronous processing
+3. Connection pooling
+4. Query optimization and index design
 
-| 最適化手法 | 効果 | 実装コスト | 適用場面 |
+| Optimization technique | Effect | Implementation cost | Application context |
 |-----------|------|-----------|---------|
-| インメモリキャッシュ | 高 | 低 | 頻繁にアクセスされるデータ |
-| CDN | 高 | 低 | 静的コンテンツ |
-| 非同期処理 | 中 | 中 | I/O待ちが多い処理 |
-| DB最適化 | 高 | 高 | クエリが遅い場合 |
-| コード最適化 | 低-中 | 高 | CPU律速の場合 |
+| In-memory cache | High | Low | Frequently accessed data |
+| CDN | High | Low | Static content |
+| Asynchronous processing | Medium | Medium | Operations with much I/O wait |
+| DB optimization | High | High | When queries are slow |
+| Code optimization | Low to medium | High | When CPU-bound |
 ---
 
 ## 8. FAQ
 
-### Q1: Rustの学習曲線は本当に急峻ですか？
+### Q1: Is the learning curve of Rust really steep?
 
-**A:** はい、特に所有権・ライフタイムの概念は他言語にない独自のものです。しかし一度習得すれば、コンパイラが多くのバグを事前に防いでくれるため、デバッグ時間が大幅に減少します。多くの開発者が「3-6ヶ月で生産性が上がり始める」と報告しています。
+**A:** Yes, especially the concepts of ownership and lifetimes are unique to Rust and not found in other languages. However, once mastered, the compiler prevents many bugs in advance, which significantly reduces debugging time. Many developers report that "productivity starts to rise after 3-6 months."
 
-学習のコツ:
-- まずは The Rust Programming Language（公式Book）を通読する
-- Rustlings の演習で手を動かす
-- コンパイラのエラーメッセージを丁寧に読む（Rustのエラーメッセージは非常に親切）
-- 最初は `clone()` を多用しても構わない。動くコードを書いてから最適化する
+Tips for learning:
+- First, read through The Rust Programming Language (the official Book)
+- Practice with the Rustlings exercises
+- Carefully read the compiler's error messages (Rust's error messages are very kind)
+- It's fine to use `clone()` a lot at first. Write working code, then optimize
 
-### Q2: RustはどんなプロジェクトにGo向きですか？
+### Q2: For what kinds of projects is Rust suited?
 
-**A:** 以下のようなケースでRustが特に適しています:
-- パフォーマンスが最重要（ゲームエンジン、ブラウザエンジン）
-- メモリ安全が必須（OS、組み込み、セキュリティツール）
-- WebAssembly（Wasmとの親和性が高い）
-- CLIツール（シングルバイナリ配布が容易）
-- 高スループットなネットワークサービス（プロキシ、ロードバランサ）
+**A:** Rust is particularly well-suited in cases such as the following:
+- Performance is paramount (game engines, browser engines)
+- Memory safety is essential (OS, embedded, security tools)
+- WebAssembly (high affinity with Wasm)
+- CLI tools (single-binary distribution is easy)
+- High-throughput network services (proxies, load balancers)
 
-逆に、以下のケースではGoの方が適している場合もあります:
-- 素早いプロトタイピングが必要
-- チームの学習コストを最小化したい
-- マイクロサービスの量産
+Conversely, in the following cases, Go may be more suitable:
+- Quick prototyping is needed
+- You want to minimize the team's learning cost
+- Mass-producing microservices
 
-### Q3: Rustにガベージコレクタがないのに、なぜ安全なのですか？
+### Q3: Why is Rust safe even though it has no garbage collector?
 
-**A:** Rustは「所有権システム」でメモリを管理します。各値には唯一の「所有者」が存在し、所有者がスコープを抜けると自動的にメモリが解放されます（Drop トレイト）。コンパイラが借用規則を静的に検証するため、ダングリングポインタやダブルフリーが発生しません。
+**A:** Rust manages memory with the "ownership system." Each value has a single "owner," and when the owner goes out of scope, memory is automatically released (via the Drop trait). Because the compiler statically verifies the borrow rules, dangling pointers and double frees do not occur.
 
-### Q4: Rustのコンパイルが遅い理由は何ですか？
+### Q4: Why is Rust's compilation slow?
 
-**A:** Rustのコンパイルが遅い主な理由は:
-1. **借用チェック**: 所有権とライフタイムの検証は計算コストが高い
-2. **単態化**: ジェネリクスを使用すると、具体的な型ごとにコードが生成される
-3. **LLVM最適化**: 高品質な最適化には時間がかかる
-4. **リンク時最適化 (LTO)**: リリースビルドで有効な場合、特に遅くなる
+**A:** The main reasons Rust's compilation is slow are:
+1. **Borrow checking**: Verifying ownership and lifetimes is computationally expensive
+2. **Monomorphization**: When generics are used, code is generated for each concrete type
+3. **LLVM optimization**: High-quality optimization takes time
+4. **Link-time optimization (LTO)**: When enabled in release builds, it becomes especially slow
 
-改善策として `cargo check`（バイナリ生成をスキップ）の使用、増分コンパイルの活用、`sccache` の導入などがある。
+Improvement measures include using `cargo check` (which skips binary generation), making use of incremental compilation, and introducing `sccache`.
 
-### Q5: RustとC++の違いを一言で言うと？
+### Q5: In a single phrase, what is the difference between Rust and C++?
 
-**A:** 「C++は正しいコードも危険なコードも書ける。Rustは危険なコードをコンパイラが拒否する。」
+**A:** "C++ lets you write both correct and dangerous code. Rust has the compiler reject the dangerous code."
 
-C++はプログラマに全ての自由を与えるが、その結果としてメモリ安全性のバグが発生しうる。Rustはコンパイラが安全性を保証するため、C++で長年問題となってきたメモリ安全性のバグの約70%（Microsoft Researchの調査）をコンパイル時に防止できる。
+C++ gives the programmer full freedom, but as a result memory-safety bugs can occur. Because Rust's compiler guarantees safety, it can prevent at compile time about 70% of the memory-safety bugs that have long been a problem in C++ (according to a Microsoft Research study).
 
-### Q6: Rustで Web 開発はできますか？
+### Q6: Can you do Web development with Rust?
 
-**A:** はい。バックエンドには Actix Web、Axum、Rocket などの成熟したフレームワークがあります。フロントエンドには WebAssembly を活用した Yew、Leptos、Dioxus などのフレームワークがあります。また、Tauri を使えばデスクトップアプリケーションも開発できます。
+**A:** Yes. For backends, there are mature frameworks such as Actix Web, Axum, and Rocket. For frontends, there are frameworks that leverage WebAssembly such as Yew, Leptos, and Dioxus. Furthermore, by using Tauri you can also develop desktop applications.
 
 ```rust
-// Axum を使ったシンプルな Web サーバー
+// A simple web server using Axum
 use axum::{routing::get, Router};
 
 async fn hello() -> &'static str {
@@ -1477,11 +1491,11 @@ async fn main() {
 
 ---
 
-## 9. 実践的な開発のヒント
+## 9. Practical Development Tips
 
-### 9.1 コンパイラとの付き合い方
+### 9.1 Getting Along with the Compiler
 
-Rustのコンパイラ（rustc）は非常に厳格だが、そのエラーメッセージは極めて親切である。エラーメッセージに含まれる「help:」や「note:」の行を丁寧に読むと、ほとんどの場合で解決策が提示される。
+Rust's compiler (rustc) is very strict, but its error messages are exceedingly helpful. If you carefully read the lines containing "help:" and "note:" in error messages, in most cases solutions are presented.
 
 ```
 error[E0382]: borrow of moved value: `s1`
@@ -1501,23 +1515,23 @@ help: consider cloning the value if the performance cost is acceptable
   |                ++++++++
 ```
 
-### 9.2 推奨する開発ツール
+### 9.2 Recommended Development Tools
 
-| ツール | 用途 | インストール |
+| Tool | Use | Installation |
 |--------|------|-------------|
-| rust-analyzer | IDE サポート (LSP) | VS Code 拡張等 |
-| clippy | リンター | `rustup component add clippy` |
-| rustfmt | フォーマッタ | `rustup component add rustfmt` |
-| cargo-watch | ファイル変更時に自動ビルド | `cargo install cargo-watch` |
-| cargo-expand | マクロ展開の確認 | `cargo install cargo-expand` |
-| cargo-audit | セキュリティ脆弱性検査 | `cargo install cargo-audit` |
-| cargo-flamegraph | パフォーマンスプロファイリング | `cargo install flamegraph` |
-| bacon | 軽量なビルドウォッチャー | `cargo install bacon` |
+| rust-analyzer | IDE support (LSP) | VS Code extension, etc. |
+| clippy | Linter | `rustup component add clippy` |
+| rustfmt | Formatter | `rustup component add rustfmt` |
+| cargo-watch | Auto-build on file change | `cargo install cargo-watch` |
+| cargo-expand | Inspect macro expansion | `cargo install cargo-expand` |
+| cargo-audit | Security vulnerability scanning | `cargo install cargo-audit` |
+| cargo-flamegraph | Performance profiling | `cargo install flamegraph` |
+| bacon | Lightweight build watcher | `cargo install bacon` |
 
-### 9.3 よく使うデザインパターン
+### 9.3 Frequently Used Design Patterns
 
 ```rust
-// ビルダーパターン
+// Builder pattern
 struct ServerConfig {
     host: String,
     port: u16,
@@ -1579,12 +1593,12 @@ fn main() {
         .max_connections(1000)
         .build();
 
-    println!("サーバー: {}:{}", config.host, config.port);
+    println!("Server: {}:{}", config.host, config.port);
 }
 ```
 
 ```rust
-// ニュータイプパターン
+// Newtype pattern
 struct Email(String);
 struct UserId(u64);
 
@@ -1593,7 +1607,7 @@ impl Email {
         if email.contains('@') {
             Ok(Email(email.to_string()))
         } else {
-            Err("無効なメールアドレス".to_string())
+            Err("Invalid email address".to_string())
         }
     }
 
@@ -1603,13 +1617,13 @@ impl Email {
 }
 
 fn send_email(to: &Email, subject: &str) {
-    println!("送信先: {}, 件名: {}", to.as_str(), subject);
+    println!("To: {}, Subject: {}", to.as_str(), subject);
 }
 
 fn main() {
     let email = Email::new("user@example.com").unwrap();
-    send_email(&email, "テスト");
-    // send_email(&"invalid", "テスト"); // コンパイルエラー！型が違う
+    send_email(&email, "Test");
+    // send_email(&"invalid", "Test"); // Compilation error! Wrong type
 }
 ```
 
@@ -1618,53 +1632,53 @@ fn main() {
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point in learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining hands-on experience is the most important thing. Beyond just theory, your understanding deepens by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What mistakes do beginners commonly fall into?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the basics and moving on to advanced topics. We recommend that you first thoroughly understand the basic concepts explained in this guide, and then move on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is it used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+The knowledge of this topic is frequently used in everyday development work. It is especially important during code reviews and architecture design.
 
 ---
 
-## 10. まとめ
+## 10. Summary
 
-| 項目 | 要点 |
+| Item | Key point |
 |------|------|
-| 設計哲学 | 安全性・速度・並行性を同時達成 |
-| メモリ管理 | 所有権システム（GCなし） |
-| 型システム | 強い静的型付け + ジェネリクス + トレイト |
-| ツールチェーン | rustup / cargo / clippy / rustfmt |
-| エコシステム | crates.io に 15万+ のクレート |
-| 用途 | システム、Web、CLI、Wasm、組み込み |
-| Edition | 後方互換を保ちつつ段階的に進化 |
-| テスト | ユニットテスト、統合テスト、ドキュメントテストが標準装備 |
-| エラー処理 | Result/Option による型安全なエラーハンドリング |
-| 並行処理 | Send/Sync トレイトでコンパイル時にデータ競合を防止 |
+| Design philosophy | Achieves safety, speed, and concurrency simultaneously |
+| Memory management | Ownership system (no GC) |
+| Type system | Strong static typing + generics + traits |
+| Toolchain | rustup / cargo / clippy / rustfmt |
+| Ecosystem | Over 150,000 crates on crates.io |
+| Use cases | Systems, web, CLI, Wasm, embedded |
+| Editions | Evolves gradually while preserving backward compatibility |
+| Testing | Unit tests, integration tests, and doc tests are standard equipment |
+| Error handling | Type-safe error handling via Result/Option |
+| Concurrent processing | Send/Sync traits prevent data races at compile time |
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Guides
 
-- [01-ownership-borrowing.md](01-ownership-borrowing.md) -- 所有権と借用を深く理解する
-- [02-types-and-traits.md](02-types-and-traits.md) -- 型とトレイトで抽象化を学ぶ
-- [03-error-handling.md](03-error-handling.md) -- Result/Optionを活用したエラー処理
-- [04-collections-iterators.md](04-collections-iterators.md) -- コレクションとイテレータ
-- [../04-ecosystem/00-cargo-workspace.md](../04-ecosystem/00-cargo-workspace.md) -- Cargoの使い方を習得する
+- [01-ownership-borrowing.md](01-ownership-borrowing.md) -- Understand ownership and borrowing deeply
+- [02-types-and-traits.md](02-types-and-traits.md) -- Learn abstraction with types and traits
+- [03-error-handling.md](03-error-handling.md) -- Error handling using Result/Option
+- [04-collections-iterators.md](04-collections-iterators.md) -- Collections and iterators
+- [../04-ecosystem/00-cargo-workspace.md](../04-ecosystem/00-cargo-workspace.md) -- Master how to use Cargo
 
 ---
 
-## 参考文献
+## References
 
-1. **The Rust Programming Language (公式Book)** -- https://doc.rust-lang.org/book/
+1. **The Rust Programming Language (the official Book)** -- https://doc.rust-lang.org/book/
 2. **Rust by Example** -- https://doc.rust-lang.org/rust-by-example/
 3. **Rust Reference** -- https://doc.rust-lang.org/reference/
-4. **Rustlings (演習)** -- https://github.com/rust-lang/rustlings
+4. **Rustlings (exercises)** -- https://github.com/rust-lang/rustlings
 5. **Rust Foundation** -- https://foundation.rust-lang.org/
 6. **Rust API Guidelines** -- https://rust-lang.github.io/api-guidelines/
 7. **The Rustonomicon (unsafe Rust)** -- https://doc.rust-lang.org/nomicon/
