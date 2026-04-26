@@ -1,45 +1,45 @@
-# 非同期パターン — Stream、並行制限、リトライ
+# Async Patterns -- Streams, Concurrency Limits, and Retries
 
-> 実践的な非同期設計パターンとして Stream 処理、並行度制御、リトライ戦略、バックプレッシャーを体系的に学ぶ
+> Systematically learn practical async design patterns including Stream processing, concurrency control, retry strategies, and backpressure.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-1. **Stream** — 非同期イテレータの概念と操作 (map, filter, buffer)
-2. **並行制限パターン** — セマフォ、buffer_unordered、レートリミッター
-3. **リトライとタイムアウト** — 指数バックオフ、サーキットブレーカー
-4. **バックプレッシャー** — bounded チャネルとパイプライン設計
-5. **ファンアウト/ファンイン** — 分散処理と結果集約
+1. **Stream** -- Concept of asynchronous iterators and operations (map, filter, buffer)
+2. **Concurrency Limit Patterns** -- Semaphores, buffer_unordered, rate limiters
+3. **Retry and Timeout** -- Exponential backoff, circuit breakers
+4. **Backpressure** -- Bounded channels and pipeline design
+5. **Fan-out / Fan-in** -- Distributed processing and result aggregation
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+The following knowledge will deepen your understanding before reading this guide:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [Tokioランタイム — タスク管理とチャネル](./01-tokio-runtime.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding of [Tokio Runtime -- Task Management and Channels](./01-tokio-runtime.md)
 
 ---
 
-## 1. Stream の基本
+## 1. Stream Basics
 
-### 1.1 Iterator と Stream の対比
+### 1.1 Comparison Between Iterator and Stream
 
 ```
 ┌─────────────────── Iterator vs Stream ──────────────┐
 │                                                      │
-│  Iterator (同期):                                    │
+│  Iterator (synchronous):                             │
 │    fn next(&mut self) -> Option<Item>                │
-│    → 即座に次の値を返す                               │
+│    → Returns the next value immediately              │
 │                                                      │
-│  Stream (非同期):                                     │
+│  Stream (asynchronous):                              │
 │    fn poll_next(Pin<&mut Self>, &mut Context)        │
 │         -> Poll<Option<Item>>                        │
-│    → Ready(Some(item)) : 値あり                      │
-│    → Ready(None)       : ストリーム終了               │
-│    → Pending           : まだ準備できていない          │
+│    → Ready(Some(item)) : value available             │
+│    → Ready(None)       : end of stream               │
+│    → Pending           : not ready yet               │
 │                                                      │
-│  StreamExt トレイト:                                  │
+│  StreamExt trait:                                    │
 │    .next().await   .map()   .filter()                │
 │    .take()   .collect()   .for_each()                │
 │    .chain()  .zip()  .enumerate()                    │
@@ -47,7 +47,7 @@
 └──────────────────────────────────────────────────────┘
 ```
 
-### コード例1: Stream の作成と操作
+### Example 1: Creating and Operating on Streams
 
 ```rust
 use futures::stream::{self, StreamExt};
@@ -55,15 +55,15 @@ use tokio::time::{sleep, Duration, interval};
 
 #[tokio::main]
 async fn main() {
-    // iter から Stream を作成
+    // Create a Stream from an iter
     let sum: i32 = stream::iter(1..=10)
         .filter(|x| futures::future::ready(x % 2 == 0))
         .map(|x| x * x)
         .fold(0, |acc, x| async move { acc + x })
         .await;
-    println!("偶数の二乗和: {}", sum); // 220
+    println!("Sum of squares of even numbers: {}", sum); // 220
 
-    // 非同期変換を含む Stream
+    // Stream with asynchronous transformation
     let results: Vec<String> = stream::iter(vec!["a", "b", "c"])
         .then(|item| async move {
             sleep(Duration::from_millis(50)).await;
@@ -73,7 +73,7 @@ async fn main() {
         .await;
     println!("{:?}", results);
 
-    // interval から無限 Stream
+    // Infinite Stream from interval
     let mut ticker = tokio::time::interval(Duration::from_millis(100));
     let ticks: Vec<_> = stream::poll_fn(|cx| ticker.poll_tick(cx).map(Some))
         .take(5)
@@ -82,19 +82,19 @@ async fn main() {
         .await;
     println!("Ticks: {:?}", ticks);
 
-    // chain — 2つの Stream を連結
+    // chain -- concatenate two Streams
     let first = stream::iter(vec![1, 2, 3]);
     let second = stream::iter(vec![4, 5, 6]);
     let combined: Vec<i32> = first.chain(second).collect().await;
-    println!("連結: {:?}", combined); // [1, 2, 3, 4, 5, 6]
+    println!("Concatenated: {:?}", combined); // [1, 2, 3, 4, 5, 6]
 
-    // zip — 2つの Stream を並行に処理してペアにする
+    // zip -- process two Streams concurrently and pair them
     let names = stream::iter(vec!["Alice", "Bob", "Carol"]);
     let ages = stream::iter(vec![30, 25, 35]);
     let pairs: Vec<_> = names.zip(ages).collect().await;
-    println!("ペア: {:?}", pairs); // [("Alice", 30), ("Bob", 25), ("Carol", 35)]
+    println!("Pairs: {:?}", pairs); // [("Alice", 30), ("Bob", 25), ("Carol", 35)]
 
-    // scan — 状態を持つ変換
+    // scan -- stateful transformation
     let running_total: Vec<i32> = stream::iter(vec![1, 2, 3, 4, 5])
         .scan(0, |state, x| {
             *state += x;
@@ -102,18 +102,18 @@ async fn main() {
         })
         .collect()
         .await;
-    println!("累積和: {:?}", running_total); // [1, 3, 6, 10, 15]
+    println!("Running total: {:?}", running_total); // [1, 3, 6, 10, 15]
 }
 ```
 
-### コード例2: カスタム Stream
+### Example 2: Custom Stream
 
 ```rust
 use futures::stream::Stream;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-/// 指定範囲の素数を非同期で生成する Stream
+/// Stream that asynchronously generates prime numbers within a specified range
 struct PrimeStream {
     current: u64,
     max: u64,
@@ -152,20 +152,20 @@ impl Stream for PrimeStream {
     }
 }
 
-// 使用例:
+// Usage example:
 // use futures::StreamExt;
 // let primes: Vec<u64> = PrimeStream::new(50).collect().await;
 // // [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47]
 ```
 
-### コード例3: async_stream を使った簡易 Stream 作成
+### Example 3: Simple Stream Creation Using async_stream
 
 ```rust
 use async_stream::stream;
 use futures::StreamExt;
 use tokio::time::{sleep, Duration};
 
-/// async_stream マクロで簡潔に Stream を作成
+/// Concisely create a Stream with the async_stream macro
 fn countdown(from: u32) -> impl futures::Stream<Item = u32> {
     stream! {
         for i in (0..=from).rev() {
@@ -175,7 +175,7 @@ fn countdown(from: u32) -> impl futures::Stream<Item = u32> {
     }
 }
 
-/// ページネーション付き API から全データを取得する Stream
+/// Stream that fetches all data from a paginated API
 fn fetch_all_pages(base_url: &str) -> impl futures::Stream<Item = Vec<String>> + '_ {
     stream! {
         let mut page = 1;
@@ -188,7 +188,7 @@ fn fetch_all_pages(base_url: &str) -> impl futures::Stream<Item = Vec<String>> +
                 .collect();
 
             if items.is_empty() {
-                break; // 最終ページ
+                break; // last page
             }
 
             let is_last = items.len() < 50;
@@ -199,7 +199,7 @@ fn fetch_all_pages(base_url: &str) -> impl futures::Stream<Item = Vec<String>> +
             }
             page += 1;
 
-            // レート制限対策
+            // Rate limit mitigation
             sleep(Duration::from_millis(100)).await;
         }
     }
@@ -207,21 +207,21 @@ fn fetch_all_pages(base_url: &str) -> impl futures::Stream<Item = Vec<String>> +
 
 #[tokio::main]
 async fn main() {
-    // カウントダウン
+    // Countdown
     let nums: Vec<u32> = countdown(5).collect().await;
-    println!("カウントダウン: {:?}", nums); // [5, 4, 3, 2, 1, 0]
+    println!("Countdown: {:?}", nums); // [5, 4, 3, 2, 1, 0]
 
-    // 全ページ取得
+    // Fetch all pages
     let mut total = 0;
     let mut pages = std::pin::pin!(fetch_all_pages("https://api.example.com"));
     while let Some(items) = pages.next().await {
         total += items.len();
-        println!("ページ取得: {} アイテム (累計: {})", items.len(), total);
+        println!("Page fetched: {} items (cumulative: {})", items.len(), total);
     }
 }
 ```
 
-### コード例4: ReceiverStream とチャネル変換
+### Example 4: ReceiverStream and Channel Conversion
 
 ```rust
 use tokio::sync::mpsc;
@@ -232,7 +232,7 @@ use futures::StreamExt;
 async fn main() {
     let (tx, rx) = mpsc::channel::<i32>(32);
 
-    // プロデューサー
+    // Producer
     tokio::spawn(async move {
         for i in 0..20 {
             let _ = tx.send(i).await;
@@ -240,54 +240,54 @@ async fn main() {
         }
     });
 
-    // mpsc::Receiver を Stream に変換
+    // Convert mpsc::Receiver into a Stream
     let stream = ReceiverStream::new(rx);
 
-    // Stream 操作を適用
+    // Apply Stream operations
     let results: Vec<i32> = stream
-        .filter(|x| futures::future::ready(*x % 3 == 0))   // 3の倍数
-        .map(|x| x * 10)                                     // 10倍
-        .take(4)                                              // 最初の4つ
+        .filter(|x| futures::future::ready(*x % 3 == 0))   // multiples of 3
+        .map(|x| x * 10)                                     // multiply by 10
+        .take(4)                                              // first 4
         .collect()
         .await;
 
-    println!("結果: {:?}", results); // [0, 30, 60, 90]
+    println!("Results: {:?}", results); // [0, 30, 60, 90]
 }
 ```
 
 ---
 
-## 2. 並行制限パターン
+## 2. Concurrency Limit Patterns
 
-### 並行度制御の全体像
+### Overview of Concurrency Control
 
 ```
-┌─────────────── 並行度制御パターン ───────────────┐
+┌─────────────── Concurrency Control Patterns ──────┐
 │                                                    │
 │  1. buffer_unordered(N)                           │
-│     Stream の各要素を最大N並行で処理               │
-│     完了順に結果を返す                             │
+│     Process Stream elements with up to N concurrency│
+│     Returns results in completion order            │
 │                                                    │
 │  2. buffered(N)                                    │
-│     Stream の各要素を最大N並行で処理               │
-│     入力順に結果を返す                             │
+│     Process Stream elements with up to N concurrency│
+│     Returns results in input order                 │
 │                                                    │
 │  3. Semaphore                                      │
-│     明示的なリソースガード                          │
-│     任意の非同期処理に適用可能                      │
+│     Explicit resource guard                        │
+│     Applicable to any async operation              │
 │                                                    │
-│  4. JoinSet + カウンタ                             │
-│     動的タスクの並行数を手動管理                    │
+│  4. JoinSet + counter                              │
+│     Manually manage concurrency for dynamic tasks  │
 │                                                    │
 │  Input   ─┬─ [Task 1] ─┐                         │
 │  Stream    ├─ [Task 2] ─┼─→ Output Stream         │
-│            ├─ [Task 3] ─┤   (最大N並行)           │
-│            │  (待機中)   │                         │
+│            ├─ [Task 3] ─┤   (max N concurrent)    │
+│            │  (waiting) │                         │
 │            └─ ...       ─┘                         │
 └────────────────────────────────────────────────────┘
 ```
 
-### コード例5: buffer_unordered で並行制限
+### Example 5: Concurrency Limiting with buffer_unordered
 
 ```rust
 use futures::stream::{self, StreamExt};
@@ -304,19 +304,19 @@ async fn main() {
         .map(|i| format!("https://example.com/page/{}", i))
         .collect();
 
-    // 最大5並行でフェッチ
+    // Fetch with up to 5 concurrent requests
     let results: Vec<_> = stream::iter(urls)
         .map(|url| fetch_page(url))    // Stream<Future>
-        .buffer_unordered(5)            // 最大5並行実行
+        .buffer_unordered(5)            // execute up to 5 concurrently
         .collect()
         .await;
 
     let success = results.iter().filter(|r| r.is_ok()).count();
-    println!("成功: {}/20", success);
+    println!("Success: {}/20", success);
 }
 ```
 
-### コード例6: buffered vs buffer_unordered の違い
+### Example 6: Difference Between buffered and buffer_unordered
 
 ```rust
 use futures::stream::{self, StreamExt};
@@ -332,7 +332,7 @@ async fn variable_delay(id: u32) -> (u32, Duration) {
 async fn main() {
     let start = Instant::now();
 
-    // buffered(3): 入力順に結果を返す
+    // buffered(3): returns results in input order
     println!("=== buffered(3) ===");
     let results: Vec<_> = stream::iter(1..=6)
         .map(|id| variable_delay(id))
@@ -342,7 +342,7 @@ async fn main() {
     for (id, delay) in &results {
         println!("  id={}, delay={:?}", id, delay);
     }
-    // 入力順: 1, 2, 3, 4, 5, 6 (遅いタスクがあると後続も待たされる)
+    // Input order: 1, 2, 3, 4, 5, 6 (slow tasks make subsequent ones wait)
 
     println!("=== buffer_unordered(3) ===");
     let results: Vec<_> = stream::iter(1..=6)
@@ -353,13 +353,13 @@ async fn main() {
     for (id, delay) in &results {
         println!("  id={}, delay={:?}", id, delay);
     }
-    // 完了順: 奇数(50ms)が先に返る → スループットが高い
+    // Completion order: odd ids (50ms) return first → higher throughput
 
-    println!("合計時間: {:?}", start.elapsed());
+    println!("Total time: {:?}", start.elapsed());
 }
 ```
 
-### コード例7: Semaphore による同時接続制限
+### Example 7: Limiting Simultaneous Connections with Semaphore
 
 ```rust
 use std::sync::Arc;
@@ -368,19 +368,19 @@ use tokio::time::{sleep, Duration};
 
 #[tokio::main]
 async fn main() {
-    let semaphore = Arc::new(Semaphore::new(3)); // 最大3同時
+    let semaphore = Arc::new(Semaphore::new(3)); // max 3 simultaneous
     let mut handles = Vec::new();
 
     for i in 0..10 {
         let sem = semaphore.clone();
         let handle = tokio::spawn(async move {
-            // permit を取得するまで待機
+            // Wait until a permit is acquired
             let _permit = sem.acquire().await.unwrap();
-            println!("[{}] 開始 (残り permit: {})",
+            println!("[{}] Started (remaining permits: {})",
                 i, sem.available_permits());
             sleep(Duration::from_millis(200)).await;
-            println!("[{}] 完了", i);
-            // _permit が drop されると自動的に permit を返却
+            println!("[{}] Finished", i);
+            // Permit is automatically returned when _permit is dropped
         });
         handles.push(handle);
     }
@@ -391,13 +391,13 @@ async fn main() {
 }
 ```
 
-### コード例8: Semaphore でのリソースプール
+### Example 8: Resource Pool with Semaphore
 
 ```rust
 use std::sync::Arc;
 use tokio::sync::{Semaphore, OwnedSemaphorePermit};
 
-/// 接続プール的な使い方
+/// Connection pool style usage
 struct ConnectionPool {
     semaphore: Arc<Semaphore>,
     max_connections: usize,
@@ -419,7 +419,7 @@ impl ConnectionPool {
     async fn acquire(&self) -> PooledConnection {
         let permit = self.semaphore.clone().acquire_owned().await.unwrap();
         let id = self.max_connections - self.semaphore.available_permits();
-        println!("接続取得: #{} (残り: {})", id, self.semaphore.available_permits());
+        println!("Connection acquired: #{} (remaining: {})", id, self.semaphore.available_permits());
         PooledConnection { id, _permit: permit }
     }
 
@@ -430,8 +430,8 @@ impl ConnectionPool {
 
 impl Drop for PooledConnection {
     fn drop(&mut self) {
-        println!("接続返却: #{}", self.id);
-        // OwnedSemaphorePermit の drop で permit が自動返却される
+        println!("Connection returned: #{}", self.id);
+        // Permit is automatically returned when OwnedSemaphorePermit is dropped
     }
 }
 
@@ -444,26 +444,26 @@ async fn main() {
         let p = pool.clone();
         handles.push(tokio::spawn(async move {
             let conn = p.acquire().await;
-            println!("タスク {}: 接続 #{} を使用中", i, conn.id);
+            println!("Task {}: using connection #{}", i, conn.id);
             tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
-            println!("タスク {}: 処理完了", i);
-            // conn がドロップされ、接続がプールに返却される
+            println!("Task {}: processing complete", i);
+            // conn is dropped, returning the connection to the pool
         }));
     }
 
     for h in handles { h.await.unwrap(); }
-    println!("最終利用可能接続数: {}", pool.available());
+    println!("Final available connections: {}", pool.available());
 }
 ```
 
-### コード例9: レートリミッター
+### Example 9: Rate Limiter
 
 ```rust
 use std::sync::Arc;
 use tokio::sync::Semaphore;
 use tokio::time::{sleep, Duration, Instant};
 
-/// トークンバケット方式のレートリミッター
+/// Token bucket style rate limiter
 struct RateLimiter {
     semaphore: Arc<Semaphore>,
     refill_interval: Duration,
@@ -475,7 +475,7 @@ impl RateLimiter {
         let sem_clone = semaphore.clone();
         let interval = Duration::from_secs(1) / max_requests_per_second as u32;
 
-        // トークン補充タスク
+        // Token refill task
         tokio::spawn(async move {
             loop {
                 sleep(interval).await;
@@ -506,7 +506,7 @@ async fn main() {
         let l = limiter.clone();
         handles.push(tokio::spawn(async move {
             l.acquire().await;
-            println!("[{:?}] リクエスト {}", start.elapsed(), i);
+            println!("[{:?}] Request {}", start.elapsed(), i);
         }));
     }
 
@@ -516,15 +516,15 @@ async fn main() {
 
 ---
 
-## 3. リトライとタイムアウト
+## 3. Retry and Timeout
 
-### コード例10: 指数バックオフ付きリトライ
+### Example 10: Retry with Exponential Backoff
 
 ```rust
 use std::time::Duration;
 use tokio::time::sleep;
 
-/// 指数バックオフ付きリトライ
+/// Retry with exponential backoff
 async fn retry_with_backoff<F, Fut, T, E>(
     mut operation: F,
     max_retries: u32,
@@ -544,7 +544,7 @@ where
             Err(e) => {
                 if attempt < max_retries {
                     eprintln!(
-                        "試行 {}/{} 失敗: {}。{:?} 後にリトライ",
+                        "Attempt {}/{} failed: {}. Retrying after {:?}",
                         attempt + 1, max_retries, e, delay
                     );
                     sleep(delay).await;
@@ -558,7 +558,7 @@ where
     Err(last_err.unwrap())
 }
 
-// 使用例:
+// Usage example:
 // let result = retry_with_backoff(
 //     || async { reqwest::get("https://api.example.com/data").await },
 //     3,
@@ -566,15 +566,15 @@ where
 // ).await?;
 ```
 
-### コード例11: ジッター付き指数バックオフ
+### Example 11: Exponential Backoff with Jitter
 
 ```rust
 use rand::Rng;
 use std::time::Duration;
 use tokio::time::sleep;
 
-/// ジッター付き指数バックオフ
-/// 複数クライアントのリトライが同時に発生するのを防ぐ
+/// Exponential backoff with jitter
+/// Prevents simultaneous retries from multiple clients
 async fn retry_with_jitter<F, Fut, T, E>(
     mut operation: F,
     config: RetryConfig,
@@ -593,7 +593,7 @@ where
             Ok(val) => return Ok(val),
             Err(e) => {
                 if attempt < config.max_retries {
-                    // ジッター: 0〜delay の範囲でランダム化
+                    // Jitter: randomize within the range 0..delay
                     let jittered_delay = match config.jitter_strategy {
                         JitterStrategy::Full => {
                             Duration::from_millis(rng.gen_range(0..=delay.as_millis() as u64))
@@ -614,7 +614,7 @@ where
                     };
 
                     eprintln!(
-                        "試行 {}/{} 失敗: {}。{:?} 後にリトライ",
+                        "Attempt {}/{} failed: {}. Retrying after {:?}",
                         attempt + 1, config.max_retries, e, jittered_delay
                     );
                     sleep(jittered_delay).await;
@@ -656,7 +656,7 @@ impl Default for RetryConfig {
 }
 ```
 
-### コード例12: サーキットブレーカー
+### Example 12: Circuit Breaker
 
 ```rust
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
@@ -666,9 +666,9 @@ use tokio::sync::RwLock;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum CircuitState {
-    Closed,     // 正常動作
-    Open,       // 障害検出、リクエスト遮断
-    HalfOpen,   // 回復テスト中
+    Closed,     // normal operation
+    Open,       // failure detected, requests blocked
+    HalfOpen,   // recovery testing
 }
 
 struct CircuitBreaker {
@@ -680,9 +680,9 @@ struct CircuitBreaker {
 }
 
 struct CircuitBreakerConfig {
-    failure_threshold: u32,   // Open に遷移する失敗回数
-    success_threshold: u32,   // HalfOpen から Closed に戻る成功回数
-    timeout: Duration,        // Open から HalfOpen に遷移する時間
+    failure_threshold: u32,   // failure count to transition to Open
+    success_threshold: u32,   // success count to return from HalfOpen to Closed
+    timeout: Duration,        // duration before transitioning from Open to HalfOpen
 }
 
 impl CircuitBreaker {
@@ -701,19 +701,19 @@ impl CircuitBreaker {
         F: FnOnce() -> Fut,
         Fut: std::future::Future<Output = Result<T, E>>,
     {
-        // 現在の状態を確認
+        // Check current state
         let state = *self.state.read().await;
 
         match state {
             CircuitState::Open => {
-                // タイムアウト経過していれば HalfOpen に遷移
+                // If timeout elapsed, transition to HalfOpen
                 let last_failure = self.last_failure.read().await;
                 if let Some(last) = *last_failure {
                     if last.elapsed() >= self.config.timeout {
                         drop(last_failure);
                         *self.state.write().await = CircuitState::HalfOpen;
                         self.success_count.store(0, Ordering::SeqCst);
-                        // HalfOpen で処理を試行
+                        // Try processing in HalfOpen
                     } else {
                         return Err(CircuitError::Open);
                     }
@@ -722,7 +722,7 @@ impl CircuitBreaker {
             CircuitState::Closed | CircuitState::HalfOpen => {}
         }
 
-        // 操作を実行
+        // Execute the operation
         match operation().await {
             Ok(value) => {
                 self.on_success().await;
@@ -743,7 +743,7 @@ impl CircuitBreaker {
                 if count >= self.config.success_threshold {
                     *self.state.write().await = CircuitState::Closed;
                     self.failure_count.store(0, Ordering::SeqCst);
-                    println!("[CB] Closed に回復");
+                    println!("[CB] Recovered to Closed");
                 }
             }
             CircuitState::Closed => {
@@ -762,12 +762,12 @@ impl CircuitBreaker {
             CircuitState::Closed => {
                 if count >= self.config.failure_threshold {
                     *self.state.write().await = CircuitState::Open;
-                    println!("[CB] Open に遷移 (失敗 {} 回)", count);
+                    println!("[CB] Transitioned to Open (failures: {})", count);
                 }
             }
             CircuitState::HalfOpen => {
                 *self.state.write().await = CircuitState::Open;
-                println!("[CB] HalfOpen → Open に戻る");
+                println!("[CB] HalfOpen → Open reverted");
             }
             _ => {}
         }
@@ -776,38 +776,38 @@ impl CircuitBreaker {
 
 #[derive(Debug)]
 enum CircuitError<E> {
-    Open,          // サーキットが開いている
-    Operation(E),  // 操作自体のエラー
+    Open,          // circuit is open
+    Operation(E),  // error from the operation itself
 }
 ```
 
-### コード例13: タイムアウトラッパー
+### Example 13: Timeout Wrapper
 
 ```rust
 use tokio::time::{timeout, Duration};
 
 async fn fetch_with_timeout(url: &str) -> anyhow::Result<String> {
-    // 個別リクエストのタイムアウト
+    // Per-request timeout
     let response = timeout(
         Duration::from_secs(10),
         reqwest::get(url),
     )
     .await
-    .map_err(|_| anyhow::anyhow!("リクエストタイムアウト (10秒)"))?
-    .map_err(|e| anyhow::anyhow!("HTTPエラー: {}", e))?;
+    .map_err(|_| anyhow::anyhow!("Request timeout (10s)"))?
+    .map_err(|e| anyhow::anyhow!("HTTP error: {}", e))?;
 
     let body = timeout(
         Duration::from_secs(30),
         response.text(),
     )
     .await
-    .map_err(|_| anyhow::anyhow!("ボディ読み取りタイムアウト (30秒)"))?
-    .map_err(|e| anyhow::anyhow!("読み取りエラー: {}", e))?;
+    .map_err(|_| anyhow::anyhow!("Body read timeout (30s)"))?
+    .map_err(|e| anyhow::anyhow!("Read error: {}", e))?;
 
     Ok(body)
 }
 
-/// 全体タイムアウト付きのバッチ処理
+/// Batch processing with overall timeout
 async fn batch_with_timeout(urls: Vec<String>, total_timeout: Duration) -> Vec<Result<String, String>> {
     let result = timeout(total_timeout, async {
         let mut results = Vec::new();
@@ -822,17 +822,17 @@ async fn batch_with_timeout(urls: Vec<String>, total_timeout: Duration) -> Vec<R
 
     match result {
         Ok(results) => results,
-        Err(_) => vec![Err("バッチ全体のタイムアウト".to_string())],
+        Err(_) => vec![Err("Overall batch timeout".to_string())],
     }
 }
 ```
 
-### コード例14: 条件付きリトライ
+### Example 14: Conditional Retry
 
 ```rust
 use std::time::Duration;
 
-/// エラーの種類に応じてリトライ判断
+/// Decide whether to retry based on error type
 async fn smart_retry<F, Fut, T>(
     mut operation: F,
     max_retries: u32,
@@ -847,14 +847,14 @@ where
         match operation().await {
             Ok(val) => return Ok(val),
             Err(e) => {
-                // リトライ可能かどうか判断
+                // Determine whether retryable
                 if !is_retryable(&e) {
-                    return Err(e); // 即座にエラーを返す
+                    return Err(e); // Return error immediately
                 }
 
                 if attempt < max_retries {
                     eprintln!(
-                        "リトライ可能エラー (試行 {}/{}): {}",
+                        "Retryable error (attempt {}/{}): {}",
                         attempt + 1, max_retries, e
                     );
                     tokio::time::sleep(delay).await;
@@ -872,7 +872,7 @@ where
 fn is_retryable(error: &anyhow::Error) -> bool {
     let error_string = error.to_string();
 
-    // リトライすべきエラー
+    // Errors that should be retried
     if error_string.contains("timeout")
         || error_string.contains("connection reset")
         || error_string.contains("503")
@@ -882,7 +882,7 @@ fn is_retryable(error: &anyhow::Error) -> bool {
         return true;
     }
 
-    // リトライすべきでないエラー
+    // Errors that should not be retried
     if error_string.contains("404")
         || error_string.contains("401")
         || error_string.contains("400")
@@ -891,38 +891,38 @@ fn is_retryable(error: &anyhow::Error) -> bool {
         return false;
     }
 
-    // デフォルト: リトライする
+    // Default: retry
     true
 }
 ```
 
 ---
 
-## 4. バックプレッシャー
+## 4. Backpressure
 
-### 4.1 バックプレッシャーの仕組み
+### 4.1 How Backpressure Works
 
 ```
-┌──────────── バックプレッシャーの仕組み ────────────┐
+┌──────────── How Backpressure Works ────────────┐
 │                                                     │
-│  Producer (高速)                                    │
+│  Producer (fast)                                    │
 │    │                                                │
 │    ▼                                                │
 │  [Buffer: capacity = 32]                            │
 │    │                                                │
-│    │  バッファ満杯時:                                │
-│    │  → bounded:  send().await がブロック (推奨)     │
-│    │  → unbounded: メモリ無限消費 (危険)             │
+│    │  When buffer is full:                          │
+│    │  → bounded:  send().await blocks (recommended) │
+│    │  → unbounded: unbounded memory use (dangerous) │
 │    │                                                │
 │    ▼                                                │
-│  Consumer (低速)                                    │
+│  Consumer (slow)                                    │
 │                                                     │
-│  適切なバッファサイズ:                                │
-│    ピーク流量 x 処理遅延 x 2 (安全マージン)         │
+│  Appropriate buffer size:                           │
+│    peak throughput x processing latency x 2 (safety margin) │
 └─────────────────────────────────────────────────────┘
 ```
 
-### コード例15: バックプレッシャー対応パイプライン
+### Example 15: Backpressure-Aware Pipeline
 
 ```rust
 use tokio::sync::mpsc;
@@ -936,7 +936,7 @@ impl Pipeline {
         let (parsed_tx, parsed_rx) = mpsc::channel::<serde_json::Value>(32);
         let (result_tx, mut result_rx) = mpsc::channel::<String>(16);
 
-        // Stage 1: データ取得
+        // Stage 1: data fetch
         tokio::spawn(async move {
             for i in 0..100 {
                 let data = format!(r#"{{"id": {}}}"#, i).into_bytes();
@@ -944,7 +944,7 @@ impl Pipeline {
             }
         });
 
-        // Stage 2: パース (バッファが満杯なら待機)
+        // Stage 2: parse (waits if buffer is full)
         tokio::spawn(async move {
             let mut rx = tokio_stream::wrappers::ReceiverStream::new(raw_rx);
             while let Some(data) = rx.next().await {
@@ -954,7 +954,7 @@ impl Pipeline {
             }
         });
 
-        // Stage 3: 変換
+        // Stage 3: transform
         tokio::spawn(async move {
             let mut rx = tokio_stream::wrappers::ReceiverStream::new(parsed_rx);
             while let Some(value) = rx.next().await {
@@ -963,7 +963,7 @@ impl Pipeline {
             }
         });
 
-        // 結果収集
+        // Result collection
         while let Some(result) = result_rx.recv().await {
             println!("{}", result);
         }
@@ -971,19 +971,19 @@ impl Pipeline {
 }
 ```
 
-### コード例16: 多段パイプラインとモニタリング
+### Example 16: Multi-stage Pipeline with Monitoring
 
 ```rust
 use tokio::sync::mpsc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
-/// パイプラインのメトリクス
+/// Pipeline metrics
 struct PipelineMetrics {
     stage1_processed: AtomicU64,
     stage2_processed: AtomicU64,
     stage3_processed: AtomicU64,
-    stage1_backpressure: AtomicU64, // send が待機した回数
+    stage1_backpressure: AtomicU64, // number of times send waited
     stage2_backpressure: AtomicU64,
 }
 
@@ -1000,7 +1000,7 @@ impl PipelineMetrics {
 
     fn report(&self) {
         println!(
-            "パイプライン状態: S1={} S2={} S3={} BP1={} BP2={}",
+            "Pipeline state: S1={} S2={} S3={} BP1={} BP2={}",
             self.stage1_processed.load(Ordering::Relaxed),
             self.stage2_processed.load(Ordering::Relaxed),
             self.stage3_processed.load(Ordering::Relaxed),
@@ -1015,7 +1015,7 @@ async fn monitored_pipeline() {
     let (tx1, mut rx1) = mpsc::channel::<String>(32);
     let (tx2, mut rx2) = mpsc::channel::<String>(16);
 
-    // メトリクスモニター
+    // Metrics monitor
     let m = metrics.clone();
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
@@ -1025,7 +1025,7 @@ async fn monitored_pipeline() {
         }
     });
 
-    // Stage 1: 高速プロデューサー
+    // Stage 1: fast producer
     let m1 = metrics.clone();
     tokio::spawn(async move {
         for i in 0..1000 {
@@ -1038,7 +1038,7 @@ async fn monitored_pipeline() {
         }
     });
 
-    // Stage 2: 中速変換
+    // Stage 2: medium-speed transform
     let m2 = metrics.clone();
     tokio::spawn(async move {
         while let Some(data) = rx1.recv().await {
@@ -1049,7 +1049,7 @@ async fn monitored_pipeline() {
         }
     });
 
-    // Stage 3: 低速コンシューマー
+    // Stage 3: slow consumer
     let m3 = metrics.clone();
     while let Some(data) = rx2.recv().await {
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
@@ -1060,23 +1060,23 @@ async fn monitored_pipeline() {
 
 ---
 
-## 5. ファンアウト/ファンイン パターン
+## 5. Fan-out / Fan-in Patterns
 
-### コード例17: 分散処理と結果集約
+### Example 17: Distributed Processing and Result Aggregation
 
 ```rust
 use futures::stream::{self, StreamExt};
 use tokio::sync::mpsc;
 
-/// ファンアウト: 1つの入力を複数ワーカーに分配
-/// ファンイン: 複数ワーカーの結果を1つに集約
+/// Fan-out: distribute one input to multiple workers
+/// Fan-in: aggregate results from multiple workers into one
 async fn fan_out_fan_in(
     items: Vec<u32>,
     num_workers: usize,
 ) -> Vec<String> {
     let (result_tx, mut result_rx) = mpsc::channel::<String>(100);
 
-    // ファンアウト: アイテムをワーカーに分配
+    // Fan-out: distribute items to workers
     let chunks: Vec<Vec<u32>> = items
         .chunks((items.len() + num_workers - 1) / num_workers)
         .map(|c| c.to_vec())
@@ -1086,7 +1086,7 @@ async fn fan_out_fan_in(
         let tx = result_tx.clone();
         tokio::spawn(async move {
             for item in chunk {
-                // 各ワーカーの処理
+                // Each worker's processing
                 tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
                 let result = format!("Worker{}: processed item {}", worker_id, item);
                 if tx.send(result).await.is_err() { break; }
@@ -1094,10 +1094,10 @@ async fn fan_out_fan_in(
         });
     }
 
-    // result_tx のオリジナルを drop して、全ワーカー完了でチャネルが閉じるようにする
+    // Drop the original result_tx so the channel closes once all workers finish
     drop(result_tx);
 
-    // ファンイン: 全ワーカーの結果を集約
+    // Fan-in: aggregate results from all workers
     let mut results = Vec::new();
     while let Some(result) = result_rx.recv().await {
         results.push(result);
@@ -1110,17 +1110,17 @@ async fn fan_out_fan_in(
 async fn main() {
     let items: Vec<u32> = (1..=100).collect();
     let results = fan_out_fan_in(items, 4).await;
-    println!("処理完了: {} 件", results.len());
+    println!("Processing complete: {} items", results.len());
 }
 ```
 
-### コード例18: マップリデュースパターン
+### Example 18: MapReduce Pattern
 
 ```rust
 use futures::future::join_all;
 use std::collections::HashMap;
 
-/// Map フェーズ: テキストを単語に分割して (word, 1) ペアを生成
+/// Map phase: split text into words and produce (word, 1) pairs
 async fn map_phase(text: String) -> Vec<(String, u32)> {
     tokio::task::spawn_blocking(move || {
         text.split_whitespace()
@@ -1129,7 +1129,7 @@ async fn map_phase(text: String) -> Vec<(String, u32)> {
     }).await.unwrap()
 }
 
-/// Shuffle フェーズ: 同じキーのペアをグループ化
+/// Shuffle phase: group pairs with the same key
 fn shuffle_phase(mapped: Vec<Vec<(String, u32)>>) -> HashMap<String, Vec<u32>> {
     let mut grouped: HashMap<String, Vec<u32>> = HashMap::new();
     for pairs in mapped {
@@ -1140,7 +1140,7 @@ fn shuffle_phase(mapped: Vec<Vec<(String, u32)>>) -> HashMap<String, Vec<u32>> {
     grouped
 }
 
-/// Reduce フェーズ: グループ化された値を集約
+/// Reduce phase: aggregate grouped values
 async fn reduce_phase(word: String, counts: Vec<u32>) -> (String, u32) {
     let total: u32 = counts.iter().sum();
     (word, total)
@@ -1154,20 +1154,20 @@ async fn main() {
         "async rust is awesome hello".to_string(),
     ];
 
-    // Map フェーズ (並行実行)
+    // Map phase (concurrent execution)
     let map_futures: Vec<_> = texts.into_iter().map(|t| map_phase(t)).collect();
     let mapped = join_all(map_futures).await;
 
-    // Shuffle フェーズ
+    // Shuffle phase
     let grouped = shuffle_phase(mapped);
 
-    // Reduce フェーズ (並行実行)
+    // Reduce phase (concurrent execution)
     let reduce_futures: Vec<_> = grouped.into_iter()
         .map(|(word, counts)| reduce_phase(word, counts))
         .collect();
     let mut results = join_all(reduce_futures).await;
 
-    // 結果をソート (出現回数降順)
+    // Sort results (descending by occurrence count)
     results.sort_by(|a, b| b.1.cmp(&a.1));
 
     println!("=== Word Count ===");
@@ -1179,73 +1179,73 @@ async fn main() {
 
 ---
 
-## 6. 比較表
+## 6. Comparison Tables
 
-### 並行制限手法の比較
+### Comparison of Concurrency Limiting Techniques
 
-| 手法 | 粒度 | 適用対象 | 利点 | 欠点 |
+| Technique | Granularity | Applies To | Pros | Cons |
 |---|---|---|---|---|
-| `buffer_unordered(N)` | Stream 要素 | Stream パイプライン | 簡潔 | Stream限定 |
-| `buffered(N)` | Stream 要素 | 順序保証が必要な場合 | 順序維持 | 遅いタスクがボトルネック |
-| `Semaphore` | 任意ブロック | どこでも | 柔軟 | ボイラープレート多 |
-| `JoinSet` + カウンタ | タスク | 動的タスク生成 | 制御しやすい | 手動管理 |
-| `mpsc(N)` | メッセージ | Producer-Consumer | バックプレッシャー | チャネル設計必要 |
-| `RateLimiter` | リクエスト | API呼び出し | レート保証 | 実装が複雑 |
+| `buffer_unordered(N)` | Stream element | Stream pipelines | Concise | Stream-only |
+| `buffered(N)` | Stream element | When ordering is required | Preserves order | Slow tasks become bottleneck |
+| `Semaphore` | Arbitrary block | Anywhere | Flexible | More boilerplate |
+| `JoinSet` + counter | Task | Dynamic task creation | Easy to control | Manual management |
+| `mpsc(N)` | Message | Producer-Consumer | Backpressure | Channel design needed |
+| `RateLimiter` | Request | API calls | Rate guarantee | Complex implementation |
 
-### リトライ戦略の比較
+### Comparison of Retry Strategies
 
-| 戦略 | 遅延パターン | ユースケース | リスク |
+| Strategy | Delay Pattern | Use Case | Risk |
 |---|---|---|---|
-| 即時リトライ | なし | 一時的ロック競合 | サーバー過負荷 |
-| 固定遅延 | 常に同じ間隔 | 定期ポーリング | 効率が悪い |
-| 指数バックオフ | 2倍ずつ増加 | API呼び出し | 収束が遅い |
-| ジッター付きバックオフ | ランダム要素追加 | 分散システム (推奨) | 実装が少し複雑 |
-| サーキットブレーカー | 一定失敗で停止 | 障害伝播防止 | 状態管理が必要 |
-| 条件付きリトライ | エラー種別で判断 | 精密なエラーハンドリング | 条件定義が必要 |
+| Immediate retry | None | Transient lock contention | Server overload |
+| Fixed delay | Always same interval | Periodic polling | Inefficient |
+| Exponential backoff | Doubles each time | API calls | Slow convergence |
+| Backoff with jitter | Adds random element | Distributed systems (recommended) | Slightly more complex |
+| Circuit breaker | Stop after fixed failures | Failure propagation prevention | State management needed |
+| Conditional retry | Decide by error type | Precise error handling | Conditions must be defined |
 
-### Stream メソッドの比較
+### Comparison of Stream Methods
 
-| メソッド | 用途 | 非同期変換 | 順序 |
+| Method | Purpose | Async Transform | Order |
 |---|---|---|---|
-| `.map()` | 同期変換 | 非対応 | 維持 |
-| `.then()` | 非同期変換 | 対応 | 維持 (逐次) |
-| `.buffered(N)` | 非同期変換 | 対応 (並行) | 維持 |
-| `.buffer_unordered(N)` | 非同期変換 | 対応 (並行) | 完了順 |
-| `.filter()` | 同期フィルタ | 非対応 | 維持 |
-| `.filter_map()` | 同期変換+フィルタ | 非対応 | 維持 |
-| `.flat_map()` | 展開 | 非対応 | 維持 |
-| `.scan()` | 状態付き変換 | 対応 | 維持 |
-| `.fold()` | 集約 | 対応 | N/A |
-| `.for_each()` | 副作用 | 対応 | 維持 |
-| `.for_each_concurrent(N)` | 並行副作用 | 対応 | 不定 |
+| `.map()` | Sync transform | Not supported | Preserved |
+| `.then()` | Async transform | Supported | Preserved (sequential) |
+| `.buffered(N)` | Async transform | Supported (concurrent) | Preserved |
+| `.buffer_unordered(N)` | Async transform | Supported (concurrent) | Completion order |
+| `.filter()` | Sync filter | Not supported | Preserved |
+| `.filter_map()` | Sync transform + filter | Not supported | Preserved |
+| `.flat_map()` | Expand | Not supported | Preserved |
+| `.scan()` | Stateful transform | Supported | Preserved |
+| `.fold()` | Aggregate | Supported | N/A |
+| `.for_each()` | Side effects | Supported | Preserved |
+| `.for_each_concurrent(N)` | Concurrent side effects | Supported | Indeterminate |
 
 ---
 
-## 7. アンチパターン
+## 7. Anti-Patterns
 
-### アンチパターン1: 無制限並行
+### Anti-pattern 1: Unlimited Concurrency
 
 ```rust
-// NG: 10,000 URLを一斉にフェッチ → ファイルディスクリプタ枯渇
+// NG: fetching 10,000 URLs at once → file descriptor exhaustion
 let handles: Vec<_> = urls.iter()
     .map(|url| tokio::spawn(fetch(url.clone())))
     .collect();
 
-// OK: buffer_unordered で制限
+// OK: limit with buffer_unordered
 let results: Vec<_> = stream::iter(urls)
     .map(|url| fetch(url))
-    .buffer_unordered(50) // 最大50並行
+    .buffer_unordered(50) // up to 50 concurrent
     .collect()
     .await;
 ```
 
-### アンチパターン2: リトライなしの一発勝負
+### Anti-pattern 2: One-shot Without Retry
 
 ```rust
-// NG: ネットワーク一時障害で即座に失敗
+// NG: fails immediately on transient network issue
 let data = reqwest::get(url).await?;
 
-// OK: リトライ + タイムアウト + ロギング
+// OK: retry + timeout + logging
 let data = retry_with_backoff(
     || async {
         timeout(Duration::from_secs(10), reqwest::get(url)).await?
@@ -1255,47 +1255,47 @@ let data = retry_with_backoff(
 ).await?;
 ```
 
-### アンチパターン3: Stream の collect 前に全要素をメモリに載せる
+### Anti-pattern 3: Loading All Stream Elements into Memory Before collect
 
 ```rust
-// NG: 大量データを一度に collect してメモリ消費
-let all_items: Vec<HugeStruct> = huge_stream.collect().await; // OOM のリスク
+// NG: collecting huge data at once consumes memory
+let all_items: Vec<HugeStruct> = huge_stream.collect().await; // OOM risk
 
-// OK: for_each で逐次処理 (メモリ一定)
+// OK: process sequentially with for_each (constant memory)
 huge_stream
     .for_each(|item| async {
         process_item(item).await;
     })
     .await;
 
-// OK: チャンク処理
+// OK: chunk processing
 use futures::stream::StreamExt;
-let mut stream = huge_stream.chunks(100); // 100件ずつ
+let mut stream = huge_stream.chunks(100); // 100 items at a time
 while let Some(chunk) = stream.next().await {
     process_batch(chunk).await;
 }
 ```
 
-### アンチパターン4: サーキットブレーカーなしのカスケード障害
+### Anti-pattern 4: Cascading Failures Without Circuit Breaker
 
 ```rust
-// NG: 下流サービスが落ちると上流も全部詰まる
+// NG: when downstream service fails, upstream all gets stuck
 async fn bad_handler(req: Request) -> Response {
-    let user = user_service.get_user(req.user_id).await?;       // タイムアウト待ち
-    let profile = profile_service.get_profile(req.user_id).await?;  // さらにタイムアウト
-    // 全リクエストがブロックされ、スレッドプール枯渇
+    let user = user_service.get_user(req.user_id).await?;       // waits for timeout
+    let profile = profile_service.get_profile(req.user_id).await?;  // another timeout
+    // All requests blocked, thread pool exhausted
     Response::ok(json!({ "user": user, "profile": profile }))
 }
 
-// OK: サーキットブレーカーでフォールバック
+// OK: fallback with circuit breaker
 async fn good_handler(req: Request, cb: &CircuitBreaker) -> Response {
     let user = match cb.call(|| user_service.get_user(req.user_id)).await {
         Ok(user) => user,
         Err(CircuitError::Open) => {
-            return Response::service_unavailable("ユーザーサービス利用不可");
+            return Response::service_unavailable("User service unavailable");
         }
         Err(CircuitError::Operation(e)) => {
-            return Response::internal_error(format!("エラー: {}", e));
+            return Response::internal_error(format!("Error: {}", e));
         }
     };
     // ...
@@ -1304,15 +1304,15 @@ async fn good_handler(req: Request, cb: &CircuitBreaker) -> Response {
 
 ---
 
-## 8. 実践パターン集
+## 8. Practical Pattern Collection
 
-### 8.1 バッチ処理パターン
+### 8.1 Batch Processing Pattern
 
 ```rust
 use futures::stream::{self, StreamExt};
 use tokio::time::{sleep, Duration, Instant};
 
-/// 大量のアイテムを効率的にバッチ処理
+/// Efficiently batch-process a large number of items
 async fn batch_process(
     items: Vec<u32>,
     batch_size: usize,
@@ -1326,11 +1326,11 @@ async fn batch_process(
             .collect::<Vec<_>>()
     )
     .map(|batch| async move {
-        // 各バッチの処理
+        // Per-batch processing
         let batch_results: Vec<String> = batch.iter()
             .map(|item| format!("processed_{}", item))
             .collect();
-        sleep(Duration::from_millis(100)).await; // I/O処理のシミュレート
+        sleep(Duration::from_millis(100)).await; // simulate I/O
         batch_results
     })
     .buffer_unordered(max_concurrent_batches)
@@ -1338,7 +1338,7 @@ async fn batch_process(
     .await;
 
     let flat_results: Vec<String> = results.into_iter().flatten().collect();
-    println!("バッチ処理完了: {} 件 ({:?})", flat_results.len(), start.elapsed());
+    println!("Batch processing complete: {} items ({:?})", flat_results.len(), start.elapsed());
     flat_results
 }
 
@@ -1346,17 +1346,17 @@ async fn batch_process(
 async fn main() {
     let items: Vec<u32> = (1..=1000).collect();
     let results = batch_process(items, 50, 10).await;
-    println!("結果: {} 件", results.len());
+    println!("Results: {} items", results.len());
 }
 ```
 
-### 8.2 デバウンスパターン
+### 8.2 Debounce Pattern
 
 ```rust
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration, Instant};
 
-/// デバウンス: 最後のイベントから一定時間経過後に処理を実行
+/// Debounce: execute the handler after a fixed time has elapsed since the last event
 async fn debounce<T: Send + 'static>(
     mut rx: mpsc::Receiver<T>,
     delay: Duration,
@@ -1374,7 +1374,7 @@ async fn debounce<T: Send + 'static>(
             _ = sleep_until(deadline) => {
                 if let Some(value) = last_value.take() {
                     handler(value);
-                    deadline = Instant::now() + Duration::from_secs(86400); // 次のイベントまで待機
+                    deadline = Instant::now() + Duration::from_secs(86400); // wait until next event
                 }
             }
             else => break,
@@ -1393,48 +1393,48 @@ async fn sleep_until(deadline: Instant) {
 async fn main() {
     let (tx, rx) = mpsc::channel::<String>(32);
 
-    // デバウンスハンドラー
+    // Debounce handler
     tokio::spawn(debounce(rx, Duration::from_millis(300), |value| {
-        println!("デバウンス実行: {}", value);
+        println!("Debounce executed: {}", value);
     }));
 
-    // 高頻度でイベントを送信
+    // Send events at high frequency
     for i in 0..10 {
         let _ = tx.send(format!("event_{}", i)).await;
         sleep(Duration::from_millis(50)).await;
     }
 
-    // 最後のイベントのみ処理される
+    // Only the last event is processed
     sleep(Duration::from_millis(500)).await;
 }
 ```
 
-### 8.3 スロットルパターン
+### 8.3 Throttle Pattern
 
 ```rust
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration, Instant};
 
-/// スロットル: 一定間隔で最新の値を処理
+/// Throttle: process the latest value at fixed intervals
 async fn throttle<T: Send + Clone + 'static>(
     mut rx: mpsc::Receiver<T>,
     interval: Duration,
     mut handler: impl FnMut(T) + Send + 'static,
 ) {
     let mut last_value: Option<T> = None;
-    let mut last_execution = Instant::now() - interval; // 初回は即実行
+    let mut last_execution = Instant::now() - interval; // execute immediately on first call
 
     loop {
         tokio::select! {
             Some(value) = rx.recv() => {
                 let elapsed = last_execution.elapsed();
                 if elapsed >= interval {
-                    // インターバル経過済み → 即実行
+                    // Interval has elapsed → execute immediately
                     handler(value);
                     last_execution = Instant::now();
                     last_value = None;
                 } else {
-                    // 次のインターバルまで保持
+                    // Hold until next interval
                     last_value = Some(value);
                 }
             }
@@ -1450,7 +1450,7 @@ async fn throttle<T: Send + Clone + 'static>(
 }
 ```
 
-### 8.4 並行キャッシュパターン
+### 8.4 Concurrent Cache Pattern
 
 ```rust
 use std::collections::HashMap;
@@ -1458,7 +1458,7 @@ use std::sync::Arc;
 use tokio::sync::{Mutex, Notify};
 use tokio::time::{Duration, Instant};
 
-/// TTL付き非同期キャッシュ
+/// Async cache with TTL
 struct AsyncCache<V: Clone> {
     entries: Mutex<HashMap<String, CacheEntry<V>>>,
     ttl: Duration,
@@ -1476,7 +1476,7 @@ impl<V: Clone + Send + 'static> AsyncCache<V> {
             ttl,
         });
 
-        // 期限切れエントリのクリーンアップタスク
+        // Cleanup task for expired entries
         let cache_clone = cache.clone();
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(ttl);
@@ -1505,7 +1505,7 @@ impl<V: Clone + Send + 'static> AsyncCache<V> {
         });
     }
 
-    /// キャッシュミス時に非同期で値を取得してキャッシュ
+    /// On cache miss, asynchronously fetch and cache the value
     async fn get_or_insert<F, Fut>(&self, key: &str, factory: F) -> V
     where
         F: FnOnce() -> Fut,
@@ -1525,20 +1525,20 @@ impl<V: Clone + Send + 'static> AsyncCache<V> {
 async fn main() {
     let cache = AsyncCache::new(Duration::from_secs(60));
 
-    // キャッシュを使ったデータ取得
+    // Fetch data using cache
     let user = cache.get_or_insert("user_1", || async {
-        println!("DBからユーザー取得...");
+        println!("Fetching user from DB...");
         tokio::time::sleep(Duration::from_millis(100)).await;
         "Alice".to_string()
     }).await;
-    println!("ユーザー: {}", user);
+    println!("User: {}", user);
 
-    // 2回目はキャッシュヒット
+    // Second call hits the cache
     let user = cache.get_or_insert("user_1", || async {
-        println!("この行は実行されない");
+        println!("This line is not executed");
         "Bob".to_string()
     }).await;
-    println!("ユーザー (キャッシュ): {}", user); // Alice
+    println!("User (cached): {}", user); // Alice
 }
 ```
 
@@ -1546,48 +1546,48 @@ async fn main() {
 
 ## FAQ
 
-### Q1: `buffer_unordered` と `buffered` の違いは?
+### Q1: What is the difference between `buffer_unordered` and `buffered`?
 
-**A:** `buffered(N)` は入力順に結果を返します。`buffer_unordered(N)` は完了順に返します。レイテンシが均一でない場合は `buffer_unordered` の方がスループットが高くなります。
+**A:** `buffered(N)` returns results in input order. `buffer_unordered(N)` returns them in completion order. When latency is non-uniform, `buffer_unordered` typically yields higher throughput.
 
-### Q2: Stream はいつ使うべき?
+### Q2: When should I use Streams?
 
-**A:** 以下の場面で有効です:
-1. 大量データを逐次処理する時 (メモリ効率)
-2. WebSocket のような継続的なデータ受信
-3. ページネーション付き API からのデータ取得
-4. イベント駆動処理
-5. ETL パイプライン
+**A:** They are useful in the following scenarios:
+1. Processing large amounts of data sequentially (memory efficiency)
+2. Continuous data reception such as WebSockets
+3. Fetching data from paginated APIs
+4. Event-driven processing
+5. ETL pipelines
 
-小規模なデータセットなら `Vec` + `join_all` で十分です。
+For small data sets, `Vec` + `join_all` is sufficient.
 
-### Q3: バックプレッシャーが効いているか確認する方法は?
+### Q3: How do I verify that backpressure is effective?
 
-**A:** `mpsc::Sender::send().await` の待機時間を計測するか、チャネルの `capacity()` をモニタリングします。メトリクスライブラリ (metrics クレート) と組み合わせてダッシュボードで可視化するのが本番環境での推奨手法です。
+**A:** Measure the wait time of `mpsc::Sender::send().await` or monitor the channel's `capacity()`. The recommended production approach is to combine this with a metrics library (the metrics crate) and visualize it on a dashboard.
 
 ```rust
 let (tx, rx) = mpsc::channel(32);
 
-// capacity でバックプレッシャーの程度を推定
+// Use capacity to estimate the level of backpressure
 let remaining = tx.capacity();
 if remaining < 4 {
-    eprintln!("警告: チャネルバッファがほぼ満杯 (残り: {})", remaining);
+    eprintln!("Warning: channel buffer nearly full (remaining: {})", remaining);
 }
 ```
 
-### Q4: サーキットブレーカーのパラメータ設定の目安は?
+### Q4: What are good guidelines for circuit breaker parameters?
 
-**A:** 一般的な目安は以下の通りです。
+**A:** General guidelines are as follows.
 
-| パラメータ | 推奨値 | 考慮事項 |
+| Parameter | Recommended Value | Considerations |
 |---|---|---|
-| failure_threshold | 5〜10 | 過敏すぎると正常時にも Open になる |
-| timeout (Open → HalfOpen) | 30〜60秒 | 下流の回復時間に合わせる |
-| success_threshold | 3〜5 | HalfOpen で安定確認する回数 |
+| failure_threshold | 5-10 | Too sensitive causes Open during normal operation |
+| timeout (Open → HalfOpen) | 30-60s | Match downstream recovery time |
+| success_threshold | 3-5 | Number of confirmations for stability in HalfOpen |
 
-### Q5: FuturesUnordered と buffer_unordered の違いは?
+### Q5: What is the difference between FuturesUnordered and buffer_unordered?
 
-**A:** `FuturesUnordered` は Future のコレクションとして直接使え、動的に Future を追加・削除できます。`buffer_unordered` は Stream のアダプタとして使います。動的にタスクを追加する必要がある場合は `FuturesUnordered`、Stream パイプラインの一部として使う場合は `buffer_unordered` が適切です。
+**A:** `FuturesUnordered` can be used directly as a collection of Futures, allowing dynamic addition and removal of Futures. `buffer_unordered` is used as a Stream adapter. Use `FuturesUnordered` when you need to add tasks dynamically; use `buffer_unordered` when used as part of a Stream pipeline.
 
 ```rust
 use futures::stream::FuturesUnordered;
@@ -1595,14 +1595,14 @@ use futures::StreamExt;
 
 let mut futures = FuturesUnordered::new();
 
-// 動的に Future を追加
+// Add Futures dynamically
 futures.push(async { 1 });
 futures.push(async { 2 });
 
-// 完了順に取得
+// Retrieve in completion order
 while let Some(result) = futures.next().await {
-    println!("完了: {}", result);
-    // 条件に応じて新しい Future を追加
+    println!("Completed: {}", result);
+    // Add a new Future based on conditions
     if result < 5 {
         futures.push(async move { result + 10 });
     }
@@ -1611,36 +1611,36 @@ while let Some(result) = futures.next().await {
 
 ---
 
-## まとめ
+## Summary
 
-| 項目 | 要点 |
+| Item | Key Point |
 |---|---|
-| Stream | 非同期イテレータ。`StreamExt` で map/filter/collect |
-| async_stream | `stream!` マクロで簡潔に Stream を作成 |
-| ReceiverStream | mpsc::Receiver を Stream に変換 |
-| buffer_unordered | Stream の並行制限。完了順で高スループット |
-| buffered | Stream の並行制限。入力順を維持 |
-| Semaphore | 汎用的な並行度ガード |
-| リトライ | 指数バックオフ + ジッターが推奨 |
-| サーキットブレーカー | カスケード障害の防止 |
-| タイムアウト | `tokio::time::timeout` で個別・全体を制御 |
-| バックプレッシャー | bounded チャネルで自然な流量制御 |
-| パイプライン | ステージ間をチャネルで接続 |
-| ファンアウト/ファンイン | 分散処理と結果集約のパターン |
-| デバウンス | 最後のイベント後に一定時間経過で実行 |
-| スロットル | 一定間隔で最新の値を処理 |
-| 非同期キャッシュ | TTL付きの並行安全なキャッシュ |
+| Stream | Async iterator. map/filter/collect via `StreamExt` |
+| async_stream | Concisely create Streams using the `stream!` macro |
+| ReceiverStream | Convert mpsc::Receiver into a Stream |
+| buffer_unordered | Stream concurrency limit. High throughput in completion order |
+| buffered | Stream concurrency limit. Preserves input order |
+| Semaphore | General-purpose concurrency guard |
+| Retry | Exponential backoff + jitter recommended |
+| Circuit breaker | Prevents cascading failures |
+| Timeout | Control individually or globally with `tokio::time::timeout` |
+| Backpressure | Natural flow control via bounded channels |
+| Pipeline | Connect stages with channels |
+| Fan-out / Fan-in | Pattern for distributed processing and result aggregation |
+| Debounce | Execute after a fixed time elapses since the last event |
+| Throttle | Process the latest value at fixed intervals |
+| Async cache | Concurrent-safe cache with TTL |
 
-## 次に読むべきガイド
+## Recommended Next Reading
 
-- [ネットワーク](./03-networking.md) — HTTP/WebSocket/gRPCの非同期パターン適用
-- [Axum](./04-axum-web.md) — Webフレームワークでの実践
-- [並行性](../03-systems/01-concurrency.md) — スレッドレベルの並行制御
+- [Networking](./03-networking.md) -- Applying async patterns to HTTP/WebSocket/gRPC
+- [Axum](./04-axum-web.md) -- Practice with a web framework
+- [Concurrency](../03-systems/01-concurrency.md) -- Thread-level concurrency control
 
-## 参考文献
+## References
 
 1. **futures crate (StreamExt)**: https://docs.rs/futures/latest/futures/stream/trait.StreamExt.html
-2. **Tokio — Streams**: https://tokio.rs/tokio/tutorial/streams
+2. **Tokio -- Streams**: https://tokio.rs/tokio/tutorial/streams
 3. **Tower (middleware/retry/rate-limit)**: https://docs.rs/tower/latest/tower/
 4. **async-stream crate**: https://docs.rs/async-stream/latest/async_stream/
-5. **AWS Blog — Exponential Backoff And Jitter**: https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
+5. **AWS Blog -- Exponential Backoff And Jitter**: https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
