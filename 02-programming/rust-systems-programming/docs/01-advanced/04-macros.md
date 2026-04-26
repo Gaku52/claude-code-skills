@@ -1,108 +1,112 @@
-# Rustマクロ — メタプログラミングの力
+# Rust Macros — The Power of Metaprogramming
 
-> コンパイル時にコードを生成する宣言的マクロ・手続き的マクロの仕組みと実践パターンを体系的に学ぶ
+> Systematically learn the mechanisms and practical patterns of declarative and procedural macros that generate code at compile time
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-1. **宣言的マクロ (`macro_rules!`)** — パターンマッチでコードを展開する仕組みと再帰展開
-2. **手続き的マクロ (proc-macro)** — derive / attribute / function-like マクロの実装手法
-3. **マクロ設計原則** — 衛生性(Hygiene)、デバッグ手法、実用的なベストプラクティス
+1. **Declarative macros (`macro_rules!`)** — How code is expanded via pattern matching, and recursive expansion
+2. **Procedural macros (proc-macro)** — Implementation techniques for derive / attribute / function-like macros
+3. **Macro design principles** — Hygiene, debugging techniques, and practical best practices
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+You will get more out of this guide if you already have:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [unsafe Rust -- 安全性の境界を越える低レベルプログラミング](./03-unsafe-rust.md) の内容を理解していること
+- Basic programming knowledge
+- An understanding of related foundational concepts
+- Familiarity with the contents of [unsafe Rust — Low-Level Programming Across the Safety Boundary](./03-unsafe-rust.md)
 
 ---
 
-## 1. マクロの分類と全体像
+## 1. Macro Categories and the Big Picture
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                Rust マクロ体系                        │
+│                Rust Macro System                    │
 ├──────────────────────┬──────────────────────────────┤
-│   宣言的マクロ        │     手続き的マクロ             │
+│  Declarative Macros  │     Procedural Macros        │
 │   (Declarative)      │     (Procedural)             │
 │                      │                              │
-│  macro_rules! で定義  │  別クレートで定義              │
-│  パターンマッチベース  │  TokenStream → TokenStream    │
-│                      │                              │
-│  例: vec!, println!  │  ┌────────────────────────┐  │
-│                      │  │ #[derive(..)]          │  │
-│                      │  │ #[属性マクロ]           │  │
-│                      │  │ 関数風マクロ!()         │  │
+│ Defined with         │  Defined in a separate crate │
+│ macro_rules!         │  TokenStream → TokenStream   │
+│ Pattern-match based  │                              │
+│                      │  ┌────────────────────────┐  │
+│ e.g. vec!, println!  │  │ #[derive(..)]          │  │
+│                      │  │ #[attribute macro]     │  │
+│                      │  │ function_like_macro!() │  │
 │                      │  └────────────────────────┘  │
 └──────────────────────┴──────────────────────────────┘
 ```
 
-### マクロが必要になる場面
+### When Macros Are Needed
 
-Rust のマクロはメタプログラミングの中核であり、以下のような場面で特に威力を発揮する。
+Macros are at the heart of Rust's metaprogramming, and they shine particularly in the following situations:
 
-1. **ボイラープレート削減** — 同一パターンの繰り返し実装（複数型への `impl`、テストケース生成）
-2. **DSL（ドメイン固有言語）** — 構造化されたデータリテラル、宣言的 API 定義
-3. **コンパイル時検証** — SQL文・正規表現・環境変数の静的チェック
-4. **条件付きコード生成** — `cfg!` に基づくプラットフォーム固有コード
-5. **derive 自動実装** — `Serialize`、`Debug`、`Clone` 等のトレイト自動導出
+1. **Reducing boilerplate** — Repeating the same implementation pattern (e.g., `impl` for multiple types, generating test cases)
+2. **DSLs (domain-specific languages)** — Structured data literals, declarative API definitions
+3. **Compile-time validation** — Static checks for SQL, regular expressions, environment variables
+4. **Conditional code generation** — Platform-specific code based on `cfg!`
+5. **Automatic derive implementations** — Auto-derivation of traits like `Serialize`, `Debug`, `Clone`
 
-マクロは**コンパイル時**に展開されるため、実行時オーバーヘッドはゼロである。
+Because macros are expanded **at compile time**, they introduce zero runtime overhead.
 
-### マクロの展開フェーズ
+### Macro Expansion Phases
 
 ```
-ソースコード
+Source code
     │
     ▼
 ┌──────────────┐
-│  字句解析     │  ソース → トークンストリーム
+│   Lexing     │  source → token stream
 └──────┬───────┘
        │
        ▼
 ┌──────────────┐
-│  マクロ展開   │  macro_rules! / proc-macro がここで実行される
-│              │  ※ 複数パスで再帰的に展開
+│   Macro      │  macro_rules! / proc-macro run here
+│  expansion   │  * expanded recursively over multiple passes
 └──────┬───────┘
        │
        ▼
 ┌──────────────┐
-│  名前解決     │  展開後のコードに対して名前を解決
+│ Name         │  resolve names against the expanded code
+│ resolution   │
 └──────┬───────┘
        │
        ▼
 ┌──────────────┐
-│  型チェック   │  完全に展開されたコードの型チェック
+│ Type         │  type-check the fully expanded code
+│ checking     │
 └──────┬───────┘
        │
        ▼
 ┌──────────────┐
-│  借用チェック  │  所有権・ライフタイム検証
+│ Borrow       │  ownership and lifetime verification
+│ checking     │
 └──────┬───────┘
        │
        ▼
 ┌──────────────┐
-│  コード生成   │  LLVM IR → 機械語
+│ Code         │  LLVM IR → machine code
+│ generation   │
 └──────────────┘
 ```
 
-重要な点として、マクロ展開はコンパイルの**初期段階**で行われる。展開後のコードは通常の Rust コードとして型チェック・借用チェックを受けるため、マクロが生成したコードにバグがあればコンパイルエラーとして検出される。
+Importantly, macro expansion happens in the **early stages** of compilation. Expanded code is then type-checked and borrow-checked as ordinary Rust code, so any bugs in the code a macro produces will be caught as compile errors.
 
 ---
 
-## 2. 宣言的マクロ (`macro_rules!`)
+## 2. Declarative Macros (`macro_rules!`)
 
-### コード例1: 基本的な宣言的マクロ
+### Code Example 1: A Basic Declarative Macro
 
 ```rust
-/// カスタム HashMap リテラルマクロ
+/// Custom HashMap literal macro
 macro_rules! map {
-    // 空のマップ
+    // Empty map
     () => { std::collections::HashMap::new() };
 
-    // key => value ペアを受け取る
+    // Accept key => value pairs
     ( $( $key:expr => $value:expr ),+ $(,)? ) => {{
         let mut m = std::collections::HashMap::new();
         $( m.insert($key, $value); )+
@@ -121,76 +125,76 @@ fn main() {
 }
 ```
 
-### パターンマッチの動作原理
+### How Pattern Matching Works
 
-`macro_rules!` は上から順にアーム（パターン）を試行し、最初にマッチしたものを展開する。各アームは `(パターン) => { 展開テンプレート }` の形式を取る。
+`macro_rules!` tries arms (patterns) from top to bottom and expands the first one that matches. Each arm has the form `(pattern) => { expansion template }`.
 
 ```rust
 macro_rules! explain {
-    // アーム1: 空の入力
+    // Arm 1: empty input
     () => {
-        println!("引数なし");
+        println!("no arguments");
     };
 
-    // アーム2: 単一の式
+    // Arm 2: a single expression
     ($single:expr) => {
-        println!("単一の式: {}", $single);
+        println!("single expression: {}", $single);
     };
 
-    // アーム3: カンマ区切りの複数式
+    // Arm 3: comma-separated multiple expressions
     ($first:expr, $($rest:expr),+) => {
-        println!("最初: {}", $first);
-        // 残りを再帰的に処理
+        println!("first: {}", $first);
+        // Recursively process the rest
         explain!($($rest),+);
     };
 }
 
 fn main() {
-    explain!();             // "引数なし"
-    explain!(42);           // "単一の式: 42"
-    explain!(1, 2, 3);      // "最初: 1" → "最初: 2" → "単一の式: 3"
+    explain!();             // "no arguments"
+    explain!(42);           // "single expression: 42"
+    explain!(1, 2, 3);      // "first: 1" → "first: 2" → "single expression: 3"
 }
 ```
 
-### フラグメント指定子一覧
+### List of Fragment Specifiers
 
 ```
 ┌──────────────┬──────────────────────────────┬──────────────┐
-│ 指定子        │ マッチ対象                    │ 例            │
+│ Specifier    │ Matches                      │ Example      │
 ├──────────────┼──────────────────────────────┼──────────────┤
-│ $x:expr      │ 式                           │ 1 + 2        │
-│ $x:ty        │ 型                           │ Vec<i32>     │
-│ $x:ident     │ 識別子                        │ my_var       │
-│ $x:pat       │ パターン                      │ Some(x)      │
-│ $x:path      │ パス                          │ std::io::Read│
-│ $x:stmt      │ 文                           │ let x = 1;   │
-│ $x:block     │ ブロック                      │ { ... }      │
-│ $x:item      │ アイテム                      │ fn foo() {}  │
-│ $x:meta      │ メタ(属性の中身)              │ derive(Debug)│
-│ $x:tt        │ トークンツリー(何でも1つ)     │ +, foo, {}   │
-│ $x:literal   │ リテラル                      │ 42, "hello"  │
-│ $x:lifetime  │ ライフタイム                   │ 'a           │
-│ $x:vis       │ 可視性修飾子                   │ pub          │
+│ $x:expr      │ expression                   │ 1 + 2        │
+│ $x:ty        │ type                         │ Vec<i32>     │
+│ $x:ident     │ identifier                   │ my_var       │
+│ $x:pat       │ pattern                      │ Some(x)      │
+│ $x:path      │ path                         │ std::io::Read│
+│ $x:stmt      │ statement                    │ let x = 1;   │
+│ $x:block     │ block                        │ { ... }      │
+│ $x:item      │ item                         │ fn foo() {}  │
+│ $x:meta      │ meta (attribute body)        │ derive(Debug)│
+│ $x:tt        │ token tree (anything, one)   │ +, foo, {}   │
+│ $x:literal   │ literal                      │ 42, "hello"  │
+│ $x:lifetime  │ lifetime                     │ 'a           │
+│ $x:vis       │ visibility modifier          │ pub          │
 └──────────────┴──────────────────────────────┴──────────────┘
 ```
 
-### フラグメント指定子の後続制限
+### Follow-Set Restrictions on Fragment Specifiers
 
-フラグメント指定子には「後に続けられるトークン」に制限がある。これを理解していないとコンパイルエラーに悩まされる。
+Fragment specifiers come with restrictions on the tokens that may follow them. Not understanding these will lead to puzzling compile errors.
 
 ```rust
-// $x:expr の後に続けられるのは => , ; のみ
+// $x:expr may only be followed by => , ;
 macro_rules! ok_after_expr {
-    ($e:expr, $f:expr) => { $e + $f };      // OK: カンマ
-    // ($e:expr $f:expr) => { $e + $f };     // NG: 区切りなし
+    ($e:expr, $f:expr) => { $e + $f };      // OK: comma
+    // ($e:expr $f:expr) => { $e + $f };     // NG: no separator
 }
 
-// $x:ty の後に続けられるのは => , = | ; : > >> [ { as where のみ
+// $x:ty may only be followed by => , = | ; : > >> [ { as where
 macro_rules! ok_after_ty {
-    ($t:ty : $e:expr) => { let _: $t = $e; };  // OK: コロン
+    ($t:ty : $e:expr) => { let _: $t = $e; };  // OK: colon
 }
 
-// $x:pat の後に続けられるのは => , = | if in のみ
+// $x:pat may only be followed by => , = | if in
 macro_rules! ok_after_pat {
     ($p:pat => $e:expr) => {
         match some_val {
@@ -200,22 +204,22 @@ macro_rules! ok_after_pat {
     };
 }
 
-// $x:tt は何でもマッチするので後続制限なし
+// $x:tt matches anything, so it has no follow-set restriction
 macro_rules! flexible {
-    ($($t:tt)*) => { $($t)* };  // 何でもそのまま展開
+    ($($t:tt)*) => { $($t)* };  // expand whatever was given verbatim
 }
 ```
 
-### コード例2: 再帰マクロ — コンパイル時カウント
+### Code Example 2: Recursive Macro — Compile-Time Counting
 
 ```rust
-/// コンパイル時にトークン数を数える
+/// Count tokens at compile time
 macro_rules! count {
     ()                          => { 0usize };
     ($head:tt $($tail:tt)*)     => { 1usize + count!($($tail)*) };
 }
 
-/// 固定サイズ配列を型安全に生成
+/// Generate a fixed-size array in a type-safe way
 macro_rules! fixed_vec {
     ( $( $elem:expr ),* $(,)? ) => {{
         const LEN: usize = count!($( { $elem } )*);
@@ -226,17 +230,17 @@ macro_rules! fixed_vec {
 
 fn main() {
     let arr = fixed_vec![10, 20, 30];
-    // arr は [i32; 3] 型
+    // arr is of type [i32; 3]
     assert_eq!(arr.len(), 3);
 }
 ```
 
-### コード例: 複数型への一括 impl（反復マクロ）
+### Code Example: Bulk `impl` for Multiple Types (Repetition Macro)
 
-実務で最も頻繁に使われるパターンの一つが、複数の型に同じトレイト実装を適用するマクロである。
+One of the most frequently used patterns in practice is a macro that applies the same trait implementation to multiple types.
 
 ```rust
-/// 数値型に対する共通トレイトを一括実装
+/// Bulk-implement a common trait for numeric types
 trait Numeric {
     fn zero() -> Self;
     fn one() -> Self;
@@ -244,7 +248,7 @@ trait Numeric {
 }
 
 macro_rules! impl_numeric {
-    // 整数型用
+    // For integer types
     (int: $($t:ty),+ $(,)?) => {
         $(
             impl Numeric for $t {
@@ -254,7 +258,7 @@ macro_rules! impl_numeric {
             }
         )+
     };
-    // 浮動小数点型用
+    // For floating-point types
     (float: $($t:ty),+ $(,)?) => {
         $(
             impl Numeric for $t {
@@ -282,31 +286,31 @@ fn main() {
 }
 ```
 
-### コード例: TT Muncher パターン（トークン消費パターン）
+### Code Example: TT Muncher Pattern (Token-Consuming Pattern)
 
-TT Muncher は宣言的マクロで複雑な構文を解析するための高度なパターンで、トークンを先頭から1つずつ「食べていく」方式で再帰処理する。
+The TT Muncher is an advanced pattern in declarative macros for parsing complex syntax: it recurses by "eating" one token at a time from the front of the input.
 
 ```rust
-/// HTML 風の構造を構築する DSL マクロ
+/// DSL macro that builds an HTML-like structure
 macro_rules! html {
-    // 終了条件: 空
+    // Base case: empty
     () => { String::new() };
 
-    // テキストノード
+    // Text node
     (text($text:expr) $($rest:tt)*) => {{
         let mut s = $text.to_string();
         s.push_str(&html!($($rest)*));
         s
     }};
 
-    // 自閉じタグ <br/>
+    // Self-closing tag <br/>
     ($tag:ident / $($rest:tt)*) => {{
         let mut s = format!("<{}/>", stringify!($tag));
         s.push_str(&html!($($rest)*));
         s
     }};
 
-    // 開始タグ + 子要素 + 閉じタグ
+    // Opening tag + children + closing tag
     ($tag:ident { $($children:tt)* } $($rest:tt)*) => {{
         let mut s = format!("<{}>", stringify!($tag));
         s.push_str(&html!($($children)*));
@@ -320,22 +324,22 @@ fn main() {
     let page = html! {
         div {
             h1 { text("Hello, World!") }
-            p { text("Rust マクロで HTML を生成") }
+            p { text("Generating HTML with Rust macros") }
             br /
-            p { text("TT Muncher パターンの例") }
+            p { text("Example of the TT Muncher pattern") }
         }
     };
     println!("{}", page);
-    // <div><h1>Hello, World!</h1><p>Rust マクロで HTML を生成</p><br/><p>TT Muncher パターンの例</p></div>
+    // <div><h1>Hello, World!</h1><p>Generating HTML with Rust macros</p><br/><p>Example of the TT Muncher pattern</p></div>
 }
 ```
 
-### コード例: Push-down Accumulation パターン
+### Code Example: Push-down Accumulation Pattern
 
-再帰中に中間結果を蓄積していくパターン。JSON ビルダーの例を示す。
+A pattern that accumulates intermediate results during recursion. The example below is a JSON builder.
 
 ```rust
-/// 簡易 JSON ビルダーマクロ
+/// Simple JSON builder macro
 macro_rules! json {
     // null
     (null) => { JsonValue::Null };
@@ -344,18 +348,18 @@ macro_rules! json {
     (true) => { JsonValue::Bool(true) };
     (false) => { JsonValue::Bool(false) };
 
-    // 数値
+    // number
     ($num:literal) => { JsonValue::Number($num as f64) };
 
-    // 文字列
+    // string
     ($s:literal) => { JsonValue::Str($s.to_string()) };
 
-    // 配列
+    // array
     ([ $($elem:tt),* $(,)? ]) => {
         JsonValue::Array(vec![ $(json!($elem)),* ])
     };
 
-    // オブジェクト
+    // object
     ({ $($key:literal : $value:tt),* $(,)? }) => {{
         let mut map = std::collections::BTreeMap::new();
         $(
@@ -417,10 +421,10 @@ fn main() {
 }
 ```
 
-### コード例: テストケース自動生成マクロ
+### Code Example: Macro That Auto-Generates Test Cases
 
 ```rust
-/// パラメタライズドテストを生成するマクロ
+/// Macro that generates parameterized tests
 macro_rules! test_cases {
     (
         fn $test_name:ident($input:ident : $in_ty:ty) -> $out_ty:ty $body:block
@@ -428,16 +432,16 @@ macro_rules! test_cases {
             $( $case_name:ident : $case_input:expr => $expected:expr ),+ $(,)?
         }
     ) => {
-        // テスト対象の関数を生成
+        // Generate the function under test
         fn $test_name($input: $in_ty) -> $out_ty $body
 
-        // 各テストケースを個別のテスト関数として生成
+        // Generate each test case as an individual test function
         $(
             #[test]
             fn $case_name() {
                 let result = $test_name($case_input);
                 assert_eq!(result, $expected,
-                    "テストケース '{}' が失敗: 入力={:?}, 期待={:?}, 実際={:?}",
+                    "test case '{}' failed: input={:?}, expected={:?}, actual={:?}",
                     stringify!($case_name), $case_input, $expected, result
                 );
             }
@@ -464,25 +468,25 @@ test_cases! {
 }
 ```
 
-### macro_rules! のスコープとエクスポート
+### Scope and Export of `macro_rules!`
 
 ```rust
-// マクロのスコープルール:
-// 1. macro_rules! は定義位置より後でのみ使用可能（テキスト順序に依存）
-// 2. モジュール内で定義したマクロは #[macro_export] で公開可能
-// 3. #[macro_export] されたマクロはクレートルートに配置される
+// Macro scoping rules:
+// 1. macro_rules! is only usable after its definition (depends on text order)
+// 2. A macro defined inside a module can be made public with #[macro_export]
+// 3. Macros marked with #[macro_export] are placed at the crate root
 
-// モジュール内でのマクロ定義と公開
+// Defining and exporting a macro from within a module
 mod utils {
-    // このマクロはクレートルートに配置される
+    // This macro is placed at the crate root
     #[macro_export]
     macro_rules! public_macro {
-        () => { println!("公開マクロ") };
+        () => { println!("public macro") };
     }
 
-    // macro_export なしだと同一モジュール内のみ
+    // Without macro_export it is only visible within the same module
     macro_rules! private_macro {
-        () => { println!("非公開マクロ") };
+        () => { println!("private macro") };
     }
 
     pub fn use_private() {
@@ -490,19 +494,19 @@ mod utils {
     }
 }
 
-// #[macro_use] による一括インポート（2015 edition スタイル）
+// Bulk import via #[macro_use] (2015-edition style)
 // #[macro_use] extern crate some_crate;
 
-// 2018+ edition では use でインポート可能
+// In 2018+ edition you can import with `use`
 // use some_crate::public_macro;
 
-// $crate を使った正しいパス参照
+// Use $crate to refer to paths correctly
 #[macro_export]
 macro_rules! create_vec {
     ($($elem:expr),* $(,)?) => {
         {
-            // $crate は定義元クレートを指す
-            // 外部クレートから使われても正しく解決される
+            // $crate refers to the defining crate
+            // It resolves correctly even when used from external crates
             let mut v = $crate::__internal::new_vec();
             $(v.push($elem);)*
             v
@@ -510,7 +514,7 @@ macro_rules! create_vec {
     };
 }
 
-// マクロから参照される内部モジュール
+// Internal module referenced by the macro
 #[doc(hidden)]
 pub mod __internal {
     pub fn new_vec<T>() -> Vec<T> {
@@ -521,41 +525,42 @@ pub mod __internal {
 
 ---
 
-## 3. 手続き的マクロ
+## 3. Procedural Macros
 
-### プロジェクト構成
+### Project Layout
 
 ```
 ┌─ my-project/
-│  ├─ Cargo.toml          (ワークスペース)
+│  ├─ Cargo.toml          (workspace)
 │  ├─ my-derive/
 │  │  ├─ Cargo.toml       ← proc-macro = true
-│  │  └─ src/lib.rs       ← マクロ実装
+│  │  └─ src/lib.rs       ← macro implementation
 │  └─ my-app/
-│     ├─ Cargo.toml       ← my-derive を依存に追加
+│     ├─ Cargo.toml       ← depends on my-derive
 │     └─ src/main.rs
 ```
 
-### syn / quote / proc-macro2 の役割分担
+### Roles of syn / quote / proc-macro2
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                 手続き的マクロの三種の神器                      │
+│         The Three Sacred Tools of Procedural Macros         │
 ├────────────────┬────────────────────────────────────────────┤
-│  proc-macro2   │ TokenStream の抽象化レイヤー                │
-│                │ テスト時にも使えるトークンストリーム型を提供    │
+│  proc-macro2   │ Abstraction layer over TokenStream         │
+│                │ Provides token-stream types usable in tests│
 ├────────────────┼────────────────────────────────────────────┤
-│  syn           │ TokenStream → AST (構文木) のパーサー        │
-│                │ DeriveInput, ItemFn, Expr 等の型を提供       │
-│                │ パース失敗時にスパン付きエラーを返せる          │
+│  syn           │ TokenStream → AST (syntax tree) parser     │
+│                │ Provides types like DeriveInput, ItemFn,   │
+│                │ Expr, etc.                                 │
+│                │ Returns span-aware errors on parse failure │
 ├────────────────┼────────────────────────────────────────────┤
-│  quote         │ AST → TokenStream のコード生成               │
-│                │ quote! マクロでRustコードテンプレートを記述     │
-│                │ #var で変数補間、#(#var)* で繰り返し           │
+│  quote         │ AST → TokenStream code generation          │
+│                │ Write Rust code templates with quote!      │
+│                │ #var to interpolate, #(#var)* to iterate   │
 └────────────────┴────────────────────────────────────────────┘
 ```
 
-### Cargo.toml の設定例
+### Example Cargo.toml
 
 ```toml
 # my-derive/Cargo.toml
@@ -572,12 +577,12 @@ syn = { version = "2", features = ["full", "extra-traits"] }
 quote = "1"
 proc-macro2 = "1"
 
-# テスト用（オプション）
+# For tests (optional)
 [dev-dependencies]
-trybuild = "1"   # コンパイルエラーのテスト
+trybuild = "1"   # testing compile errors
 ```
 
-### コード例3: derive マクロの実装
+### Code Example 3: Implementing a derive Macro
 
 ```rust
 // my-derive/Cargo.toml
@@ -594,7 +599,7 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, DeriveInput};
 
-/// フィールド名とその値を表示する Describe トレイトを自動実装
+/// Auto-implement a Describe trait that prints field names and their values
 #[proc_macro_derive(Describe)]
 pub fn derive_describe(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as DeriveInput);
@@ -608,7 +613,7 @@ pub fn derive_describe(input: TokenStream) -> TokenStream {
             }
         }).collect::<Vec<_>>()
     } else {
-        panic!("Describe は構造体のみ対応");
+        panic!("Describe only supports structs");
     };
 
     let expanded = quote! {
@@ -648,14 +653,14 @@ pub fn derive_describe(input: TokenStream) -> TokenStream {
 // }
 ```
 
-### コード例: derive マクロで列挙体に対応する
+### Code Example: Supporting Enums in a derive Macro
 
 ```rust
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, Data, DeriveInput, Fields};
 
-/// 列挙体のバリアント名を文字列として返す EnumName トレイトを自動実装
+/// Auto-implement an EnumName trait that returns the variant name as a string
 #[proc_macro_derive(EnumName)]
 pub fn derive_enum_name(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as DeriveInput);
@@ -666,14 +671,14 @@ pub fn derive_enum_name(input: TokenStream) -> TokenStream {
         _ => {
             return syn::Error::new_spanned(
                 &ast.ident,
-                "EnumName は列挙体にのみ適用できます",
+                "EnumName can only be applied to enums",
             )
             .to_compile_error()
             .into();
         }
     };
 
-    // 各バリアントに対するマッチアームを生成
+    // Generate a match arm for each variant
     let match_arms = variants.iter().map(|v| {
         let variant_name = &v.ident;
         let name_str = variant_name.to_string();
@@ -690,7 +695,7 @@ pub fn derive_enum_name(input: TokenStream) -> TokenStream {
         }
     });
 
-    // all_names メソッド用のバリアント名リスト
+    // List of variant names for the all_names method
     let all_names = variants.iter().map(|v| {
         let name_str = v.ident.to_string();
         quote! { #name_str }
@@ -698,14 +703,14 @@ pub fn derive_enum_name(input: TokenStream) -> TokenStream {
 
     let expanded = quote! {
         impl #name {
-            /// このバリアントの名前を文字列として返す
+            /// Return the name of this variant as a string
             pub fn variant_name(&self) -> &'static str {
                 match self {
                     #(#match_arms,)*
                 }
             }
 
-            /// 全バリアント名のスライスを返す
+            /// Return a slice of all variant names
             pub fn all_variant_names() -> &'static [&'static str] {
                 &[#(#all_names,)*]
             }
@@ -715,7 +720,7 @@ pub fn derive_enum_name(input: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
-// 使用例:
+// Usage:
 // #[derive(EnumName)]
 // enum Color {
 //     Red,
@@ -733,15 +738,15 @@ pub fn derive_enum_name(input: TokenStream) -> TokenStream {
 // }
 ```
 
-### コード例: derive マクロにヘルパー属性を追加する
+### Code Example: Adding Helper Attributes to a derive Macro
 
 ```rust
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, Data, DeriveInput, Fields, Lit, Meta, NestedMeta};
 
-/// フィールドのバリデーションを自動生成する Validate derive
-/// ヘルパー属性 #[validate(...)] をサポート
+/// Validate derive that auto-generates field validation
+/// Supports the helper attribute #[validate(...)]
 #[proc_macro_derive(Validate, attributes(validate))]
 pub fn derive_validate(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as DeriveInput);
@@ -750,15 +755,15 @@ pub fn derive_validate(input: TokenStream) -> TokenStream {
     let fields = match &ast.data {
         Data::Struct(data) => match &data.fields {
             Fields::Named(f) => &f.named,
-            _ => panic!("名前付きフィールドのみ対応"),
+            _ => panic!("only named fields are supported"),
         },
-        _ => panic!("構造体のみ対応"),
+        _ => panic!("only structs are supported"),
     };
 
     let validations = fields.iter().filter_map(|field| {
         let field_name = field.ident.as_ref().unwrap();
 
-        // #[validate(...)] 属性を探す
+        // Look for #[validate(...)] attributes
         let validate_attrs: Vec<_> = field.attrs.iter()
             .filter(|attr| attr.path().is_ident("validate"))
             .collect();
@@ -770,8 +775,8 @@ pub fn derive_validate(input: TokenStream) -> TokenStream {
         let mut checks = Vec::new();
 
         for attr in &validate_attrs {
-            // 属性の内容を解析（簡易版）
-            // 実際の実装では syn のパース機能を使う
+            // Parse the attribute body (simplified)
+            // In real implementations, use syn's parse capabilities
             let meta = attr.parse_args::<Meta>().ok()?;
 
             match &meta {
@@ -781,7 +786,7 @@ pub fn derive_validate(input: TokenStream) -> TokenStream {
                         checks.push(quote! {
                             if self.#field_name.len() < #min {
                                 errors.push(format!(
-                                    "'{}' の長さが最小値 {} 未満です（実際: {}）",
+                                    "'{}' length is below the minimum {} (actual: {})",
                                     stringify!(#field_name), #min, self.#field_name.len()
                                 ));
                             }
@@ -792,7 +797,7 @@ pub fn derive_validate(input: TokenStream) -> TokenStream {
                     checks.push(quote! {
                         if self.#field_name.is_empty() {
                             errors.push(format!(
-                                "'{}' は空であってはなりません",
+                                "'{}' must not be empty",
                                 stringify!(#field_name)
                             ));
                         }
@@ -822,7 +827,7 @@ pub fn derive_validate(input: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
-// 使用例:
+// Usage:
 // #[derive(Validate)]
 // struct User {
 //     #[validate(non_empty)]
@@ -834,14 +839,14 @@ pub fn derive_validate(input: TokenStream) -> TokenStream {
 // }
 ```
 
-### コード例4: attribute マクロ
+### Code Example 4: Attribute Macro
 
 ```rust
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, ItemFn};
 
-/// 関数の実行時間を計測する属性マクロ
+/// Attribute macro that measures a function's execution time
 #[proc_macro_attribute]
 pub fn measure_time(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let func = parse_macro_input!(item as ItemFn);
@@ -865,22 +870,22 @@ pub fn measure_time(_attr: TokenStream, item: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
-// 使用例:
+// Usage:
 // #[measure_time]
 // fn heavy_computation() -> u64 {
 //     (0..1_000_000).sum()
 // }
 ```
 
-### コード例: attribute マクロで引数を受け取る
+### Code Example: Attribute Macro That Takes Arguments
 
 ```rust
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, ItemFn, LitInt};
 
-/// リトライ回数を指定する属性マクロ
-/// #[retry(3)] のように使用
+/// Attribute macro that specifies a retry count
+/// Used like #[retry(3)]
 #[proc_macro_attribute]
 pub fn retry(attr: TokenStream, item: TokenStream) -> TokenStream {
     let max_retries = parse_macro_input!(attr as LitInt);
@@ -894,7 +899,7 @@ pub fn retry(attr: TokenStream, item: TokenStream) -> TokenStream {
     let block = &func.block;
     let attrs = &func.attrs;
 
-    // 戻り値が Result 型であることを前提とする
+    // Assumes the return type is Result
     let expanded = quote! {
         #(#attrs)*
         #vis fn #name(#inputs) #output {
@@ -907,13 +912,13 @@ pub fn retry(attr: TokenStream, item: TokenStream) -> TokenStream {
                     Err(e) => {
                         if __attempts >= #max_retries_val {
                             eprintln!(
-                                "[retry] {} が {} 回のリトライ後も失敗: {:?}",
+                                "[retry] {} still failed after {} retries: {:?}",
                                 stringify!(#name), #max_retries_val, e
                             );
                             return Err(e);
                         }
                         eprintln!(
-                            "[retry] {} 試行 {}/{} が失敗、リトライします...",
+                            "[retry] {} attempt {}/{} failed, retrying...",
                             stringify!(#name), __attempts, #max_retries_val
                         );
                         std::thread::sleep(std::time::Duration::from_millis(
@@ -928,7 +933,7 @@ pub fn retry(attr: TokenStream, item: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
-// 使用例:
+// Usage:
 // #[retry(3)]
 // fn fetch_data(url: &str) -> Result<String, Box<dyn std::error::Error>> {
 //     let response = reqwest::blocking::get(url)?;
@@ -936,20 +941,20 @@ pub fn retry(attr: TokenStream, item: TokenStream) -> TokenStream {
 // }
 ```
 
-### コード例5: function-like マクロ
+### Code Example 5: Function-like Macro
 
 ```rust
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, LitStr};
 
-/// SQL文をコンパイル時に検証する（簡易版）
+/// Validate SQL statements at compile time (simplified)
 #[proc_macro]
 pub fn checked_sql(input: TokenStream) -> TokenStream {
     let sql_lit = parse_macro_input!(input as LitStr);
     let sql = sql_lit.value();
 
-    // 簡易バリデーション
+    // Simple validation
     let upper = sql.to_uppercase();
     if !upper.starts_with("SELECT")
         && !upper.starts_with("INSERT")
@@ -958,7 +963,7 @@ pub fn checked_sql(input: TokenStream) -> TokenStream {
     {
         return syn::Error::new(
             sql_lit.span(),
-            "SQL は SELECT/INSERT/UPDATE/DELETE で始まる必要があります",
+            "SQL must start with SELECT/INSERT/UPDATE/DELETE",
         )
         .to_compile_error()
         .into();
@@ -968,19 +973,19 @@ pub fn checked_sql(input: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
-// 使用例:
+// Usage:
 // let query = checked_sql!("SELECT * FROM users WHERE id = $1");
-// let bad   = checked_sql!("DROP TABLE users"); // コンパイルエラー!
+// let bad   = checked_sql!("DROP TABLE users"); // compile error!
 ```
 
-### コード例: function-like マクロで構造化入力を解析する
+### Code Example: Function-like Macro That Parses Structured Input
 
 ```rust
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse::{Parse, ParseStream}, Ident, LitStr, Token, punctuated::Punctuated};
 
-/// ルーティングテーブルを定義する function-like マクロ
+/// Function-like macro that defines a routing table
 /// routes! {
 ///     GET "/users"        => list_users,
 ///     POST "/users"       => create_user,
@@ -1041,46 +1046,46 @@ pub fn routes(input: TokenStream) -> TokenStream {
 
 ---
 
-## 4. マクロのデバッグ
+## 4. Debugging Macros
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│              マクロデバッグフロー                          │
+│                Macro Debugging Flow                     │
 │                                                         │
-│  1. cargo expand        ← マクロ展開結果をRustとして表示  │
+│  1. cargo expand        ← view expansion result as Rust │
 │     └─ cargo install cargo-expand                       │
 │                                                         │
-│  2. trace_macros!(true) ← 宣言的マクロの展開過程をトレース│
+│  2. trace_macros!(true) ← trace declarative expansion   │
 │     └─ #![feature(trace_macros)] (nightly)              │
 │                                                         │
-│  3. eprintln! in proc   ← 手続き的マクロ内で標準エラー出力│
-│     └─ コンパイル時に出力される                           │
+│  3. eprintln! in proc   ← stderr from inside proc macros│
+│     └─ printed at compile time                          │
 │                                                         │
-│  4. syn::Error          ← スパン付きエラーでIDEに通知     │
+│  4. syn::Error          ← span-aware error to the IDE   │
 │     └─ .to_compile_error().into()                       │
 └─────────────────────────────────────────────────────────┘
 ```
 
-### コード例6: cargo expand の活用
+### Code Example 6: Using cargo expand
 
 ```bash
-# インストール
+# Install
 cargo install cargo-expand
 
-# 特定の関数だけ展開
+# Expand only a particular function
 cargo expand --lib -- some_module::some_fn
 
-# テストコードも含めて展開
+# Expand including test code
 cargo expand --tests
 
-# 特定 derive だけ確認
+# Inspect a specific derive only
 cargo expand --lib | grep -A 50 "impl Display"
 
-# 特定のアイテムだけ展開
+# Expand only a specific item
 cargo expand --lib ::my_module::MyStruct
 ```
 
-### 手続き的マクロのデバッグテクニック
+### Debugging Techniques for Procedural Macros
 
 ```rust
 use proc_macro::TokenStream;
@@ -1089,14 +1094,14 @@ use syn::{parse_macro_input, DeriveInput};
 
 #[proc_macro_derive(MyDerive)]
 pub fn my_derive(input: TokenStream) -> TokenStream {
-    // デバッグ1: 入力トークンストリームを標準エラーに出力
+    // Debug 1: print the input token stream to stderr
     eprintln!("=== Input TokenStream ===");
     eprintln!("{}", input.to_string());
 
     let ast = parse_macro_input!(input as DeriveInput);
 
-    // デバッグ2: パースされた AST を確認
-    // syn の "extra-traits" feature が必要
+    // Debug 2: inspect the parsed AST
+    // requires syn's "extra-traits" feature
     eprintln!("=== Parsed AST ===");
     eprintln!("{:#?}", ast);
 
@@ -1109,7 +1114,7 @@ pub fn my_derive(input: TokenStream) -> TokenStream {
         }
     };
 
-    // デバッグ3: 生成されるコードを確認
+    // Debug 3: inspect the generated code
     eprintln!("=== Generated Code ===");
     eprintln!("{}", expanded.to_string());
 
@@ -1117,18 +1122,18 @@ pub fn my_derive(input: TokenStream) -> TokenStream {
 }
 ```
 
-### trybuild によるコンパイルエラーテスト
+### Compile-Error Testing with trybuild
 
-手続き的マクロが正しいエラーメッセージを出すことを検証するには `trybuild` クレートが有効。
+The `trybuild` crate is helpful for verifying that procedural macros emit the right error messages.
 
 ```rust
 // tests/ui.rs
 #[test]
 fn ui_tests() {
     let t = trybuild::TestCases::new();
-    // コンパイルが成功するべきテスト
+    // Tests expected to compile successfully
     t.pass("tests/ui/pass_*.rs");
-    // コンパイルが失敗するべきテスト（エラーメッセージも検証）
+    // Tests expected to fail to compile (also verifies the error message)
     t.compile_fail("tests/ui/fail_*.rs");
 }
 
@@ -1151,24 +1156,24 @@ fn ui_tests() {
 // use my_derive::EnumName;
 //
 // #[derive(EnumName)]
-// struct NotAnEnum {  // エラー: EnumName は列挙体にのみ適用できます
+// struct NotAnEnum {  // error: EnumName can only be applied to enums
 //     field: i32,
 // }
 //
 // fn main() {}
 
-// tests/ui/fail_struct.stderr（期待されるエラーメッセージ）
-// error: EnumName は列挙体にのみ適用できます
+// tests/ui/fail_struct.stderr (expected error message)
+// error: EnumName can only be applied to enums
 //   --> tests/ui/fail_struct.rs:4:8
 //    |
 //  4 | struct NotAnEnum {
 //    |        ^^^^^^^^^^
 ```
 
-### trace_macros! による展開トレース
+### Tracing Expansion with trace_macros!
 
 ```rust
-// nightly コンパイラが必要
+// Requires a nightly compiler
 #![feature(trace_macros)]
 
 macro_rules! factorial {
@@ -1183,7 +1188,7 @@ fn main() {
     println!("5! = {}", result);
 }
 
-// コンパイル時の出力:
+// Compile-time output:
 // note: trace_macro
 //  --> src/main.rs:9:18
 //   |
@@ -1198,55 +1203,55 @@ fn main() {
 
 ---
 
-## 5. マクロの比較
+## 5. Comparing Macros
 
-### 宣言的 vs 手続き的マクロ
+### Declarative vs Procedural Macros
 
-| 観点 | 宣言的 (`macro_rules!`) | 手続き的 (proc-macro) |
+| Aspect | Declarative (`macro_rules!`) | Procedural (proc-macro) |
 |---|---|---|
-| 定義場所 | 同一クレート内 | 別クレート (`proc-macro = true`) |
-| 入力 | パターンマッチ | `TokenStream` |
-| 依存関係 | なし | `syn`, `quote`, `proc-macro2` |
-| 衛生性 | 部分的に保証 | 手動管理 |
-| 適用範囲 | 式・文・アイテム | derive / 属性 / 関数風 |
-| デバッグ | `trace_macros!` | `eprintln!` + `cargo expand` |
-| 学習コスト | 低〜中 | 中〜高 |
-| ユースケース | DSL、ユーティリティ | 自動実装、コード生成 |
-| コンパイル時間 | 影響小 | 依存クレート分の追加コスト |
-| IDE サポート | 展開結果が見えにくい | rust-analyzer が部分対応 |
+| Where defined | In the same crate | In a separate crate (`proc-macro = true`) |
+| Input | Pattern matching | `TokenStream` |
+| Dependencies | None | `syn`, `quote`, `proc-macro2` |
+| Hygiene | Partially guaranteed | Manual management |
+| Scope of use | Expressions, statements, items | derive / attribute / function-like |
+| Debugging | `trace_macros!` | `eprintln!` + `cargo expand` |
+| Learning curve | Low to medium | Medium to high |
+| Use cases | DSLs, utilities | Auto implementations, code generation |
+| Compile time | Small impact | Extra cost from dependent crates |
+| IDE support | Expansion is hard to inspect | Partially supported by rust-analyzer |
 
-### syn の主要型
+### Major syn Types
 
-| 型 | 用途 | 例 |
+| Type | Purpose | Example |
 |---|---|---|
-| `DeriveInput` | derive マクロの入力全体 | 構造体/列挙体の定義 |
-| `ItemFn` | 関数定義 | attribute マクロで関数をラップ |
-| `ItemStruct` | 構造体定義 | 構造体の変換 |
-| `ItemEnum` | 列挙体定義 | 列挙体の分析 |
-| `Fields` | フィールド集合 | Named / Unnamed / Unit |
-| `Expr` | 任意の式 | `parse_quote!(x + 1)` |
-| `Type` | 型表現 | `Vec<String>` |
-| `LitStr` | 文字列リテラル | `"hello"` |
-| `LitInt` | 整数リテラル | `42` |
-| `Ident` | 識別子 | 変数名、関数名 |
-| `Path` | パス | `std::io::Result` |
-| `Attribute` | 属性 | `#[derive(Debug)]` |
-| `Generics` | ジェネリクスパラメータ | `<T: Clone>` |
-| `WhereClause` | where 句 | `where T: Debug` |
+| `DeriveInput` | The whole input of a derive macro | A struct/enum definition |
+| `ItemFn` | A function definition | Wrapping a function in an attribute macro |
+| `ItemStruct` | A struct definition | Transforming structs |
+| `ItemEnum` | An enum definition | Analyzing enums |
+| `Fields` | A set of fields | Named / Unnamed / Unit |
+| `Expr` | An arbitrary expression | `parse_quote!(x + 1)` |
+| `Type` | A type representation | `Vec<String>` |
+| `LitStr` | A string literal | `"hello"` |
+| `LitInt` | An integer literal | `42` |
+| `Ident` | An identifier | A variable or function name |
+| `Path` | A path | `std::io::Result` |
+| `Attribute` | An attribute | `#[derive(Debug)]` |
+| `Generics` | Generic parameters | `<T: Clone>` |
+| `WhereClause` | A where clause | `where T: Debug` |
 
-### quote! の補間構文
+### Interpolation Syntax of `quote!`
 
 ```rust
 use quote::quote;
 use syn::Ident;
 use proc_macro2::Span;
 
-// 単一変数の補間
+// Interpolating a single variable
 let name = Ident::new("MyStruct", Span::call_site());
 let tokens = quote! { struct #name {} };
 // → struct MyStruct {}
 
-// 繰り返しの補間
+// Repetition interpolation
 let fields = vec!["x", "y", "z"];
 let field_idents: Vec<_> = fields.iter()
     .map(|f| Ident::new(f, Span::call_site()))
@@ -1258,14 +1263,14 @@ let tokens = quote! {
 };
 // → struct Point { pub x: f64, pub y: f64, pub z: f64, }
 
-// 区切り文字付き繰り返し
+// Repetition with a separator
 let values = vec![1i32, 2, 3];
 let tokens = quote! {
     let sum = #(#values)+*;
 };
 // → let sum = 1 + 2 + 3;
 
-// ネストされた繰り返し
+// Nested repetition
 let methods = vec![("get_x", "x"), ("get_y", "y")];
 let method_tokens: Vec<_> = methods.iter().map(|(method, field)| {
     let method_ident = Ident::new(method, Span::call_site());
@@ -1283,7 +1288,7 @@ let tokens = quote! {
     }
 };
 
-// format_ident! で識別子を動的に生成
+// Generate identifiers dynamically with format_ident!
 let prefix = "get";
 let field = "name";
 let getter = quote::format_ident!("{}_{}", prefix, field);
@@ -1292,69 +1297,69 @@ let getter = quote::format_ident!("{}_{}", prefix, field);
 
 ---
 
-## 6. アンチパターン
+## 6. Antipatterns
 
-### アンチパターン1: マクロの過剰使用
+### Antipattern 1: Overusing Macros
 
 ```rust
-// NG: 関数やジェネリクスで十分な処理をマクロにする
+// NG: turning into a macro something a function or generics handle just fine
 macro_rules! add_numbers {
     ($a:expr, $b:expr) => { $a + $b };
 }
 
-// OK: 通常の関数で十分
+// OK: an ordinary function is enough
 fn add<T: std::ops::Add<Output = T>>(a: T, b: T) -> T {
     a + b
 }
 
-// マクロが適切な場面:
-// - 型に跨る繰り返しパターン (impl Trait for A, B, C...)
-// - コンパイル時計算/検証
-// - DSL (ドメイン固有言語)
-// - ボイラープレート削減 (derive 対応できない場合)
+// When macros are appropriate:
+// - Repeated patterns spanning multiple types (impl Trait for A, B, C...)
+// - Compile-time computation/validation
+// - DSLs (domain-specific languages)
+// - Boilerplate reduction (when derive can't do it)
 ```
 
-### アンチパターン2: 衛生性を無視した変数キャプチャ
+### Antipattern 2: Capturing Variables That Ignore Hygiene
 
 ```rust
-// NG: 外側の変数名に依存するマクロ
+// NG: a macro that depends on outer variable names
 macro_rules! bad_log {
     ($msg:expr) => {
-        // logger が呼び出し元スコープに存在する前提 — 危険!
+        // assumes a `logger` exists in the caller's scope — dangerous!
         logger.log($msg);
     };
 }
 
-// OK: 必要な依存は引数で明示
+// OK: pass required dependencies explicitly as arguments
 macro_rules! good_log {
     ($logger:expr, $msg:expr) => {
         $logger.log($msg);
     };
 }
 
-// OK: 手続き的マクロで衛生的な変数名を生成
+// OK: generate hygienic variable names from a procedural macro
 // quote! {
 //     let __internal_logger = get_logger();
 //     __internal_logger.log(#msg);
 // }
 ```
 
-### アンチパターン3: 式の多重評価
+### Antipattern 3: Multiple Evaluation of Expressions
 
 ```rust
-// NG: $val が複数回評価される
+// NG: $val is evaluated multiple times
 macro_rules! bad_max {
     ($a:expr, $b:expr) => {
         if $a > $b { $a } else { $b }
     };
 }
 
-// 問題: 副作用のある式が2回実行される
+// Problem: an expression with side effects is executed twice
 // bad_max!(expensive_call(), another_call());
 // → if expensive_call() > another_call() { expensive_call() } else { another_call() }
-// expensive_call() が2回呼ばれる可能性がある!
+// expensive_call() may be called twice!
 
-// OK: 一度変数に束縛する
+// OK: bind once to a variable
 macro_rules! good_max {
     ($a:expr, $b:expr) => {{
         let __a = $a;
@@ -1364,44 +1369,44 @@ macro_rules! good_max {
 }
 ```
 
-### アンチパターン4: 型の不一致を隠蔽するマクロ
+### Antipattern 4: Macros That Hide Type Mismatches
 
 ```rust
-// NG: 暗黙の型変換を行うマクロ
+// NG: a macro that performs an implicit type conversion
 macro_rules! bad_convert {
     ($val:expr) => {
-        $val as i64  // 情報の損失が見えない
+        $val as i64  // information loss is hidden
     };
 }
 
-// OK: 明示的な型変換関数
+// OK: an explicit conversion function
 fn safe_convert(val: u32) -> i64 {
-    i64::from(val)  // From トレイトで安全に変換
+    i64::from(val)  // safely convert via the From trait
 }
 
-// OK: TryFrom で失敗を明示
+// OK: make failure explicit with TryFrom
 fn try_convert(val: i64) -> Result<u32, std::num::TryFromIntError> {
     u32::try_from(val)
 }
 ```
 
-### アンチパターン5: 巨大マクロ
+### Antipattern 5: Giant Macros
 
 ```rust
-// NG: 数百行のマクロ — 読めない、デバッグできない、IDEサポートなし
+// NG: a macro spanning hundreds of lines — unreadable, undebuggable, no IDE support
 
-// OK: マクロは薄いラッパーにとどめ、実装はヘルパー関数に委譲
+// OK: keep the macro a thin wrapper and delegate the implementation to a helper function
 macro_rules! register_handler {
     ($name:ident, $method:expr, $path:expr) => {
-        // マクロはグルーコードだけ
+        // The macro is just glue
         fn $name(registry: &mut Registry) {
-            // 実際のロジックは通常の関数に委譲
+            // Delegate the real logic to a regular function
             __register_handler_impl(registry, $method, $path, $name::handler);
         }
     };
 }
 
-// ヘルパー関数は通常のRustコードなのでIDEサポートも効く
+// The helper is normal Rust code, so IDE support works
 fn __register_handler_impl(
     registry: &mut Registry,
     method: &str,
@@ -1414,9 +1419,9 @@ fn __register_handler_impl(
 
 ---
 
-## 7. 実践: Builder パターンの自動生成
+## 7. In Practice: Auto-Generating the Builder Pattern
 
-### コード例7: derive(Builder) の簡易実装
+### Code Example 7: A Simple derive(Builder) Implementation
 
 ```rust
 // builder-derive/src/lib.rs
@@ -1436,19 +1441,19 @@ pub fn derive_builder(input: TokenStream) -> TokenStream {
     let fields = match &ast.data {
         Data::Struct(data) => match &data.fields {
             Fields::Named(f) => &f.named,
-            _ => panic!("名前付きフィールドのみ対応"),
+            _ => panic!("only named fields are supported"),
         },
-        _ => panic!("構造体のみ対応"),
+        _ => panic!("only structs are supported"),
     };
 
-    // Builder のフィールド (全て Option<T>)
+    // Builder fields (all are Option<T>)
     let builder_fields = fields.iter().map(|f| {
         let name = &f.ident;
         let ty = &f.ty;
         quote! { #name: Option<#ty> }
     });
 
-    // setter メソッド
+    // Setter methods
     let setters = fields.iter().map(|f| {
         let name = &f.ident;
         let ty = &f.ty;
@@ -1460,17 +1465,17 @@ pub fn derive_builder(input: TokenStream) -> TokenStream {
         }
     });
 
-    // build メソッドのフィールド取り出し
+    // Field extraction in the build method
     let build_fields = fields.iter().map(|f| {
         let name = &f.ident;
         quote! {
             #name: self.#name.ok_or(
-                format!("フィールド '{}' が未設定", stringify!(#name))
+                format!("field '{}' is unset", stringify!(#name))
             )?
         }
     });
 
-    // Builder のデフォルト値 (全て None)
+    // Default values for the Builder (all None)
     let none_fields = fields.iter().map(|f| {
         let name = &f.ident;
         quote! { #name: None }
@@ -1504,16 +1509,16 @@ pub fn derive_builder(input: TokenStream) -> TokenStream {
 }
 ```
 
-### コード例: Builder パターンにデフォルト値とバリデーションを追加
+### Code Example: Adding Defaults and Validation to the Builder Pattern
 
 ```rust
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, DeriveInput, Data, Fields, Lit, Meta};
 
-/// 拡張版 Builder — デフォルト値とバリデーションをサポート
-/// #[builder(default = "value")] でデフォルト値を指定
-/// #[builder(required)] で必須フィールドを明示
+/// Extended Builder — supports defaults and validation
+/// Specify a default value with #[builder(default = "value")]
+/// Mark a field as required with #[builder(required)]
 #[proc_macro_derive(ExtBuilder, attributes(builder))]
 pub fn derive_ext_builder(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as DeriveInput);
@@ -1523,9 +1528,9 @@ pub fn derive_ext_builder(input: TokenStream) -> TokenStream {
     let fields = match &ast.data {
         Data::Struct(data) => match &data.fields {
             Fields::Named(f) => &f.named,
-            _ => return err(name, "名前付きフィールドのみ対応"),
+            _ => return err(name, "only named fields are supported"),
         },
-        _ => return err(name, "構造体のみ対応"),
+        _ => return err(name, "only structs are supported"),
     };
 
     let mut builder_field_defs = Vec::new();
@@ -1537,7 +1542,7 @@ pub fn derive_ext_builder(input: TokenStream) -> TokenStream {
         let field_name = field.ident.as_ref().unwrap();
         let field_ty = &field.ty;
 
-        // #[builder(...)] 属性を解析
+        // Parse the #[builder(...)] attribute
         let mut has_default = false;
         let mut default_expr = None;
 
@@ -1545,8 +1550,8 @@ pub fn derive_ext_builder(input: TokenStream) -> TokenStream {
             if !attr.path().is_ident("builder") {
                 continue;
             }
-            // 属性の中身を解析（簡易版）
-            // 実際には syn::parse を使ってもっと堅牢にする
+            // Parse the attribute body (simplified)
+            // In real code use syn::parse for a more robust solution
             if let Ok(Meta::NameValue(nv)) = attr.parse_args::<Meta>() {
                 if nv.path.is_ident("default") {
                     has_default = true;
@@ -1582,7 +1587,7 @@ pub fn derive_ext_builder(input: TokenStream) -> TokenStream {
         } else {
             build_assigns.push(quote! {
                 #field_name: self.#field_name.ok_or_else(||
-                    format!("必須フィールド '{}' が未設定です", stringify!(#field_name))
+                    format!("required field '{}' is unset", stringify!(#field_name))
                 )?
             });
         }
@@ -1623,24 +1628,24 @@ fn err(ident: &syn::Ident, msg: &str) -> TokenStream {
         .into()
 }
 
-// 使用例:
+// Usage:
 // #[derive(ExtBuilder)]
 // struct ServerConfig {
-//     host: String,                           // 必須
-//     port: u16,                              // 必須
+//     host: String,                           // required
+//     port: u16,                              // required
 //     #[builder(default = "30")]
-//     timeout_secs: u64,                      // デフォルト: 30
+//     timeout_secs: u64,                      // default: 30
 //     #[builder(default = "true")]
-//     tls_enabled: bool,                      // デフォルト: true
+//     tls_enabled: bool,                      // default: true
 //     #[builder(default = "String::from(\"INFO\")")]
-//     log_level: String,                      // デフォルト: "INFO"
+//     log_level: String,                      // default: "INFO"
 // }
 //
 // fn main() {
 //     let config = ServerConfig::builder()
 //         .host("0.0.0.0".to_string())
 //         .port(8080)
-//         // timeout_secs, tls_enabled, log_level はデフォルト値が使われる
+//         // timeout_secs, tls_enabled, log_level use their defaults
 //         .build()
 //         .unwrap();
 // }
@@ -1648,13 +1653,13 @@ fn err(ident: &syn::Ident, msg: &str) -> TokenStream {
 
 ---
 
-## 8. 実践: 高度なマクロパターン
+## 8. In Practice: Advanced Macro Patterns
 
-### コード例: enum_dispatch パターン（静的ディスパッチの自動生成）
+### Code Example: enum_dispatch Pattern (Auto-Generating Static Dispatch)
 
 ```rust
-/// トレイトオブジェクトの動的ディスパッチを静的ディスパッチに変換する
-/// enum_dispatch! パターンの簡易実装
+/// Convert dynamic dispatch through trait objects into static dispatch
+/// A simple implementation of the enum_dispatch! pattern
 macro_rules! enum_dispatch {
     (
         trait $trait_name:ident {
@@ -1665,17 +1670,17 @@ macro_rules! enum_dispatch {
             $($variant:ident($inner:ty)),+ $(,)?
         }
     ) => {
-        // トレイト定義
+        // Trait definition
         trait $trait_name {
             $(fn $method(&self $(, $arg: $arg_ty)*) -> $ret;)*
         }
 
-        // 列挙体定義
+        // Enum definition
         enum $enum_name {
             $($variant($inner),)+
         }
 
-        // From 実装
+        // From implementations
         $(
             impl From<$inner> for $enum_name {
                 fn from(v: $inner) -> Self {
@@ -1684,7 +1689,7 @@ macro_rules! enum_dispatch {
             }
         )+
 
-        // トレイト実装（match で各バリアントに委譲）
+        // Trait implementation (delegates each variant via match)
         impl $trait_name for $enum_name {
             $(
                 fn $method(&self $(, $arg: $arg_ty)*) -> $ret {
@@ -1697,7 +1702,7 @@ macro_rules! enum_dispatch {
     };
 }
 
-// 使用例
+// Usage
 enum_dispatch! {
     trait Shape {
         fn area(&self) -> f64;
@@ -1730,7 +1735,7 @@ impl Shape for Triangle {
 }
 
 fn print_area(shape: &AnyShape) {
-    // dyn Shape ではなく enum match で静的ディスパッチ
+    // Static dispatch via enum match instead of dyn Shape
     println!("{}: area = {:.2}", shape.name(), shape.area());
 }
 
@@ -1750,11 +1755,11 @@ fn main() {
 }
 ```
 
-### コード例: type-state パターンのマクロ化
+### Code Example: Macro-izing the Type-State Pattern
 
 ```rust
-/// 型状態パターンを自動生成するマクロ
-/// コンパイル時に不正な状態遷移を防止する
+/// A macro that auto-generates a type-state pattern
+/// Prevents invalid state transitions at compile time
 macro_rules! state_machine {
     (
         machine $machine:ident {
@@ -1764,26 +1769,26 @@ macro_rules! state_machine {
             ]
         }
     ) => {
-        // 状態型（ゼロサイズ型）
+        // State types (zero-sized types)
         $(
             #[derive(Debug)]
             pub struct $state;
         )+
 
-        // 状態マシン本体
+        // The state machine itself
         #[derive(Debug)]
         pub struct $machine<State> {
             _state: std::marker::PhantomData<State>,
-            // 実際にはここにデータフィールドが入る
+            // In practice, data fields go here
             data: String,
         }
 
-        // 初期状態の生成
+        // Initial-state construction
         impl $machine<$($state)?> {
-            // ここは最初の状態に対してのみ
+            // Only for the very first state
         }
 
-        // 各遷移メソッドを生成
+        // Generate each transition method
         $(
             impl $machine<$from> {
                 pub fn $event(self $(, $arg: $arg_ty)*) -> $machine<$to> {
@@ -1802,7 +1807,7 @@ macro_rules! state_machine {
     };
 }
 
-// 使用例: HTTP リクエストの状態マシン
+// Usage: state machine for an HTTP request
 state_machine! {
     machine HttpRequest {
         states: [Created, HeadersSent, BodySent, Complete],
@@ -1831,16 +1836,16 @@ fn main() {
     let req = req.send_body(b"{}".to_vec());
     let _req = req.finish();
 
-    // コンパイルエラー: Created 状態から直接 send_body は呼べない
+    // Compile error: cannot call send_body directly from the Created state
     // let req = HttpRequest::new("https://example.com");
     // let req = req.send_body(b"{}".to_vec()); // ERROR!
 }
 ```
 
-### コード例: 型安全なビットフラグマクロ
+### Code Example: A Type-Safe Bitflags Macro
 
 ```rust
-/// ビットフラグ型を自動生成するマクロ
+/// Macro that auto-generates bitflag types
 macro_rules! bitflags {
     (
         $(#[$outer:meta])*
@@ -1863,42 +1868,42 @@ macro_rules! bitflags {
                 pub const $flag: $name = $name { bits: $value };
             )*
 
-            /// 空のフラグセット
+            /// An empty flag set
             pub const fn empty() -> Self {
                 $name { bits: 0 }
             }
 
-            /// 全フラグが立ったセット
+            /// A set with all flags enabled
             pub const fn all() -> Self {
                 $name { bits: $( $value )|* }
             }
 
-            /// 指定フラグが含まれているか
+            /// Whether the given flag is contained
             pub const fn contains(self, other: Self) -> bool {
                 (self.bits & other.bits) == other.bits
             }
 
-            /// フラグが空かどうか
+            /// Whether the flag set is empty
             pub const fn is_empty(self) -> bool {
                 self.bits == 0
             }
 
-            /// 生のビット値を取得
+            /// Get the raw bits value
             pub const fn bits(self) -> $repr {
                 self.bits
             }
 
-            /// フラグを追加
+            /// Add a flag
             pub fn insert(&mut self, other: Self) {
                 self.bits |= other.bits;
             }
 
-            /// フラグを除去
+            /// Remove a flag
             pub fn remove(&mut self, other: Self) {
                 self.bits &= !other.bits;
             }
 
-            /// フラグをトグル
+            /// Toggle a flag
             pub fn toggle(&mut self, other: Self) {
                 self.bits ^= other.bits;
             }
@@ -1951,15 +1956,15 @@ macro_rules! bitflags {
     };
 }
 
-// 使用例
+// Usage
 bitflags! {
-    /// ファイルのアクセス権限
+    /// File access permissions
     pub struct Permissions: u32 {
-        /// 読み取り権限
+        /// Read permission
         const READ    = 0b001;
-        /// 書き込み権限
+        /// Write permission
         const WRITE   = 0b010;
-        /// 実行権限
+        /// Execute permission
         const EXECUTE = 0b100;
     }
 }
@@ -1988,52 +1993,52 @@ fn main() {
 
 ---
 
-## 9. 衛生性（Hygiene）の深掘り
+## 9. A Deep Dive on Hygiene
 
-### 宣言的マクロの衛生性
+### Hygiene of Declarative Macros
 
-Rust の `macro_rules!` マクロは「部分的に衛生的」である。マクロ内で導入された識別子は呼び出し元のスコープと衝突しないが、型名やトレイト名は衛生的でない場合がある。
+Rust's `macro_rules!` macros are "partially hygienic." Identifiers introduced inside a macro do not collide with the caller's scope, but type names and trait names may not always be hygienic.
 
 ```rust
 macro_rules! hygiene_demo {
     () => {
-        // この `x` はマクロ内で導入された変数
-        // 呼び出し元の `x` とは別のスコープ
+        // This `x` is a variable introduced inside the macro
+        // It lives in a different scope than the caller's `x`
         let x = 42;
-        println!("マクロ内の x: {}", x);
+        println!("x inside the macro: {}", x);
     };
 }
 
 fn main() {
     let x = 100;
     hygiene_demo!();
-    // マクロ内の x: 42
-    println!("main の x: {}", x);
-    // main の x: 100
-    // → 衝突しない（衛生的）
+    // x inside the macro: 42
+    println!("x in main: {}", x);
+    // x in main: 100
+    // → no collision (hygienic)
 }
 ```
 
-### 手続き的マクロの衛生性管理
+### Hygiene Management for Procedural Macros
 
 ```rust
 use quote::quote;
 use proc_macro2::Span;
 
-// 衛生的な変数名の生成テクニック
+// Techniques for generating hygienic variable names
 
-// 方法1: __ プレフィックスで衝突を避ける（慣習的）
+// Approach 1: prefix with __ to avoid collisions (idiomatic)
 let var = quote! { __internal_counter };
 
-// 方法2: Span::call_site() — 呼び出し元のスコープで解決
+// Approach 2: Span::call_site() — resolved in the caller's scope
 let name = syn::Ident::new("result", Span::call_site());
-// → 呼び出し元のスコープの `result` と同じ名前空間
+// → same namespace as `result` in the caller's scope
 
-// 方法3: Span::mixed_site() — 宣言的マクロに近い衛生性
+// Approach 3: Span::mixed_site() — hygiene closer to declarative macros
 let name = syn::Ident::new("result", Span::mixed_site());
-// → ローカル変数は衛生的、パス解決は呼び出し元
+// → local variables are hygienic; path resolution uses the caller's scope
 
-// ベストプラクティス: 内部変数は衝突しにくい名前を使う
+// Best practice: use unlikely-to-collide names for internal variables
 let expanded = quote! {
     {
         let __macro_internal_value = compute();
@@ -2045,55 +2050,59 @@ let expanded = quote! {
 
 ---
 
-## 10. パフォーマンスとコンパイル時間
+## 10. Performance and Compile Time
 
-### マクロがコンパイル時間に与える影響
+### How Macros Affect Compile Time
 
 ```
 ┌────────────────────────────────────────────────────────┐
-│          マクロとコンパイル時間の関係                     │
+│        Relationship Between Macros and Compile Time    │
 ├──────────────────┬─────────────────────────────────────┤
-│ macro_rules!     │ ・展開は高速（パターンマッチのみ）     │
-│                  │ ・深い再帰は遅くなる                   │
-│                  │ ・再帰制限: #![recursion_limit="256"]  │
+│ macro_rules!     │ - Expansion is fast (just pattern  │
+│                  │   matching)                         │
+│                  │ - Deep recursion gets slow          │
+│                  │ - Recursion limit:                  │
+│                  │   #![recursion_limit="256"]         │
 ├──────────────────┼─────────────────────────────────────┤
-│ proc-macro       │ ・別クレートのコンパイルが必要          │
-│                  │ ・syn の features が多いほど遅い       │
-│                  │ ・初回ビルドが特に遅い                 │
+│ proc-macro       │ - Requires compiling another crate  │
+│                  │ - More syn features = slower        │
+│                  │ - Initial build is especially slow  │
 ├──────────────────┼─────────────────────────────────────┤
-│ 展開後コード      │ ・展開結果が大量だと型チェックが遅い   │
-│                  │ ・単相化(monomorphization)のコストに注意│
+│ Expanded code    │ - Very large expansions slow type   │
+│                  │   checking                          │
+│                  │ - Watch out for monomorphization    │
+│                  │   costs                             │
 └──────────────────┴─────────────────────────────────────┘
 ```
 
-### コンパイル時間の最適化
+### Optimizing Compile Time
 
 ```toml
-# Cargo.toml — syn の feature を最小限に
+# Cargo.toml — keep syn features to a minimum
 [dependencies]
 syn = { version = "2", features = ["derive", "parsing"] }
-# "full" は使わない（パース対象を限定する）
+# Don't use "full" (limit what you parse)
 
-# proc-macro のキャッシュを活用
-# proc-macro クレートを分離することで、
-# アプリケーションコード変更時に proc-macro の再コンパイルを回避
+# Take advantage of the proc-macro cache
+# Splitting out the proc-macro crate avoids recompiling it
+# whenever application code changes
 ```
 
 ```rust
-// 再帰マクロの深度を制御
-// 深い再帰が必要な場合は制限を引き上げる
+// Control the depth of recursive macros
+// Raise the limit if you really need deep recursion
 #![recursion_limit = "512"]
 
-// ただし、再帰の深さは O(n) から O(log n) に最適化可能な場合がある
-// 例: カウントマクロの最適化
+// However, recursion depth can sometimes be reduced from O(n) to O(log n)
+// Example: optimizing a count macro
 
-// O(n) 版 — 要素数に比例して再帰が深くなる
+// O(n) version — recursion depth scales with the number of elements
 macro_rules! count_linear {
     () => { 0usize };
     ($x:tt $($xs:tt)*) => { 1 + count_linear!($($xs)*) };
 }
 
-// O(log n) 版 — バイナリ分割で再帰の深さを半減
+// O(log n) version — binary partitioning halves the recursion depth
 macro_rules! count_log {
     () => { 0usize };
     ($x:tt) => { 1usize };
@@ -2110,64 +2119,63 @@ macro_rules! count_log {
 
 ## FAQ
 
-### Q1: `macro_rules!` と `proc-macro` のどちらを使うべき?
+### Q1: When should I use `macro_rules!` vs `proc-macro`?
 
-**A:** まず `macro_rules!` で実現できるか検討してください。パターンマッチで十分なケース（繰り返し展開、簡易DSL）は宣言的マクロが適切です。型情報の解析やコード構造の変換が必要な場合は手続き的マクロを使います。
+**A:** First check whether `macro_rules!` is sufficient. Cases where pattern matching is enough (repetitive expansions, simple DSLs) are best handled by declarative macros. Use procedural macros when you need to analyze type information or transform code structures.
 
-判断フローチャート:
+Decision flowchart:
 
 ```
-単純な繰り返し展開？ → Yes → macro_rules!
+Simple repetitive expansion? → Yes → macro_rules!
          ↓ No
-DSL（独自構文）？ → Yes → macro_rules!（シンプルなら）
-         ↓           → proc-macro（複雑なら）
-型情報の解析が必要？ → Yes → proc-macro (derive)
+DSL (custom syntax)? → Yes → macro_rules! (if simple)
+         ↓           → proc-macro (if complex)
+Need to analyze type info? → Yes → proc-macro (derive)
          ↓ No
-関数/構造体の変換？ → Yes → proc-macro (attribute)
+Transform a function/struct? → Yes → proc-macro (attribute)
          ↓ No
-コンパイル時検証？ → Yes → proc-macro (function-like)
+Compile-time validation? → Yes → proc-macro (function-like)
 ```
 
-### Q2: マクロのエラーメッセージを改善するには?
+### Q2: How can I improve macro error messages?
 
-**A:** 手続き的マクロでは `syn::Error::new_spanned(tokens, message)` を使い、問題のあるトークンにスパンを紐付けます。宣言的マクロでは `compile_error!("メッセージ")` を活用します。
+**A:** In procedural macros, use `syn::Error::new_spanned(tokens, message)` to attach a span to the offending token. In declarative macros, use `compile_error!("message")`.
 
 ```rust
-// 手続き的マクロ内
+// Inside a procedural macro
 if !is_valid {
     return syn::Error::new_spanned(
         &field.ident,
-        "このフィールドは String 型である必要があります"
+        "this field must be of type String"
     ).to_compile_error().into();
 }
 
-// 宣言的マクロ内で条件付きエラー
+// Conditional error inside a declarative macro
 macro_rules! assert_type {
     ($val:expr, String) => { /* OK */ };
     ($val:expr, $other:ty) => {
         compile_error!(concat!(
-            "期待する型は String ですが ",
+            "expected type String but got ",
             stringify!($other),
-            " が指定されました"
         ));
     };
 }
 
-// 複数エラーを返す（手続き的マクロ）
+// Returning multiple errors (procedural macro)
 fn validate_fields(fields: &[Field]) -> Result<(), TokenStream> {
     let mut errors = Vec::new();
     for field in fields {
         if !is_supported_type(&field.ty) {
             errors.push(syn::Error::new_spanned(
                 &field.ty,
-                format!("サポートされていない型です: {:?}", field.ty),
+                format!("unsupported type: {:?}", field.ty),
             ));
         }
     }
     if errors.is_empty() {
         Ok(())
     } else {
-        // 複数のエラーを結合
+        // Combine multiple errors
         let mut combined = errors[0].clone();
         for error in &errors[1..] {
             combined.combine(error.clone());
@@ -2177,9 +2185,9 @@ fn validate_fields(fields: &[Field]) -> Result<(), TokenStream> {
 }
 ```
 
-### Q3: `quote!` 内で変数を補間する方法は?
+### Q3: How do I interpolate variables inside `quote!`?
 
-**A:** `#var` で単一の変数を、`#( #var )*` で繰り返しを補間します。
+**A:** Use `#var` to interpolate a single variable, and `#( #var )*` to interpolate a repetition.
 
 ```rust
 let name = quote::format_ident!("my_func");
@@ -2191,15 +2199,15 @@ let expanded = quote! {
 };
 ```
 
-### Q4: proc-macro クレートでテストを書く方法は?
+### Q4: How do I write tests for a proc-macro crate?
 
-**A:** proc-macro クレートでは通常のユニットテストが書けないため、以下の戦略を取る。
+**A:** Ordinary unit tests cannot live inside a proc-macro crate, so use one of the strategies below.
 
 ```rust
-// 戦略1: ロジックを非 proc-macro クレートに分離
-// my-derive-core/src/lib.rs (普通のライブラリクレート)
+// Strategy 1: factor out the logic into a non-proc-macro crate
+// my-derive-core/src/lib.rs (a regular library crate)
 pub fn generate_impl(ast: &syn::DeriveInput) -> proc_macro2::TokenStream {
-    // ここにロジックを書く（テスト可能）
+    // Put the logic here (testable)
     todo!()
 }
 
@@ -2217,26 +2225,26 @@ mod tests {
         };
         let output = generate_impl(&input);
         let expected = quote::quote! {
-            // 期待されるコード
+            // expected code
         };
         assert_eq!(output.to_string(), expected.to_string());
     }
 }
 
-// my-derive/src/lib.rs (proc-macro クレート — 薄いラッパー)
+// my-derive/src/lib.rs (proc-macro crate — a thin wrapper)
 #[proc_macro_derive(MyDerive)]
 pub fn my_derive(input: TokenStream) -> TokenStream {
     let ast = syn::parse_macro_input!(input as syn::DeriveInput);
     my_derive_core::generate_impl(&ast).into()
 }
 
-// 戦略2: trybuild でコンパイルテスト（前述）
-// 戦略3: integration test で実際に derive を使うコードを書く
+// Strategy 2: compile testing with trybuild (described above)
+// Strategy 3: write integration tests that actually use the derive
 ```
 
-### Q5: マクロで async fn を扱うには?
+### Q5: How do I handle async fn from a macro?
 
-**A:** attribute マクロで async fn をラップする場合、特別な対応が必要。
+**A:** Wrapping an `async fn` from an attribute macro requires special care.
 
 ```rust
 use proc_macro::TokenStream;
@@ -2252,7 +2260,7 @@ pub fn async_measure(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let attrs = &func.attrs;
     let sig = &func.sig;
 
-    // async かどうかで生成コードを分岐
+    // Branch on whether the function is async
     let expanded = if sig.asyncness.is_some() {
         quote! {
             #(#attrs)*
@@ -2283,28 +2291,28 @@ pub fn async_measure(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
 ---
 
-## まとめ
+## Summary
 
-| 項目 | 要点 |
+| Topic | Key points |
 |---|---|
-| 宣言的マクロ | `macro_rules!` でパターンマッチ。同一クレートで定義可能 |
-| 手続き的マクロ | 別クレート必須。`syn` + `quote` が標準ツール |
-| derive マクロ | `#[derive(Foo)]` で自動実装。最も使用頻度が高い |
-| attribute マクロ | `#[foo]` で関数/構造体を変換 |
-| function-like | `foo!(...)` で自由形式の入力を受け取る |
-| デバッグ | `cargo expand` が最重要ツール |
-| 衛生性 | 宣言的マクロは部分保証。手続き的は手動管理 |
-| 設計原則 | 関数で済むならマクロにしない。エラーメッセージを親切に |
-| パフォーマンス | syn の features を最小限に。再帰深度に注意 |
-| テスト | trybuild + ロジック分離が定石 |
+| Declarative macros | `macro_rules!` with pattern matching. Can be defined in the same crate |
+| Procedural macros | Require a separate crate. `syn` + `quote` are the standard tools |
+| derive macros | Auto-implement traits with `#[derive(Foo)]`. The most commonly used kind |
+| Attribute macros | Use `#[foo]` to transform a function/struct |
+| Function-like | Take free-form input via `foo!(...)` |
+| Debugging | `cargo expand` is the most important tool |
+| Hygiene | Declarative macros are partially hygienic; procedural macros require manual care |
+| Design principles | Don't reach for a macro when a function will do. Make error messages friendly |
+| Performance | Keep syn features minimal. Watch recursion depth |
+| Testing | trybuild + separating logic is the standard approach |
 
-## 次に読むべきガイド
+## What to Read Next
 
-- [async/await基礎](../02-async/00-async-basics.md) — Rustの非同期プログラミングモデル
-- [テスト](../04-ecosystem/01-testing.md) — マクロのテスト手法を含むテスト戦略
-- [ベストプラクティス](../04-ecosystem/04-best-practices.md) — API設計とマクロの適切な使い所
+- [Async/Await Basics](../02-async/00-async-basics.md) — Rust's asynchronous programming model
+- [Testing](../04-ecosystem/01-testing.md) — Testing strategies including how to test macros
+- [Best Practices](../04-ecosystem/04-best-practices.md) — API design and the right place to use macros
 
-## 参考文献
+## References
 
 1. **The Rust Reference — Macros**: https://doc.rust-lang.org/reference/macros.html
 2. **The Little Book of Rust Macros**: https://veykril.github.io/tlborm/
