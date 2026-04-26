@@ -1,62 +1,63 @@
-# unsafe Rust -- 安全性の境界を越える低レベルプログラミング
+# unsafe Rust -- Low-Level Programming Beyond the Boundary of Safety
 
-> unsafe Rustは借用チェッカーの制約を超えた操作(生ポインタ操作、FFI、ハードウェアアクセス等)を可能にし、安全な抽象化の中に封じ込めることで高レベルAPIの安全性を維持する。
-
----
-
-## この章で学ぶこと
-
-1. **unsafe の5つの超能力** -- unsafe ブロック内で許可される5つの操作を理解する
-2. **生ポインタとFFI** -- *const T / *mut T の操作とC言語連携の方法を習得する
-3. **安全な抽象化** -- unsafe を内部に封じ込めて安全なAPIを公開するパターンを学ぶ
-4. **unsafe トレイト** -- Send / Sync の手動実装と独自 unsafe トレイトの設計を理解する
-5. **未定義動作と Miri** -- UB の種類と検出ツールの使い方を習得する
-
-
-## 前提知識
-
-このガイドを読む前に、以下の知識があると理解が深まります:
-
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [クロージャとFnトレイト -- 環境をキャプチャする関数オブジェクト](./02-closures-fn-traits.md) の内容を理解していること
+> unsafe Rust enables operations that go beyond the constraints of the borrow checker (raw pointer manipulation, FFI, hardware access, etc.), and by encapsulating them inside safe abstractions, it preserves the safety of high-level APIs.
 
 ---
 
-## 1. unsafe の5つの超能力
+## What You Will Learn in This Chapter
+
+1. **The 5 Superpowers of unsafe** -- Understand the five operations permitted inside an unsafe block
+2. **Raw Pointers and FFI** -- Master the manipulation of *const T / *mut T and how to interface with C
+3. **Safe Abstractions** -- Learn the patterns for confining unsafe internally and exposing safe APIs
+4. **unsafe Traits** -- Understand manual implementation of Send / Sync and the design of custom unsafe traits
+5. **Undefined Behavior and Miri** -- Master the kinds of UB and how to use detection tools
+
+
+## Prerequisites
+
+Reading the following before this guide will deepen your understanding:
+
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding the contents of [Closures and Fn Traits -- Function Objects That Capture Their Environment](./02-closures-fn-traits.md)
+
+---
+
+## 1. The 5 Superpowers of unsafe
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│        unsafe で解禁される5つの操作                    │
+│        The 5 Operations Unlocked by unsafe           │
 ├──────────────────────────────────────────────────────┤
-│ 1. 生ポインタのデリファレンス (*const T / *mut T)     │
-│ 2. unsafe 関数・メソッドの呼び出し                    │
-│ 3. 可変 static 変数へのアクセス・変更                 │
-│ 4. unsafe トレイトの実装                              │
-│ 5. union のフィールドアクセス                         │
+│ 1. Dereferencing raw pointers (*const T / *mut T)    │
+│ 2. Calling unsafe functions and methods              │
+│ 3. Accessing/modifying mutable static variables      │
+│ 4. Implementing unsafe traits                        │
+│ 5. Accessing fields of a union                       │
 ├──────────────────────────────────────────────────────┤
-│  重要: unsafe は借用チェックを無効にしない！          │
-│  所有権・型チェックは unsafe 内でも有効               │
-│  unsafe は「コンパイラが検証できない安全性の責任を    │
-│  プログラマが引き受ける」という意味                    │
+│  Important: unsafe does NOT disable borrow checking! │
+│  Ownership and type checks are still in force inside │
+│  unsafe. unsafe means "the programmer takes          │
+│  responsibility for safety that the compiler cannot  │
+│  verify."                                            │
 └──────────────────────────────────────────────────────┘
 ```
 
-### 1.1 unsafe が「しないこと」
+### 1.1 What unsafe Does NOT Do
 
-unsafe ブロックは以下のチェックを無効にしない:
-- **所有権ルール**: ムーブ後の使用は引き続きエラー
-- **型チェック**: 型の不一致は引き続きエラー
-- **借用ルール**: `&T` と `&mut T` の同時使用は引き続きエラー(ただし生ポインタを使えば回避可能)
-- **ライフタイムチェック**: 参照のライフタイムは引き続き検証される
+An unsafe block does not disable the following checks:
+- **Ownership rules**: Use after move is still an error
+- **Type checking**: Type mismatches are still errors
+- **Borrow rules**: Simultaneous use of `&T` and `&mut T` is still an error (though it can be circumvented using raw pointers)
+- **Lifetime checking**: Reference lifetimes are still verified
 
-### 例1: 生ポインタの基本
+### Example 1: Raw Pointer Basics
 
 ```rust
 fn main() {
     let mut num = 42;
 
-    // 生ポインタの作成は安全(デリファレンスが unsafe)
+    // Creating a raw pointer is safe (dereferencing is unsafe)
     let r1 = &num as *const i32;
     let r2 = &mut num as *mut i32;
 
@@ -66,17 +67,17 @@ fn main() {
         println!("r2 = {}", *r2);
     }
 
-    // 任意のアドレスを指す生ポインタ(非常に危険)
+    // A raw pointer to an arbitrary address (extremely dangerous)
     let address = 0x012345usize;
     let _r = address as *const i32;
-    // unsafe { println!("{}", *_r); } // 未定義動作！
+    // unsafe { println!("{}", *_r); } // Undefined behavior!
 
-    // null ポインタ
+    // Null pointer
     let null_ptr: *const i32 = std::ptr::null();
-    println!("null ポインタ: {:?}", null_ptr);
+    println!("null pointer: {:?}", null_ptr);
     assert!(null_ptr.is_null());
 
-    // 生ポインタの算術
+    // Raw pointer arithmetic
     let arr = [10, 20, 30, 40, 50];
     let ptr = arr.as_ptr();
     unsafe {
@@ -87,17 +88,17 @@ fn main() {
 }
 ```
 
-### 例2: 生ポインタと参照の変換
+### Example 2: Conversion Between Raw Pointers and References
 
 ```rust
 fn main() {
     let mut value = 42;
 
-    // 参照 → 生ポインタ (安全)
+    // Reference -> raw pointer (safe)
     let raw_const: *const i32 = &value;
     let raw_mut: *mut i32 = &mut value;
 
-    // 生ポインタ → 参照 (unsafe)
+    // Raw pointer -> reference (unsafe)
     unsafe {
         let ref_const: &i32 = &*raw_const;
         let ref_mut: &mut i32 = &mut *raw_mut;
@@ -106,35 +107,35 @@ fn main() {
         println!("mut ref: {}", ref_mut);
     }
 
-    // NonNull: null でないことが保証される生ポインタ
+    // NonNull: a raw pointer guaranteed to be non-null
     let non_null = std::ptr::NonNull::new(&mut value as *mut i32).unwrap();
     unsafe {
         println!("NonNull: {}", *non_null.as_ptr());
     }
 
-    // スライスの生ポインタ
+    // Raw pointer of a slice
     let slice = &[1, 2, 3, 4, 5];
     let ptr = slice.as_ptr();
     let len = slice.len();
     unsafe {
-        // 生ポインタとスライスの再構築
+        // Reconstructing a slice from a raw pointer
         let reconstructed = std::slice::from_raw_parts(ptr, len);
-        println!("再構築: {:?}", reconstructed);
+        println!("reconstructed: {:?}", reconstructed);
     }
 }
 ```
 
 ---
 
-## 2. unsafe 関数
+## 2. unsafe Functions
 
-### 例3: unsafe 関数の定義と呼び出し
+### Example 3: Defining and Calling unsafe Functions
 
 ```rust
-/// 2つのスライスの内容をインプレースで入れ替える。
+/// Swaps the contents of two slices in place.
 /// # Safety
-/// - `a` と `b` は同じ長さでなければならない
-/// - `a` と `b` は重複してはならない
+/// - `a` and `b` must have the same length
+/// - `a` and `b` must not overlap
 unsafe fn swap_buffers(a: &mut [u8], b: &mut [u8]) {
     debug_assert_eq!(a.len(), b.len());
     for i in 0..a.len() {
@@ -149,7 +150,7 @@ fn main() {
     let mut a = vec![1, 2, 3];
     let mut b = vec![4, 5, 6];
 
-    // 安全性の前提条件を確認してから呼び出す
+    // Verify the safety preconditions before calling
     assert_eq!(a.len(), b.len());
     unsafe {
         swap_buffers(&mut a, &mut b);
@@ -158,7 +159,7 @@ fn main() {
 }
 ```
 
-### 例4: split_at_mut の実装(標準ライブラリの内部)
+### Example 4: Implementing split_at_mut (Standard Library Internals)
 
 ```rust
 fn split_at_mut(values: &mut [i32], mid: usize) -> (&mut [i32], &mut [i32]) {
@@ -185,10 +186,10 @@ fn main() {
 }
 ```
 
-### 例5: unsafe を使ったゼロコスト型変換
+### Example 5: Zero-Cost Type Conversions Using unsafe
 
 ```rust
-// repr(transparent) で内部表現が同一であることを保証
+// repr(transparent) guarantees identical internal representation
 #[repr(transparent)]
 struct Meters(f64);
 
@@ -205,9 +206,9 @@ impl Meters {
     }
 }
 
-// スライスの型変換 (ゼロコスト)
+// Slice type conversion (zero-cost)
 fn meters_slice_to_f64(meters: &[Meters]) -> &[f64] {
-    // Safety: Meters は repr(transparent) で f64 と同じレイアウト
+    // Safety: Meters is repr(transparent) and has the same layout as f64
     unsafe {
         std::slice::from_raw_parts(
             meters.as_ptr() as *const f64,
@@ -219,12 +220,12 @@ fn meters_slice_to_f64(meters: &[Meters]) -> &[f64] {
 fn main() {
     let measurements = vec![Meters::new(1000.0), Meters::new(2500.0), Meters::new(500.0)];
     let raw_values = meters_slice_to_f64(&measurements);
-    println!("生の値: {:?}", raw_values); // [1000.0, 2500.0, 500.0]
+    println!("raw values: {:?}", raw_values); // [1000.0, 2500.0, 500.0]
 
-    // std::mem::transmute の安全な代替
+    // A safe alternative to std::mem::transmute
     let x: u32 = 0x41424344;
     let bytes: [u8; 4] = x.to_ne_bytes();
-    println!("バイト: {:?}", bytes);
+    println!("bytes: {:?}", bytes);
 }
 ```
 
@@ -232,7 +233,7 @@ fn main() {
 
 ## 3. FFI (Foreign Function Interface)
 
-### 例6: C関数の呼び出し
+### Example 6: Calling C Functions
 
 ```rust
 extern "C" {
@@ -247,15 +248,15 @@ extern "C" {
 
 fn main() {
     unsafe {
-        // abs の呼び出し
+        // Calling abs
         println!("abs(-5) = {}", abs(-5));
         println!("abs(10) = {}", abs(10));
 
-        // strlen の呼び出し
+        // Calling strlen
         let s = std::ffi::CString::new("hello").unwrap();
         println!("strlen = {}", strlen(s.as_ptr()));
 
-        // memcpy の呼び出し
+        // Calling memcpy
         let src = [1u8, 2, 3, 4, 5];
         let mut dest = [0u8; 5];
         memcpy(
@@ -263,21 +264,21 @@ fn main() {
             src.as_ptr() as *const std::os::raw::c_void,
             src.len(),
         );
-        println!("memcpy結果: {:?}", dest); // [1, 2, 3, 4, 5]
+        println!("memcpy result: {:?}", dest); // [1, 2, 3, 4, 5]
     }
 }
 ```
 
-### 例7: RustからCに関数を公開
+### Example 7: Exposing Functions from Rust to C
 
 ```rust
-/// C から呼び出し可能な関数
+/// A function callable from C
 #[no_mangle]
 pub extern "C" fn rust_add(a: i32, b: i32) -> i32 {
     a + b
 }
 
-/// C のコールバックを受け取る
+/// Receives a callback from C
 #[no_mangle]
 pub extern "C" fn process_with_callback(
     data: *const i32,
@@ -293,7 +294,7 @@ pub extern "C" fn process_with_callback(
     sum
 }
 
-/// 文字列を受け取って処理する
+/// Receives and processes a string
 #[no_mangle]
 pub extern "C" fn rust_process_string(
     input: *const std::os::raw::c_char,
@@ -306,17 +307,17 @@ pub extern "C" fn rust_process_string(
         let rust_str = c_str.to_str().unwrap_or("invalid utf8");
         let processed = format!("Processed: {}", rust_str.to_uppercase());
         let c_string = std::ffi::CString::new(processed).unwrap();
-        c_string.into_raw() // 呼び出し側が rust_free_string で解放する必要がある
+        c_string.into_raw() // The caller must free it via rust_free_string
     }
 }
 
-/// Rust で確保した文字列を解放する
+/// Frees a string allocated by Rust
 #[no_mangle]
 pub extern "C" fn rust_free_string(s: *mut std::os::raw::c_char) {
     if !s.is_null() {
         unsafe {
             let _ = std::ffi::CString::from_raw(s);
-            // CString が drop される → メモリ解放
+            // CString is dropped -> memory is freed
         }
     }
 }
@@ -326,48 +327,48 @@ fn main() {
 }
 ```
 
-### FFI の安全性境界
+### The Safety Boundary of FFI
 
 ```
   ┌────────────────────────────────┐
-  │  Rust (安全な世界)             │
+  │  Rust (the safe world)         │
   │                                │
   │  pub fn safe_api(input: &str)  │
   │     │                          │
   │     ▼                          │
   │  ┌──────────────────────────┐  │
   │  │ unsafe {                 │  │
-  │  │   // 入力の検証          │  │
-  │  │   // CString への変換    │  │
-  │  │   // C関数の呼び出し     │  │
-  │  │   // 結果の検証          │  │
-  │  │   // Rust型への変換      │  │
+  │  │   // Validate input      │  │
+  │  │   // Convert to CString  │  │
+  │  │   // Call C function     │  │
+  │  │   // Validate result     │  │
+  │  │   // Convert to Rust type│  │
   │  │ }                        │  │
   │  └──────────────────────────┘  │
   │     │                          │
   │     ▼                          │
-  │  Result<T, E> を返す           │
+  │  Returns Result<T, E>          │
   └────────────────────────────────┘
            │
            ▼
   ┌────────────────────────────────┐
-  │  C ライブラリ (unsafe な世界)  │
+  │  C library (the unsafe world)  │
   └────────────────────────────────┘
 ```
 
-### 例8: FFI 安全ラッパーの実装
+### Example 8: Implementing a Safe FFI Wrapper
 
 ```rust
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 
-// C ライブラリの関数を宣言
+// Declare functions from a C library
 extern "C" {
     fn setenv(name: *const c_char, value: *const c_char, overwrite: i32) -> i32;
     fn getenv(name: *const c_char) -> *const c_char;
 }
 
-// 安全なラッパー
+// Safe wrapper
 mod safe_env {
     use super::*;
 
@@ -381,16 +382,16 @@ mod safe_env {
     impl std::fmt::Display for EnvError {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
-                EnvError::InvalidName(s) => write!(f, "無効な環境変数名: {}", s),
-                EnvError::InvalidValue(s) => write!(f, "無効な値: {}", s),
-                EnvError::SetFailed => write!(f, "環境変数の設定に失敗"),
+                EnvError::InvalidName(s) => write!(f, "invalid environment variable name: {}", s),
+                EnvError::InvalidValue(s) => write!(f, "invalid value: {}", s),
+                EnvError::SetFailed => write!(f, "failed to set environment variable"),
             }
         }
     }
 
-    /// 環境変数を安全に設定する
+    /// Safely sets an environment variable
     pub fn set_env(name: &str, value: &str) -> Result<(), EnvError> {
-        // 入力の検証
+        // Validate input
         if name.contains('\0') {
             return Err(EnvError::InvalidName(name.to_string()));
         }
@@ -403,7 +404,7 @@ mod safe_env {
         let c_value = CString::new(value)
             .map_err(|_| EnvError::InvalidValue(value.to_string()))?;
 
-        // unsafe ブロックを最小限に
+        // Keep the unsafe block minimal
         let result = unsafe { setenv(c_name.as_ptr(), c_value.as_ptr(), 1) };
 
         if result == 0 {
@@ -413,7 +414,7 @@ mod safe_env {
         }
     }
 
-    /// 環境変数を安全に取得する
+    /// Safely retrieves an environment variable
     pub fn get_env(name: &str) -> Option<String> {
         let c_name = CString::new(name).ok()?;
 
@@ -432,10 +433,10 @@ mod safe_env {
 }
 
 fn main() {
-    // 安全なAPIを通して使用
+    // Use through the safe API
     match safe_env::set_env("MY_VAR", "hello") {
-        Ok(()) => println!("環境変数を設定しました"),
-        Err(e) => println!("エラー: {}", e),
+        Ok(()) => println!("environment variable set"),
+        Err(e) => println!("error: {}", e),
     }
 
     if let Some(value) = safe_env::get_env("MY_VAR") {
@@ -446,25 +447,25 @@ fn main() {
 
 ---
 
-## 4. unsafe トレイト
+## 4. unsafe Traits
 
-### 例9: unsafe トレイトの実装
+### Example 9: Implementing unsafe Traits
 
 ```rust
-// Send / Sync は unsafe トレイト
-// コンパイラが自動実装するが、手動実装も可能
+// Send / Sync are unsafe traits
+// The compiler implements them automatically, but manual implementation is also possible
 
 struct MyWrapper(*mut i32);
 
-// Safety: MyWrapper は内部のポインタを適切に管理し、
-// スレッド間で安全に送信できることを保証する
+// Safety: MyWrapper manages its internal pointer appropriately and
+// guarantees safe transmission across threads
 unsafe impl Send for MyWrapper {}
 unsafe impl Sync for MyWrapper {}
 
-// カスタム unsafe トレイト
+// Custom unsafe trait
 /// # Safety
-/// 実装者は `validate()` が true を返す場合のみ
-/// `process()` を呼び出すことを保証しなければならない
+/// The implementor must guarantee that `process()` is only called when
+/// `validate()` returns true
 unsafe trait Validated {
     fn validate(&self) -> bool;
     fn process(&self);
@@ -480,8 +481,8 @@ unsafe impl Validated for SafeData {
     }
 
     fn process(&self) {
-        // validate() が true の場合のみ呼ばれることを前提とする
-        println!("処理中: {}", self.value);
+        // Assumes it is only called when validate() returns true
+        println!("processing: {}", self.value);
     }
 }
 
@@ -489,7 +490,7 @@ fn execute_validated<T: Validated>(item: &T) {
     if item.validate() {
         item.process();
     } else {
-        println!("バリデーション失敗");
+        println!("validation failed");
     }
 }
 
@@ -502,18 +503,18 @@ fn main() {
 }
 ```
 
-### 例10: Send / Sync の理解と手動実装
+### Example 10: Understanding and Manually Implementing Send / Sync
 
 ```rust
 use std::cell::UnsafeCell;
 
-// UnsafeCell を使ったスレッド安全な型の実装
+// Implementing a thread-safe type using UnsafeCell
 struct ThreadSafeCounter {
     count: UnsafeCell<u64>,
 }
 
-// Safety: 内部のアクセスは atomic 操作で保護する
-// (この例では簡略化のため Mutex 的な保護は省略)
+// Safety: Internal access is protected by atomic operations
+// (in this example, Mutex-like protection is omitted for simplicity)
 unsafe impl Send for ThreadSafeCounter {}
 unsafe impl Sync for ThreadSafeCounter {}
 
@@ -524,35 +525,35 @@ impl ThreadSafeCounter {
         }
     }
 
-    // 注意: この実装はデモ目的。実際にはアトミック操作が必要
+    // Note: this implementation is for demonstration purposes; in practice atomic operations are required
     fn get(&self) -> u64 {
         unsafe { *self.count.get() }
     }
 }
 
-// Send / Sync が自動実装されない型の例
+// Examples of types where Send / Sync are not auto-implemented
 struct NotSend {
-    data: *mut i32,  // 生ポインタは Send/Sync を実装しない
+    data: *mut i32,  // Raw pointers do not implement Send/Sync
 }
 
-// Rc は Send を実装しない(参照カウントがスレッド安全でないため)
+// Rc does not implement Send (because reference counts are not thread-safe)
 // use std::rc::Rc;
-// fn send_rc<T: Send>(t: T) {} // Rc<T> を渡すとコンパイルエラー
+// fn send_rc<T: Send>(t: T) {} // Passing Rc<T> would cause a compile error
 
 fn main() {
     let counter = ThreadSafeCounter::new();
-    println!("カウント: {}", counter.get());
+    println!("count: {}", counter.get());
 }
 ```
 
 ---
 
-## 5. 可変 static 変数と union
+## 5. Mutable static Variables and union
 
-### 例11: 可変 static と union
+### Example 11: Mutable static and union
 
 ```rust
-// 可変 static (グローバル変数)
+// Mutable static (global variable)
 static mut COUNTER: u32 = 0;
 
 fn increment_counter() {
@@ -565,7 +566,7 @@ fn get_counter() -> u32 {
     unsafe { COUNTER }
 }
 
-// union: 同じメモリ領域を異なる型として解釈
+// union: interprets the same memory region as different types
 #[repr(C)]
 union IntOrFloat {
     i: i32,
@@ -575,23 +576,23 @@ union IntOrFloat {
 fn main() {
     increment_counter();
     increment_counter();
-    println!("カウンタ: {}", get_counter());
+    println!("counter: {}", get_counter());
 
     let u = IntOrFloat { f: 1.0 };
     unsafe {
-        println!("float として: {}", u.f);
-        println!("int として: {:#010x}", u.i); // IEEE 754 表現
+        println!("as float: {}", u.f);
+        println!("as int:   {:#010x}", u.i); // IEEE 754 representation
     }
 }
 ```
 
-### 例12: static mut の安全な代替手段
+### Example 12: Safe Alternatives to static mut
 
 ```rust
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::OnceLock;
 
-// 方法1: AtomicU64 (アトミック操作)
+// Approach 1: AtomicU64 (atomic operations)
 static ATOMIC_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 fn increment_atomic() {
@@ -602,17 +603,17 @@ fn get_atomic() -> u64 {
     ATOMIC_COUNTER.load(Ordering::Relaxed)
 }
 
-// 方法2: OnceLock (初期化が一度だけの値)
+// Approach 2: OnceLock (a value initialized only once)
 static CONFIG: OnceLock<String> = OnceLock::new();
 
 fn get_config() -> &'static str {
     CONFIG.get_or_init(|| {
-        // 初期化処理(一度だけ実行される)
+        // Initialization logic (executed only once)
         String::from("production")
     })
 }
 
-// 方法3: Mutex (一般的な可変グローバル状態)
+// Approach 3: Mutex (general-purpose mutable global state)
 use std::sync::Mutex;
 
 static GLOBAL_STATE: Mutex<Vec<String>> = Mutex::new(Vec::new());
@@ -630,23 +631,23 @@ fn main() {
     increment_atomic();
     increment_atomic();
     increment_atomic();
-    println!("アトミックカウンタ: {}", get_atomic());
+    println!("atomic counter: {}", get_atomic());
 
     // OnceLock
-    println!("設定: {}", get_config());
-    println!("設定(2回目): {}", get_config()); // 同じ値
+    println!("config: {}", get_config());
+    println!("config (2nd): {}", get_config()); // same value
 
     // Mutex
     add_to_state("hello".to_string());
     add_to_state("world".to_string());
-    println!("グローバル状態: {:?}", get_state());
+    println!("global state: {:?}", get_state());
 }
 ```
 
-### 例13: union の実用例
+### Example 13: Practical Use of union
 
 ```rust
-// ネットワークプロトコルでの union の使用
+// Using a union for a network protocol
 #[repr(C)]
 union IpAddress {
     v4: [u8; 4],
@@ -686,11 +687,11 @@ impl NetworkPacket {
     }
 }
 
-// MaybeUninit: 初期化されていないメモリの安全な扱い
+// MaybeUninit: safe handling of uninitialized memory
 fn demo_maybe_uninit() {
     use std::mem::MaybeUninit;
 
-    // 初期化されていない配列を効率的に構築
+    // Efficiently construct an uninitialized array
     let mut arr: [MaybeUninit<String>; 5] = unsafe {
         MaybeUninit::uninit().assume_init()
     };
@@ -699,9 +700,9 @@ fn demo_maybe_uninit() {
         elem.write(format!("item_{}", i));
     }
 
-    // 安全に初期化済み配列に変換
+    // Safely convert into a fully initialized array
     let arr: [String; 5] = unsafe {
-        // transmute で MaybeUninit<String> → String に変換
+        // transmute MaybeUninit<String> -> String
         std::mem::transmute::<[MaybeUninit<String>; 5], [String; 5]>(arr)
     };
 
@@ -717,42 +718,42 @@ fn main() {
     pkt_v4.display_addr();
     pkt_v6.display_addr();
 
-    println!("--- MaybeUninit デモ ---");
+    println!("--- MaybeUninit demo ---");
     demo_maybe_uninit();
 }
 ```
 
 ---
 
-## 6. 安全な抽象化パターン
+## 6. Safe Abstraction Patterns
 
 ```
 ┌────────────────────────────────────────────────────────┐
-│             安全な抽象化の原則                           │
+│             Principles of Safe Abstraction              │
 ├────────────────────────────────────────────────────────┤
 │                                                        │
-│ 1. unsafe を最小限のブロックに限定する                  │
-│ 2. 安全なAPIを公開し、unsafe を内部に隠蔽する          │
-│ 3. # Safety ドキュメントで前提条件を明記する            │
-│ 4. debug_assert! で不変条件を検証する                   │
-│ 5. Miri でundefined behaviorを検出する                  │
+│ 1. Limit unsafe to the smallest possible block         │
+│ 2. Expose a safe API; hide unsafe internally           │
+│ 3. State preconditions in a # Safety doc comment       │
+│ 4. Verify invariants with debug_assert!                │
+│ 5. Detect undefined behavior with Miri                 │
 │                                                        │
 │  ┌──────────────────────────────────┐                  │
-│  │  pub fn safe_function(...)       │  ← ユーザーが見る│
-│  │    → 入力検証                    │                  │
-│  │    → unsafe { ... }             │  ← 内部に隠蔽   │
-│  │    → 結果検証                    │                  │
-│  │    → 安全な型で返す              │                  │
+│  │  pub fn safe_function(...)       │  <- what users see│
+│  │    -> Validate input             │                  │
+│  │    -> unsafe { ... }            │  <- hidden inside│
+│  │    -> Validate result            │                  │
+│  │    -> Return as a safe type      │                  │
 │  └──────────────────────────────────┘                  │
 └────────────────────────────────────────────────────────┘
 ```
 
-### 例14: 安全な抽象化の完全な例
+### Example 14: A Complete Example of Safe Abstraction
 
 ```rust
-/// 固定サイズのリングバッファ
+/// A fixed-size ring buffer
 ///
-/// 内部で unsafe を使用しているが、公開APIは完全に安全。
+/// It uses unsafe internally, but the public API is fully safe.
 pub struct RingBuffer<T> {
     buffer: Box<[std::mem::MaybeUninit<T>]>,
     head: usize,
@@ -763,7 +764,7 @@ pub struct RingBuffer<T> {
 
 impl<T> RingBuffer<T> {
     pub fn new(capacity: usize) -> Self {
-        assert!(capacity > 0, "容量は1以上");
+        assert!(capacity > 0, "capacity must be at least 1");
         let buffer = (0..capacity)
             .map(|_| std::mem::MaybeUninit::uninit())
             .collect::<Vec<_>>()
@@ -779,7 +780,7 @@ impl<T> RingBuffer<T> {
 
     pub fn push(&mut self, value: T) -> Option<T> {
         let old = if self.len == self.capacity {
-            // バッファが満杯: 最古の要素を取り出す
+            // Buffer is full: evict the oldest element
             let old = unsafe { self.buffer[self.head].assume_init_read() };
             self.head = (self.head + 1) % self.capacity;
             self.len -= 1;
@@ -820,7 +821,7 @@ impl<T> RingBuffer<T> {
 
 impl<T> Drop for RingBuffer<T> {
     fn drop(&mut self) {
-        // 初期化済みの要素を正しく drop する
+        // Properly drop the initialized elements
         while self.pop().is_some() {}
     }
 }
@@ -830,34 +831,34 @@ fn main() {
     buf.push(1);
     buf.push(2);
     buf.push(3);
-    println!("バッファサイズ: {}", buf.len()); // 3
+    println!("buffer size: {}", buf.len()); // 3
 
-    let evicted = buf.push(4); // 1 が追い出される
-    println!("追い出された値: {:?}", evicted); // Some(1)
+    let evicted = buf.push(4); // 1 is evicted
+    println!("evicted value: {:?}", evicted); // Some(1)
 
     while let Some(val) = buf.pop() {
-        println!("取り出し: {}", val); // 2, 3, 4
+        println!("popped: {}", val); // 2, 3, 4
     }
 }
 ```
 
-### 例15: unsafe を使った高性能な文字列処理
+### Example 15: High-Performance String Processing Using unsafe
 
 ```rust
-/// UTF-8 バリデーションをスキップして String を構築する。
-/// 呼び出し側がUTF-8の妥当性を保証する場合にのみ使用。
+/// Constructs a String while skipping UTF-8 validation.
+/// Use only when the caller guarantees UTF-8 validity.
 ///
 /// # Safety
-/// `bytes` は有効なUTF-8でなければならない。
+/// `bytes` must be valid UTF-8.
 unsafe fn string_from_utf8_unchecked(bytes: Vec<u8>) -> String {
     String::from_utf8_unchecked(bytes)
 }
 
-/// ASCII文字列を大文字に変換する（インプレース）
-/// 標準の to_uppercase() より高速（アロケーションなし）
+/// Converts an ASCII string to uppercase (in place).
+/// Faster than the standard to_uppercase() (no allocation).
 fn ascii_uppercase_inplace(s: &mut String) {
-    // Safety: ASCII の大文字変換はUTF-8の妥当性を保持する
-    // (ASCII文字は1バイトで、大文字変換後もASCIIの範囲内)
+    // Safety: ASCII uppercase conversion preserves UTF-8 validity
+    // (ASCII characters are 1 byte, and remain in the ASCII range after uppercasing)
     unsafe {
         let bytes = s.as_bytes_mut();
         for byte in bytes.iter_mut() {
@@ -868,81 +869,81 @@ fn ascii_uppercase_inplace(s: &mut String) {
     }
 }
 
-/// バイト列から部分文字列を安全に抽出する
+/// Safely extracts a substring from a byte sequence
 pub fn safe_substring(s: &str, start: usize, end: usize) -> Option<&str> {
     if start > end || end > s.len() {
         return None;
     }
 
-    // UTF-8 の境界チェック
+    // Check UTF-8 character boundaries
     if !s.is_char_boundary(start) || !s.is_char_boundary(end) {
         return None;
     }
 
-    // Safety: 境界チェック済み
+    // Safety: boundaries have been checked
     Some(unsafe { s.get_unchecked(start..end) })
 }
 
 fn main() {
-    // ASCII 大文字変換
+    // ASCII uppercase conversion
     let mut s = String::from("hello, world!");
     ascii_uppercase_inplace(&mut s);
-    println!("大文字: {}", s); // HELLO, WORLD!
+    println!("uppercase: {}", s); // HELLO, WORLD!
 
-    // 安全な部分文字列抽出
+    // Safe substring extraction
     let text = "こんにちは、世界！";
     match safe_substring(text, 0, 15) {
-        Some(sub) => println!("部分文字列: {}", sub),
-        None => println!("無効な範囲"),
+        Some(sub) => println!("substring: {}", sub),
+        None => println!("invalid range"),
     }
 
-    // UTF-8 バイト境界エラーの検出
+    // Detection of UTF-8 byte boundary errors
     match safe_substring(text, 0, 1) {
-        Some(sub) => println!("部分文字列: {}", sub),
-        None => println!("UTF-8 境界エラー"), // 日本語は3バイト/文字
+        Some(sub) => println!("substring: {}", sub),
+        None => println!("UTF-8 boundary error"), // Japanese characters are 3 bytes each
     }
 
     match safe_substring(text, 0, 3) {
-        Some(sub) => println!("部分文字列: {}", sub), // "こ"
-        None => println!("UTF-8 境界エラー"),
+        Some(sub) => println!("substring: {}", sub), // "こ"
+        None => println!("UTF-8 boundary error"),
     }
 }
 ```
 
 ---
 
-## 7. 未定義動作 (Undefined Behavior)
+## 7. Undefined Behavior
 
-### 7.1 Rust における未定義動作の種類
+### 7.1 Kinds of Undefined Behavior in Rust
 
 ```
 ┌────────────────────────────────────────────────────────┐
-│          未定義動作 (UB) の主な種類                       │
+│          Major Kinds of Undefined Behavior (UB)         │
 ├────────────────────────────────────────────────────────┤
 │                                                        │
-│ 1. ダングリングポインタのデリファレンス                  │
-│ 2. 不正なアラインメントのポインタデリファレンス          │
-│ 3. データ競合 (data race)                               │
-│ 4. 無効な値の生成 (例: bool に 2 を入れる)              │
-│ 5. null 参照の生成                                      │
-│ 6. 初期化されていないメモリの読み取り                    │
-│ 7. aliasing ルール違反 (&T と &mut T の同時存在)        │
-│ 8. 不正な enum 判別子                                   │
-│ 9. unwinding を extern "C" 関数の境界を越えて伝播      │
-│ 10. UTF-8 でない &str の生成                            │
+│ 1. Dereferencing a dangling pointer                    │
+│ 2. Dereferencing a misaligned pointer                  │
+│ 3. Data race                                           │
+│ 4. Producing an invalid value (e.g., 2 in a bool)      │
+│ 5. Producing a null reference                          │
+│ 6. Reading uninitialized memory                        │
+│ 7. Aliasing rule violations (&T and &mut T coexist)    │
+│ 8. Invalid enum discriminant                           │
+│ 9. Unwinding propagating across an extern "C" boundary │
+│ 10. Producing a non-UTF-8 &str                         │
 │                                                        │
-│ UB が起きると:                                          │
-│ - コンパイラの最適化が誤った結果を生む                   │
-│ - クラッシュ、データ破壊、セキュリティ脆弱性            │
-│ - 「今は動いているが将来壊れる」コード                   │
+│ When UB occurs:                                        │
+│ - Compiler optimizations may produce wrong results     │
+│ - Crashes, data corruption, security vulnerabilities   │
+│ - "Works today but breaks tomorrow" code               │
 └────────────────────────────────────────────────────────┘
 ```
 
-### 例16: 典型的な UB のパターン
+### Example 16: Typical UB Patterns
 
 ```rust
 fn demonstrate_ub_patterns() {
-    // UB パターン1: ダングリングポインタ
+    // UB pattern 1: dangling pointer
     // let ptr: *const i32;
     // {
     //     let x = 42;
@@ -950,7 +951,7 @@ fn demonstrate_ub_patterns() {
     // }
     // unsafe { println!("{}", *ptr); }  // UB!
 
-    // UB パターン2: &T と &mut T の同時存在
+    // UB pattern 2: simultaneous existence of &T and &mut T
     // let mut x = 42;
     // let r1 = &x as *const i32;
     // let r2 = &mut x as *mut i32;
@@ -959,18 +960,18 @@ fn demonstrate_ub_patterns() {
     //     println!("{}", *r1);  // UB! aliasing violation
     // }
 
-    // UB パターン3: 不正な値
-    // let b: bool = unsafe { std::mem::transmute(2u8) };  // UB! bool は 0 or 1 のみ
+    // UB pattern 3: invalid value
+    // let b: bool = unsafe { std::mem::transmute(2u8) };  // UB! bool may only be 0 or 1
 
-    // UB パターン4: アラインメント違反
+    // UB pattern 4: alignment violation
     // let bytes = [0u8; 8];
     // let ptr = bytes.as_ptr().add(1) as *const u32;
-    // unsafe { println!("{}", *ptr); }  // UB! アラインメント違反
+    // unsafe { println!("{}", *ptr); }  // UB! alignment violation
 
-    // 安全な代替手段
+    // Safe alternative
     let bytes = [0u8; 8];
     let value = u32::from_ne_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
-    println!("安全な読み取り: {}", value);
+    println!("safe read: {}", value);
 }
 
 fn main() {
@@ -978,24 +979,24 @@ fn main() {
 }
 ```
 
-### 7.2 Miri による UB 検出
+### 7.2 UB Detection with Miri
 
 ```bash
-# Miri のインストール
+# Install Miri
 rustup +nightly component add miri
 
-# テストを Miri で実行
+# Run tests under Miri
 cargo +nightly miri test
 
-# 特定のテストだけ実行
+# Run only a specific test
 cargo +nightly miri test test_name
 
-# バイナリを Miri で実行
+# Run a binary under Miri
 cargo +nightly miri run
 ```
 
 ```rust
-// Miri で検出できる問題の例
+// Example of issues Miri can detect
 #[cfg(test)]
 mod tests {
     #[test]
@@ -1003,8 +1004,8 @@ mod tests {
         let mut v = vec![1, 2, 3];
         let ptr = v.as_ptr();
         v.push(4);
-        // Miri: ptr はもはや有効でない可能性がある
-        // (push で再アロケーションが起きた場合)
+        // Miri: ptr may no longer be valid
+        // (if push triggered a reallocation)
     }
 
     #[test]
@@ -1012,7 +1013,7 @@ mod tests {
         let v = vec![1, 2, 3];
         let ptr = v.as_ptr();
         unsafe {
-            // push していないので ptr はまだ有効
+            // No push has happened, so ptr is still valid
             assert_eq!(*ptr, 1);
             assert_eq!(*ptr.add(1), 2);
             assert_eq!(*ptr.add(2), 3);
@@ -1023,64 +1024,64 @@ mod tests {
 
 ---
 
-## 8. 比較表
+## 8. Comparison Tables
 
-### 8.1 safe vs unsafe のスコープ
+### 8.1 Scope of safe vs unsafe
 
-| 操作 | safe Rust | unsafe Rust |
-|------|-----------|-------------|
-| 参照のデリファレンス | 常に安全 | 生ポインタで可能 |
-| 配列アクセス | 境界チェック付き | get_unchecked で省略可 |
-| 型変換 | From/Into | transmute で任意変換 |
-| FFI | 不可 | extern ブロックで可能 |
-| グローバル可変状態 | 不可 | static mut で可能 |
-| ライフタイム | コンパイラが検証 | プログラマが保証 |
-| union アクセス | 不可 | unsafe ブロック内で可能 |
+| Operation | safe Rust | unsafe Rust |
+|-----------|-----------|-------------|
+| Reference dereference | Always safe | Possible via raw pointers |
+| Array access | With bounds checking | Can be skipped via get_unchecked |
+| Type conversion | From/Into | Arbitrary conversion via transmute |
+| FFI | Not allowed | Allowed within an extern block |
+| Global mutable state | Not allowed | Allowed via static mut |
+| Lifetimes | Verified by the compiler | Guaranteed by the programmer |
+| union access | Not allowed | Allowed inside an unsafe block |
 
-### 8.2 unsafe の代替手段
+### 8.2 Alternatives to unsafe
 
-| したいこと | unsafe を使う前に検討 | unsafe が必要な場合 |
-|-----------|---------------------|-------------------|
-| 複数の可変参照 | RefCell, Mutex | split_at_mut 的な分割 |
-| グローバル状態 | OnceLock, AtomicU32 | static mut (非推奨) |
-| 型の再解釈 | From/TryFrom | transmute |
-| C連携 | 安全なラッパークレート | 直接 extern "C" |
-| パフォーマンス | アルゴリズム改善 | get_unchecked 等 |
-| 自己参照型 | Pin, ouroboros クレート | 生ポインタ |
-| 初期化遅延 | OnceLock, LazyLock | MaybeUninit |
+| What you want to do | Consider before unsafe | When unsafe is necessary |
+|---------------------|------------------------|--------------------------|
+| Multiple mutable references | RefCell, Mutex | split_at_mut-like splitting |
+| Global state | OnceLock, AtomicU32 | static mut (not recommended) |
+| Reinterpreting types | From/TryFrom | transmute |
+| C interop | Safe wrapper crates | Direct extern "C" |
+| Performance | Algorithmic improvements | get_unchecked, etc. |
+| Self-referential types | Pin, ouroboros crate | Raw pointers |
+| Lazy initialization | OnceLock, LazyLock | MaybeUninit |
 
-### 8.3 repr 属性の比較
+### 8.3 Comparison of repr Attributes
 
-| 属性 | 意味 | 用途 |
-|------|------|------|
-| `#[repr(Rust)]` | デフォルト。コンパイラが自由にレイアウト | 通常の構造体 |
-| `#[repr(C)]` | C言語互換のレイアウト | FFI、union |
-| `#[repr(transparent)]` | 内部型と同じレイアウト | ニュータイプパターン |
-| `#[repr(packed)]` | パディングなし | 省メモリ(アラインメント注意) |
-| `#[repr(align(N))]` | N バイトアラインメント | SIMD、キャッシュライン |
+| Attribute | Meaning | Use case |
+|-----------|---------|----------|
+| `#[repr(Rust)]` | Default. The compiler is free to choose the layout | Ordinary structs |
+| `#[repr(C)]` | C-compatible layout | FFI, unions |
+| `#[repr(transparent)]` | Same layout as the inner type | Newtype pattern |
+| `#[repr(packed)]` | No padding | Memory savings (watch out for alignment) |
+| `#[repr(align(N))]` | N-byte alignment | SIMD, cache lines |
 
 ---
 
-## 9. アンチパターン
+## 9. Anti-Patterns
 
-### アンチパターン1: 広すぎる unsafe ブロック
+### Anti-Pattern 1: Overly Broad unsafe Block
 
 ```rust
-// BAD: unsafe ブロックが大きすぎる
+// BAD: the unsafe block is too large
 fn bad_example(data: &[u8]) -> u8 {
     unsafe {
-        let processed = data.iter().sum::<u8>();  // 安全な操作
-        let ptr = data.as_ptr();                   // 安全な操作
-        let value = *ptr;                          // ← これだけが unsafe
-        processed.wrapping_add(value)              // 安全な操作
+        let processed = data.iter().sum::<u8>();  // safe operation
+        let ptr = data.as_ptr();                   // safe operation
+        let value = *ptr;                          // <- only this is unsafe
+        processed.wrapping_add(value)              // safe operation
     }
 }
 
-// GOOD: unsafe を最小限に
+// GOOD: keep unsafe minimal
 fn good_example(data: &[u8]) -> u8 {
     let processed: u8 = data.iter().sum();
     let ptr = data.as_ptr();
-    let value = unsafe { *ptr };  // unsafe は本当に必要な部分のみ
+    let value = unsafe { *ptr };  // unsafe only where it is truly necessary
     processed.wrapping_add(value)
 }
 
@@ -1091,25 +1092,25 @@ fn main() {
 }
 ```
 
-### アンチパターン2: Safety ドキュメントの欠如
+### Anti-Pattern 2: Missing Safety Documentation
 
 ```rust
-// BAD: なぜ unsafe なのか説明がない
+// BAD: no explanation of why it is unsafe
 pub unsafe fn do_thing_bad(ptr: *const u8, len: usize) -> Vec<u8> {
     std::slice::from_raw_parts(ptr, len).to_vec()
 }
 
-// GOOD: 前提条件を明記
-/// バッファからデータを読み取る。
+// GOOD: state the preconditions explicitly
+/// Reads data from a buffer.
 ///
 /// # Safety
 ///
-/// - `ptr` は有効な読み取り可能なメモリ領域を指していなければならない
-/// - `ptr` から `len` バイト分のメモリが有効でなければならない
-/// - メモリはこの関数の実行中、他のスレッドから変更されてはならない
-/// - `ptr` のアラインメントは u8 に対して正しくなければならない
+/// - `ptr` must point to a valid, readable memory region
+/// - `len` bytes of memory starting at `ptr` must be valid
+/// - The memory must not be modified by another thread during execution of this function
+/// - `ptr` must be properly aligned for u8
 pub unsafe fn do_thing_good(ptr: *const u8, len: usize) -> Vec<u8> {
-    debug_assert!(!ptr.is_null(), "null ポインタが渡されました");
+    debug_assert!(!ptr.is_null(), "a null pointer was passed");
     std::slice::from_raw_parts(ptr, len).to_vec()
 }
 
@@ -1120,36 +1121,36 @@ fn main() {
 }
 ```
 
-### アンチパターン3: transmute の乱用
+### Anti-Pattern 3: Abuse of transmute
 
 ```rust
-// BAD: transmute で型安全性を破壊
+// BAD: destroying type safety with transmute
 fn bad_transmute() {
     // let x: f32 = unsafe { std::mem::transmute(0x42280000u32) };
-    // 危険: エンディアン依存、将来の repr 変更で壊れる
+    // Dangerous: endianness-dependent, will break with future repr changes
 }
 
-// GOOD: 安全な型変換メソッドを使う
+// GOOD: use safe type-conversion methods
 fn good_conversion() {
-    // f32 のビットパターンを取得
+    // Get the bit pattern of f32
     let x: f32 = 42.0;
     let bits = x.to_bits();
-    println!("f32 {} のビット: {:#010x}", x, bits);
+    println!("bits of f32 {}: {:#010x}", x, bits);
 
-    // ビットパターンから f32 を復元
+    // Reconstruct f32 from a bit pattern
     let restored = f32::from_bits(bits);
-    println!("復元: {}", restored);
+    println!("restored: {}", restored);
 
-    // バイト列との変換
+    // Conversion via byte sequence
     let bytes = x.to_ne_bytes();
     let from_bytes = f32::from_ne_bytes(bytes);
-    println!("バイト経由: {}", from_bytes);
+    println!("via bytes: {}", from_bytes);
 }
 
-// BAD: enum の transmute
+// BAD: transmute on an enum
 // fn bad_enum() {
 //     let x: Option<i32> = unsafe { std::mem::transmute(42i32) };
-//     // UB! Option<i32> の内部表現は保証されていない
+//     // UB! The internal representation of Option<i32> is not guaranteed
 // }
 
 fn main() {
@@ -1157,29 +1158,29 @@ fn main() {
 }
 ```
 
-### アンチパターン4: unsafe で借用チェックを回避
+### Anti-Pattern 4: Bypassing Borrow Checking with unsafe
 
 ```rust
-// BAD: unsafe で借用ルールを回避しようとする
+// BAD: trying to bypass the borrow rules with unsafe
 fn bad_alias() {
     let mut data = vec![1, 2, 3];
     // let ptr = data.as_mut_ptr();
-    // let r1 = &data; // 不変参照
-    // unsafe { *ptr = 42; } // 可変アクセス → UB!
-    // println!("{:?}", r1); // r1 はまだ使われている
+    // let r1 = &data; // immutable reference
+    // unsafe { *ptr = 42; } // mutable access -> UB!
+    // println!("{:?}", r1); // r1 is still in use
 }
 
-// GOOD: 安全なAPIを使う
+// GOOD: use a safe API
 fn good_design() {
     let mut data = vec![1, 2, 3];
 
-    // Cell/RefCell で内部可変性
+    // Interior mutability with Cell/RefCell
     use std::cell::RefCell;
     let data = RefCell::new(vec![1, 2, 3]);
     {
         let r1 = data.borrow();
         println!("{:?}", r1);
-    } // r1 をドロップ
+    } // drop r1
     data.borrow_mut()[0] = 42;
     println!("{:?}", data.borrow());
 }
@@ -1192,9 +1193,9 @@ fn main() {
 
 ---
 
-## 10. 実践: unsafe を使った高性能データ構造
+## 10. In Practice: High-Performance Data Structures Using unsafe
 
-### 例17: 侵入型リンクリスト
+### Example 17: An Intrusive Linked List
 
 ```rust
 use std::ptr;
@@ -1314,7 +1315,7 @@ fn main() {
     list.push_back(3);
     list.push_front(0);
 
-    println!("リストサイズ: {}", list.len());
+    println!("list size: {}", list.len());
 
     while let Some(val) = list.pop_front() {
         println!("  {}", val);
@@ -1325,45 +1326,45 @@ fn main() {
 
 ---
 
-## 実践演習
+## Hands-On Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that meets the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate input data
+- Handle errors appropriately
+- Also write test code
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Template for basic implementation
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Exercise on basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate the input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main data processing logic"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Retrieve the processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1372,26 +1373,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "an exception should have been raised"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation by adding the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Advanced patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Exercise on advanced patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1399,7 +1400,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1410,14 +1411,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Remove by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1425,7 +1426,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1433,44 +1434,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1479,7 +1480,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1494,47 +1495,47 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient version: {slow_time:.4f}s")
+    print(f"Efficient version:   {fast_time:.6f}s")
+    print(f"Speedup: {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key points:**
+- Be conscious of the algorithmic complexity
+- Choose appropriate data structures
+- Measure the effect with benchmarks
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
-|--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Error | Cause | Solution |
+|-------|-------|----------|
+| Initialization error | Issues with the configuration file | Check the path and format of the configuration file |
+| Timeout | Network latency / resource shortage | Adjust timeout values, add retry logic |
+| Out of memory | Growth in data volume | Introduce batch processing, implement pagination |
+| Permission error | Lack of access rights | Check the executing user's permissions, review settings |
+| Data inconsistency | Concurrency conflicts | Introduce locking mechanisms, manage transactions |
 
-### デバッグの手順
+### Debugging Procedure
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check the error message**: Read the stack trace and identify the location of the failure
+2. **Establish reproduction steps**: Reproduce the error with the minimum amount of code
+3. **Form hypotheses**: List possible causes
+4. **Verify step by step**: Use logging output and a debugger to verify your hypotheses
+5. **Fix and run regression tests**: After fixing, also run tests for related areas
 
 ```python
-# デバッグ用ユーティリティ
+# Utility for debugging
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -1542,102 +1543,102 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs the inputs and outputs of a function"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"call: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"return: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"exception: {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debug target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Issues
 
-パフォーマンス問題が発生した場合の診断手順:
+The diagnosis procedure when performance issues occur:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify the bottleneck**: Measure with profiling tools
+2. **Check memory usage**: Check whether there are any memory leaks
+3. **Check I/O waits**: Check disk and network I/O conditions
+4. **Check the number of concurrent connections**: Check the state of the connection pool
 
-| 問題の種類 | 診断ツール | 対策 |
-|-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| Issue type | Diagnostic tool | Countermeasure |
+|------------|-----------------|----------------|
+| CPU load | cProfile, py-spy | Algorithmic improvements, parallelization |
+| Memory leaks | tracemalloc, objgraph | Properly release references |
+| I/O bottleneck | strace, iostat | Asynchronous I/O, caching |
+| DB latency | EXPLAIN, slow query log | Indexes, query optimization |
 
 ---
 
-## 設計判断ガイド
+## Design Decision Guide
 
-### 選択基準マトリクス
+### Selection Criteria Matrix
 
-技術選択を行う際の判断基準を以下にまとめます。
+The following summarizes the decision criteria when making technology choices.
 
-| 判断基準 | 重視する場合 | 妥協できる場合 |
-|---------|------------|-------------|
-| パフォーマンス | リアルタイム処理、大規模データ | 管理画面、バッチ処理 |
-| 保守性 | 長期運用、チーム開発 | プロトタイプ、短期プロジェクト |
-| スケーラビリティ | 成長が見込まれるサービス | 社内ツール、固定ユーザー |
-| セキュリティ | 個人情報、金融データ | 公開データ、社内利用 |
-| 開発速度 | MVP、市場投入スピード | 品質重視、ミッションクリティカル |
+| Criterion | When to prioritize | When you can compromise |
+|-----------|---------------------|--------------------------|
+| Performance | Real-time processing, large-scale data | Admin screens, batch processing |
+| Maintainability | Long-term operation, team development | Prototypes, short-term projects |
+| Scalability | Services with expected growth | Internal tools, fixed user base |
+| Security | Personal information, financial data | Public data, internal use |
+| Development speed | MVP, time to market | Quality-focused, mission-critical |
 
-### アーキテクチャパターンの選択
+### Choosing an Architectural Pattern
 
 ```
 ┌─────────────────────────────────────────────────┐
-│              アーキテクチャ選択フロー              │
+│           Architecture Selection Flow             │
 ├─────────────────────────────────────────────────┤
 │                                                 │
-│  ① チーム規模は？                                │
-│    ├─ 小規模（1-5人）→ モノリス                   │
-│    └─ 大規模（10人+）→ ②へ                       │
+│  (1) What is the team size?                      │
+│    |- Small (1-5 people) -> Monolith              │
+│    |- Large (10+ people) -> Go to (2)             │
 │                                                 │
-│  ② デプロイ頻度は？                               │
-│    ├─ 週1回以下 → モノリス + モジュール分割         │
-│    └─ 毎日/複数回 → ③へ                          │
+│  (2) What is the deployment frequency?            │
+│    |- Once a week or less -> Monolith + modular   │
+│    |- Daily/multiple times -> Go to (3)           │
 │                                                 │
-│  ③ チーム間の独立性は？                            │
-│    ├─ 高い → マイクロサービス                      │
-│    └─ 中程度 → モジュラーモノリス                   │
+│  (3) How independent are the teams?               │
+│    |- High -> Microservices                       │
+│    |- Medium -> Modular monolith                  │
 │                                                 │
 └─────────────────────────────────────────────────┘
 ```
 
-### トレードオフの分析
+### Analyzing Trade-offs
 
-技術的な判断には必ずトレードオフが伴います。以下の観点で分析を行いましょう:
+Technical decisions always involve trade-offs. Analyze them from the following perspectives:
 
-**1. 短期 vs 長期のコスト**
-- 短期的に速い方法が長期的には技術的負債になることがある
-- 逆に、過剰な設計は短期的なコストが高く、プロジェクトの遅延を招く
+**1. Short-term vs long-term cost**
+- A method that is fast in the short term can become technical debt in the long term
+- Conversely, over-engineering has a high short-term cost and may delay the project
 
-**2. 一貫性 vs 柔軟性**
-- 統一された技術スタックは学習コストが低い
-- 多様な技術の採用は適材適所が可能だが、運用コストが増加
+**2. Consistency vs flexibility**
+- A unified technology stack has a low learning cost
+- Adopting diverse technologies enables right-tool-for-the-job choices, but increases operational costs
 
-**3. 抽象化のレベル**
-- 高い抽象化は再利用性が高いが、デバッグが困難になる場合がある
-- 低い抽象化は直感的だが、コードの重複が発生しやすい
+**3. Level of abstraction**
+- Higher abstraction has higher reusability but can make debugging difficult
+- Lower abstraction is intuitive but tends to produce code duplication
 
 ```python
-# 設計判断の記録テンプレート
+# Template for recording design decisions
 class ArchitectureDecisionRecord:
-    """ADR (Architecture Decision Record) の作成"""
+    """Creating an ADR (Architecture Decision Record)"""
 
     def __init__(self, title: str):
         self.title = title
@@ -1647,17 +1648,17 @@ class ArchitectureDecisionRecord:
         self.alternatives = []
 
     def set_context(self, context: str):
-        """背景と課題の記述"""
+        """Describe the background and the problem"""
         self.context = context
         return self
 
     def set_decision(self, decision: str):
-        """決定内容の記述"""
+        """Describe the decision content"""
         self.decision = decision
         return self
 
     def add_consequence(self, consequence: str, positive: bool = True):
-        """結果の追加"""
+        """Add a consequence"""
         self.consequences.append({
             'description': consequence,
             'type': 'positive' if positive else 'negative'
@@ -1665,7 +1666,7 @@ class ArchitectureDecisionRecord:
         return self
 
     def add_alternative(self, name: str, reason_rejected: str):
-        """却下した代替案の追加"""
+        """Add a rejected alternative"""
         self.alternatives.append({
             'name': name,
             'reason_rejected': reason_rejected
@@ -1673,15 +1674,15 @@ class ArchitectureDecisionRecord:
         return self
 
     def to_markdown(self) -> str:
-        """Markdown形式で出力"""
+        """Output in Markdown format"""
         md = f"# ADR: {self.title}\n\n"
-        md += f"## 背景\n{self.context}\n\n"
-        md += f"## 決定\n{self.decision}\n\n"
-        md += "## 結果\n"
+        md += f"## Context\n{self.context}\n\n"
+        md += f"## Decision\n{self.decision}\n\n"
+        md += "## Consequences\n"
         for c in self.consequences:
-            icon = "✅" if c['type'] == 'positive' else "⚠️"
+            icon = "[+]" if c['type'] == 'positive' else "[!]"
             md += f"- {icon} {c['description']}\n"
-        md += "\n## 却下した代替案\n"
+        md += "\n## Rejected Alternatives\n"
         for a in self.alternatives:
             md += f"- **{a['name']}**: {a['reason_rejected']}\n"
         return md
@@ -1690,46 +1691,46 @@ class ArchitectureDecisionRecord:
 
 ## 11. FAQ
 
-### Q1: unsafe を使うとRustの安全性が失われますか？
+### Q1: Does using unsafe lose Rust's safety?
 
-**A:** 部分的にです。unsafe ブロック内ではメモリ安全性の責任がプログラマに移りますが、unsafe の外側ではコンパイラの保証は維持されます。重要なのは unsafe を最小限にして安全な抽象化で包むことです。
+**A:** Partially. Inside an unsafe block, the responsibility for memory safety shifts to the programmer, but outside unsafe the compiler's guarantees are still maintained. The important thing is to keep unsafe minimal and wrap it in safe abstractions.
 
-### Q2: Miri とは何ですか？
+### Q2: What is Miri?
 
-**A:** Miri は Rust の中間表現(MIR)インタプリタで、未定義動作を検出するツールです:
+**A:** Miri is an interpreter for Rust's intermediate representation (MIR), and it is a tool that detects undefined behavior:
 ```bash
 rustup +nightly component add miri
 cargo +nightly miri test
 ```
-メモリリーク、データ競合、不正なポインタ操作などを実行時に検出します。
+It detects memory leaks, data races, and invalid pointer operations at runtime.
 
-### Q3: transmute はいつ使いますか？
+### Q3: When do you use transmute?
 
-**A:** ほとんどの場合、使うべきではありません。`transmute` はビットパターンをそのまま別の型として解釈するため、非常に危険です。代わりに `as` キャスト、`From/TryFrom`、`to_bits/from_bits`、`to_ne_bytes/from_ne_bytes`、`bytemuck` クレートの使用を検討してください。
+**A:** In most cases, you should not. `transmute` reinterprets a bit pattern as a different type, which is extremely dangerous. Instead, consider `as` casts, `From/TryFrom`, `to_bits/from_bits`, `to_ne_bytes/from_ne_bytes`, or the `bytemuck` crate.
 
-### Q4: `#[repr(C)]` はいつ必要ですか？
+### Q4: When is `#[repr(C)]` necessary?
 
-**A:** 主に以下の場面で必要です:
-- FFI でC言語とデータをやり取りする場合
-- メモリレイアウトを明示的に制御したい場合
-- union を使用する場合
-- ファイルフォーマットやネットワークプロトコルの構造体定義
+**A:** It is mainly needed in the following cases:
+- When exchanging data with C in FFI
+- When you want to control the memory layout explicitly
+- When using a union
+- For struct definitions in file formats or network protocols
 
-### Q5: unsafe fn vs unsafe ブロック、どちらを使うべきですか？
+### Q5: unsafe fn vs an unsafe block, which should I use?
 
-**A:** 以下の基準で選択します:
-- **unsafe fn**: 呼び出し側が安全性の前提条件を満たす責任がある場合。前提条件を `# Safety` ドキュメントに記載
-- **unsafe ブロック**: 関数自体は安全だが、内部で unsafe 操作が必要な場合。入力検証を行い、安全なAPIとして公開
+**A:** Use the following criteria to choose:
+- **unsafe fn**: When the caller is responsible for satisfying the safety preconditions. Document the preconditions in a `# Safety` doc comment
+- **unsafe block**: When the function itself is safe but unsafe operations are required internally. Validate inputs and expose it as a safe API
 
 ```rust
-// unsafe fn: 呼び出し側に責任がある
+// unsafe fn: the caller bears responsibility
 /// # Safety
-/// ptr は有効で、len バイトの読み取りが可能であること
+/// `ptr` must be valid and `len` bytes must be readable
 pub unsafe fn read_buffer(ptr: *const u8, len: usize) -> Vec<u8> {
     std::slice::from_raw_parts(ptr, len).to_vec()
 }
 
-// 安全な関数 + 内部 unsafe: 関数が安全性を保証
+// Safe function + internal unsafe: the function guarantees safety
 pub fn safe_split(s: &mut [i32], mid: usize) -> (&mut [i32], &mut [i32]) {
     assert!(mid <= s.len());
     let ptr = s.as_mut_ptr();
@@ -1747,47 +1748,47 @@ pub fn safe_split(s: &mut [i32], mid: usize) -> (&mut [i32], &mut [i32]) {
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point in learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is most important. Beyond theory, your understanding deepens by actually writing code and verifying its behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and moving on to advanced topics. We recommend that you firmly understand the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in the workplace?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
-
----
-
-## 12. まとめ
-
-| 概念 | 要点 |
-|------|------|
-| unsafe ブロック | 5つの超能力を解禁。最小限に抑える |
-| 生ポインタ | *const T / *mut T。デリファレンスが unsafe |
-| FFI | extern "C" でC言語関数を呼び出し/公開 |
-| unsafe トレイト | Send/Sync 等。実装者が安全性を保証 |
-| static mut | グローバル可変状態。AtomicやMutexで代替推奨 |
-| union | 同一メモリを複数の型で解釈。判別子で管理 |
-| 安全な抽象化 | unsafe を内部に封じ、安全なAPIを公開 |
-| Miri | 未定義動作を検出するツール |
-| repr(C) | C言語互換のメモリレイアウト |
-| MaybeUninit | 未初期化メモリの安全な扱い |
-| # Safety | unsafe 関数の前提条件を文書化 |
+Knowledge of this topic is frequently used in everyday development work. It is particularly important during code reviews and when designing architecture.
 
 ---
 
-## 次に読むべきガイド
+## 12. Summary
 
-- [04-macros.md](04-macros.md) -- マクロで安全な抽象化を生成
-- [../03-systems/02-ffi-interop.md](../03-systems/02-ffi-interop.md) -- FFI の実践(bindgen, PyO3)
-- [../03-systems/00-memory-layout.md](../03-systems/00-memory-layout.md) -- メモリレイアウトの詳細
+| Concept | Key points |
+|---------|-----------|
+| unsafe block | Unlocks the 5 superpowers. Keep it minimal |
+| Raw pointer | *const T / *mut T. Dereferencing is unsafe |
+| FFI | Call/expose C functions via extern "C" |
+| unsafe trait | Send/Sync, etc. The implementor guarantees safety |
+| static mut | Global mutable state. Prefer Atomic or Mutex alternatives |
+| union | Same memory interpreted as multiple types. Manage with a discriminant |
+| Safe abstraction | Confine unsafe internally and expose a safe API |
+| Miri | Tool for detecting undefined behavior |
+| repr(C) | C-compatible memory layout |
+| MaybeUninit | Safe handling of uninitialized memory |
+| # Safety | Document the preconditions of an unsafe function |
 
 ---
 
-## 参考文献
+## Recommended Next Reading
+
+- [04-macros.md](04-macros.md) -- Generate safe abstractions with macros
+- [../03-systems/02-ffi-interop.md](../03-systems/02-ffi-interop.md) -- FFI in practice (bindgen, PyO3)
+- [../03-systems/00-memory-layout.md](../03-systems/00-memory-layout.md) -- Memory layout in detail
+
+---
+
+## References
 
 1. **The Rust Programming Language - Ch.19.1 Unsafe Rust** -- https://doc.rust-lang.org/book/ch19-01-unsafe-rust.html
 2. **The Rustonomicon** -- https://doc.rust-lang.org/nomicon/
