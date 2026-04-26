@@ -1,77 +1,78 @@
-# 所有権と借用 -- Rustの最も革新的なメモリ管理パラダイム
+# Ownership and Borrowing -- Rust's Most Revolutionary Memory Management Paradigm
 
-> 所有権(Ownership)と借用(Borrowing)はRust独自のメモリ管理モデルであり、ガベージコレクタなしでメモリ安全とデータ競合防止をコンパイル時に保証する。
-
----
-
-## この章で学ぶこと
-
-1. **所有権の3つの規則** -- 各値は唯一の所有者を持ち、スコープを抜けると解放される仕組みを理解する
-2. **ムーブとコピー** -- 値の移動と複製の違い、Copy/Clone トレイトの使い分けを習得する
-3. **借用とライフタイム基礎** -- 不変参照・可変参照の規則とライフタイムの入門を学ぶ
-4. **実践的なパターン** -- 所有権を活かした関数設計、構造体の設計パターンを身につける
-
-
-## 前提知識
-
-このガイドを読む前に、以下の知識があると理解が深まります:
-
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [Rust概要 -- 安全性・パフォーマンス・所有権が融合したシステムプログラミング言語](./00-rust-overview.md) の内容を理解していること
+> Ownership and Borrowing constitute Rust's unique memory management model, guaranteeing memory safety and freedom from data races at compile time without a garbage collector.
 
 ---
 
-## 1. 所有権の基本規則
+## What You Will Learn in This Chapter
 
-### 1.1 三つの規則
+1. **The three rules of ownership** -- Understand how each value has a single owner and is released when it goes out of scope
+2. **Move and Copy** -- Master the difference between moving and duplicating values, and how to choose between the Copy/Clone traits
+3. **Borrowing and lifetime basics** -- Learn the rules for immutable and mutable references, and an introduction to lifetimes
+4. **Practical patterns** -- Acquire function and struct design patterns that leverage ownership
+
+
+## Prerequisites
+
+Reading the following before this guide will deepen your understanding:
+
+- Basic programming knowledge
+- Understanding of related fundamental concepts
+- The content of [Rust Overview -- A Systems Programming Language Fusing Safety, Performance, and Ownership](./00-rust-overview.md)
+
+---
+
+## 1. Basic Rules of Ownership
+
+### 1.1 The Three Rules
 
 ```
 ┌──────────────────────────────────────────────────┐
-│            所有権の3つの規則                       │
+│         The Three Rules of Ownership              │
 ├──────────────────────────────────────────────────┤
-│ 1. 各値は「所有者」と呼ばれる変数を持つ           │
-│ 2. 所有者は同時に1つだけ存在する                  │
-│ 3. 所有者がスコープを抜けると値は破棄される       │
+│ 1. Each value has a variable called its "owner"  │
+│ 2. There can only be one owner at a time         │
+│ 3. When the owner goes out of scope, the value   │
+│    is dropped                                    │
 └──────────────────────────────────────────────────┘
 ```
 
-これら3つの規則はRustのメモリ管理の根幹を成す。C/C++ ではプログラマが手動でメモリを管理し、Java/Python ではガベージコレクタが自動管理する。Rustは第三の道として、コンパイル時に所有権を追跡することで、実行時コストゼロのメモリ管理を実現する。
+These three rules form the foundation of Rust's memory management. In C/C++, the programmer manages memory manually; in Java/Python, a garbage collector manages it automatically. Rust takes a third path, achieving zero-runtime-cost memory management by tracking ownership at compile time.
 
-### 例1: 所有権とスコープ
+### Example 1: Ownership and Scope
 
 ```rust
 fn main() {
     {
-        let s = String::from("hello"); // s がスコープに入る
-        println!("{}", s);             // s は有効
-    }                                  // s がスコープを抜ける → drop() 呼び出し
-    // println!("{}", s);              // コンパイルエラー: s は存在しない
+        let s = String::from("hello"); // s comes into scope
+        println!("{}", s);             // s is valid
+    }                                  // s goes out of scope -> drop() is called
+    // println!("{}", s);              // compile error: s does not exist
 }
 ```
 
-変数 `s` が中括弧のスコープを抜けると、Rustは自動的に `drop` 関数を呼び出してメモリを解放する。これは C++ の RAII（Resource Acquisition Is Initialization）パターンに類似しているが、Rustでは所有権の概念により、ダブルフリーやダングリングポインタが構造的に排除される。
+When the variable `s` goes out of the curly-brace scope, Rust automatically calls the `drop` function to free the memory. This is similar to C++'s RAII (Resource Acquisition Is Initialization) pattern, but Rust's ownership concept structurally eliminates double-free and dangling pointers.
 
-### 例2: ムーブセマンティクス
+### Example 2: Move Semantics
 
 ```rust
 fn main() {
     let s1 = String::from("hello");
-    let s2 = s1;                    // ムーブ: s1 → s2
-    // println!("{}", s1);          // エラー: s1 は無効化済み
+    let s2 = s1;                    // move: s1 -> s2
+    // println!("{}", s1);          // error: s1 has been invalidated
     println!("{}", s2);             // OK
 }
 ```
 
-`String` 型はヒープ上にデータを持つため、代入時に「ムーブ」が発生する。ムーブとは所有権の移転であり、元の変数は無効化される。これにより、同じヒープ領域を2つの変数が所有する状態（ダブルフリーの原因）が防止される。
+Because the `String` type holds its data on the heap, a "move" occurs upon assignment. A move is the transfer of ownership, and the original variable is invalidated. This prevents the situation where two variables own the same heap region (the cause of double-free).
 
-### 1.2 ムーブの図解
+### 1.2 Diagram of a Move
 
 ```
-  ムーブ前:                     ムーブ後:
-  s1                            s1 (無効)
+  Before move:                  After move:
+  s1                            s1 (invalid)
   ┌──────────┐                  ┌──────────┐
-  │ ptr ─────────┐              │ (無効)   │
+  │ ptr ─────────┐              │ (invalid)│
   │ len: 5   │   │              └──────────┘
   │ cap: 5   │   │
   └──────────┘   │              s2
@@ -83,57 +84,57 @@ fn main() {
   ┌──────────────┐                             │
   │ h e l l o    │<────────────────────────────┘
   └──────────────┘
-  ヒープ上のデータは1つだけ（コピーされない）
+  Only one copy of the data exists on the heap (it is not copied)
 ```
 
-### 1.3 ムーブが発生する場面
+### 1.3 Situations Where Moves Occur
 
-ムーブはさまざまな場面で暗黙的に発生する。どのような操作でムーブが起こるかを理解することは、Rustプログラミングにおいて極めて重要である。
+Moves occur implicitly in many situations. Understanding which operations cause a move is crucial in Rust programming.
 
 ```rust
 fn main() {
     let s = String::from("hello");
 
-    // (1) 変数束縛でムーブ
+    // (1) Move on variable binding
     let s2 = s;
-    // s は無効
+    // s is invalid
 
-    // (2) 関数への引数渡しでムーブ
+    // (2) Move when passing as a function argument
     let s3 = String::from("world");
     takes_string(s3);
-    // s3 は無効
+    // s3 is invalid
 
-    // (3) 関数からの戻り値でムーブ
+    // (3) Move on function return value
     let s4 = gives_string();
-    // s4 が所有権を受け取る
+    // s4 receives ownership
 
-    // (4) コレクションへの挿入でムーブ
+    // (4) Move when inserting into a collection
     let s5 = String::from("item");
     let mut v = Vec::new();
     v.push(s5);
-    // s5 は無効（Vec が所有権を持つ）
+    // s5 is invalid (Vec owns it)
 
-    // (5) パターンマッチでのムーブ
+    // (5) Move via pattern matching
     let opt = Some(String::from("data"));
     if let Some(inner) = opt {
         println!("{}", inner);
     }
-    // opt は無効（inner にムーブ済み）
+    // opt is invalid (moved into inner)
 
-    // (6) 構造体の構築でムーブ
-    let name = String::from("太郎");
-    let user = User { name };   // name は無効
-    println!("{}", user.name);   // OK: user.name としてアクセス
+    // (6) Move when constructing a struct
+    let name = String::from("Taro");
+    let user = User { name };   // name is invalid
+    println!("{}", user.name);   // OK: accessed as user.name
 }
 
 fn takes_string(s: String) {
-    println!("受け取った: {}", s);
-    // s はこの関数の終了時に drop される
+    println!("received: {}", s);
+    // s is dropped at the end of this function
 }
 
 fn gives_string() -> String {
-    let s = String::from("新しい文字列");
-    s // 所有権を呼び出し元に返す
+    let s = String::from("a new string");
+    s // returns ownership to the caller
 }
 
 struct User {
@@ -141,9 +142,9 @@ struct User {
 }
 ```
 
-### 1.4 Drop トレイトとRAII
+### 1.4 The Drop Trait and RAII
 
-Rustでは所有者がスコープを抜けると、自動的に `Drop` トレイトの `drop` メソッドが呼ばれる。これを利用して、ファイルハンドル、ネットワーク接続、ロックなどのリソースを自動的に解放できる。
+In Rust, when an owner goes out of scope, the `drop` method of the `Drop` trait is automatically called. This can be leveraged to automatically release resources such as file handles, network connections, and locks.
 
 ```rust
 struct DatabaseConnection {
@@ -153,7 +154,7 @@ struct DatabaseConnection {
 
 impl DatabaseConnection {
     fn new(url: &str) -> Self {
-        println!("接続を開きます: {}", url);
+        println!("opening connection: {}", url);
         DatabaseConnection {
             url: url.to_string(),
             connected: true,
@@ -161,14 +162,14 @@ impl DatabaseConnection {
     }
 
     fn query(&self, sql: &str) -> Vec<String> {
-        println!("クエリ実行: {}", sql);
-        vec!["結果1".to_string(), "結果2".to_string()]
+        println!("executing query: {}", sql);
+        vec!["result1".to_string(), "result2".to_string()]
     }
 }
 
 impl Drop for DatabaseConnection {
     fn drop(&mut self) {
-        println!("接続を閉じます: {}", self.url);
+        println!("closing connection: {}", self.url);
         self.connected = false;
     }
 }
@@ -177,123 +178,123 @@ fn main() {
     {
         let conn = DatabaseConnection::new("postgres://localhost/mydb");
         let results = conn.query("SELECT * FROM users");
-        println!("結果: {:?}", results);
-    } // conn がスコープを抜ける → drop() が自動呼び出し → 接続クローズ
+        println!("results: {:?}", results);
+    } // conn goes out of scope -> drop() is automatically called -> connection closed
 
-    println!("接続は自動的に閉じられました");
+    println!("the connection was automatically closed");
 }
 ```
 
-### 1.5 スタック上のデータとヒープ上のデータ
+### 1.5 Stack Data vs. Heap Data
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│              メモリ配置とムーブの関係                        │
+│         Memory Layout and the Move Relationship             │
 ├────────────────────────────────────────────────────────────┤
 │                                                            │
-│  スタックのみ（Copy型）        ヒープ使用（非Copy型）       │
-│  ┌─────┐   コピー  ┌─────┐    ┌─────┐  ムーブ ┌─────┐    │
-│  │  42 │ ───────> │  42 │    │ ptr │ ─────> │ ptr │    │
-│  └─────┘           └─────┘    │ len │        │ len │    │
-│  i32: 両方有効                │ cap │        │ cap │    │
-│                               └──┬──┘        └──┬──┘    │
-│                                  │ (無効)       │        │
-│                                  └──────┐   ┌───┘        │
-│                                         ▼   ▼            │
-│                                    ┌──────────┐          │
-│                                    │ヒープデータ│          │
-│                                    └──────────┘          │
-│                                    1つのポインタのみ有効   │
+│  Stack only (Copy types)       Uses heap (non-Copy types)  │
+│  ┌─────┐    copy   ┌─────┐    ┌─────┐  move   ┌─────┐    │
+│  │  42 │ ───────>  │  42 │    │ ptr │ ─────>  │ ptr │    │
+│  └─────┘           └─────┘    │ len │         │ len │    │
+│  i32: both valid              │ cap │         │ cap │    │
+│                               └──┬──┘         └──┬──┘    │
+│                                  │ (invalid)     │        │
+│                                  └──────┐    ┌───┘        │
+│                                         ▼    ▼            │
+│                                    ┌──────────┐           │
+│                                    │heap data │           │
+│                                    └──────────┘           │
+│                                    Only one pointer valid │
 └────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 2. コピーとクローン
+## 2. Copy and Clone
 
-### 例3: Copy トレイト(スタック上の値)
+### Example 3: The Copy Trait (Stack Values)
 
 ```rust
 fn main() {
     let x: i32 = 42;
-    let y = x;          // コピー（i32 は Copy トレイト実装済み）
-    println!("x={}, y={}", x, y); // 両方有効！
+    let y = x;          // copy (i32 implements the Copy trait)
+    println!("x={}, y={}", x, y); // both are valid!
 
-    // タプルも全要素がCopyなら Copy
+    // A tuple is also Copy if all its elements are Copy
     let point = (3, 4);
     let point2 = point;
-    println!("point={:?}, point2={:?}", point, point2); // 両方有効
+    println!("point={:?}, point2={:?}", point, point2); // both valid
 
-    // 配列も要素が Copy なら Copy
+    // An array is also Copy if its elements are Copy
     let arr = [1, 2, 3, 4, 5];
     let arr2 = arr;
-    println!("arr={:?}, arr2={:?}", arr, arr2); // 両方有効
+    println!("arr={:?}, arr2={:?}", arr, arr2); // both valid
 
-    // 参照も Copy
+    // References are also Copy
     let s = String::from("hello");
     let r1 = &s;
-    let r2 = r1;  // 参照のコピー（String 自体はコピーされない）
-    println!("r1={}, r2={}", r1, r2); // 両方有効
+    let r2 = r1;  // copies the reference (the String itself is not copied)
+    println!("r1={}, r2={}", r1, r2); // both valid
 }
 ```
 
-### 例4: Clone トレイト(明示的な深いコピー)
+### Example 4: The Clone Trait (Explicit Deep Copy)
 
 ```rust
 fn main() {
     let s1 = String::from("hello");
-    let s2 = s1.clone();           // 明示的にヒープデータもコピー
-    println!("s1={}, s2={}", s1, s2); // 両方有効
+    let s2 = s1.clone();           // explicitly copies the heap data as well
+    println!("s1={}, s2={}", s1, s2); // both valid
 
-    // Vec の clone
+    // Cloning a Vec
     let v1 = vec![1, 2, 3, 4, 5];
     let v2 = v1.clone();
     println!("v1={:?}, v2={:?}", v1, v2);
 
-    // ネストしたデータ構造の clone
+    // Cloning a nested data structure
     let nested = vec![
         vec![1, 2, 3],
         vec![4, 5, 6],
     ];
-    let nested_clone = nested.clone(); // 全てのデータが深くコピーされる
+    let nested_clone = nested.clone(); // all data is deep-copied
     println!("nested={:?}", nested);
     println!("nested_clone={:?}", nested_clone);
 }
 ```
 
-### Clone の図解
+### Diagram of Clone
 
 ```
-  clone() 前:
-  s1                     ヒープ
+  Before clone():
+  s1                     heap
   ┌──────────┐          ┌───────────┐
   │ ptr ────────────────>│ h e l l o │
   │ len: 5   │          └───────────┘
   │ cap: 5   │
   └──────────┘
 
-  clone() 後:
-  s1                     ヒープ
+  After clone():
+  s1                     heap
   ┌──────────┐          ┌───────────┐
-  │ ptr ────────────────>│ h e l l o │  ← 元データ
+  │ ptr ────────────────>│ h e l l o │  <- original data
   │ len: 5   │          └───────────┘
   │ cap: 5   │
   └──────────┘
                          ┌───────────┐
-  s2                     │ h e l l o │  ← 新しいコピー
+  s2                     │ h e l l o │  <- new copy
   ┌──────────┐          └───────────┘
   │ ptr ────────────────>│
   │ len: 5   │
   │ cap: 5   │
   └──────────┘
-  独立した2つのヒープ領域が存在する
+  Two independent heap regions exist
 ```
 
-### Copy が実装される型と実装されない型
+### Types That Implement Copy and Types That Do Not
 
 ```
 ┌─────────────────────────────┬────────────────────────────┐
-│   Copy される型             │   Copy されない型           │
+│   Types that are Copy       │   Types that are not Copy  │
 ├─────────────────────────────┼────────────────────────────┤
 │ i8, i16, i32, i64, i128    │ String                     │
 │ u8, u16, u32, u64, u128    │ Vec<T>                     │
@@ -301,26 +302,26 @@ fn main() {
 │ bool                        │ HashMap<K, V>              │
 │ char                        │ HashSet<T>                 │
 │ isize, usize               │ File, TcpStream            │
-│ (i32, bool) -- 全要素Copy  │ Rc<T>, Arc<T>              │
-│ [i32; 5] -- 固定長配列      │ MutexGuard<T>              │
-│ &T -- 不変参照              │ &mut T -- 可変参照         │
-│ fn ポインタ                 │ クロージャ（キャプチャ次第）│
-│ *const T, *mut T -- 生ポ   │ dyn Trait                  │
+│ (i32, bool) -- all Copy    │ Rc<T>, Arc<T>              │
+│ [i32; 5] -- fixed array    │ MutexGuard<T>              │
+│ &T -- immutable reference   │ &mut T -- mutable ref      │
+│ fn pointer                  │ closures (depends on capture)│
+│ *const T, *mut T -- raw ptr│ dyn Trait                  │
 └─────────────────────────────┴────────────────────────────┘
 ```
 
-### 2.1 Copy トレイトの自作実装
+### 2.1 Custom Implementation of the Copy Trait
 
 ```rust
-// Copy を derive するには、全フィールドが Copy でなければならない
+// To derive Copy, every field must also be Copy
 #[derive(Debug, Clone, Copy)]
 struct Point {
     x: f64,
     y: f64,
 }
 
-// Copy できない構造体
-// #[derive(Clone, Copy)]  // コンパイルエラー！ String は Copy ではない
+// A struct that cannot be Copy
+// #[derive(Clone, Copy)]  // compile error! String is not Copy
 #[derive(Debug, Clone)]
 struct NamedPoint {
     name: String,
@@ -331,43 +332,43 @@ struct NamedPoint {
 fn main() {
     let p1 = Point { x: 1.0, y: 2.0 };
     let p2 = p1;           // Copy
-    println!("p1={:?}", p1); // OK: p1 はまだ有効
+    println!("p1={:?}", p1); // OK: p1 is still valid
 
     let np1 = NamedPoint {
-        name: "原点".to_string(),
+        name: "origin".to_string(),
         x: 0.0,
         y: 0.0,
     };
-    let np2 = np1.clone();  // Clone 必須
-    // let np3 = np1;       // ムーブ! np1 は無効になる
+    let np2 = np1.clone();  // Clone is required
+    // let np3 = np1;       // move! np1 becomes invalid
     println!("np2={:?}", np2);
 }
 ```
 
-### 2.2 Copy と Clone の関係
+### 2.2 Relationship Between Copy and Clone
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│             Copy と Clone の関係                      │
+│           Relationship Between Copy and Clone        │
 ├─────────────────────────────────────────────────────┤
 │                                                      │
-│  Copy は Clone のサブトレイト                         │
-│  (Copy を実装するには Clone も必要)                   │
+│  Copy is a sub-trait of Clone                        │
+│  (Implementing Copy also requires Clone)             │
 │                                                      │
 │  pub trait Copy: Clone { }                           │
 │                                                      │
-│  Copy の意味:                                        │
-│  - ビット単位のコピーで安全な型                       │
-│  - 暗黙的にコピーされる（代入・関数引数渡し時）       │
-│  - ヒープアロケーションを持たない型のみ              │
+│  Meaning of Copy:                                    │
+│  - A type safe for bitwise copying                   │
+│  - Implicitly copied (on assignment, function args)  │
+│  - Only types that have no heap allocation           │
 │                                                      │
-│  Clone の意味:                                       │
-│  - 明示的な深いコピーを提供する型                     │
-│  - .clone() の呼び出しが必要                         │
-│  - 任意の型に実装可能（ヒープアロケーション含む）     │
+│  Meaning of Clone:                                   │
+│  - A type that provides explicit deep copying        │
+│  - Requires a .clone() call                          │
+│  - Implementable for any type (heap allocation OK)   │
 │                                                      │
 │  ┌────────────────┐                                  │
-│  │    Clone        │                                 │
+│  │    Clone       │                                  │
 │  │  ┌──────────┐  │                                  │
 │  │  │   Copy   │  │                                  │
 │  │  │ i32,bool │  │                                  │
@@ -381,47 +382,47 @@ fn main() {
 
 ---
 
-## 3. 借用(参照)
+## 3. Borrowing (References)
 
-### 3.1 借用の規則
+### 3.1 Borrowing Rules
 
 ```
 ┌──────────────────────────────────────────────────┐
-│            借用の規則                              │
+│              Borrowing Rules                      │
 ├──────────────────────────────────────────────────┤
-│ 1. 不変参照(&T)は同時に複数持てる                │
-│ 2. 可変参照(&mut T)は同時に1つだけ               │
-│ 3. 不変参照と可変参照は同時に存在できない         │
-│ 4. 参照は常に有効でなければならない               │
+│ 1. You can have multiple immutable refs (&T)      │
+│ 2. You can have only one mutable ref (&mut T)     │
+│ 3. Immutable and mutable refs cannot coexist      │
+│ 4. References must always be valid                │
 └──────────────────────────────────────────────────┘
 ```
 
-これらの規則は、Rustがコンパイル時にデータ競合を防止するための中核メカニズムである。データ競合は以下の3つの条件が同時に満たされたときに発生する:
+These rules are the core mechanism by which Rust prevents data races at compile time. A data race occurs when the following three conditions are met simultaneously:
 
-1. 2つ以上のポインタが同じデータに同時にアクセスする
-2. 少なくとも1つのポインタがデータに書き込みを行う
-3. データへのアクセスを同期するメカニズムがない
+1. Two or more pointers access the same data simultaneously
+2. At least one pointer writes to the data
+3. There is no mechanism to synchronize access to the data
 
-Rustの借用規則は、条件1と2の組み合わせをコンパイル時に排除することで、データ競合を構造的に不可能にする。
+By eliminating the combination of conditions 1 and 2 at compile time, Rust's borrowing rules make data races structurally impossible.
 
-### 例5: 不変参照(共有参照)
+### Example 5: Immutable References (Shared References)
 
 ```rust
 fn calculate_length(s: &String) -> usize {
     s.len()
-    // s はここで破棄されるが、所有権は持っていないのでデータは解放されない
+    // s is dropped here, but since it does not own the data, the data is not freed
 }
 
 fn main() {
     let s = String::from("hello");
-    let len = calculate_length(&s);  // 借用(参照を渡す)
-    println!("'{}' の長さは {}", s, len); // s はまだ有効
+    let len = calculate_length(&s);  // borrow (passing a reference)
+    println!("the length of '{}' is {}", s, len); // s is still valid
 }
 ```
 
-`&` 記号を使って参照を作成する。参照は値の所有権を持たないため、参照がスコープを抜けても元の値は解放されない。
+You create a reference using the `&` symbol. Because a reference does not own the value, the original value is not freed when the reference goes out of scope.
 
-### 例6: 可変参照
+### Example 6: Mutable References
 
 ```rust
 fn append_world(s: &mut String) {
@@ -435,35 +436,35 @@ fn main() {
 }
 ```
 
-可変参照 `&mut` を使えば、借用先で値を変更できる。ただし、可変参照は同時に1つしか存在できない。
+Using a mutable reference `&mut`, you can modify the value at the borrow site. However, only one mutable reference can exist at a time.
 
-### 例7: 借用規則の違反と NLL
+### Example 7: Borrowing Rule Violations and NLL
 
 ```rust
 fn main() {
     let mut s = String::from("hello");
 
-    let r1 = &s;        // OK: 不変参照1
-    let r2 = &s;        // OK: 不変参照2
+    let r1 = &s;        // OK: immutable reference 1
+    let r2 = &s;        // OK: immutable reference 2
     println!("{}, {}", r1, r2);
-    // r1, r2 はここ以降使われない (NLL)
+    // r1 and r2 are not used after this point (NLL)
 
-    let r3 = &mut s;    // OK: r1, r2 のライフタイムは終了済み
+    let r3 = &mut s;    // OK: r1, r2's lifetimes have already ended
     println!("{}", r3);
 }
 ```
 
-NLL（Non-Lexical Lifetimes）は Rust 2018 Edition で導入された機能で、参照のライフタイムがレキシカルスコープ（中括弧の範囲）ではなく、「最後に使用された地点」で終了するようになった。これにより、上記のコードは正しくコンパイルされる。
+NLL (Non-Lexical Lifetimes) is a feature introduced in Rust 2018 Edition that ends a reference's lifetime at "the point of last use" rather than at the lexical scope (the curly-brace boundary). With this, the code above compiles correctly.
 
-### 例8: 借用規則の違反（コンパイルエラー）
+### Example 8: Borrowing Rule Violation (Compile Error)
 
 ```rust
 fn main() {
     let mut s = String::from("hello");
 
-    let r1 = &s;          // 不変参照
-    let r2 = &mut s;      // エラー！不変参照が生きている間に可変参照は作れない
-    println!("{}", r1);    // r1 がまだ使われている
+    let r1 = &s;          // immutable reference
+    let r2 = &mut s;      // error! cannot create a mutable ref while an immutable ref is alive
+    println!("{}", r1);    // r1 is still being used
 }
 ```
 
@@ -479,71 +480,71 @@ error[E0502]: cannot borrow `s` as mutable because it is also borrowed as immuta
   |                    -- immutable borrow later used here
 ```
 
-### 3.2 参照のライフサイクル図
+### 3.2 Reference Lifecycle Diagram
 
 ```
-    時間軸 →
+    Time axis ->
     ├───────────┤
-    │ r1 = &s   │   (不変参照: 生存)
+    │ r1 = &s   │   (immutable ref: alive)
     ├───────────┤
-    │ r2 = &s   │   (不変参照: 生存)
+    │ r2 = &s   │   (immutable ref: alive)
     ├───────────┤
-    │ println!  │   (r1, r2 最後の使用 = NLLにより終了)
+    │ println!  │   (last use of r1, r2 = ended by NLL)
     │           │
-    │ r3 = &mut │   (可変参照: ここから生存 → OK)
+    │ r3 = &mut │   (mutable ref: alive from here -> OK)
     ├───────────┤
-    │ println!  │   (r3 最後の使用)
+    │ println!  │   (last use of r3)
     └───────────┘
 
     NLL (Non-Lexical Lifetimes):
-    参照のライフタイムは「最後に使用された地点」で終了する
+    A reference's lifetime ends at "the point of last use"
 ```
 
-### 3.3 可変参照の排他性が重要な理由
+### 3.3 Why the Exclusivity of Mutable References Matters
 
 ```rust
-// もし同時に2つの可変参照が許されたら...
-// （以下は架空の危険な例：実際のRustではコンパイルエラー）
+// If two simultaneous mutable references were allowed...
+// (the following is a hypothetical dangerous example: actual Rust gives a compile error)
 fn hypothetical_danger() {
     let mut data = vec![1, 2, 3];
 
-    // 仮に2つの可変参照が同時に存在できたとすると:
-    // let r1 = &mut data;  // 可変参照1
-    // let r2 = &mut data;  // 可変参照2（実際はエラー）
+    // Suppose two mutable references could exist at once:
+    // let r1 = &mut data;  // mutable ref 1
+    // let r2 = &mut data;  // mutable ref 2 (actually an error)
 
-    // r1.push(4);          // Vec がリアロケーションを起こす可能性
-    // println!("{}", r2[0]); // r2 は無効なメモリを参照！
-    //                        // → use-after-free の脆弱性
+    // r1.push(4);          // Vec may trigger reallocation
+    // println!("{}", r2[0]); // r2 would point to invalid memory!
+    //                        // -> use-after-free vulnerability
 }
 
-// Rustはこれをコンパイル時に防止する
+// Rust prevents this at compile time
 fn safe_version() {
     let mut data = vec![1, 2, 3];
 
-    // 可変参照は1つだけ
+    // Only one mutable reference
     let r1 = &mut data;
     r1.push(4);
-    // r1 のライフタイム終了
+    // r1's lifetime ends
 
-    // 新しい可変参照を取得
+    // Acquire a new mutable reference
     let r2 = &mut data;
-    println!("{}", r2[0]); // 安全
+    println!("{}", r2[0]); // safe
 }
 ```
 
-### 3.4 再借用（Reborrowing）
+### 3.4 Reborrowing
 
 ```rust
 fn main() {
     let mut s = String::from("hello");
     let r = &mut s;
 
-    // 再借用: 可変参照から不変参照を作る
-    let r2 = &*r;  // 再借用（暗黙的にも起こる）
+    // Reborrow: create an immutable reference from a mutable reference
+    let r2 = &*r;  // reborrow (also happens implicitly)
     println!("{}", r2);
 
-    // 再借用: 可変参照から一時的な可変参照を作る
-    modify(r);  // &mut String が &mut String として再借用される
+    // Reborrow: create a temporary mutable reference from a mutable reference
+    modify(r);  // &mut String is reborrowed as &mut String
     println!("{}", r);
 }
 
@@ -552,82 +553,82 @@ fn modify(s: &mut String) {
 }
 ```
 
-再借用は、既存の参照から一時的に別の参照を作成する仕組みである。関数に `&mut` 引数を渡すとき、元の可変参照は一時的に「凍結」され、関数の実行が終わると再び使用可能になる。
+Reborrowing is the mechanism by which a temporary new reference is created from an existing reference. When you pass a `&mut` argument to a function, the original mutable reference is temporarily "frozen" and becomes usable again once the function returns.
 
 ---
 
-## 4. 関数と所有権
+## 4. Functions and Ownership
 
-### 例9: 所有権の移動と返却
+### Example 9: Moving and Returning Ownership
 
 ```rust
 fn takes_ownership(s: String) -> String {
-    println!("受け取った: {}", s);
-    s  // 所有権を返す
+    println!("received: {}", s);
+    s  // returns ownership
 }
 
 fn main() {
     let s1 = String::from("hello");
-    let s2 = takes_ownership(s1); // s1 → 関数 → s2
-    // println!("{}", s1);        // エラー: s1 は無効
+    let s2 = takes_ownership(s1); // s1 -> function -> s2
+    // println!("{}", s1);        // error: s1 is invalid
     println!("{}", s2);           // OK
 }
 ```
 
-### 例10: 参照を使った関数設計のベストプラクティス
+### Example 10: Best Practices for Function Design Using References
 
 ```rust
-// パターン1: 読み取りのみ → 不変参照 &T
+// Pattern 1: read only -> immutable reference &T
 fn print_info(s: &str) {
-    println!("文字列: {}, 長さ: {}", s, s.len());
+    println!("string: {}, length: {}", s, s.len());
 }
 
-// パターン2: 変更が必要 → 可変参照 &mut T
+// Pattern 2: needs to mutate -> mutable reference &mut T
 fn make_uppercase(s: &mut String) {
     *s = s.to_uppercase();
 }
 
-// パターン3: 所有権が必要 → T（値渡し）
+// Pattern 3: needs ownership -> T (pass by value)
 fn into_bytes(s: String) -> Vec<u8> {
-    s.into_bytes()  // String を消費して Vec<u8> を返す
+    s.into_bytes()  // consumes the String and returns Vec<u8>
 }
 
-// パターン4: 条件付きで所有権を取る → Cow (Clone on Write)
+// Pattern 4: take ownership conditionally -> Cow (Clone on Write)
 use std::borrow::Cow;
 
 fn ensure_uppercase(s: &str) -> Cow<'_, str> {
     if s.chars().all(|c| c.is_uppercase()) {
-        Cow::Borrowed(s)        // 変更不要: 借用をそのまま返す
+        Cow::Borrowed(s)        // no change needed: return the borrow as-is
     } else {
-        Cow::Owned(s.to_uppercase()) // 変更必要: 新しい String を返す
+        Cow::Owned(s.to_uppercase()) // change needed: return a new String
     }
 }
 
 fn main() {
     let s = String::from("hello");
 
-    // パターン1: 不変参照
+    // Pattern 1: immutable reference
     print_info(&s);
-    println!("s はまだ使える: {}", s);
+    println!("s is still usable: {}", s);
 
-    // パターン2: 可変参照
+    // Pattern 2: mutable reference
     let mut s2 = String::from("hello");
     make_uppercase(&mut s2);
-    println!("大文字: {}", s2);
+    println!("uppercase: {}", s2);
 
-    // パターン3: 所有権の移動
+    // Pattern 3: move ownership
     let s3 = String::from("hello");
     let bytes = into_bytes(s3);
-    // s3 は使えない
-    println!("バイト: {:?}", bytes);
+    // s3 is no longer usable
+    println!("bytes: {:?}", bytes);
 
-    // パターン4: Cow
+    // Pattern 4: Cow
     let result = ensure_uppercase("HELLO");
     println!("Cow: {}", result);
 }
 ```
 
-### 例11: スライスによる効率的な借用
+### Example 11: Efficient Borrowing via Slices
 
 ```rust
 fn first_word(s: &str) -> &str {
@@ -649,33 +650,33 @@ fn longest_word(s: &str) -> &str {
 fn main() {
     let sentence = String::from("hello world foo bar");
     let word = first_word(&sentence);
-    println!("最初の単語: {}", word); // "hello"
+    println!("first word: {}", word); // "hello"
 
     let longest = longest_word(&sentence);
-    println!("最長の単語: {}", longest); // "hello" or "world"
+    println!("longest word: {}", longest); // "hello" or "world"
 
-    // 文字列リテラルもスライスとして渡せる
+    // String literals can also be passed as slices
     let word2 = first_word("good morning");
-    println!("最初の単語: {}", word2); // "good"
+    println!("first word: {}", word2); // "good"
 }
 ```
 
-### 例12: 構造体での借用と所有権
+### Example 12: Borrowing and Ownership in Structs
 
 ```rust
-// 所有型を使う構造体（最も一般的）
+// A struct using owned types (most common)
 struct OwnedUser {
     name: String,
     email: String,
 }
 
-// 借用型を使う構造体（ライフタイム注釈が必要）
+// A struct using borrowed types (lifetime annotations required)
 struct BorrowedUser<'a> {
     name: &'a str,
     email: &'a str,
 }
 
-// 使い分けの例
+// Examples of how to choose
 fn create_owned_user(name: &str, email: &str) -> OwnedUser {
     OwnedUser {
         name: name.to_string(),
@@ -688,66 +689,66 @@ fn create_borrowed_user<'a>(name: &'a str, email: &'a str) -> BorrowedUser<'a> {
 }
 
 fn main() {
-    // 所有型: 構造体がデータを所有するため、ライフタイムの制約がない
-    let owned = create_owned_user("田中", "tanaka@example.com");
+    // Owned: the struct owns its data, so there are no lifetime constraints
+    let owned = create_owned_user("Tanaka", "tanaka@example.com");
     println!("{}: {}", owned.name, owned.email);
 
-    // 借用型: 元データより長く生きることはできない
-    let name = String::from("鈴木");
+    // Borrowed: cannot outlive the original data
+    let name = String::from("Suzuki");
     let email = String::from("suzuki@example.com");
     let borrowed = create_borrowed_user(&name, &email);
     println!("{}: {}", borrowed.name, borrowed.email);
-    // name, email はここで有効 → borrowed も有効
+    // name and email are valid here -> borrowed is valid as well
 }
 ```
 
 ---
 
-## 5. ライフタイムの基礎
+## 5. Lifetime Basics
 
-### 5.1 ライフタイム注釈の基本
+### 5.1 Basics of Lifetime Annotations
 
-ライフタイム注釈は参照がどのくらいの期間有効であるかをコンパイラに伝える仕組みである。ライフタイム注釈自体は参照の寿命を変更するものではなく、複数の参照間の関係をコンパイラに説明するものである。
+A lifetime annotation is a mechanism that tells the compiler how long a reference is valid. The annotation itself does not change a reference's lifespan; it merely describes the relationships between multiple references to the compiler.
 
 ```rust
-// ライフタイム注釈なし（コンパイルエラー）
+// No lifetime annotation (compile error)
 // fn longest(x: &str, y: &str) -> &str {
 //     if x.len() > y.len() { x } else { y }
 // }
 
-// ライフタイム注釈あり
+// With lifetime annotation
 fn longest<'a>(x: &'a str, y: &'a str) -> &'a str {
     if x.len() > y.len() { x } else { y }
 }
 
 fn main() {
-    let string1 = String::from("長い文字列");
+    let string1 = String::from("a long string");
     let result;
     {
-        let string2 = String::from("短い");
+        let string2 = String::from("short");
         result = longest(string1.as_str(), string2.as_str());
-        println!("長い方: {}", result); // OK: string2 はまだ有効
+        println!("longer: {}", result); // OK: string2 is still valid
     }
-    // println!("{}", result); // エラー: string2 のライフタイムが切れている
+    // println!("{}", result); // error: string2's lifetime has ended
 }
 ```
 
-### 5.2 ライフタイム省略規則
+### 5.2 Lifetime Elision Rules
 
-Rustコンパイラには3つのライフタイム省略規則があり、多くの場合は明示的なライフタイム注釈を書く必要がない。
+The Rust compiler has three lifetime elision rules; in many cases, you do not need to write explicit lifetime annotations.
 
 ```rust
-// 規則1: 各入力参照に固有のライフタイムが割り当てられる
+// Rule 1: each input reference is assigned its own unique lifetime
 fn first(s: &str) -> &str { &s[..1] }
-// 展開: fn first<'a>(s: &'a str) -> &'a str
+// expanded: fn first<'a>(s: &'a str) -> &'a str
 
-// 規則2: 入力参照が1つだけなら、その参照のライフタイムが全出力に適用
+// Rule 2: if there is exactly one input reference, its lifetime applies to all outputs
 fn first_word(s: &str) -> &str {
     s.split_whitespace().next().unwrap_or("")
 }
-// 展開: fn first_word<'a>(s: &'a str) -> &'a str
+// expanded: fn first_word<'a>(s: &'a str) -> &'a str
 
-// 規則3: メソッドの場合、&self のライフタイムが出力に適用
+// Rule 3: in methods, the lifetime of &self applies to outputs
 struct Parser {
     input: String,
 }
@@ -756,54 +757,54 @@ impl Parser {
     fn first_token(&self) -> &str {
         self.input.split_whitespace().next().unwrap_or("")
     }
-    // 展開: fn first_token<'a>(&'a self) -> &'a str
+    // expanded: fn first_token<'a>(&'a self) -> &'a str
 }
 
-// 規則が適用できない場合は明示的なライフタイム注釈が必要
+// When the rules cannot apply, explicit lifetime annotations are required
 fn longest<'a>(x: &'a str, y: &'a str) -> &'a str {
     if x.len() > y.len() { x } else { y }
 }
 ```
 
-### 5.3 'static ライフタイム
+### 5.3 The 'static Lifetime
 
 ```rust
-// 'static ライフタイム: プログラム全体の実行期間中有効
+// 'static lifetime: valid for the entire duration of the program's execution
 fn get_greeting() -> &'static str {
-    "こんにちは！"  // 文字列リテラルは 'static
+    "Hello!"  // string literals are 'static
 }
 
-// 定数も 'static
-static GLOBAL_CONFIG: &str = "デフォルト設定";
+// Constants are also 'static
+static GLOBAL_CONFIG: &str = "default config";
 
 fn main() {
     let greeting = get_greeting();
     println!("{}", greeting);
     println!("{}", GLOBAL_CONFIG);
 
-    // T: 'static は「所有型」であることを意味する場合もある
-    // String は 'static を満たす（参照を含まないため）
+    // T: 'static can also mean "an owned type"
+    // String satisfies 'static (because it contains no references)
     fn takes_owned<T: 'static>(value: T) {
-        // T は参照を含まない型
+        // T is a type that contains no references
         std::mem::drop(value);
     }
 
     takes_owned(String::from("hello")); // OK
     takes_owned(42i32);                  // OK
-    // takes_owned(&String::from("hello")); // エラー: 一時的な参照は 'static ではない
+    // takes_owned(&String::from("hello")); // error: a temporary reference is not 'static
 }
 ```
 
 ---
 
-## 6. 高度な所有権パターン
+## 6. Advanced Ownership Patterns
 
-### 6.1 内部可変性（Interior Mutability）
+### 6.1 Interior Mutability
 
 ```rust
 use std::cell::{Cell, RefCell};
 
-// Cell<T>: Copy な型に対する内部可変性
+// Cell<T>: interior mutability for Copy types
 struct Counter {
     count: Cell<u32>,
 }
@@ -814,7 +815,7 @@ impl Counter {
     }
 
     fn increment(&self) {
-        // &self（不変参照）なのに内部状態を変更できる
+        // Internal state can be changed even though &self (immutable reference)
         self.count.set(self.count.get() + 1);
     }
 
@@ -823,7 +824,7 @@ impl Counter {
     }
 }
 
-// RefCell<T>: 任意の型に対する内部可変性（実行時チェック）
+// RefCell<T>: interior mutability for arbitrary types (runtime-checked)
 struct CachedValue {
     value: String,
     cache: RefCell<Option<String>>,
@@ -838,10 +839,10 @@ impl CachedValue {
     }
 
     fn get_computed(&self) -> String {
-        // &self なのに cache を変更できる
+        // cache can be modified even with &self
         let mut cache = self.cache.borrow_mut();
         if cache.is_none() {
-            println!("キャッシュ計算中...");
+            println!("computing cache...");
             *cache = Some(format!("computed_{}", self.value));
         }
         cache.clone().unwrap()
@@ -853,25 +854,25 @@ fn main() {
     counter.increment();
     counter.increment();
     counter.increment();
-    println!("カウント: {}", counter.get()); // 3
+    println!("count: {}", counter.get()); // 3
 
     let cached = CachedValue::new("hello".to_string());
-    println!("{}", cached.get_computed()); // "キャッシュ計算中..." → "computed_hello"
-    println!("{}", cached.get_computed()); // キャッシュヒット → "computed_hello"
+    println!("{}", cached.get_computed()); // "computing cache..." -> "computed_hello"
+    println!("{}", cached.get_computed()); // cache hit -> "computed_hello"
 }
 ```
 
-### 6.2 スマートポインタと所有権
+### 6.2 Smart Pointers and Ownership
 
 ```rust
 use std::rc::Rc;
 
-// Box<T>: ヒープ上への単一所有権
+// Box<T>: single ownership on the heap
 fn box_example() {
     let b = Box::new(5);
     println!("Box: {}", b);
 
-    // 再帰的なデータ構造
+    // Recursive data structure
     enum List {
         Cons(i32, Box<List>),
         Nil,
@@ -883,20 +884,20 @@ fn box_example() {
                 Box::new(List::Nil))))));
 }
 
-// Rc<T>: 参照カウントによる共有所有権（シングルスレッド）
+// Rc<T>: shared ownership via reference counting (single-threaded)
 fn rc_example() {
-    let a = Rc::new(String::from("共有データ"));
-    println!("参照カウント: {}", Rc::strong_count(&a)); // 1
+    let a = Rc::new(String::from("shared data"));
+    println!("reference count: {}", Rc::strong_count(&a)); // 1
 
-    let b = Rc::clone(&a);  // 参照カウントを増やす（データのコピーではない）
-    println!("参照カウント: {}", Rc::strong_count(&a)); // 2
+    let b = Rc::clone(&a);  // increments the reference count (does not copy data)
+    println!("reference count: {}", Rc::strong_count(&a)); // 2
 
     {
         let c = Rc::clone(&a);
-        println!("参照カウント: {}", Rc::strong_count(&a)); // 3
+        println!("reference count: {}", Rc::strong_count(&a)); // 3
     }
-    // c がドロップ
-    println!("参照カウント: {}", Rc::strong_count(&a)); // 2
+    // c is dropped
+    println!("reference count: {}", Rc::strong_count(&a)); // 2
 
     println!("a={}, b={}", a, b);
 }
@@ -907,7 +908,7 @@ fn main() {
 }
 ```
 
-### 6.3 所有権とパターンマッチング
+### 6.3 Ownership and Pattern Matching
 
 ```rust
 enum Message {
@@ -918,106 +919,106 @@ enum Message {
 
 fn process_message(msg: Message) {
     match msg {
-        // msg の所有権はムーブされる
+        // Ownership of msg is moved
         Message::Text(text) => {
-            println!("テキスト: {}", text);
-            // text を所有している
+            println!("text: {}", text);
+            // owns text
         }
         Message::Number(n) => {
-            println!("数値: {}", n);
+            println!("number: {}", n);
         }
         Message::Pair(a, b) => {
-            println!("ペア: {} / {}", a, b);
+            println!("pair: {} / {}", a, b);
         }
     }
-    // msg は完全にムーブされたため使えない
+    // msg is fully moved and cannot be used
 }
 
 fn process_message_ref(msg: &Message) {
     match msg {
-        // 参照のパターンマッチでは借用のみ
+        // Pattern matching on a reference only borrows
         Message::Text(text) => {
-            println!("テキスト: {}", text);
-            // text は &String
+            println!("text: {}", text);
+            // text is &String
         }
         Message::Number(n) => {
-            println!("数値: {}", n);
+            println!("number: {}", n);
         }
         Message::Pair(a, b) => {
-            println!("ペア: {} / {}", a, b);
+            println!("pair: {} / {}", a, b);
         }
     }
-    // msg はまだ使える
+    // msg is still usable
 }
 
 fn main() {
     let msg = Message::Text("hello".to_string());
     process_message_ref(&msg);
-    process_message_ref(&msg);  // OK: 参照なので再利用可能
+    process_message_ref(&msg);  // OK: a reference, so reusable
 
-    let msg2 = Message::Pair("左".to_string(), "右".to_string());
+    let msg2 = Message::Pair("left".to_string(), "right".to_string());
     process_message(msg2);
-    // process_message(msg2);  // エラー: ムーブ済み
+    // process_message(msg2);  // error: already moved
 }
 ```
 
 ---
 
-## 7. 比較表
+## 7. Comparison Tables
 
-### 7.1 ムーブ vs コピー vs クローン
+### 7.1 Move vs. Copy vs. Clone
 
-| 操作 | ヒープコピー | 元の値 | 自動/明示 | コスト | 用途 |
+| Operation | Heap copy | Original value | Auto/explicit | Cost | Use case |
 |------|------------|--------|-----------|--------|------|
-| ムーブ | なし | 無効化 | 自動 | O(1) | 所有権の移転 |
-| コピー (Copy) | N/A (スタックのみ) | 有効 | 自動 | O(1) | 小さな値の複製 |
-| クローン (Clone) | あり | 有効 | 明示 (.clone()) | O(n) | 深いコピーが必要な場合 |
-| 参照 (&T) | なし | 有効 | 明示 (&) | O(1) | 読み取り専用アクセス |
+| Move | None | Invalidated | Auto | O(1) | Transfer of ownership |
+| Copy | N/A (stack only) | Valid | Auto | O(1) | Duplication of small values |
+| Clone | Yes | Valid | Explicit (.clone()) | O(n) | When deep copy is required |
+| Reference (&T) | None | Valid | Explicit (&) | O(1) | Read-only access |
 
-### 7.2 不変参照 vs 可変参照
+### 7.2 Immutable References vs. Mutable References
 
-| 特性 | `&T` (不変参照) | `&mut T` (可変参照) |
+| Property | `&T` (immutable ref) | `&mut T` (mutable ref) |
 |------|-----------------|---------------------|
-| 同時に持てる数 | 複数 | 1つだけ |
-| データの変更 | 不可 | 可能 |
-| 別名 | 共有参照 (shared ref) | 排他参照 (exclusive ref) |
-| Send/Sync | T: Sync なら安全 | T: Send なら安全 |
-| 他の参照と共存 | &mut T と共存不可 | &T と共存不可 |
-| コンパイラの最適化 | エイリアシング最適化可 | 排他性により強力な最適化 |
+| Number that can coexist | Multiple | Only one |
+| Data modification | Not allowed | Allowed |
+| Alias | Shared reference | Exclusive reference |
+| Send/Sync | Safe if T: Sync | Safe if T: Send |
+| Coexistence with other references | Cannot coexist with &mut T | Cannot coexist with &T |
+| Compiler optimization | Aliasing optimizations possible | Strong optimizations due to exclusivity |
 
-### 7.3 所有型 vs 借用型の使い分け
+### 7.3 Choosing Between Owned and Borrowed Types
 
-| 状況 | 推奨 | 理由 |
+| Situation | Recommended | Reason |
 |------|------|------|
-| 構造体のフィールド | String（所有型） | ライフタイムの複雑さを回避 |
-| 関数の引数（読み取り） | &str（借用） | 柔軟性が高い |
-| 関数の引数（変更） | &mut String | 呼び出し元がまだ使える |
-| 関数の引数（消費） | String（所有型） | 値を消費する場合 |
-| 戻り値（新しい値） | String（所有型） | ローカル変数への参照は返せない |
-| 戻り値（引数の一部） | &str + ライフタイム | 効率的 |
-| 短命な一時構造体 | &str + ライフタイム | パフォーマンス重視 |
+| Struct fields | String (owned) | Avoids the complexity of lifetimes |
+| Function argument (read) | &str (borrowed) | Highly flexible |
+| Function argument (modify) | &mut String | Caller can still use it |
+| Function argument (consume) | String (owned) | When the value is consumed |
+| Return value (a new value) | String (owned) | Cannot return refs to local variables |
+| Return value (part of an argument) | &str + lifetime | Efficient |
+| Short-lived temporary structs | &str + lifetime | Performance-focused |
 
 ---
 
-## 8. アンチパターン
+## 8. Anti-Patterns
 
-### アンチパターン1: 必要以上のクローン
+### Anti-Pattern 1: Cloning More Than Necessary
 
 ```rust
-// BAD: 参照で十分なのにクローンする
+// BAD: cloning when a reference would suffice
 fn print_length(s: String) {
-    println!("長さ: {}", s.len());
+    println!("length: {}", s.len());
 }
 fn bad_example() {
     let s = String::from("hello");
-    print_length(s.clone()); // 不要なクローン
-    print_length(s.clone()); // また不要なクローン
+    print_length(s.clone()); // unnecessary clone
+    print_length(s.clone()); // another unnecessary clone
     println!("{}", s);
 }
 
-// GOOD: 参照を使う
+// GOOD: use a reference
 fn print_length_good(s: &str) {
-    println!("長さ: {}", s.len());
+    println!("length: {}", s.len());
 }
 fn good_example() {
     let s = String::from("hello");
@@ -1027,50 +1028,50 @@ fn good_example() {
 }
 ```
 
-### アンチパターン2: ダングリング参照の試み
+### Anti-Pattern 2: Attempting a Dangling Reference
 
 ```rust
-// BAD: ローカル変数への参照を返そうとする
+// BAD: trying to return a reference to a local variable
 // fn dangle() -> &String {
 //     let s = String::from("hello");
-//     &s  // s はこの関数終了時にドロップされる → ダングリング参照！
+//     &s  // s is dropped at the end of this function -> dangling reference!
 // }
 
-// GOOD: 所有権ごと返す
+// GOOD: return ownership instead
 fn no_dangle() -> String {
     let s = String::from("hello");
-    s  // 所有権をムーブして返す
+    s  // moves and returns ownership
 }
 ```
 
-### アンチパターン3: 不必要な可変参照
+### Anti-Pattern 3: Unnecessary Mutable References
 
 ```rust
-// BAD: 変更しないのに &mut を使う
+// BAD: using &mut even though no modification is performed
 fn just_read(data: &mut Vec<i32>) -> i32 {
     data.iter().sum()
 }
 
-// GOOD: 読み取りだけなら不変参照で十分
+// GOOD: an immutable reference suffices for read-only access
 fn just_read_good(data: &[i32]) -> i32 {
     data.iter().sum()
 }
 ```
 
-### アンチパターン4: 構造体フィールドに参照を使いすぎる
+### Anti-Pattern 4: Overusing References in Struct Fields
 
 ```rust
-// BAD: 不必要にライフタイムが伝播する
+// BAD: lifetimes propagate unnecessarily
 struct Config<'a> {
     host: &'a str,
     port: u16,
     database: &'a str,
 }
 
-// このような構造体を返す関数は非常に複雑になる
-// fn load_config<'a>() -> Config<'a> { ... }  // ← ライフタイムの管理が困難
+// A function returning such a struct becomes very complex
+// fn load_config<'a>() -> Config<'a> { ... }  // <- lifetime management is difficult
 
-// GOOD: 所有型を使う
+// GOOD: use owned types
 struct ConfigGood {
     host: String,
     port: u16,
@@ -1086,20 +1087,20 @@ fn load_config() -> ConfigGood {
 }
 ```
 
-### アンチパターン5: イテレータ使用中のコレクション変更
+### Anti-Pattern 5: Modifying a Collection While Iterating
 
 ```rust
 fn main() {
     let mut v = vec![1, 2, 3, 4, 5];
 
-    // BAD: イテレーション中にコレクションを変更しようとする
+    // BAD: trying to modify the collection during iteration
     // for item in &v {
     //     if *item > 3 {
-    //         v.push(*item * 2);  // エラー！不変借用中に可変借用できない
+    //         v.push(*item * 2);  // error! cannot mutably borrow while immutably borrowed
     //     }
     // }
 
-    // GOOD: 結果を別のコレクションに集めてから追加
+    // GOOD: collect results into another collection, then append
     let additions: Vec<i32> = v.iter()
         .filter(|&&x| x > 3)
         .map(|&x| x * 2)
@@ -1107,7 +1108,7 @@ fn main() {
     v.extend(additions);
     println!("{:?}", v); // [1, 2, 3, 4, 5, 8, 10]
 
-    // GOOD: retain で条件に合わない要素を除去
+    // GOOD: use retain to drop elements that don't meet the condition
     let mut v2 = vec![1, 2, 3, 4, 5];
     v2.retain(|&x| x % 2 == 0);
     println!("{:?}", v2); // [2, 4]
@@ -1116,12 +1117,12 @@ fn main() {
 
 ---
 
-## 9. 実践例: 所有権を活かした設計
+## 9. Practical Examples: Designs That Leverage Ownership
 
-### 9.1 状態機械パターン
+### 9.1 The State Machine Pattern
 
 ```rust
-// 所有権を使って状態遷移を型レベルで表現
+// Use ownership to express state transitions at the type level
 struct Idle;
 struct Running {
     start_time: std::time::Instant,
@@ -1143,9 +1144,9 @@ impl Task<Idle> {
         }
     }
 
-    // self を消費して新しい状態の Task を返す
+    // Consumes self and returns a Task in a new state
     fn start(self) -> Task<Running> {
-        println!("タスク '{}' を開始", self.name);
+        println!("starting task '{}'", self.name);
         Task {
             name: self.name,
             state: Running {
@@ -1158,7 +1159,7 @@ impl Task<Idle> {
 impl Task<Running> {
     fn finish(self) -> Task<Finished> {
         let duration = self.state.start_time.elapsed();
-        println!("タスク '{}' が完了 ({:?})", self.name, duration);
+        println!("task '{}' finished ({:?})", self.name, duration);
         Task {
             name: self.name,
             state: Finished { duration },
@@ -1168,27 +1169,27 @@ impl Task<Running> {
 
 impl Task<Finished> {
     fn report(&self) {
-        println!("レポート: '{}' は {:?} で完了", self.name, self.state.duration);
+        println!("report: '{}' completed in {:?}", self.name, self.state.duration);
     }
 }
 
 fn main() {
-    let task = Task::new("データ処理");
-    // task.finish();  // コンパイルエラー！Idle から直接 Finished にはなれない
+    let task = Task::new("data processing");
+    // task.finish();  // compile error! cannot go directly from Idle to Finished
     let running = task.start();
-    // task.start();   // コンパイルエラー！task は既にムーブ済み
+    // task.start();   // compile error! task has already been moved
     let finished = running.finish();
     finished.report();
 }
 ```
 
-### 9.2 所有権を活かしたリソース管理
+### 9.2 Resource Management via Ownership
 
 ```rust
 use std::fs::File;
 use std::io::{self, Write, BufWriter};
 
-// ファイルの所有権を持つ構造体
+// A struct that owns the file
 struct Logger {
     writer: BufWriter<File>,
     count: u64,
@@ -1209,23 +1210,23 @@ impl Logger {
         Ok(())
     }
 
-    // 所有権を消費してファイルを確実にフラッシュ
+    // Consume ownership to flush the file reliably
     fn close(mut self) -> io::Result<()> {
         self.writer.flush()?;
-        println!("ログファイルを閉じました（{} 件のログ）", self.count);
+        println!("closed log file ({} entries)", self.count);
         Ok(())
-        // self がドロップされ、File が自動的にクローズされる
+        // self is dropped, and the File is automatically closed
     }
 }
 
 fn main() -> io::Result<()> {
     let mut logger = Logger::new("/tmp/app.log")?;
-    logger.log("アプリケーション開始")?;
-    logger.log("処理実行中")?;
-    logger.log("アプリケーション終了")?;
+    logger.log("application started")?;
+    logger.log("processing")?;
+    logger.log("application terminating")?;
     logger.close()?;
-    // logger は使えない（close で消費済み）
-    // logger.log("もう一つ");  // コンパイルエラー！
+    // logger cannot be used (consumed by close)
+    // logger.log("one more");  // compile error!
     Ok(())
 }
 ```
@@ -1233,45 +1234,45 @@ fn main() -> io::Result<()> {
 
 ---
 
-## 実践演習
+## Practical Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that satisfies the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate input data
+- Implement appropriate error handling
+- Also write test code
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: template for basic implementation
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Exercise on basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate the input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main logic for data processing"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Retrieve processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1280,26 +1281,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "an exception should have been raised"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("all tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Applied Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation with the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: applied patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Exercise on applied patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1307,7 +1308,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1318,14 +1319,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Remove by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1333,7 +1334,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1341,44 +1342,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("all advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1387,7 +1388,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1402,47 +1403,47 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"inefficient: {slow_time:.4f}s")
+    print(f"efficient:   {fast_time:.6f}s")
+    print(f"speedup:     {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Points:**
+- Be conscious of algorithmic complexity
+- Choose appropriate data structures
+- Measure improvements with benchmarks
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
+| Error | Cause | Solution |
 |--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Initialization error | Misconfigured config file | Verify config file path and format |
+| Timeout | Network latency / lack of resources | Adjust timeout values; add retry logic |
+| Out of memory | Increasing data volume | Introduce batch processing; implement pagination |
+| Permission error | Insufficient access rights | Check the running user's permissions; review settings |
+| Data inconsistency | Concurrency conflicts | Introduce locking mechanisms; use transaction management |
 
-### デバッグの手順
+### Debugging Steps
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check the error message**: read the stack trace and identify the location of the issue
+2. **Establish reproduction steps**: reproduce the error with minimal code
+3. **Form a hypothesis**: list possible causes
+4. **Verify incrementally**: validate the hypothesis with logging or a debugger
+5. **Fix and regression-test**: after fixing, also run tests for related areas
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utility
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -1450,102 +1451,102 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs function inputs and outputs"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"call: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"return: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"exception: {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (subject to debugging)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Problems
 
-パフォーマンス問題が発生した場合の診断手順:
+Diagnostic procedure when performance issues occur:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify the bottleneck**: measure with profiling tools
+2. **Check memory usage**: check for memory leaks
+3. **Check I/O wait**: examine disk and network I/O activity
+4. **Check concurrent connections**: examine the connection pool state
 
-| 問題の種類 | 診断ツール | 対策 |
+| Type of issue | Diagnostic tool | Countermeasure |
 |-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| CPU load | cProfile, py-spy | Algorithmic improvements; parallelization |
+| Memory leak | tracemalloc, objgraph | Properly release references |
+| I/O bottleneck | strace, iostat | Asynchronous I/O; caching |
+| DB latency | EXPLAIN, slow query log | Indexes; query optimization |
 
 ---
 
-## 設計判断ガイド
+## Design Decision Guide
 
-### 選択基準マトリクス
+### Selection Criteria Matrix
 
-技術選択を行う際の判断基準を以下にまとめます。
+The following summarizes criteria for technology selection.
 
-| 判断基準 | 重視する場合 | 妥協できる場合 |
+| Criterion | When prioritized | When can be compromised |
 |---------|------------|-------------|
-| パフォーマンス | リアルタイム処理、大規模データ | 管理画面、バッチ処理 |
-| 保守性 | 長期運用、チーム開発 | プロトタイプ、短期プロジェクト |
-| スケーラビリティ | 成長が見込まれるサービス | 社内ツール、固定ユーザー |
-| セキュリティ | 個人情報、金融データ | 公開データ、社内利用 |
-| 開発速度 | MVP、市場投入スピード | 品質重視、ミッションクリティカル |
+| Performance | Real-time processing; large-scale data | Admin panels; batch processing |
+| Maintainability | Long-term operation; team development | Prototypes; short-term projects |
+| Scalability | Services expected to grow | Internal tools; fixed user base |
+| Security | Personal data; financial data | Public data; internal use |
+| Development speed | MVP; time-to-market | Quality-focused; mission-critical |
 
-### アーキテクチャパターンの選択
+### Architecture Pattern Selection
 
 ```
 ┌─────────────────────────────────────────────────┐
-│              アーキテクチャ選択フロー              │
+│           Architecture Selection Flow           │
 ├─────────────────────────────────────────────────┤
 │                                                 │
-│  ① チーム規模は？                                │
-│    ├─ 小規模（1-5人）→ モノリス                   │
-│    └─ 大規模（10人+）→ ②へ                       │
+│  (1) Team size?                                 │
+│    ├─ Small (1-5 people) -> monolith            │
+│    └─ Large (10+ people) -> go to (2)           │
 │                                                 │
-│  ② デプロイ頻度は？                               │
-│    ├─ 週1回以下 → モノリス + モジュール分割         │
-│    └─ 毎日/複数回 → ③へ                          │
+│  (2) Deployment frequency?                      │
+│    ├─ Once a week or less -> monolith + modules │
+│    └─ Daily / multiple times -> go to (3)       │
 │                                                 │
-│  ③ チーム間の独立性は？                            │
-│    ├─ 高い → マイクロサービス                      │
-│    └─ 中程度 → モジュラーモノリス                   │
+│  (3) Independence between teams?                │
+│    ├─ High -> microservices                     │
+│    └─ Moderate -> modular monolith              │
 │                                                 │
 └─────────────────────────────────────────────────┘
 ```
 
-### トレードオフの分析
+### Trade-off Analysis
 
-技術的な判断には必ずトレードオフが伴います。以下の観点で分析を行いましょう:
+Technical decisions always involve trade-offs. Analyze them from the following perspectives:
 
-**1. 短期 vs 長期のコスト**
-- 短期的に速い方法が長期的には技術的負債になることがある
-- 逆に、過剰な設計は短期的なコストが高く、プロジェクトの遅延を招く
+**1. Short-term vs. long-term cost**
+- A method that is fast in the short term may become technical debt in the long term
+- Conversely, over-engineering has high short-term cost and can delay the project
 
-**2. 一貫性 vs 柔軟性**
-- 統一された技術スタックは学習コストが低い
-- 多様な技術の採用は適材適所が可能だが、運用コストが増加
+**2. Consistency vs. flexibility**
+- A unified technology stack has a low learning cost
+- Adopting diverse technologies allows the right tool for the job, but increases operational cost
 
-**3. 抽象化のレベル**
-- 高い抽象化は再利用性が高いが、デバッグが困難になる場合がある
-- 低い抽象化は直感的だが、コードの重複が発生しやすい
+**3. Level of abstraction**
+- High abstraction yields high reusability but can make debugging difficult
+- Low abstraction is intuitive but tends to result in code duplication
 
 ```python
-# 設計判断の記録テンプレート
+# Template for recording design decisions
 class ArchitectureDecisionRecord:
-    """ADR (Architecture Decision Record) の作成"""
+    """Creating an ADR (Architecture Decision Record)"""
 
     def __init__(self, title: str):
         self.title = title
@@ -1555,17 +1556,17 @@ class ArchitectureDecisionRecord:
         self.alternatives = []
 
     def set_context(self, context: str):
-        """背景と課題の記述"""
+        """Describe the background and the issue"""
         self.context = context
         return self
 
     def set_decision(self, decision: str):
-        """決定内容の記述"""
+        """Describe the decision"""
         self.decision = decision
         return self
 
     def add_consequence(self, consequence: str, positive: bool = True):
-        """結果の追加"""
+        """Add a consequence"""
         self.consequences.append({
             'description': consequence,
             'type': 'positive' if positive else 'negative'
@@ -1573,7 +1574,7 @@ class ArchitectureDecisionRecord:
         return self
 
     def add_alternative(self, name: str, reason_rejected: str):
-        """却下した代替案の追加"""
+        """Add a rejected alternative"""
         self.alternatives.append({
             'name': name,
             'reason_rejected': reason_rejected
@@ -1581,15 +1582,15 @@ class ArchitectureDecisionRecord:
         return self
 
     def to_markdown(self) -> str:
-        """Markdown形式で出力"""
+        """Output as Markdown"""
         md = f"# ADR: {self.title}\n\n"
-        md += f"## 背景\n{self.context}\n\n"
-        md += f"## 決定\n{self.decision}\n\n"
-        md += "## 結果\n"
+        md += f"## Background\n{self.context}\n\n"
+        md += f"## Decision\n{self.decision}\n\n"
+        md += "## Consequences\n"
         for c in self.consequences:
-            icon = "✅" if c['type'] == 'positive' else "⚠️"
+            icon = "[+]" if c['type'] == 'positive' else "[!]"
             md += f"- {icon} {c['description']}\n"
-        md += "\n## 却下した代替案\n"
+        md += "\n## Rejected Alternatives\n"
         for a in self.alternatives:
             md += f"- **{a['name']}**: {a['reason_rejected']}\n"
         return md
@@ -1598,21 +1599,21 @@ class ArchitectureDecisionRecord:
 
 ## 10. FAQ
 
-### Q1: いつムーブが起こりますか？
+### Q1: When does a move occur?
 
-**A:** 以下のケースでムーブが発生します:
-- `let y = x;` (Copy未実装の型)
-- 関数に値を渡す: `func(x)`
-- 関数から値を返す: `return x`
-- コレクションに値を入れる: `vec.push(x)`
-- パターンマッチで値を取り出す: `if let Some(v) = opt`
-- 構造体のフィールド初期化: `Struct { field: x }`
+**A:** A move occurs in the following cases:
+- `let y = x;` (for types that do not implement Copy)
+- Passing a value to a function: `func(x)`
+- Returning a value from a function: `return x`
+- Inserting a value into a collection: `vec.push(x)`
+- Extracting a value via pattern matching: `if let Some(v) = opt`
+- Initializing a struct field: `Struct { field: x }`
 
-Copy トレイトを実装している型（i32, bool, f64 など）はムーブではなくコピーされます。
+Types that implement the Copy trait (such as i32, bool, f64) are copied rather than moved.
 
-### Q2: `&str` と `&String` の違いは何ですか？
+### Q2: What is the difference between `&str` and `&String`?
 
-**A:** `&str` は文字列スライスで、文字列データへの参照+長さの情報を持つ「ファットポインタ」です。`&String` は String 型への参照です。関数の引数には `&str` を使うのが慣例です。`&String` は自動的に `&str` にデリファレンスされるため（Deref coercion）、`&str` の方がより汎用的です。
+**A:** `&str` is a string slice -- a "fat pointer" that holds a reference to string data plus length information. `&String` is a reference to a `String`. By convention, function arguments use `&str`. Because `&String` is automatically dereferenced to `&str` (Deref coercion), `&str` is more general-purpose.
 
 ```rust
 fn accepts_str(s: &str) {
@@ -1623,107 +1624,107 @@ fn main() {
     let owned = String::from("hello");
     let literal = "world";
 
-    accepts_str(&owned);    // &String → &str (Deref coercion)
-    accepts_str(literal);   // &str そのまま
-    accepts_str(&owned[1..]); // スライスも渡せる
+    accepts_str(&owned);    // &String -> &str (Deref coercion)
+    accepts_str(literal);   // &str as-is
+    accepts_str(&owned[1..]); // a slice can also be passed
 }
 ```
 
-### Q3: なぜ可変参照は同時に1つだけなのですか？
+### Q3: Why can there only be one mutable reference at a time?
 
-**A:** データ競合を防止するためです。データ競合は以下の3条件が揃うと発生します:
-1. 2つ以上のポインタが同じデータにアクセス
-2. 少なくとも1つが書き込み
-3. アクセスの同期がない
+**A:** To prevent data races. A data race occurs when these three conditions are met:
+1. Two or more pointers access the same data
+2. At least one of them performs a write
+3. There is no synchronization of access
 
-可変参照を1つに制限することで、条件1,2の組み合わせをコンパイル時に排除できます。
+By limiting mutable references to one, the combination of conditions 1 and 2 can be eliminated at compile time.
 
-### Q4: Clone と Copy の使い分けは？
+### Q4: How should I choose between Clone and Copy?
 
 **A:**
-- **Copy**: スタック上の小さな値（i32, f64, bool など）。暗黙的に複製される
-- **Clone**: ヒープデータを含む型（String, Vec など）。`.clone()` の明示的な呼び出しが必要
+- **Copy**: small values on the stack (i32, f64, bool, etc.); duplicated implicitly
+- **Clone**: types containing heap data (String, Vec, etc.); requires an explicit `.clone()` call
 
-自作の型に Copy を実装するには、全フィールドが Copy でなければなりません。Copy は「安いコピー」を意味し、Clone は「任意のコスト」を意味します。
+To implement Copy on your own type, every field must also be Copy. Copy implies "cheap copying"; Clone implies "arbitrary cost."
 
-### Q5: ライフタイムはいつ明示的に書く必要がありますか？
+### Q5: When do I need to write lifetimes explicitly?
 
-**A:** コンパイラの省略規則（elision rules）で推論できない場合に書く必要があります。主に:
-- 複数の入力参照がある関数で、戻り値に参照を含む場合
-- 構造体に参照フィールドがある場合
-- トレイト実装で参照のライフタイム関係が複雑な場合
+**A:** When the compiler's elision rules cannot infer them. Mainly:
+- In functions with multiple input references whose return value contains a reference
+- In structs containing reference fields
+- In trait implementations where lifetime relationships among references are complex
 
 ```rust
-// 省略規則で推論できる → 注釈不要
+// Inferable via elision rules -> no annotation needed
 fn first(s: &str) -> &str { &s[..1] }
 
-// 複数の入力参照 → 注釈必要
+// Multiple input references -> annotation required
 fn longest<'a>(x: &'a str, y: &'a str) -> &'a str {
     if x.len() > y.len() { x } else { y }
 }
 
-// 構造体の参照フィールド → 注釈必要
+// Struct with a reference field -> annotation required
 struct Excerpt<'a> {
     text: &'a str,
 }
 ```
 
-### Q6: RefCell<T> はいつ使うべきですか？
+### Q6: When should I use RefCell<T>?
 
-**A:** 借用規則をコンパイル時ではなく実行時にチェックしたい場合に使います。典型的な用途:
-- 不変参照を通じて内部状態を変更したい場合（内部可変性パターン）
-- トレイトオブジェクトの内部状態を変更する場合
-- コンパイラが安全性を証明できないが、プログラマが安全だと確信している場合
+**A:** When you want borrowing rules to be checked at runtime instead of at compile time. Typical use cases:
+- When you want to modify internal state through an immutable reference (the interior mutability pattern)
+- When modifying the internal state of a trait object
+- When the compiler cannot prove safety but the programmer is sure that it is safe
 
-ただし、RefCell は実行時にパニックする可能性があるため、可能な限り通常の借用を使うべきです。
+That said, since RefCell can panic at runtime, you should use ordinary borrowing whenever possible.
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point to keep in mind when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining hands-on experience is the most important. Beyond theory, your understanding deepens when you actually write code and verify behavior.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What mistakes do beginners commonly make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and rushing to advanced topics. We recommend firmly grasping the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in real-world practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently applied in everyday development work. It becomes especially important during code reviews and architecture design.
 
 ---
 
-## 11. まとめ
+## 11. Summary
 
-| 概念 | 要点 |
+| Concept | Key point |
 |------|------|
-| 所有権 | 各値は唯一の所有者を持つ。スコープ終了で自動 drop |
-| ムーブ | 代入/関数呼び出しで所有権が移転。元の変数は無効化 |
-| Copy | スタック上の小さな値は暗黙にコピー(i32, bool 等) |
-| Clone | ヒープデータの明示的な深いコピー |
-| 不変参照 (&T) | 同時に複数可能。データ変更不可 |
-| 可変参照 (&mut T) | 同時に1つだけ。データ変更可能 |
-| NLL | 参照の寿命は最後の使用地点で終了 |
-| スライス | データの一部への参照。所有しない |
-| ライフタイム | 参照の有効期間をコンパイラに伝える注釈 |
-| Drop | スコープ終了時に自動呼び出されるデストラクタ |
-| 内部可変性 | Cell/RefCell で不変参照を通じた変更を実現 |
-| スマートポインタ | Box/Rc/Arc で所有権のパターンを拡張 |
+| Ownership | Each value has a single owner; auto drop at end of scope |
+| Move | Ownership is transferred on assignment / function call; original variable is invalidated |
+| Copy | Small values on the stack are copied implicitly (i32, bool, etc.) |
+| Clone | Explicit deep copy of heap data |
+| Immutable reference (&T) | Multiple allowed simultaneously; data cannot be modified |
+| Mutable reference (&mut T) | Only one at a time; data can be modified |
+| NLL | A reference's lifetime ends at its last point of use |
+| Slice | A reference to part of data; does not own |
+| Lifetime | Annotation that tells the compiler how long a reference is valid |
+| Drop | Destructor automatically called at end of scope |
+| Interior mutability | Cell/RefCell enable modification through an immutable reference |
+| Smart pointers | Box/Rc/Arc extend ownership patterns |
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Reading
 
-- [02-types-and-traits.md](02-types-and-traits.md) -- 型とトレイトで抽象化を学ぶ
-- [../01-advanced/00-lifetimes.md](../01-advanced/00-lifetimes.md) -- ライフタイムを詳しく理解する
-- [../01-advanced/01-smart-pointers.md](../01-advanced/01-smart-pointers.md) -- Box/Rc/Arc で所有権を拡張する
+- [02-types-and-traits.md](02-types-and-traits.md) -- Learn abstraction with types and traits
+- [../01-advanced/00-lifetimes.md](../01-advanced/00-lifetimes.md) -- Understand lifetimes in detail
+- [../01-advanced/01-smart-pointers.md](../01-advanced/01-smart-pointers.md) -- Extend ownership with Box/Rc/Arc
 
 ---
 
-## 参考文献
+## References
 
 1. **The Rust Programming Language - Ch.4 Understanding Ownership** -- https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html
 2. **Rust by Example - Ownership** -- https://doc.rust-lang.org/rust-by-example/scope/move.html
