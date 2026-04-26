@@ -1,32 +1,32 @@
-# Axum — ルーティング、ミドルウェア、状態管理
+# Axum — Routing, Middleware, and State Management
 
-> Axum フレームワークを使った型安全な Web API 構築手法を、ルーティング・ミドルウェア・状態管理を軸に習得する
+> Master type-safe Web API construction techniques using the Axum framework, focusing on routing, middleware, and state management.
 
-## この章で学ぶこと
+## What you will learn in this chapter
 
-1. **ルーティングとハンドラ** — Extractor パターンによる型安全なリクエスト解析
-2. **ミドルウェア** — Tower レイヤーとカスタムミドルウェアの実装
-3. **状態管理** — AppState の共有、データベース接続プール統合
-4. **エラーハンドリング** — 統一エラー型と適切なレスポンス変換
-5. **WebSocket とSSE** — リアルタイム通信の統合
-6. **テスト** — ハンドラ単体テストと統合テスト
-7. **本番運用** — Graceful Shutdown、ヘルスチェック、メトリクス
+1. **Routing and Handlers** — Type-safe request parsing through the Extractor pattern
+2. **Middleware** — Implementing Tower layers and custom middleware
+3. **State Management** — Sharing AppState and integrating database connection pools
+4. **Error Handling** — Unified error types and proper response conversion
+5. **WebSocket and SSE** — Integrating real-time communication
+6. **Testing** — Unit testing handlers and integration testing
+7. **Production Operations** — Graceful Shutdown, health checks, metrics
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Reading the following beforehand will deepen your understanding of this guide:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [ネットワーク — reqwest/hyper、WebSocket、tonic](./03-networking.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Content of [Networking — reqwest/hyper, WebSocket, tonic](./03-networking.md)
 
 ---
 
-## 1. Axum アーキテクチャ
+## 1. Axum Architecture
 
 ```
-┌─────────────────── Axum 処理フロー ──────────────────┐
+┌─────────────────── Axum Processing Flow ─────────────┐
 │                                                       │
 │  HTTP Request                                         │
 │    │                                                  │
@@ -55,46 +55,46 @@
 └───────────────────────────────────────────────────────┘
 ```
 
-### Axum の設計哲学
+### Axum's Design Philosophy
 
-| 設計原則 | 説明 |
+| Design Principle | Description |
 |---|---|
-| Tower 統合 | ミドルウェアは全て Tower Service/Layer として実装 |
-| 型安全 | Extractor による型レベルでのリクエスト解析・バリデーション |
-| Macro-free | derive マクロを使わずコンパイラが型推論でルーティング検証 |
-| hyper ベース | 内部で hyper を使用し高パフォーマンスを実現 |
-| エコシステム | tower-http の全レイヤーがそのまま使える |
+| Tower Integration | All middleware is implemented as Tower Service/Layer |
+| Type Safety | Type-level request parsing and validation through Extractors |
+| Macro-free | The compiler verifies routing through type inference without using derive macros |
+| hyper-based | Internally uses hyper to achieve high performance |
+| Ecosystem | All tower-http layers can be used as-is |
 
-### Axum の依存関係
+### Axum's Dependencies
 
 ```
-┌─────────────── 依存ツリー ─────────────────┐
+┌─────────────── Dependency Tree ───────────────┐
 │                                             │
-│  axum (Web フレームワーク)                  │
-│    ├── axum-core (Extractor トレイト)       │
+│  axum (Web framework)                       │
+│    ├── axum-core (Extractor traits)         │
 │    ├── tower (Service, Layer)               │
 │    │     ├── tower-service                  │
 │    │     └── tower-layer                    │
-│    ├── tower-http (HTTP ミドルウェア)        │
+│    ├── tower-http (HTTP middleware)         │
 │    │     ├── TraceLayer                     │
 │    │     ├── CorsLayer                      │
 │    │     ├── CompressionLayer               │
 │    │     └── TimeoutLayer                   │
 │    ├── hyper (HTTP/1, HTTP/2)               │
-│    ├── tokio (非同期ランタイム)              │
-│    └── matchit (URLルーティング)             │
+│    ├── tokio (Async runtime)                │
+│    └── matchit (URL routing)                │
 │                                             │
-│  追加パッケージ:                             │
-│    ├── axum-extra (TypedHeader 等)          │
+│  Additional packages:                       │
+│    ├── axum-extra (TypedHeader, etc.)       │
 │    └── axum-macros (#[debug_handler])       │
 └─────────────────────────────────────────────┘
 ```
 
 ---
 
-## 2. ルーティングとハンドラ
+## 2. Routing and Handlers
 
-### 2.1 基本的なCRUD API
+### 2.1 Basic CRUD API
 
 ```rust
 use axum::{
@@ -219,17 +219,17 @@ async fn main() {
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    println!("サーバー起動: http://localhost:3000");
+    println!("Server started: http://localhost:3000");
     axum::serve(listener, app).await.unwrap();
 }
 ```
 
-### 2.2 ルーターのネスティングとマージ
+### 2.2 Router Nesting and Merging
 
 ```rust
 use axum::{Router, routing::get};
 
-/// API v1 のルーター
+/// API v1 router
 fn api_v1_routes() -> Router<AppState> {
     let users = Router::new()
         .route("/", get(list_users).post(create_user))
@@ -248,7 +248,7 @@ fn api_v1_routes() -> Router<AppState> {
         .nest("/posts/{post_id}/comments", comments)
 }
 
-/// API v2 のルーター (v1 を拡張)
+/// API v2 router (extends v1)
 fn api_v2_routes() -> Router<AppState> {
     let users = Router::new()
         .route("/", get(list_users_v2).post(create_user_v2))
@@ -258,25 +258,25 @@ fn api_v2_routes() -> Router<AppState> {
         .nest("/users", users)
 }
 
-/// アプリケーション全体のルーター構築
+/// Build the full application router
 fn create_app(state: AppState) -> Router {
-    // 管理者ルート (別のミドルウェアスタック)
+    // Admin routes (separate middleware stack)
     let admin = Router::new()
         .route("/stats", get(admin_stats))
         .route("/users", get(admin_list_users))
         .layer(axum::middleware::from_fn(admin_auth_middleware));
 
     Router::new()
-        // API バージョニング
+        // API versioning
         .nest("/api/v1", api_v1_routes())
         .nest("/api/v2", api_v2_routes())
-        // 管理者ルート
+        // Admin routes
         .nest("/admin", admin)
-        // ヘルスチェック
+        // Health check
         .route("/health", get(health_check))
-        // 静的ファイル
+        // Static files
         .nest_service("/static", tower_http::services::ServeDir::new("./public"))
-        // フォールバック
+        // Fallback
         .fallback(fallback_handler)
         .with_state(state)
 }
@@ -286,11 +286,11 @@ async fn health_check() -> &'static str {
 }
 
 async fn fallback_handler() -> (StatusCode, &'static str) {
-    (StatusCode::NOT_FOUND, "ルートが見つかりません")
+    (StatusCode::NOT_FOUND, "Route not found")
 }
 ```
 
-### 2.3 カスタム Extractor
+### 2.3 Custom Extractors
 
 ```rust
 use axum::{
@@ -302,7 +302,7 @@ use axum::{
 };
 use serde::de::DeserializeOwned;
 
-/// Bearer トークンを抽出するカスタム Extractor
+/// Custom Extractor for extracting Bearer tokens
 struct BearerToken(String);
 
 #[async_trait]
@@ -319,17 +319,17 @@ where
         let auth_header = parts.headers
             .get(header::AUTHORIZATION)
             .and_then(|v| v.to_str().ok())
-            .ok_or((StatusCode::UNAUTHORIZED, "Authorization ヘッダーなし"))?;
+            .ok_or((StatusCode::UNAUTHORIZED, "Missing Authorization header"))?;
 
         let token = auth_header
             .strip_prefix("Bearer ")
-            .ok_or((StatusCode::UNAUTHORIZED, "Bearer トークン形式が不正"))?;
+            .ok_or((StatusCode::UNAUTHORIZED, "Invalid Bearer token format"))?;
 
         Ok(BearerToken(token.to_string()))
     }
 }
 
-/// 認証済みユーザー情報を抽出する Extractor
+/// Extractor for retrieving authenticated user information
 #[derive(Debug, Clone)]
 struct AuthUser {
     user_id: String,
@@ -351,36 +351,36 @@ where
             .get(header::AUTHORIZATION)
             .and_then(|v| v.to_str().ok())
             .ok_or_else(|| {
-                let body = serde_json::json!({"error": "認証が必要です"});
+                let body = serde_json::json!({"error": "Authentication required"});
                 (StatusCode::UNAUTHORIZED, Json(body))
             })?;
 
         let token = auth_header.strip_prefix("Bearer ").ok_or_else(|| {
-            let body = serde_json::json!({"error": "Bearer トークン形式が不正"});
+            let body = serde_json::json!({"error": "Invalid Bearer token format"});
             (StatusCode::UNAUTHORIZED, Json(body))
         })?;
 
-        // トークン検証 (実際にはJWT検証など)
+        // Token validation (in practice, JWT validation, etc.)
         validate_token(token).await.map_err(|e| {
-            let body = serde_json::json!({"error": format!("トークン無効: {}", e)});
+            let body = serde_json::json!({"error": format!("Invalid token: {}", e)});
             (StatusCode::UNAUTHORIZED, Json(body))
         })
     }
 }
 
 async fn validate_token(token: &str) -> Result<AuthUser, String> {
-    // JWT 検証ロジック (簡略版)
+    // JWT validation logic (simplified)
     if token.starts_with("valid-") {
         Ok(AuthUser {
             user_id: "user-123".to_string(),
             role: "admin".to_string(),
         })
     } else {
-        Err("無効なトークン".to_string())
+        Err("Invalid token".to_string())
     }
 }
 
-/// バリデーション付き JSON Extractor
+/// JSON Extractor with validation
 struct ValidatedJson<T>(pub T);
 
 #[async_trait]
@@ -395,12 +395,12 @@ where
         let Json(value) = Json::<T>::from_request(req, state)
             .await
             .map_err(|e| {
-                let body = serde_json::json!({"error": format!("JSON パースエラー: {}", e)});
+                let body = serde_json::json!({"error": format!("JSON parse error: {}", e)});
                 (StatusCode::BAD_REQUEST, Json(body))
             })?;
 
         value.validate().map_err(|errors| {
-            let body = serde_json::json!({"error": "バリデーションエラー", "details": errors});
+            let body = serde_json::json!({"error": "Validation error", "details": errors});
             (StatusCode::UNPROCESSABLE_ENTITY, Json(body))
         })?;
 
@@ -408,7 +408,7 @@ where
     }
 }
 
-/// バリデーショントレイト
+/// Validation trait
 trait Validate {
     fn validate(&self) -> Result<(), Vec<String>>;
 }
@@ -417,23 +417,23 @@ impl Validate for CreateUser {
     fn validate(&self) -> Result<(), Vec<String>> {
         let mut errors = Vec::new();
         if self.name.is_empty() {
-            errors.push("name は必須です".to_string());
+            errors.push("name is required".to_string());
         }
         if self.name.len() > 100 {
-            errors.push("name は100文字以内です".to_string());
+            errors.push("name must be 100 characters or fewer".to_string());
         }
         if !self.email.contains('@') {
-            errors.push("email の形式が不正です".to_string());
+            errors.push("email format is invalid".to_string());
         }
         if errors.is_empty() { Ok(()) } else { Err(errors) }
     }
 }
 
-// ハンドラで使用
+// Use in handlers
 async fn protected_handler(
     auth: AuthUser,
 ) -> String {
-    format!("認証済み。ユーザー: {} (役割: {})", auth.user_id, auth.role)
+    format!("Authenticated. User: {} (role: {})", auth.user_id, auth.role)
 }
 
 async fn create_user_validated(
@@ -448,24 +448,24 @@ async fn create_user_validated(
 }
 ```
 
-### 2.4 複数パスパラメータとタプル Extractor
+### 2.4 Multiple Path Parameters and Tuple Extractors
 
 ```rust
 use axum::extract::Path;
 
-// 単一パスパラメータ
+// Single path parameter
 async fn get_user(Path(id): Path<u64>) -> String {
     format!("User {}", id)
 }
 
-// 複数パスパラメータ (タプル)
+// Multiple path parameters (tuple)
 async fn get_user_post(
     Path((user_id, post_id)): Path<(u64, u64)>,
 ) -> String {
-    format!("User {} の Post {}", user_id, post_id)
+    format!("Post {} of User {}", post_id, user_id)
 }
 
-// 名前付きパスパラメータ (構造体)
+// Named path parameters (struct)
 #[derive(Deserialize)]
 struct PostParams {
     user_id: u64,
@@ -482,7 +482,7 @@ async fn get_comment(
     )
 }
 
-// ルーター定義
+// Router definition
 // Router::new()
 //     .route("/users/{id}", get(get_user))
 //     .route("/users/{user_id}/posts/{post_id}", get(get_user_post))
@@ -491,9 +491,9 @@ async fn get_comment(
 
 ---
 
-## 3. ミドルウェア
+## 3. Middleware
 
-### 3.1 Tower レイヤーによるミドルウェアスタック
+### 3.1 Middleware Stack via Tower Layers
 
 ```rust
 use axum::{Router, routing::get, middleware};
@@ -511,25 +511,25 @@ use std::time::Duration;
 use http::HeaderName;
 
 fn create_router() -> Router {
-    // リクエストID ヘッダー名
+    // Request ID header name
     let x_request_id = HeaderName::from_static("x-request-id");
 
     Router::new()
         .route("/", get(|| async { "Hello, World!" }))
         .route("/api/data", get(handler))
-        // ミドルウェアは下から上に適用される (最後に追加したものが最初に実行)
-        .layer(CompressionLayer::new())                     // レスポンス圧縮
-        .layer(RequestBodyLimitLayer::new(1024 * 1024))     // 1MB制限
-        .layer(TimeoutLayer::new(Duration::from_secs(30)))  // タイムアウト
+        // Middleware is applied bottom-to-top (the last one added runs first)
+        .layer(CompressionLayer::new())                     // Response compression
+        .layer(RequestBodyLimitLayer::new(1024 * 1024))     // 1MB limit
+        .layer(TimeoutLayer::new(Duration::from_secs(30)))  // Timeout
         .layer(CorsLayer::new()
             .allow_origin(Any)
             .allow_methods(Any)
             .allow_headers(Any)
             .max_age(Duration::from_secs(3600)))
-        .layer(CatchPanicLayer::new())                      // パニックキャッチ
+        .layer(CatchPanicLayer::new())                      // Catch panics
         .layer(PropagateRequestIdLayer::new(x_request_id.clone()))
         .layer(SetRequestIdLayer::new(x_request_id, MakeRequestUuid))
-        .layer(TraceLayer::new_for_http())                  // リクエストログ
+        .layer(TraceLayer::new_for_http())                  // Request logging
 }
 
 async fn handler() -> &'static str {
@@ -537,33 +537,33 @@ async fn handler() -> &'static str {
 }
 ```
 
-### ミドルウェア適用順序
+### Middleware Application Order
 
 ```
 ┌──────────────────────────────────────────┐
-│        リクエスト処理の順序               │
+│      Order of request processing         │
 │                                          │
-│  Request → TraceLayer (最後に追加)       │
+│  Request → TraceLayer (added last)       │
 │          → SetRequestIdLayer             │
 │          → PropagateRequestIdLayer       │
 │          → CatchPanicLayer               │
 │          → CorsLayer                     │
 │          → TimeoutLayer                  │
 │          → RequestBodyLimitLayer         │
-│          → CompressionLayer (最初に追加)  │
+│          → CompressionLayer (added first)│
 │          → Handler                       │
 │                                          │
-│  Response ← 逆順で返る                   │
+│  Response ← returns in reverse order     │
 │                                          │
-│  ※ .layer() の呼び出し順序と             │
-│    実行順序は逆になる                     │
+│  * The order of .layer() calls and       │
+│    the execution order are reversed      │
 │                                          │
-│  ※ ルート個別にミドルウェアを             │
-│    適用する場合は route_layer() を使用    │
+│  * To apply middleware to individual     │
+│    routes, use route_layer()             │
 └──────────────────────────────────────────┘
 ```
 
-### 3.2 カスタムミドルウェア
+### 3.2 Custom Middleware
 
 ```rust
 use axum::{
@@ -574,7 +574,7 @@ use axum::{
 };
 use std::time::Instant;
 
-/// リクエストの処理時間を計測するミドルウェア
+/// Middleware that measures request processing time
 async fn timing_middleware(
     request: Request,
     next: Next,
@@ -594,7 +594,7 @@ async fn timing_middleware(
     response
 }
 
-/// API キー認証ミドルウェア
+/// API key authentication middleware
 async fn api_key_middleware(
     request: Request,
     next: Next,
@@ -611,7 +611,7 @@ async fn api_key_middleware(
     }
 }
 
-/// レート制限ミドルウェア (簡易版)
+/// Rate limiting middleware (simplified)
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use std::collections::HashMap;
@@ -637,7 +637,7 @@ impl RateLimiter {
         let now = Instant::now();
         let entry = requests.entry(key.to_string()).or_default();
 
-        // 古いエントリを削除
+        // Remove old entries
         entry.retain(|t| now.duration_since(*t) < self.window);
 
         if entry.len() >= self.max_requests {
@@ -654,7 +654,7 @@ async fn rate_limit_middleware(
     request: Request,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    // IPアドレスでレート制限
+    // Rate limit by IP address
     let ip = request.headers()
         .get("x-forwarded-for")
         .and_then(|v| v.to_str().ok())
@@ -668,7 +668,7 @@ async fn rate_limit_middleware(
     Ok(next.run(request).await)
 }
 
-// 適用例
+// Usage example
 // let limiter = RateLimiter::new(100, Duration::from_secs(60));
 // let app = Router::new()
 //     .route("/api/data", get(handler))
@@ -677,25 +677,25 @@ async fn rate_limit_middleware(
 //     .layer(axum::middleware::from_fn_with_state(limiter, rate_limit_middleware));
 ```
 
-### 3.3 ルート別ミドルウェア
+### 3.3 Per-Route Middleware
 
 ```rust
 use axum::{Router, routing::get, middleware};
 
 fn create_router_with_route_middleware() -> Router<AppState> {
-    // 認証が必要なルート
+    // Routes that require authentication
     let protected = Router::new()
         .route("/profile", get(get_profile))
         .route("/settings", get(get_settings).put(update_settings))
         .layer(middleware::from_fn(auth_middleware));
 
-    // 認証不要なルート
+    // Routes that do not require authentication
     let public = Router::new()
         .route("/", get(index))
         .route("/login", post(login))
         .route("/register", post(register));
 
-    // 管理者ルート (認証 + 権限チェック)
+    // Admin routes (authentication + permission check)
     let admin = Router::new()
         .route("/users", get(admin_list_users))
         .route("/users/{id}", delete(admin_delete_user))
@@ -711,16 +711,16 @@ fn create_router_with_route_middleware() -> Router<AppState> {
 
 ---
 
-## 4. 状態管理とDB統合
+## 4. State Management and DB Integration
 
-### 4.1 AppState の設計パターン
+### 4.1 AppState Design Patterns
 
 ```rust
 use axum::extract::FromRef;
 use sqlx::PgPool;
 use reqwest::Client as HttpClient;
 
-/// アプリケーションの共有状態
+/// Shared application state
 #[derive(Clone)]
 struct AppState {
     db: PgPool,
@@ -742,7 +742,7 @@ struct CacheEntry {
     expires_at: std::time::Instant,
 }
 
-/// FromRef で個別の状態要素を抽出可能にする
+/// FromRef enables extracting individual state components
 impl FromRef<AppState> for PgPool {
     fn from_ref(state: &AppState) -> Self {
         state.db.clone()
@@ -761,7 +761,7 @@ impl FromRef<AppState> for AppConfig {
     }
 }
 
-// ハンドラで個別に取得できる
+// Handlers can pull individual components
 async fn handler_with_db(
     State(db): State<PgPool>,
 ) -> Result<Json<Vec<User>>, StatusCode> {
@@ -779,7 +779,7 @@ async fn handler_with_config(
 }
 ```
 
-### 4.2 SQLx + Axum 統合
+### 4.2 SQLx + Axum Integration
 
 ```rust
 use axum::{
@@ -845,7 +845,7 @@ async fn get_todo(
     .bind(id)
     .fetch_optional(&state.db)
     .await?
-    .ok_or(AppError::NotFound(format!("Todo {} が見つかりません", id)))?;
+    .ok_or(AppError::NotFound(format!("Todo {} not found", id)))?;
 
     Ok(Json(todo))
 }
@@ -855,7 +855,7 @@ async fn create_todo(
     Json(input): Json<CreateTodo>,
 ) -> Result<(StatusCode, Json<Todo>), AppError> {
     if input.title.trim().is_empty() {
-        return Err(AppError::BadRequest("title は空にできません".into()));
+        return Err(AppError::BadRequest("title cannot be empty".into()));
     }
 
     let todo = sqlx::query_as::<_, Todo>(
@@ -873,7 +873,7 @@ async fn update_todo(
     Path(id): Path<i64>,
     Json(input): Json<UpdateTodo>,
 ) -> Result<Json<Todo>, AppError> {
-    // 部分更新: COALESCE で NULL の場合は既存値を維持
+    // Partial update: COALESCE keeps existing values when NULL is passed
     let todo = sqlx::query_as::<_, Todo>(
         r#"UPDATE todos
            SET title = COALESCE($1, title),
@@ -886,7 +886,7 @@ async fn update_todo(
     .bind(id)
     .fetch_optional(&state.db)
     .await?
-    .ok_or(AppError::NotFound(format!("Todo {} が見つかりません", id)))?;
+    .ok_or(AppError::NotFound(format!("Todo {} not found", id)))?;
 
     Ok(Json(todo))
 }
@@ -901,7 +901,7 @@ async fn delete_todo(
         .await?;
 
     if result.rows_affected() == 0 {
-        Err(AppError::NotFound(format!("Todo {} が見つかりません", id)))
+        Err(AppError::NotFound(format!("Todo {} not found", id)))
     } else {
         Ok(StatusCode::NO_CONTENT)
     }
@@ -909,12 +909,12 @@ async fn delete_todo(
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // ログ初期化
+    // Initialize logging
     tracing_subscriber::fmt()
         .with_env_filter("info,sqlx=warn")
         .init();
 
-    // DB接続
+    // DB connection
     let pool = PgPoolOptions::new()
         .max_connections(20)
         .min_connections(5)
@@ -923,7 +923,7 @@ async fn main() -> anyhow::Result<()> {
         .connect(&std::env::var("DATABASE_URL")?)
         .await?;
 
-    // マイグレーション実行
+    // Run migrations
     sqlx::migrate!("./migrations").run(&pool).await?;
 
     let state = AppState { db: pool };
@@ -934,13 +934,13 @@ async fn main() -> anyhow::Result<()> {
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
-    tracing::info!("サーバー起動: http://localhost:3000");
+    tracing::info!("Server started: http://localhost:3000");
     axum::serve(listener, app).await?;
     Ok(())
 }
 ```
 
-### 4.3 トランザクションの使用
+### 4.3 Using Transactions
 
 ```rust
 use sqlx::{PgPool, Postgres, Transaction};
@@ -949,37 +949,37 @@ async fn transfer_funds(
     State(state): State<AppState>,
     Json(input): Json<TransferRequest>,
 ) -> Result<Json<TransferResult>, AppError> {
-    // トランザクション開始
+    // Begin transaction
     let mut tx: Transaction<'_, Postgres> = state.db.begin().await?;
 
-    // 送金元の残高チェック
+    // Check sender's balance
     let sender = sqlx::query_as::<_, Account>(
         "SELECT * FROM accounts WHERE id = $1 FOR UPDATE"
     )
     .bind(input.from_account)
     .fetch_optional(&mut *tx)
     .await?
-    .ok_or(AppError::NotFound("送金元アカウントが見つかりません".into()))?;
+    .ok_or(AppError::NotFound("Sender account not found".into()))?;
 
     if sender.balance < input.amount {
-        return Err(AppError::BadRequest("残高不足".into()));
+        return Err(AppError::BadRequest("Insufficient balance".into()));
     }
 
-    // 送金元から引き落とし
+    // Debit from sender
     sqlx::query("UPDATE accounts SET balance = balance - $1 WHERE id = $2")
         .bind(input.amount)
         .bind(input.from_account)
         .execute(&mut *tx)
         .await?;
 
-    // 送金先に入金
+    // Credit to recipient
     sqlx::query("UPDATE accounts SET balance = balance + $1 WHERE id = $2")
         .bind(input.amount)
         .bind(input.to_account)
         .execute(&mut *tx)
         .await?;
 
-    // 取引履歴の記録
+    // Record the transaction
     sqlx::query(
         "INSERT INTO transactions (from_account, to_account, amount) VALUES ($1, $2, $3)"
     )
@@ -989,21 +989,21 @@ async fn transfer_funds(
     .execute(&mut *tx)
     .await?;
 
-    // コミット
+    // Commit
     tx.commit().await?;
 
     Ok(Json(TransferResult {
         success: true,
-        message: format!("{}円を送金しました", input.amount),
+        message: format!("Transferred {} yen", input.amount),
     }))
 }
 ```
 
 ---
 
-## 5. エラーハンドリング
+## 5. Error Handling
 
-### 5.1 統一エラー型
+### 5.1 Unified Error Type
 
 ```rust
 use axum::{
@@ -1013,7 +1013,7 @@ use axum::{
 };
 use serde_json::json;
 
-/// アプリケーション統一エラー型
+/// Unified application error type
 #[derive(Debug)]
 enum AppError {
     NotFound(String),
@@ -1035,12 +1035,12 @@ impl IntoResponse for AppError {
             AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, "forbidden", msg.clone()),
             AppError::Conflict(msg) => (StatusCode::CONFLICT, "conflict", msg.clone()),
             AppError::Internal(e) => {
-                tracing::error!("内部エラー: {:?}", e);
-                (StatusCode::INTERNAL_SERVER_ERROR, "internal_error", "内部サーバーエラー".into())
+                tracing::error!("Internal error: {:?}", e);
+                (StatusCode::INTERNAL_SERVER_ERROR, "internal_error", "Internal server error".into())
             }
             AppError::Database(e) => {
-                tracing::error!("データベースエラー: {:?}", e);
-                (StatusCode::INTERNAL_SERVER_ERROR, "database_error", "データベースエラー".into())
+                tracing::error!("Database error: {:?}", e);
+                (StatusCode::INTERNAL_SERVER_ERROR, "database_error", "Database error".into())
             }
             AppError::Validation(errors) => {
                 let msg = errors.join(", ");
@@ -1060,7 +1060,7 @@ impl IntoResponse for AppError {
     }
 }
 
-// 自動変換の実装
+// Implementing automatic conversions
 impl From<anyhow::Error> for AppError {
     fn from(e: anyhow::Error) -> Self {
         AppError::Internal(e)
@@ -1070,11 +1070,11 @@ impl From<anyhow::Error> for AppError {
 impl From<sqlx::Error> for AppError {
     fn from(e: sqlx::Error) -> Self {
         match &e {
-            sqlx::Error::RowNotFound => AppError::NotFound("リソースが見つかりません".into()),
+            sqlx::Error::RowNotFound => AppError::NotFound("Resource not found".into()),
             sqlx::Error::Database(db_err) => {
-                // PostgreSQL の一意制約違反
+                // PostgreSQL unique constraint violation
                 if db_err.code().as_deref() == Some("23505") {
-                    AppError::Conflict("リソースが既に存在します".into())
+                    AppError::Conflict("Resource already exists".into())
                 } else {
                     AppError::Database(e)
                 }
@@ -1090,7 +1090,7 @@ impl From<reqwest::Error> for AppError {
     }
 }
 
-// ハンドラの戻り値型
+// Handler return type
 async fn handler() -> Result<Json<serde_json::Value>, AppError> {
     let data = fetch_data().await?;
     Ok(Json(data))
@@ -1101,12 +1101,12 @@ async fn fetch_data() -> anyhow::Result<serde_json::Value> {
 }
 ```
 
-### 5.2 エラーレスポンスの詳細化
+### 5.2 Detailed Error Responses
 
 ```rust
 use axum::response::IntoResponse;
 
-/// 詳細なエラー情報を含むレスポンス
+/// Response containing detailed error information
 #[derive(Debug, Serialize)]
 struct ErrorResponse {
     error: ErrorDetail,
@@ -1131,14 +1131,14 @@ struct FieldError {
     code: String,
 }
 
-/// バリデーションエラーの生成ヘルパー
+/// Helper for generating validation errors
 fn validation_error(errors: Vec<FieldError>) -> AppError {
     AppError::Validation(
         errors.iter().map(|e| format!("{}: {}", e.field, e.message)).collect()
     )
 }
 
-// 使用例
+// Usage example
 async fn create_user_handler(
     Json(input): Json<CreateUser>,
 ) -> Result<Json<User>, AppError> {
@@ -1147,7 +1147,7 @@ async fn create_user_handler(
     if input.name.is_empty() {
         errors.push(FieldError {
             field: "name".into(),
-            message: "名前は必須です".into(),
+            message: "Name is required".into(),
             code: "required".into(),
         });
     }
@@ -1155,7 +1155,7 @@ async fn create_user_handler(
     if !input.email.contains('@') {
         errors.push(FieldError {
             field: "email".into(),
-            message: "有効なメールアドレスを入力してください".into(),
+            message: "Please enter a valid email address".into(),
             code: "invalid_format".into(),
         });
     }
@@ -1164,16 +1164,16 @@ async fn create_user_handler(
         return Err(validation_error(errors));
     }
 
-    // 処理続行...
+    // Continue processing...
     todo!()
 }
 ```
 
 ---
 
-## 6. WebSocket とSSE
+## 6. WebSocket and SSE
 
-### 6.1 WebSocket ハンドラ
+### 6.1 WebSocket Handler
 
 ```rust
 use axum::{
@@ -1203,7 +1203,7 @@ async fn handle_socket(socket: WebSocket, state: WsState) {
     let (mut sender, mut receiver) = socket.split();
     let mut rx = state.tx.subscribe();
 
-    // サーバー → クライアント
+    // Server -> Client
     let mut send_task = tokio::spawn(async move {
         while let Ok(msg) = rx.recv().await {
             if sender.send(Message::Text(msg)).await.is_err() {
@@ -1212,17 +1212,17 @@ async fn handle_socket(socket: WebSocket, state: WsState) {
         }
     });
 
-    // クライアント → サーバー
+    // Client -> Server
     let tx = state.tx.clone();
     let mut recv_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = receiver.next().await {
             match msg {
                 Message::Text(text) => {
-                    // ブロードキャスト
+                    // Broadcast
                     let _ = tx.send(text);
                 }
                 Message::Ping(data) => {
-                    // Pong はaxumが自動応答
+                    // Pong is automatically returned by axum
                     tracing::debug!("Ping received: {} bytes", data.len());
                 }
                 Message::Close(_) => break,
@@ -1270,13 +1270,13 @@ async fn sse_handler() -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
     )
 }
 
-/// DB変更を監視するSSEストリーム
+/// SSE stream that watches for DB changes
 async fn sse_notifications(
     State(state): State<AppState>,
 ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
     let (tx, rx) = tokio::sync::mpsc::channel::<String>(100);
 
-    // DB変更監視タスク (PostgreSQL LISTEN/NOTIFY)
+    // DB change-watching task (PostgreSQL LISTEN/NOTIFY)
     let db = state.db.clone();
     tokio::spawn(async move {
         let mut listener = sqlx::postgres::PgListener::connect_with(&db).await.unwrap();
@@ -1306,7 +1306,7 @@ async fn sse_notifications(
     Sse::new(stream).keep_alive(KeepAlive::default())
 }
 
-// ルーター
+// Router
 // Router::new()
 //     .route("/events", get(sse_handler))
 //     .route("/notifications", get(sse_notifications))
@@ -1314,9 +1314,9 @@ async fn sse_notifications(
 
 ---
 
-## 7. ファイルアップロード
+## 7. File Upload
 
-### 7.1 マルチパートアップロード
+### 7.1 Multipart Upload
 
 ```rust
 use axum::{
@@ -1349,12 +1349,12 @@ async fn upload_handler(
     let mut files = Vec::new();
     let upload_dir = "./uploads";
 
-    // アップロードディレクトリ作成
+    // Create upload directory
     tokio::fs::create_dir_all(upload_dir).await
         .map_err(|e| AppError::Internal(e.into()))?;
 
     while let Some(field) = multipart.next_field().await
-        .map_err(|e| AppError::BadRequest(format!("マルチパートエラー: {}", e)))? {
+        .map_err(|e| AppError::BadRequest(format!("Multipart error: {}", e)))? {
 
         let name = field.name().unwrap_or("unknown").to_string();
         let file_name = field.file_name()
@@ -1364,25 +1364,25 @@ async fn upload_handler(
             .unwrap_or("application/octet-stream")
             .to_string();
 
-        // ファイルタイプ検証
+        // Validate file type
         if !ALLOWED_TYPES.contains(&content_type.as_str()) {
             return Err(AppError::BadRequest(
-                format!("許可されていないファイルタイプ: {}", content_type)
+                format!("Disallowed file type: {}", content_type)
             ));
         }
 
-        // ファイルデータ読み込み
+        // Read file data
         let data = field.bytes().await
-            .map_err(|e| AppError::BadRequest(format!("読み込みエラー: {}", e)))?;
+            .map_err(|e| AppError::BadRequest(format!("Read error: {}", e)))?;
 
-        // サイズ検証
+        // Validate size
         if data.len() > MAX_FILE_SIZE {
             return Err(AppError::BadRequest(
-                format!("ファイルサイズ上限超過: {} bytes (最大 {})", data.len(), MAX_FILE_SIZE)
+                format!("File size exceeds limit: {} bytes (max {})", data.len(), MAX_FILE_SIZE)
             ));
         }
 
-        // 安全なファイル名生成
+        // Generate a safe filename
         let extension = std::path::Path::new(&file_name)
             .extension()
             .and_then(|e| e.to_str())
@@ -1390,7 +1390,7 @@ async fn upload_handler(
         let saved_name = format!("{}.{}", Uuid::new_v4(), extension);
         let file_path = format!("{}/{}", upload_dir, saved_name);
 
-        // ファイル保存
+        // Save the file
         let mut file = tokio::fs::File::create(&file_path).await
             .map_err(|e| AppError::Internal(e.into()))?;
         file.write_all(&data).await
@@ -1405,7 +1405,7 @@ async fn upload_handler(
     }
 
     if files.is_empty() {
-        return Err(AppError::BadRequest("ファイルが見つかりません".into()));
+        return Err(AppError::BadRequest("No files found".into()));
     }
 
     Ok(Json(UploadResult { files }))
@@ -1414,9 +1414,9 @@ async fn upload_handler(
 
 ---
 
-## 8. テスト
+## 8. Testing
 
-### 8.1 ハンドラの単体テスト
+### 8.1 Unit Testing Handlers
 
 ```rust
 #[cfg(test)]
@@ -1567,7 +1567,7 @@ mod tests {
 }
 ```
 
-### 8.2 DB統合テスト
+### 8.2 DB Integration Testing
 
 ```rust
 #[cfg(test)]
@@ -1575,7 +1575,7 @@ mod integration_tests {
     use super::*;
     use sqlx::PgPool;
 
-    /// テスト用DBプールの作成 (テストごとにトランザクションでロールバック)
+    /// Build a test DB pool (rolled back per test inside a transaction)
     async fn setup_test_db() -> PgPool {
         let url = std::env::var("TEST_DATABASE_URL")
             .unwrap_or_else(|_| "postgres://test:test@localhost/test_db".into());
@@ -1592,8 +1592,8 @@ mod integration_tests {
             .route("/todos/{id}", get(get_todo))
             .with_state(state);
 
-        // 作成
-        let create_body = serde_json::json!({"title": "テストTodo"});
+        // Create
+        let create_body = serde_json::json!({"title": "Test Todo"});
         let response = app.clone()
             .oneshot(
                 Request::builder()
@@ -1609,10 +1609,10 @@ mod integration_tests {
         assert_eq!(response.status(), StatusCode::CREATED);
         let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
         let created: Todo = serde_json::from_slice(&body).unwrap();
-        assert_eq!(created.title, "テストTodo");
+        assert_eq!(created.title, "Test Todo");
         assert!(!created.completed);
 
-        // 取得
+        // Retrieve
         let response = app
             .oneshot(
                 Request::builder()
@@ -1631,10 +1631,10 @@ mod integration_tests {
 }
 ```
 
-### 8.3 テストヘルパー
+### 8.3 Test Helpers
 
 ```rust
-/// テスト用HTTPクライアント
+/// Test HTTP client
 struct TestClient {
     app: Router,
 }
@@ -1711,7 +1711,7 @@ impl TestClient {
     }
 }
 
-/// レスポンスボディのデシリアライズヘルパー
+/// Helper to deserialize a response body
 async fn body_json<T: serde::de::DeserializeOwned>(response: axum::response::Response) -> T {
     let bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
     serde_json::from_slice(&bytes).unwrap()
@@ -1731,7 +1731,7 @@ async fn test_with_helper() {
 
 ---
 
-## 9. 本番運用パターン
+## 9. Production Operation Patterns
 
 ### 9.1 Graceful Shutdown
 
@@ -1742,13 +1742,13 @@ use std::time::Duration;
 
 async fn shutdown_signal() {
     let ctrl_c = async {
-        signal::ctrl_c().await.expect("Ctrl+C シグナルハンドラの登録に失敗");
+        signal::ctrl_c().await.expect("Failed to install Ctrl+C signal handler");
     };
 
     #[cfg(unix)]
     let terminate = async {
         signal::unix::signal(signal::unix::SignalKind::terminate())
-            .expect("SIGTERM ハンドラの登録に失敗")
+            .expect("Failed to install SIGTERM handler")
             .recv()
             .await;
     };
@@ -1757,11 +1757,11 @@ async fn shutdown_signal() {
     let terminate = std::future::pending::<()>();
 
     tokio::select! {
-        _ = ctrl_c => tracing::info!("Ctrl+C 受信"),
-        _ = terminate => tracing::info!("SIGTERM 受信"),
+        _ = ctrl_c => tracing::info!("Ctrl+C received"),
+        _ = terminate => tracing::info!("SIGTERM received"),
     }
 
-    tracing::info!("シャットダウン開始...");
+    tracing::info!("Beginning shutdown...");
 }
 
 #[tokio::main]
@@ -1769,18 +1769,18 @@ async fn main() -> anyhow::Result<()> {
     let app = create_app().await?;
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
-    tracing::info!("サーバー起動: http://localhost:3000");
+    tracing::info!("Server started: http://localhost:3000");
 
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await?;
 
-    tracing::info!("サーバー停止完了");
+    tracing::info!("Server shutdown complete");
     Ok(())
 }
 ```
 
-### 9.2 ヘルスチェックとメトリクス
+### 9.2 Health Checks and Metrics
 
 ```rust
 use axum::{routing::get, Json, Router};
@@ -1812,7 +1812,7 @@ struct CheckResult {
 async fn health_check(State(state): State<AppState>) -> Json<HealthResponse> {
     let uptime = state.start_time.elapsed().as_secs();
 
-    // DB チェック
+    // DB check
     let db_check = {
         let start = Instant::now();
         match sqlx::query("SELECT 1").execute(&state.db).await {
@@ -1829,7 +1829,7 @@ async fn health_check(State(state): State<AppState>) -> Json<HealthResponse> {
         }
     };
 
-    // Redis チェック (省略、同様のパターン)
+    // Redis check (omitted; same pattern)
     let redis_check = CheckResult {
         status: "up".into(),
         latency_ms: 1,
@@ -1847,7 +1847,7 @@ async fn health_check(State(state): State<AppState>) -> Json<HealthResponse> {
     })
 }
 
-/// Readiness チェック (Kubernetes 向け)
+/// Readiness check (for Kubernetes)
 async fn readiness_check(State(state): State<AppState>) -> StatusCode {
     match sqlx::query("SELECT 1").execute(&state.db).await {
         Ok(_) => StatusCode::OK,
@@ -1855,7 +1855,7 @@ async fn readiness_check(State(state): State<AppState>) -> StatusCode {
     }
 }
 
-/// Liveness チェック (Kubernetes 向け)
+/// Liveness check (for Kubernetes)
 async fn liveness_check() -> StatusCode {
     StatusCode::OK
 }
@@ -1866,7 +1866,7 @@ async fn liveness_check() -> StatusCode {
 //     .route("/live", get(liveness_check))
 ```
 
-### 9.3 構造化ログ設定
+### 9.3 Structured Logging Setup
 
 ```rust
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
@@ -1877,14 +1877,14 @@ fn setup_tracing() {
             EnvFilter::new("info,tower_http=debug,axum=trace,sqlx=warn")
         });
 
-    // JSONフォーマットのログ (本番環境)
+    // JSON-formatted logs (production)
     if std::env::var("RUST_LOG_FORMAT").as_deref() == Ok("json") {
         tracing_subscriber::registry()
             .with(env_filter)
             .with(tracing_subscriber::fmt::layer().json())
             .init();
     } else {
-        // 人間に読みやすいフォーマット (開発環境)
+        // Human-readable format (development)
         tracing_subscriber::registry()
             .with(env_filter)
             .with(tracing_subscriber::fmt::layer().pretty())
@@ -1893,18 +1893,18 @@ fn setup_tracing() {
 }
 ```
 
-### 9.4 CORS と セキュリティヘッダー
+### 9.4 CORS and Security Headers
 
 ```rust
 use tower_http::cors::{CorsLayer, AllowOrigin};
 use axum::http::{header, HeaderValue, Method};
 
 fn cors_layer() -> CorsLayer {
-    // 開発環境
+    // Development environment
     if cfg!(debug_assertions) {
         CorsLayer::very_permissive()
     } else {
-        // 本番環境: 許可するオリジンを明示
+        // Production: explicitly list allowed origins
         CorsLayer::new()
             .allow_origin(AllowOrigin::list([
                 "https://app.example.com".parse::<HeaderValue>().unwrap(),
@@ -1917,7 +1917,7 @@ fn cors_layer() -> CorsLayer {
     }
 }
 
-/// セキュリティヘッダーミドルウェア
+/// Security headers middleware
 async fn security_headers(
     request: Request,
     next: Next,
@@ -1943,67 +1943,67 @@ async fn security_headers(
 
 ---
 
-## 10. 比較表
+## 10. Comparison Tables
 
-### Rust Web フレームワーク比較
+### Rust Web Framework Comparison
 
-| 特性 | Axum | Actix-web | Rocket | Warp |
+| Characteristic | Axum | Actix-web | Rocket | Warp |
 |---|---|---|---|---|
-| ベース | hyper + Tower | 独自アクターシステム | 独自 | hyper |
-| 型安全性 | 非常に高い | 高い | 非常に高い | 高い |
-| パフォーマンス | 非常に高い | 非常に高い | 高い | 非常に高い |
-| エコシステム | Tower 互換 | 独自 | 独自 | 独自 |
-| 学習コスト | 中 | 中 | 低 | 中~高 |
-| 採用トレンド | 急成長中 | 安定 | 安定 | やや減少 |
-| WebSocket | 組み込み | 組み込み | 外部ライブラリ | 組み込み |
-| SSE | 組み込み | 外部ライブラリ | 外部ライブラリ | 限定的 |
-| ミドルウェア | Tower Layer | Transform | Fairing | Filter |
-| テスト | oneshot() | TestServer | local client | test::request() |
+| Foundation | hyper + Tower | Custom actor system | Custom | hyper |
+| Type safety | Very high | High | Very high | High |
+| Performance | Very high | Very high | High | Very high |
+| Ecosystem | Tower-compatible | Custom | Custom | Custom |
+| Learning curve | Medium | Medium | Low | Medium-high |
+| Adoption trend | Rapidly growing | Stable | Stable | Slightly declining |
+| WebSocket | Built-in | Built-in | External library | Built-in |
+| SSE | Built-in | External library | External library | Limited |
+| Middleware | Tower Layer | Transform | Fairing | Filter |
+| Testing | oneshot() | TestServer | local client | test::request() |
 
-### Extractor 一覧
+### List of Extractors
 
-| Extractor | 用途 | 例 |
+| Extractor | Purpose | Example |
 |---|---|---|
-| `Path<T>` | URLパスパラメータ | `/users/{id}` -> `Path(id): Path<u64>` |
-| `Query<T>` | クエリ文字列 | `?page=1` -> `Query(p): Query<Params>` |
-| `Json<T>` | JSONリクエストボディ | `Json(body): Json<CreateUser>` |
-| `State<T>` | 共有状態 | DB プール、設定 |
-| `HeaderMap` | 全ヘッダー | 認証、コンテンツネゴシエーション |
-| `Extension<T>` | ミドルウェア注入値 | 認証済みユーザー情報 |
-| `Multipart` | ファイルアップロード | `multipart::Multipart` |
-| `ConnectInfo<T>` | 接続情報 | クライアントIPアドレス |
-| `OriginalUri` | 元のURI | ネスト前のフルパス |
-| `MatchedPath` | マッチしたルート | メトリクス用ラベル |
-| `Host` | Hostヘッダー | マルチテナント判定 |
+| `Path<T>` | URL path parameter | `/users/{id}` -> `Path(id): Path<u64>` |
+| `Query<T>` | Query string | `?page=1` -> `Query(p): Query<Params>` |
+| `Json<T>` | JSON request body | `Json(body): Json<CreateUser>` |
+| `State<T>` | Shared state | DB pool, configuration |
+| `HeaderMap` | All headers | Authentication, content negotiation |
+| `Extension<T>` | Middleware-injected value | Authenticated user info |
+| `Multipart` | File upload | `multipart::Multipart` |
+| `ConnectInfo<T>` | Connection info | Client IP address |
+| `OriginalUri` | Original URI | Full path before nesting |
+| `MatchedPath` | Matched route | Label for metrics |
+| `Host` | Host header | Multi-tenant determination |
 
-### レスポンス型一覧
+### List of Response Types
 
-| 型 | 用途 | ステータスコード |
+| Type | Purpose | Status Code |
 |---|---|---|
-| `String` / `&str` | テキストレスポンス | 200 |
-| `Json<T>` | JSONレスポンス | 200 |
-| `(StatusCode, Json<T>)` | ステータス + JSON | 任意 |
-| `StatusCode` | ステータスのみ | 任意 |
-| `Html<String>` | HTMLレスポンス | 200 |
-| `Redirect` | リダイレクト | 301/302/307/308 |
+| `String` / `&str` | Text response | 200 |
+| `Json<T>` | JSON response | 200 |
+| `(StatusCode, Json<T>)` | Status + JSON | Any |
+| `StatusCode` | Status only | Any |
+| `Html<String>` | HTML response | 200 |
+| `Redirect` | Redirect | 301/302/307/308 |
 | `Sse<S>` | Server-Sent Events | 200 |
-| `Response<Body>` | カスタムレスポンス | 任意 |
-| `impl IntoResponse` | カスタム型 | 任意 |
+| `Response<Body>` | Custom response | Any |
+| `impl IntoResponse` | Custom type | Any |
 
 ---
 
-## 11. アンチパターン
+## 11. Anti-Patterns
 
-### アンチパターン1: ハンドラ内でブロッキング処理
+### Anti-pattern 1: Blocking Operations Inside a Handler
 
 ```rust
-// NG: async ハンドラ内でブロッキング I/O
+// BAD: Blocking I/O inside an async handler
 async fn bad_handler() -> String {
-    let data = std::fs::read_to_string("large.csv").unwrap(); // ブロック!
+    let data = std::fs::read_to_string("large.csv").unwrap(); // Blocks!
     process(data)
 }
 
-// OK: spawn_blocking で逃がす
+// GOOD: Offload via spawn_blocking
 async fn good_handler() -> String {
     let data = tokio::task::spawn_blocking(|| {
         std::fs::read_to_string("large.csv").unwrap()
@@ -2014,13 +2014,13 @@ async fn good_handler() -> String {
 fn process(data: String) -> String { data }
 ```
 
-### アンチパターン2: グローバル可変状態の直接操作
+### Anti-pattern 2: Direct Manipulation of Global Mutable State
 
 ```rust
-// NG: static mut は unsafe かつデータ競合の原因
+// BAD: static mut is unsafe and a source of data races
 // static mut COUNTER: u64 = 0;
 
-// OK: State + Arc<AtomicU64>
+// GOOD: State + Arc<AtomicU64>
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
@@ -2031,65 +2031,65 @@ struct Metrics {
 
 async fn handler(State(metrics): State<Metrics>) -> String {
     let count = metrics.request_count.fetch_add(1, Ordering::Relaxed);
-    format!("リクエスト#{}", count + 1)
+    format!("Request #{}", count + 1)
 }
 ```
 
-### アンチパターン3: Extractor の順序ミス
+### Anti-pattern 3: Wrong Extractor Order
 
 ```rust
-// NG: Body を消費する Extractor (Json) は最後に置く必要がある
+// BAD: Body-consuming extractors (Json) must come last
 // async fn bad(Json(body): Json<MyType>, State(state): State<AppState>) { }
-// ↑ コンパイルは通るが、Bodyを先に消費するとStateが取れない場合がある
+// ^ Compiles, but State may not be available if the body is consumed first
 
-// OK: Body 非消費 Extractor を先に、Body 消費 Extractor を最後に
+// GOOD: Non-body-consuming extractors first; body-consuming extractor last
 async fn good(
-    State(state): State<AppState>,     // Body を消費しない
-    Path(id): Path<u64>,               // Body を消費しない
-    Query(params): Query<ListParams>,  // Body を消費しない
-    Json(body): Json<CreateUser>,      // Body を消費する → 最後
+    State(state): State<AppState>,     // Does not consume the body
+    Path(id): Path<u64>,               // Does not consume the body
+    Query(params): Query<ListParams>,  // Does not consume the body
+    Json(body): Json<CreateUser>,      // Consumes the body -> last
 ) -> Result<Json<User>, AppError> {
     todo!()
 }
 ```
 
-### アンチパターン4: エラーの握りつぶし
+### Anti-pattern 4: Swallowing Errors
 
 ```rust
-// NG: unwrap() でパニック → サーバークラッシュ
+// BAD: unwrap() panics -> crashes the server
 async fn bad_handler(State(state): State<AppState>) -> Json<Vec<User>> {
     let users = sqlx::query_as::<_, User>("SELECT * FROM users")
         .fetch_all(&state.db)
         .await
-        .unwrap(); // パニック!
+        .unwrap(); // Panic!
     Json(users)
 }
 
-// OK: Result + AppError で適切にエラーレスポンス
+// GOOD: Result + AppError properly produces error responses
 async fn good_handler(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<User>>, AppError> {
     let users = sqlx::query_as::<_, User>("SELECT * FROM users")
         .fetch_all(&state.db)
-        .await?; // AppError に自動変換
+        .await?; // Auto-converted to AppError
     Ok(Json(users))
 }
 ```
 
-### アンチパターン5: Router のクローンコスト無視
+### Anti-pattern 5: Ignoring Router Cloning Costs
 
 ```rust
-// NG: 巨大な状態をクローンしやすい構造にしてしまう
+// BAD: A structure that makes massive state easy to clone
 #[derive(Clone)]
 struct HeavyState {
-    data: Vec<u8>, // 巨大なデータ → 毎リクエストでクローン
+    data: Vec<u8>, // Huge data -> cloned on every request
 }
 
-// OK: Arc で包んで参照カウントのみクローン
+// GOOD: Wrap with Arc so only the reference count is cloned
 #[derive(Clone)]
 struct LightState {
-    data: Arc<Vec<u8>>,     // Arc のクローンは軽量
-    db: PgPool,              // PgPool は内部で Arc を使用
+    data: Arc<Vec<u8>>,     // Cloning Arc is cheap
+    db: PgPool,              // PgPool internally uses Arc
     cache: Arc<RwLock<HashMap<String, String>>>,
 }
 ```
@@ -2098,9 +2098,9 @@ struct LightState {
 
 ## FAQ
 
-### Q1: Router のネスティング方法は?
+### Q1: How do I nest routers?
 
-**A:** `Router::nest` でプレフィックス付きサブルーターを構成します。`Router::merge` は同じレベルでルーターを結合します。
+**A:** Use `Router::nest` to compose subrouters with a prefix. `Router::merge` combines routers at the same level.
 
 ```rust
 let api = Router::new()
@@ -2112,9 +2112,9 @@ let app = Router::new()
     .route("/health", get(health)); // /health
 ```
 
-### Q2: テストはどう書く?
+### Q2: How do I write tests?
 
-**A:** `tower::ServiceExt::oneshot` を使ってインメモリでリクエストを送信します。DB統合テストでは `sqlx::test` マクロが便利です。
+**A:** Use `tower::ServiceExt::oneshot` to send in-memory requests. For DB integration tests, the `sqlx::test` macro is convenient.
 
 ```rust
 #[tokio::test]
@@ -2133,55 +2133,55 @@ async fn test_list_users() {
 }
 ```
 
-### Q3: 静的ファイル配信は?
+### Q3: How do I serve static files?
 
-**A:** `tower-http::services::ServeDir` を使います。SPA のフォールバックも対応できます。
+**A:** Use `tower-http::services::ServeDir`. SPA fallbacks are also supported.
 
 ```rust
 use tower_http::services::{ServeDir, ServeFile};
 
 let app = Router::new()
     .route("/api/data", get(handler))
-    // 静的ファイル
+    // Static files
     .nest_service("/static", ServeDir::new("./public"))
-    // SPA フォールバック: 該当ファイルがなければ index.html を返す
+    // SPA fallback: return index.html when the file doesn't exist
     .fallback_service(
         ServeDir::new("./dist").not_found_service(ServeFile::new("./dist/index.html"))
     );
 ```
 
-### Q4: Axum でセッション管理するには?
+### Q4: How do I manage sessions in Axum?
 
-**A:** `axum-extra` の `CookieJar` または `tower-sessions` クレートを使います。
+**A:** Use `axum-extra`'s `CookieJar` or the `tower-sessions` crate.
 
 ```rust
 use axum_extra::extract::cookie::{CookieJar, Cookie};
 
 async fn login(jar: CookieJar) -> (CookieJar, &'static str) {
     let jar = jar.add(Cookie::new("session_id", "abc123"));
-    (jar, "ログイン成功")
+    (jar, "Login successful")
 }
 
 async fn profile(jar: CookieJar) -> String {
     match jar.get("session_id") {
-        Some(cookie) => format!("セッション: {}", cookie.value()),
-        None => "未ログイン".into(),
+        Some(cookie) => format!("Session: {}", cookie.value()),
+        None => "Not logged in".into(),
     }
 }
 ```
 
-### Q5: Axum と Actix-web のどちらを選ぶべき?
+### Q5: Should I choose Axum or Actix-web?
 
-**A:** 以下の基準で選択します:
+**A:** Choose based on the following criteria:
 
-- **Axum**: Tower エコシステムとの統合、tokio のみで統一、活発な開発、新規プロジェクト推奨
-- **Actix-web**: 既存の Actix-web プロジェクト、アクターモデルが必要な場合、成熟した安定性
+- **Axum**: Tower ecosystem integration, unified on tokio only, active development, recommended for new projects
+- **Actix-web**: Existing Actix-web projects, when an actor model is needed, mature stability
 
-パフォーマンスは両者とも非常に高く、実用上の差はほぼありません。
+Performance is very high for both, and there is essentially no practical difference.
 
-### Q6: #[debug_handler] は何のため?
+### Q6: What is `#[debug_handler]` for?
 
-**A:** `axum-macros` クレートの属性マクロで、ハンドラの型エラーを分かりやすいメッセージに変換します。開発時に有用です。
+**A:** It is an attribute macro from the `axum-macros` crate that translates handler type errors into clearer messages. It is useful during development.
 
 ```rust
 use axum_macros::debug_handler;
@@ -2191,14 +2191,14 @@ async fn handler(
     State(state): State<AppState>,
     Json(body): Json<CreateUser>,
 ) -> Result<Json<User>, AppError> {
-    // 型が合わない場合、通常のエラーよりも分かりやすいメッセージが出る
+    // When types don't match, you get more readable error messages than usual
     todo!()
 }
 ```
 
-### Q7: 複数のDBプールを使いたい場合は?
+### Q7: How do I use multiple DB pools?
 
-**A:** AppState に複数のプールを持たせ、`FromRef` で個別に抽出可能にします。
+**A:** Hold multiple pools in AppState and use `FromRef` to extract them individually.
 
 ```rust
 #[derive(Clone)]
@@ -2208,17 +2208,17 @@ struct AppState {
     analytics_db: PgPool,
 }
 
-// 読み取り専用クエリはレプリカを使用
+// Use the replica for read-only queries
 async fn list_users(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<User>>, AppError> {
     let users = sqlx::query_as::<_, User>("SELECT * FROM users")
-        .fetch_all(&state.read_replica) // レプリカDB
+        .fetch_all(&state.read_replica) // Replica DB
         .await?;
     Ok(Json(users))
 }
 
-// 書き込みはプライマリを使用
+// Use the primary for writes
 async fn create_user(
     State(state): State<AppState>,
     Json(input): Json<CreateUser>,
@@ -2228,7 +2228,7 @@ async fn create_user(
     )
     .bind(&input.name)
     .bind(&input.email)
-    .fetch_one(&state.primary_db) // プライマリDB
+    .fetch_one(&state.primary_db) // Primary DB
     .await?;
     Ok((StatusCode::CREATED, Json(user)))
 }
@@ -2236,29 +2236,29 @@ async fn create_user(
 
 ---
 
-## まとめ
+## Summary
 
-| 項目 | 要点 |
+| Topic | Key Points |
 |---|---|
-| Router | `route()` でパス+メソッド、`nest()` でグループ化、`merge()` で結合 |
-| Extractor | Path, Query, Json, State で型安全にリクエスト解析。順序に注意 |
-| ミドルウェア | Tower Layer で共通処理をスタック。`from_fn` でカスタム実装 |
-| 状態管理 | `with_state()` で AppState を全ハンドラに共有。`FromRef` で個別抽出 |
-| エラー | `IntoResponse` を impl した統一エラー型。From 変換で自動対応 |
-| DB統合 | PgPool を AppState に格納。sqlx でクエリ。トランザクション対応 |
-| テスト | `oneshot()` でインメモリテスト。TestClient パターン推奨 |
-| WebSocket | `WebSocketUpgrade` + `split()` で送受信分離 |
-| SSE | `Sse<Stream>` で一方向ストリーミング。KeepAlive 設定必須 |
-| 本番運用 | Graceful Shutdown、ヘルスチェック、CORS、セキュリティヘッダー |
+| Router | `route()` for path + method, `nest()` for grouping, `merge()` for combining |
+| Extractor | Path, Query, Json, State for type-safe request parsing. Mind the order |
+| Middleware | Stack common processing with Tower Layer. Implement custom middleware via `from_fn` |
+| State management | Share AppState across all handlers via `with_state()`. Extract individually with `FromRef` |
+| Error handling | Unified error type that implements `IntoResponse`. Auto-handled through From conversions |
+| DB integration | Store PgPool in AppState. Query via sqlx. Transaction-aware |
+| Testing | In-memory tests with `oneshot()`. The TestClient pattern is recommended |
+| WebSocket | `WebSocketUpgrade` + `split()` separates send and receive |
+| SSE | Use `Sse<Stream>` for one-way streaming. KeepAlive configuration is essential |
+| Production operations | Graceful Shutdown, health checks, CORS, security headers |
 
-## 次に読むべきガイド
+## Recommended Next Reading
 
-- [データベース](../04-ecosystem/03-database.md) — SQLx/Diesel/SeaORM の詳細
-- [テスト](../04-ecosystem/01-testing.md) — 統合テスト・プロパティテスト
-- [ベストプラクティス](../04-ecosystem/04-best-practices.md) — API設計原則
-- [ネットワーク](./03-networking.md) — reqwest/WebSocket/gRPC クライアント
+- [Database](../04-ecosystem/03-database.md) — Details on SQLx/Diesel/SeaORM
+- [Testing](../04-ecosystem/01-testing.md) — Integration tests and property tests
+- [Best Practices](../04-ecosystem/04-best-practices.md) — API design principles
+- [Networking](./03-networking.md) — reqwest/WebSocket/gRPC clients
 
-## 参考文献
+## References
 
 1. **Axum Documentation**: https://docs.rs/axum/latest/axum/
 2. **Axum Examples (GitHub)**: https://github.com/tokio-rs/axum/tree/main/examples
