@@ -1,150 +1,151 @@
-# 型とトレイト -- Rustの型システムとポリモーフィズムの基盤
+# Types and Traits -- The Foundation of Rust's Type System and Polymorphism
 
-> Rustの型システムは struct/enum による代数的データ型と trait によるアドホックポリモーフィズムを基盤とし、ジェネリクスと組み合わせてゼロコスト抽象化を実現する。
-
----
-
-## この章で学ぶこと
-
-1. **struct と enum** -- 代数的データ型(直積型・直和型)の定義と活用を理解する
-2. **トレイト** -- インターフェースの定義、実装、デフォルトメソッドを習得する
-3. **ジェネリクスとトレイト境界** -- 型パラメータと制約による汎用コードの書き方を学ぶ
-4. **動的ディスパッチと静的ディスパッチ** -- トレイトオブジェクトと単態化の使い分けを理解する
-5. **高度なトレイトパターン** -- 関連型、スーパートレイト、ブランケット実装を学ぶ
-
-
-## 前提知識
-
-このガイドを読む前に、以下の知識があると理解が深まります:
-
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [所有権と借用 -- Rustの最も革新的なメモリ管理パラダイム](./01-ownership-borrowing.md) の内容を理解していること
+> Rust's type system is built on algebraic data types via struct/enum and ad-hoc polymorphism via traits, achieving zero-cost abstractions when combined with generics.
 
 ---
 
-## 1. 基本型
+## What You Will Learn in This Chapter
 
-### 1.1 プリミティブ型の一覧
+1. **struct and enum** -- Understand the definition and use of algebraic data types (product types and sum types)
+2. **Traits** -- Master the definition, implementation, and default methods of interfaces
+3. **Generics and Trait Bounds** -- Learn how to write generic code with type parameters and constraints
+4. **Dynamic Dispatch and Static Dispatch** -- Understand when to use trait objects versus monomorphization
+5. **Advanced Trait Patterns** -- Learn associated types, supertraits, and blanket implementations
+
+
+## Prerequisites
+
+The following knowledge will deepen your understanding before reading this guide:
+
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding of [Ownership and Borrowing -- Rust's Most Innovative Memory Management Paradigm](./01-ownership-borrowing.md)
+
+---
+
+## 1. Basic Types
+
+### 1.1 List of Primitive Types
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                 Rust プリミティブ型                   │
+│                 Rust Primitive Types                │
 ├──────────┬──────────────────────────────────────────┤
-│ 整数     │ i8 i16 i32 i64 i128 isize                │
+│ Integer  │ i8 i16 i32 i64 i128 isize                │
 │          │ u8 u16 u32 u64 u128 usize                │
 ├──────────┼──────────────────────────────────────────┤
-│ 浮動小数 │ f32, f64                                 │
+│ Float    │ f32, f64                                 │
 ├──────────┼──────────────────────────────────────────┤
-│ 論理     │ bool                                     │
+│ Boolean  │ bool                                     │
 ├──────────┼──────────────────────────────────────────┤
-│ 文字     │ char (4バイト Unicode スカラ値)            │
+│ Char     │ char (4-byte Unicode scalar value)       │
 ├──────────┼──────────────────────────────────────────┤
-│ タプル   │ (T1, T2, ...) -- 異なる型の組み合わせ     │
+│ Tuple    │ (T1, T2, ...) -- combination of types    │
 ├──────────┼──────────────────────────────────────────┤
-│ 配列     │ [T; N] -- 固定長、スタック上              │
+│ Array    │ [T; N] -- fixed length, on stack         │
 ├──────────┼──────────────────────────────────────────┤
-│ スライス │ [T] -- 動的サイズ型(DST)、常に参照で使用  │
+│ Slice    │ [T] -- dynamically sized type (DST),     │
+│          │        always used through references    │
 ├──────────┼──────────────────────────────────────────┤
-│ 参照     │ &T, &mut T                               │
+│ Reference│ &T, &mut T                               │
 ├──────────┼──────────────────────────────────────────┤
-│ 文字列   │ str -- 文字列スライス(DST)                │
+│ String   │ str -- string slice (DST)                │
 ├──────────┼──────────────────────────────────────────┤
-│ unit     │ () -- 値なし(C の void に相当)           │
+│ unit     │ () -- no value (equivalent to C's void)  │
 ├──────────┼──────────────────────────────────────────┤
-│ never    │ ! -- 返らない関数の戻り値型              │
+│ never    │ ! -- return type of non-returning fns    │
 └──────────┴──────────────────────────────────────────┘
 ```
 
-### 1.2 数値型の詳細
+### 1.2 Numeric Type Details
 
 ```rust
 fn main() {
-    // 整数リテラルの記法
-    let decimal = 98_222;           // 10進数（_ で区切り可能）
-    let hex = 0xff;                 // 16進数
-    let octal = 0o77;              // 8進数
-    let binary = 0b1111_0000;       // 2進数
-    let byte = b'A';               // バイトリテラル (u8)
+    // Integer literal notations
+    let decimal = 98_222;           // decimal (separable with _)
+    let hex = 0xff;                 // hexadecimal
+    let octal = 0o77;              // octal
+    let binary = 0b1111_0000;       // binary
+    let byte = b'A';               // byte literal (u8)
 
-    // 型サフィックス
-    let x = 42u32;                  // u32 型
-    let y = 3.14f64;               // f64 型
+    // Type suffix
+    let x = 42u32;                  // u32 type
+    let y = 3.14f64;               // f64 type
 
-    // 型変換（as キャスト）
+    // Type conversion (as cast)
     let a: i32 = 42;
-    let b: f64 = a as f64;         // 拡大変換
-    let c: u8 = 300u16 as u8;      // 縮小変換（切り捨て: 44）
+    let b: f64 = a as f64;         // widening conversion
+    let c: u8 = 300u16 as u8;      // narrowing conversion (truncated: 44)
 
-    // 安全な型変換
+    // Safe type conversion
     let d: u16 = 300;
-    let e: u8 = u8::try_from(d).unwrap_or(u8::MAX);  // Result を返す
+    let e: u8 = u8::try_from(d).unwrap_or(u8::MAX);  // returns Result
 
     println!("decimal={}, hex={}, binary={}", decimal, hex, binary);
     println!("b={}, c={}, e={}", b, c, e);
 }
 ```
 
-### 1.3 文字列型の体系
+### 1.3 String Type Hierarchy
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│                 Rust の文字列型体系                        │
+│                 Rust String Type Hierarchy               │
 ├──────────────────────────────────────────────────────────┤
 │                                                          │
-│  所有型              参照型（スライス）                    │
+│  Owned types         Reference types (slices)            │
 │  ┌──────────┐       ┌──────────┐                        │
 │  │  String   │ ────> │  &str    │  Deref coercion       │
-│  │ (ヒープ)  │       │ (参照)   │                        │
+│  │ (heap)   │       │ (ref)    │                        │
 │  └──────────┘       └──────────┘                        │
 │                                                          │
 │  ┌──────────┐       ┌──────────┐                        │
-│  │ OsString │ ────> │  &OsStr  │  OS固有の文字列        │
+│  │ OsString │ ────> │  &OsStr  │  OS-specific strings    │
 │  └──────────┘       └──────────┘                        │
 │                                                          │
 │  ┌──────────┐       ┌──────────┐                        │
-│  │  CString │ ────> │  &CStr   │  C互換(NUL終端)       │
+│  │  CString │ ────> │  &CStr   │  C-compatible (NUL-term)│
 │  └──────────┘       └──────────┘                        │
 │                                                          │
 │  ┌──────────┐       ┌──────────┐                        │
-│  │ PathBuf  │ ────> │  &Path   │  ファイルパス          │
+│  │ PathBuf  │ ────> │  &Path   │  File paths             │
 │  └──────────┘       └──────────┘                        │
 └──────────────────────────────────────────────────────────┘
 ```
 
 ```rust
 fn main() {
-    // String (所有型) と &str (借用型)
+    // String (owned) and &str (borrowed)
     let owned: String = String::from("hello");
-    let borrowed: &str = "hello";  // 文字列リテラルは &'static str
+    let borrowed: &str = "hello";  // string literals are &'static str
 
-    // String → &str
+    // String -> &str
     let slice: &str = &owned;
     let slice2: &str = owned.as_str();
 
-    // &str → String
+    // &str -> String
     let owned2: String = borrowed.to_string();
     let owned3: String = String::from(borrowed);
 
-    // 文字列の連結
+    // String concatenation
     let s1 = String::from("hello");
     let s2 = String::from(" world");
-    let s3 = s1 + &s2;  // s1 はムーブされる、s2 は借用
-    // println!("{}", s1);  // エラー: s1 はムーブ済み
+    let s3 = s1 + &s2;  // s1 is moved, s2 is borrowed
+    // println!("{}", s1);  // error: s1 has been moved
     println!("{}", s3);
 
-    // format! マクロ（どの変数もムーブしない）
+    // format! macro (does not move any variables)
     let s4 = String::from("hello");
     let s5 = format!("{} {}", s4, "world");
-    println!("{}, {}", s4, s5); // 両方有効
+    println!("{}, {}", s4, s5); // both still valid
 }
 ```
 
 ---
 
-## 2. struct(構造体)
+## 2. struct (Structures)
 
-### 例1: 名前付きフィールド構造体
+### Example 1: Named-field Structures
 
 ```rust
 struct User {
@@ -155,7 +156,7 @@ struct User {
 }
 
 impl User {
-    // 関連関数（コンストラクタ）
+    // Associated function (constructor)
     fn new(name: &str, email: &str, age: u32) -> Self {
         Self {
             name: name.to_string(),
@@ -165,7 +166,7 @@ impl User {
         }
     }
 
-    // フィールド更新構文を使ったビルダー風メソッド
+    // Builder-style method using field update syntax
     fn with_active(self, active: bool) -> Self {
         Self { active, ..self }
     }
@@ -180,34 +181,34 @@ impl User {
 }
 
 fn main() {
-    let user = User::new("田中", "tanaka@example.com", 30);
-    println!("{} ({}歳)", user.name, user.age);
+    let user = User::new("Tanaka", "tanaka@example.com", 30);
+    println!("{} ({} years old)", user.name, user.age);
 
-    // 構造体更新構文
+    // Struct update syntax
     let user2 = User {
-        name: String::from("鈴木"),
+        name: String::from("Suzuki"),
         email: String::from("suzuki@example.com"),
-        ..user  // 残りのフィールドは user から取得（ムーブ注意）
+        ..user  // remaining fields are taken from user (note: move occurs)
     };
-    println!("{} ({}歳)", user2.name, user2.age); // age=30, active=true
+    println!("{} ({} years old)", user2.name, user2.age); // age=30, active=true
 
-    // メソッドチェーン
-    let user3 = User::new("佐藤", "sato@example.com", 15)
+    // Method chaining
+    let user3 = User::new("Sato", "sato@example.com", 15)
         .with_active(false);
-    println!("{}は成人? {}", user3.display_name(), user3.is_adult());
+    println!("Is {} an adult? {}", user3.display_name(), user3.is_adult());
 }
 ```
 
-### 例2: タプル構造体とユニット構造体
+### Example 2: Tuple Structures and Unit Structures
 
 ```rust
-// タプル構造体: フィールド名なし（ニュータイプパターンに有用）
+// Tuple struct: no field names (useful for the newtype pattern)
 struct Color(u8, u8, u8);
 struct Meters(f64);
 struct Celsius(f64);
 struct Fahrenheit(f64);
 
-// ニュータイプパターンで型安全性を確保
+// Ensure type safety with the newtype pattern
 impl Celsius {
     fn to_fahrenheit(&self) -> Fahrenheit {
         Fahrenheit(self.0 * 9.0 / 5.0 + 32.0)
@@ -220,7 +221,7 @@ impl Fahrenheit {
     }
 }
 
-// ユニット構造体: フィールドなし(マーカー型に使用)
+// Unit struct: no fields (used as a marker type)
 struct Marker;
 struct Production;
 struct Development;
@@ -232,25 +233,25 @@ fn main() {
     let temp_f = temp_c.to_fahrenheit();
 
     println!("R={}", red.0);
-    println!("距離={}m", distance.0);
+    println!("distance={}m", distance.0);
     println!("{}°C = {}°F", temp_c.0, temp_f.0);
 
-    // Meters と f64 を混同するミスを型システムが防止
-    // let wrong: Meters = Celsius(30.0);  // コンパイルエラー！
+    // The type system prevents mistakes that would confuse Meters and f64
+    // let wrong: Meters = Celsius(30.0);  // compile error!
 }
 ```
 
-### 2.1 構造体のメモリレイアウト
+### 2.1 Memory Layout of Structures
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│ struct User のメモリレイアウト                         │
+│ Memory layout of struct User                         │
 ├──────────────────────────────────────────────────────┤
 │                                                      │
-│  スタック                       ヒープ                │
+│  Stack                          Heap                 │
 │  ┌──────────────────────┐                            │
 │  │ name: String         │                            │
-│  │   ptr ─────────────────────> "田中"               │
+│  │   ptr ─────────────────────> "Tanaka"             │
 │  │   len: 6             │                            │
 │  │   cap: 6             │                            │
 │  ├──────────────────────┤                            │
@@ -259,21 +260,21 @@ fn main() {
 │  │   len: 18            │                            │
 │  │   cap: 18            │                            │
 │  ├──────────────────────┤                            │
-│  │ age: u32 = 30        │   (4バイト)                │
+│  │ age: u32 = 30        │   (4 bytes)                │
 │  ├──────────────────────┤                            │
-│  │ active: bool = true  │   (1バイト + パディング)   │
+│  │ active: bool = true  │   (1 byte + padding)       │
 │  └──────────────────────┘                            │
 │                                                      │
-│  コンパイラはフィールドの順序を最適化して             │
-│  パディングを最小化する（repr(C) でない限り）         │
+│  The compiler optimizes field ordering to            │
+│  minimize padding (unless repr(C) is specified)      │
 └──────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 3. enum(列挙型)
+## 3. enum (Enumerations)
 
-### 例3: 代数的データ型としての enum
+### Example 3: enum as an Algebraic Data Type
 
 ```rust
 enum Shape {
@@ -296,7 +297,7 @@ impl Shape {
             Shape::Circle { radius } => 2.0 * std::f64::consts::PI * radius,
             Shape::Rectangle { width, height } => 2.0 * (width + height),
             Shape::Triangle { base, height } => {
-                // 二等辺三角形と仮定
+                // Assuming an isosceles triangle
                 let side = ((*base / 2.0).powi(2) + height.powi(2)).sqrt();
                 base + 2.0 * side
             }
@@ -305,9 +306,9 @@ impl Shape {
 
     fn describe(&self) -> String {
         match self {
-            Shape::Circle { radius } => format!("半径{}の円", radius),
-            Shape::Rectangle { width, height } => format!("{}x{}の長方形", width, height),
-            Shape::Triangle { base, height } => format!("底辺{}, 高さ{}の三角形", base, height),
+            Shape::Circle { radius } => format!("Circle with radius {}", radius),
+            Shape::Rectangle { width, height } => format!("Rectangle {}x{}", width, height),
+            Shape::Triangle { base, height } => format!("Triangle with base {}, height {}", base, height),
         }
     }
 }
@@ -319,12 +320,12 @@ fn main() {
         Shape::Triangle { base: 3.0, height: 8.0 },
     ];
     for s in &shapes {
-        println!("{}: 面積={:.2}, 周囲={:.2}", s.describe(), s.area(), s.perimeter());
+        println!("{}: area={:.2}, perimeter={:.2}", s.describe(), s.area(), s.perimeter());
     }
 }
 ```
 
-### 3.1 Option と Result
+### 3.1 Option and Result
 
 ```
 ┌────────────────────────────┬────────────────────────────────┐
@@ -335,15 +336,16 @@ fn main() {
 │     None,                  │     Err(E),                    │
 │ }                          │ }                              │
 ├────────────────────────────┼────────────────────────────────┤
-│ 値が存在しない可能性       │ 処理が失敗する可能性           │
-│ null の安全な代替           │ 例外の安全な代替               │
+│ Possibility that a value    │ Possibility that an operation  │
+│ may not be present          │ may fail                       │
+│ Safe alternative to null    │ Safe alternative to exceptions │
 └────────────────────────────┴────────────────────────────────┘
 ```
 
-### 3.2 高度な enum パターン
+### 3.2 Advanced enum Patterns
 
 ```rust
-// enum にデータを持たせて状態を表現
+// Express state by attaching data to enum variants
 #[derive(Debug)]
 enum HttpResponse {
     Ok { body: String, content_type: String },
@@ -368,7 +370,7 @@ impl HttpResponse {
     }
 }
 
-// C互換の enum
+// C-compatible enum
 #[repr(u8)]
 enum Color {
     Red = 1,
@@ -376,12 +378,12 @@ enum Color {
     Blue = 3,
 }
 
-// enum のサイズ最適化（Null Pointer Optimization）
+// Size optimization for enums (Null Pointer Optimization)
 fn size_demo() {
     use std::mem::size_of;
 
-    // Option<Box<T>> は Box<T> と同じサイズ！
-    // None は内部的に null ポインタで表現される
+    // Option<Box<T>> is the same size as Box<T>!
+    // None is internally represented as a null pointer
     assert_eq!(size_of::<Box<i32>>(), size_of::<Option<Box<i32>>>());
     assert_eq!(size_of::<&i32>(), size_of::<Option<&i32>>());
 
@@ -394,26 +396,26 @@ fn main() {
         body: "<h1>Hello</h1>".to_string(),
         content_type: "text/html".to_string(),
     };
-    println!("ステータス: {}", response.status_code());
-    println!("成功?: {}", response.is_success());
+    println!("Status: {}", response.status_code());
+    println!("Success?: {}", response.is_success());
 
     size_demo();
 }
 ```
 
-### 3.3 enum のメモリレイアウト
+### 3.3 Memory Layout of enums
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│ enum Shape のメモリレイアウト                          │
+│ Memory layout of enum Shape                          │
 ├──────────────────────────────────────────────────────┤
 │                                                      │
-│  全バリアントが同じサイズのメモリを占有する            │
-│  (最大バリアントのサイズ + タグのサイズ)              │
+│  All variants occupy memory of the same size         │
+│  (size of the largest variant + size of the tag)     │
 │                                                      │
 │  Circle:                                             │
 │  ┌─────────┬──────────────┬──────────────┐          │
-│  │ tag = 0 │ radius: f64  │  (未使用)    │          │
+│  │ tag = 0 │ radius: f64  │  (unused)    │          │
 │  └─────────┴──────────────┴──────────────┘          │
 │                                                      │
 │  Rectangle:                                          │
@@ -426,15 +428,15 @@ fn main() {
 │  │ tag = 2 │ base: f64    │ height: f64  │          │
 │  └─────────┴──────────────┴──────────────┘          │
 │                                                      │
-│  サイズ = tag(1-8bytes) + max(バリアント) + padding   │
+│  Size = tag(1-8 bytes) + max(variant) + padding      │
 └──────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 4. impl ブロック
+## 4. impl Blocks
 
-### 例4: メソッドと関連関数
+### Example 4: Methods and Associated Functions
 
 ```rust
 struct Rectangle {
@@ -443,7 +445,7 @@ struct Rectangle {
 }
 
 impl Rectangle {
-    // 関連関数(コンストラクタ) -- Self を引数に取らない
+    // Associated function (constructor) -- does not take Self as a parameter
     fn new(width: f64, height: f64) -> Self {
         Self { width, height }
     }
@@ -452,7 +454,7 @@ impl Rectangle {
         Self { width: size, height: size }
     }
 
-    // メソッド -- &self を引数に取る
+    // Method -- takes &self as a parameter
     fn area(&self) -> f64 {
         self.width * self.height
     }
@@ -469,20 +471,20 @@ impl Rectangle {
         self.width >= other.width && self.height >= other.height
     }
 
-    // 可変メソッド
+    // Mutable method
     fn scale(&mut self, factor: f64) {
         self.width *= factor;
         self.height *= factor;
     }
 
-    // self を消費するメソッド（Builder パターン等で使用）
+    // Method that consumes self (used in Builder pattern, etc.)
     fn into_square(self) -> Rectangle {
         let side = self.width.max(self.height);
         Rectangle { width: side, height: side }
     }
 }
 
-// 複数の impl ブロックを持てる（トレイト実装との分離に有用）
+// You can have multiple impl blocks (useful for separating trait implementations)
 impl std::fmt::Display for Rectangle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Rectangle({}x{})", self.width, self.height)
@@ -492,40 +494,40 @@ impl std::fmt::Display for Rectangle {
 fn main() {
     let mut rect = Rectangle::new(10.0, 5.0);
     println!("{}", rect);                    // Rectangle(10x5)
-    println!("面積: {}", rect.area());       // 50.0
-    println!("周囲: {}", rect.perimeter());  // 30.0
-    println!("正方形? {}", rect.is_square()); // false
+    println!("Area: {}", rect.area());       // 50.0
+    println!("Perimeter: {}", rect.perimeter());  // 30.0
+    println!("Square? {}", rect.is_square()); // false
 
     let small = Rectangle::new(3.0, 2.0);
-    println!("包含可能? {}", rect.can_hold(&small)); // true
+    println!("Can hold? {}", rect.can_hold(&small)); // true
 
     rect.scale(2.0);
-    println!("拡大後: {}", rect);            // Rectangle(20x10)
+    println!("After scaling: {}", rect);            // Rectangle(20x10)
 
     let sq = Rectangle::square(5.0);
-    println!("{} は正方形? {}", sq, sq.is_square()); // true
+    println!("Is {} a square? {}", sq, sq.is_square()); // true
 }
 ```
 
 ---
 
-## 5. トレイト
+## 5. Traits
 
-### 5.1 トレイト定義と実装
+### 5.1 Trait Definition and Implementation
 
-### 例5: トレイトの定義と実装
+### Example 5: Defining and Implementing a Trait
 
 ```rust
 trait Summary {
-    // 必須メソッド
+    // Required method
     fn summarize_author(&self) -> String;
 
-    // デフォルト実装
+    // Default implementation
     fn summarize(&self) -> String {
-        format!("({}による記事をもっと読む...)", self.summarize_author())
+        format!("(Read more from {}...)", self.summarize_author())
     }
 
-    // デフォルト実装が他のメソッドを呼ぶこともできる
+    // A default implementation can call other methods
     fn preview(&self) -> String {
         let summary = self.summarize();
         if summary.len() > 50 {
@@ -561,21 +563,21 @@ impl Summary for Tweet {
     fn summarize_author(&self) -> String {
         format!("@{}", self.username)
     }
-    // summarize() はデフォルト実装を使用
+    // summarize() uses the default implementation
 }
 ```
 
-### 例6: トレイト境界付きジェネリクス
+### Example 6: Generics with Trait Bounds
 
 ```rust
 use std::fmt::{Display, Debug};
 
-// 方法1: トレイト境界構文
+// Method 1: Trait bound syntax
 fn notify<T: Summary + Display>(item: &T) {
-    println!("速報: {}", item.summarize());
+    println!("Breaking news: {}", item.summarize());
 }
 
-// 方法2: where句 (複雑な場合に推奨)
+// Method 2: where clause (recommended for complex cases)
 fn complex_function<T, U>(t: &T, u: &U) -> String
 where
     T: Summary + Clone,
@@ -584,12 +586,12 @@ where
     format!("{}: {:?}", t.summarize(), u)
 }
 
-// 方法3: impl Trait 構文 (引数の場合)
+// Method 3: impl Trait syntax (for parameters)
 fn notify_simple(item: &impl Summary) {
-    println!("速報: {}", item.summarize());
+    println!("Breaking news: {}", item.summarize());
 }
 
-// impl Trait は戻り値にも使える（ただし単一の具体型のみ）
+// impl Trait can also be used for return values (but only a single concrete type)
 fn create_summarizable() -> impl Summary {
     Tweet {
         username: String::from("rustlang"),
@@ -597,7 +599,7 @@ fn create_summarizable() -> impl Summary {
     }
 }
 
-// 複数のトレイト境界の組み合わせ
+// Combining multiple trait bounds
 fn process_and_display<T>(item: T)
 where
     T: Summary + Display + Clone + Debug,
@@ -609,35 +611,37 @@ where
 }
 ```
 
-### 5.2 よく使う標準トレイト
+### 5.2 Commonly Used Standard Traits
 
 ```
 ┌───────────────┬───────────────────────────────────────────┐
-│ トレイト       │ 用途                                      │
+│ Trait         │ Purpose                                   │
 ├───────────────┼───────────────────────────────────────────┤
-│ Display       │ {} フォーマット表示                        │
-│ Debug         │ {:?} デバッグ表示                         │
-│ Clone         │ 明示的な深いコピー (.clone())              │
-│ Copy          │ 暗黙のビットコピー                        │
-│ PartialEq/Eq │ == / != 比較                              │
-│ PartialOrd/Ord│ < > <= >= 比較 / ソート                   │
-│ Hash          │ ハッシュ値計算(HashMapのキーに必要)       │
-│ Default       │ デフォルト値生成                           │
-│ From/Into     │ 型変換                                    │
-│ TryFrom/TryInto│ 失敗しうる型変換                         │
-│ Iterator      │ イテレータプロトコル                       │
-│ IntoIterator  │ for ループで使えるようにする               │
-│ Drop          │ デストラクタ(スコープ終了時の処理)        │
-│ Deref/DerefMut│ 自動参照解決 / スマートポインタ           │
-│ AsRef/AsMut   │ 参照としての変換                          │
-│ Borrow        │ 借用としての変換（Hash/Eq の一貫性保証）  │
-│ Send/Sync     │ スレッド安全性マーカー                    │
-│ Sized         │ コンパイル時にサイズが既知                 │
-│ Fn/FnMut/FnOnce│ クロージャ/関数呼び出し                  │
+│ Display       │ {} formatted display                       │
+│ Debug         │ {:?} debug display                         │
+│ Clone         │ Explicit deep copy (.clone())              │
+│ Copy          │ Implicit bit copy                          │
+│ PartialEq/Eq  │ == / != comparison                         │
+│ PartialOrd/Ord│ < > <= >= comparison / sorting             │
+│ Hash          │ Hash value computation (required for       │
+│               │ HashMap keys)                              │
+│ Default       │ Default value generation                   │
+│ From/Into     │ Type conversion                            │
+│ TryFrom/TryInto│ Fallible type conversion                  │
+│ Iterator      │ Iterator protocol                          │
+│ IntoIterator  │ Make usable with for loops                 │
+│ Drop          │ Destructor (handling on scope exit)        │
+│ Deref/DerefMut│ Automatic dereferencing / smart pointers   │
+│ AsRef/AsMut   │ Conversion to references                   │
+│ Borrow        │ Conversion as a borrow (consistency        │
+│               │ guarantee for Hash/Eq)                     │
+│ Send/Sync     │ Thread safety markers                      │
+│ Sized         │ Size known at compile time                 │
+│ Fn/FnMut/FnOnce│ Closure / function call                   │
 └───────────────┴───────────────────────────────────────────┘
 ```
 
-### 例7: derive マクロで自動実装
+### Example 7: Automatic Implementation with the derive Macro
 
 ```rust
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
@@ -655,15 +659,15 @@ fn main() {
     };
     let config2 = config.clone();
     println!("{:?}", config);
-    println!("同じ? {}", config == config2);
+    println!("Same? {}", config == config2);
 
     let default_config = Config::default();
-    println!("デフォルト: {:?}", default_config);
+    println!("Default: {:?}", default_config);
     // Config { host: "", port: 0, debug: false }
 }
 ```
 
-### 例8: Display と From/Into の実装
+### Example 8: Implementing Display and From/Into
 
 ```rust
 use std::fmt;
@@ -683,14 +687,14 @@ impl Temperature {
     }
 }
 
-// Display トレイトの手動実装
+// Manual implementation of the Display trait
 impl fmt::Display for Temperature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:.1}°C ({:.1}°F)", self.celsius, self.fahrenheit())
     }
 }
 
-// From トレイトの実装（型変換）
+// Implementing the From trait (type conversion)
 impl From<f64> for Temperature {
     fn from(celsius: f64) -> Self {
         Temperature { celsius }
@@ -703,7 +707,7 @@ impl From<i32> for Temperature {
     }
 }
 
-// From<T> for U を実装すると、Into<U> for T が自動的に使える
+// Implementing From<T> for U automatically enables Into<U> for T
 fn display_temp(temp: impl Into<Temperature>) {
     let t: Temperature = temp.into();
     println!("{}", t);
@@ -714,7 +718,7 @@ fn main() {
     println!("{}", temp);       // Display: "100.0°C (212.0°F)"
     println!("{:?}", temp);     // Debug: "Temperature { celsius: 100.0 }"
 
-    // From/Into による変換
+    // Conversion via From/Into
     let t1: Temperature = 36.5f64.into();
     let t2: Temperature = Temperature::from(100);
     display_temp(25.0f64);
@@ -722,7 +726,7 @@ fn main() {
 }
 ```
 
-### 例9: PartialEq と Ord の実装
+### Example 9: Implementing PartialEq and Ord
 
 ```rust
 #[derive(Debug, Clone)]
@@ -731,7 +735,7 @@ struct Student {
     score: u32,
 }
 
-// PartialEq: 名前が同じなら同じ学生とみなす
+// PartialEq: treat students with the same name as equal
 impl PartialEq for Student {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name
@@ -739,7 +743,7 @@ impl PartialEq for Student {
 }
 impl Eq for Student {}
 
-// Ord: スコアでソート（降順）
+// Ord: sort by score (descending)
 impl PartialOrd for Student {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
@@ -748,35 +752,35 @@ impl PartialOrd for Student {
 
 impl Ord for Student {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        other.score.cmp(&self.score) // 降順
+        other.score.cmp(&self.score) // descending order
     }
 }
 
 fn main() {
     let mut students = vec![
-        Student { name: "田中".to_string(), score: 85 },
-        Student { name: "鈴木".to_string(), score: 92 },
-        Student { name: "佐藤".to_string(), score: 78 },
+        Student { name: "Tanaka".to_string(), score: 85 },
+        Student { name: "Suzuki".to_string(), score: 92 },
+        Student { name: "Sato".to_string(), score: 78 },
     ];
 
-    students.sort(); // Ord に基づいてソート（スコア降順）
+    students.sort(); // sort by Ord (score descending)
     for s in &students {
-        println!("{}: {}点", s.name, s.score);
+        println!("{}: {} points", s.name, s.score);
     }
-    // 鈴木: 92点, 田中: 85点, 佐藤: 78点
+    // Suzuki: 92 points, Tanaka: 85 points, Sato: 78 points
 }
 ```
 
 ---
 
-## 6. ジェネリクス
+## 6. Generics
 
-### 例10: ジェネリック構造体と関数
+### Example 10: Generic Structures and Functions
 
 ```rust
 use std::fmt::Display;
 
-// ジェネリック構造体
+// Generic struct
 struct Pair<T> {
     first: T,
     second: T,
@@ -796,7 +800,7 @@ impl<T: PartialOrd + Display> Pair<T> {
     }
 }
 
-// 異なる型のペア
+// Pair of different types
 struct MixedPair<T, U> {
     first: T,
     second: U,
@@ -808,14 +812,14 @@ impl<T: Display, U: Display> MixedPair<T, U> {
     }
 }
 
-// 特定の型にのみ追加メソッドを提供
+// Provide additional methods only for specific types
 impl Pair<f64> {
     fn average(&self) -> f64 {
         (self.first + self.second) / 2.0
     }
 }
 
-// ジェネリック関数
+// Generic function
 fn find_max<T: PartialOrd>(list: &[T]) -> Option<&T> {
     if list.is_empty() {
         return None;
@@ -831,32 +835,32 @@ fn find_max<T: PartialOrd>(list: &[T]) -> Option<&T> {
 
 fn main() {
     let pair = Pair::new(10, 20);
-    println!("大きい方: {}", pair.larger()); // 20
+    println!("Larger: {}", pair.larger()); // 20
 
     let float_pair = Pair::new(3.14, 2.71);
-    println!("平均: {}", float_pair.average()); // 2.925
+    println!("Average: {}", float_pair.average()); // 2.925
 
     let mixed = MixedPair { first: "hello", second: 42 };
     mixed.display(); // (hello, 42)
 
     let numbers = vec![34, 50, 25, 100, 65];
-    println!("最大値: {}", find_max(&numbers).unwrap());
+    println!("Maximum: {}", find_max(&numbers).unwrap());
 }
 ```
 
-### 6.1 単態化（Monomorphization）
+### 6.1 Monomorphization
 
 ```
-ジェネリクスのコンパイル時の処理:
+Compile-time processing of generics:
 
-ソースコード:
+Source code:
   fn max<T: PartialOrd>(a: T, b: T) -> T { ... }
 
   max(1i32, 2i32);
   max(3.14f64, 2.71f64);
   max("hello", "world");
 
-コンパイル後（単態化）:
+After compilation (monomorphization):
   fn max_i32(a: i32, b: i32) -> i32 { ... }
   fn max_f64(a: f64, b: f64) -> f64 { ... }
   fn max_str(a: &str, b: &str) -> &str { ... }
@@ -865,22 +869,22 @@ fn main() {
   max_f64(3.14, 2.71);
   max_str("hello", "world");
 
-→ 実行時のオーバーヘッドなし（ゼロコスト抽象化）
-→ ただしバイナリサイズは増加する可能性あり
+-> No runtime overhead (zero-cost abstraction)
+-> However, binary size may increase
 ```
 
 ---
 
-## 7. 動的ディスパッチとトレイトオブジェクト
+## 7. Dynamic Dispatch and Trait Objects
 
-### 例11: dyn Trait（動的ディスパッチ）
+### Example 11: dyn Trait (Dynamic Dispatch)
 
 ```rust
 trait Animal {
     fn name(&self) -> &str;
     fn sound(&self) -> &str;
     fn info(&self) -> String {
-        format!("{} は「{}」と鳴く", self.name(), self.sound())
+        format!("{} says \"{}\"", self.name(), self.sound())
     }
 }
 
@@ -890,96 +894,96 @@ struct Bird { name: String }
 
 impl Animal for Dog {
     fn name(&self) -> &str { &self.name }
-    fn sound(&self) -> &str { "ワン" }
+    fn sound(&self) -> &str { "Woof" }
 }
 
 impl Animal for Cat {
     fn name(&self) -> &str { &self.name }
-    fn sound(&self) -> &str { "ニャー" }
+    fn sound(&self) -> &str { "Meow" }
 }
 
 impl Animal for Bird {
     fn name(&self) -> &str { &self.name }
-    fn sound(&self) -> &str { "チュン" }
+    fn sound(&self) -> &str { "Tweet" }
 }
 
 fn main() {
-    // 異なる型を同じコレクションに入れる → dyn Trait が必要
+    // Putting different types into the same collection -> dyn Trait is needed
     let animals: Vec<Box<dyn Animal>> = vec![
-        Box::new(Dog { name: "ポチ".to_string() }),
-        Box::new(Cat { name: "タマ".to_string() }),
-        Box::new(Bird { name: "ピー太".to_string() }),
+        Box::new(Dog { name: "Pochi".to_string() }),
+        Box::new(Cat { name: "Tama".to_string() }),
+        Box::new(Bird { name: "Pi-ta".to_string() }),
     ];
 
     for animal in &animals {
         println!("{}", animal.info());
     }
 
-    // 関数の引数としても使える
+    // Can also be used as function arguments
     fn describe_animal(animal: &dyn Animal) {
-        println!("動物: {} - {}", animal.name(), animal.sound());
+        println!("Animal: {} - {}", animal.name(), animal.sound());
     }
 
-    describe_animal(&Dog { name: "シロ".to_string() });
-    describe_animal(&Cat { name: "クロ".to_string() });
+    describe_animal(&Dog { name: "Shiro".to_string() });
+    describe_animal(&Cat { name: "Kuro".to_string() });
 }
 ```
 
-### 7.1 vtable（仮想関数テーブル）の仕組み
+### 7.1 How vtable (Virtual Function Table) Works
 
 ```
-  トレイトオブジェクト &dyn Animal のメモリレイアウト:
+  Memory layout of a trait object &dyn Animal:
 
-  ファットポインタ（2ワード）
+  Fat pointer (2 words)
   ┌──────────────┐
-  │ data ptr ────────────> 実際のデータ (Dog, Cat, etc.)
+  │ data ptr ────────────> Actual data (Dog, Cat, etc.)
   │ vtable ptr ──────────> vtable
   └──────────────┘
 
-  Dog の vtable:
+  vtable of Dog:
   ┌──────────────────────┐
   │ drop()               │  → Dog::drop
   │ size                 │  → sizeof(Dog)
   │ align                │  → alignof(Dog)
   │ name()               │  → Dog::name
   │ sound()              │  → Dog::sound
-  │ info()               │  → Animal::info (デフォルト実装)
+  │ info()               │  → Animal::info (default impl)
   └──────────────────────┘
 
-  Cat の vtable:
+  vtable of Cat:
   ┌──────────────────────┐
   │ drop()               │  → Cat::drop
   │ size                 │  → sizeof(Cat)
   │ align                │  → alignof(Cat)
   │ name()               │  → Cat::name
   │ sound()              │  → Cat::sound
-  │ info()               │  → Animal::info (デフォルト実装)
+  │ info()               │  → Animal::info (default impl)
   └──────────────────────┘
 ```
 
-### 7.2 オブジェクト安全性
+### 7.2 Object Safety
 
 ```rust
-// オブジェクト安全なトレイト（dyn Trait として使用可能）
+// Object-safe trait (can be used as dyn Trait)
 trait Drawable {
     fn draw(&self);
     fn bounding_box(&self) -> (f64, f64, f64, f64);
 }
 
-// オブジェクト安全でないトレイト（dyn Trait として使用不可）
+// Non-object-safe trait (cannot be used as dyn Trait)
 trait NotObjectSafe {
-    fn create() -> Self;           // Self を返す関連関数
-    fn compare(&self, other: &Self);  // Self を引数に取る
-    fn generic_method<T>(&self, t: T);  // ジェネリックメソッド
+    fn create() -> Self;           // associated function returning Self
+    fn compare(&self, other: &Self);  // takes Self as a parameter
+    fn generic_method<T>(&self, t: T);  // generic method
 }
 
-// オブジェクト安全の条件:
-// 1. Self: Sized を要求しない
-// 2. メソッドの戻り値に Self を使わない（where Self: Sized ガード付きは除く）
-// 3. ジェネリックな型パラメータを持たない
-// 4. 関連定数を持たない
+// Conditions for object safety:
+// 1. Does not require Self: Sized
+// 2. Methods do not use Self in their return type (except with where Self: Sized guard)
+// 3. No generic type parameters
+// 4. No associated constants
 
-// 部分的にオブジェクト安全にする技法
+// Technique to make a trait partially object-safe
 trait Clonable: Clone {
     fn clone_box(&self) -> Box<dyn Clonable>;
 }
@@ -993,14 +997,14 @@ impl<T: Clone + Clonable + 'static> Clonable for T {
 
 ---
 
-## 8. 高度なトレイトパターン
+## 8. Advanced Trait Patterns
 
-### 8.1 関連型 (Associated Types)
+### 8.1 Associated Types
 
 ```rust
-// 関連型を使ったイテレータの定義
+// Iterator definition using associated types
 trait MyIterator {
-    type Item;  // 関連型
+    type Item;  // associated type
 
     fn next(&mut self) -> Option<Self::Item>;
 }
@@ -1011,7 +1015,7 @@ struct Counter {
 }
 
 impl MyIterator for Counter {
-    type Item = u32;  // 関連型を具体化
+    type Item = u32;  // concretize the associated type
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.count < self.max {
@@ -1023,11 +1027,11 @@ impl MyIterator for Counter {
     }
 }
 
-// 関連型 vs ジェネリクスの比較
-// 関連型: 1つの型に対して1つの実装のみ
-// ジェネリクス: 1つの型に対して複数の実装が可能
+// Comparison: associated types vs generics
+// Associated types: only one implementation per type
+// Generics: multiple implementations per type are possible
 
-// ジェネリクス版（複数の変換先を定義可能）
+// Generics version (multiple conversion targets can be defined)
 trait ConvertTo<T> {
     fn convert(&self) -> T;
 }
@@ -1043,12 +1047,12 @@ impl ConvertTo<String> for Celsius {
 }
 ```
 
-### 8.2 スーパートレイト
+### 8.2 Supertraits
 
 ```rust
 use std::fmt;
 
-// Display を要求するトレイト（スーパートレイト）
+// A trait that requires Display (supertrait)
 trait Printable: fmt::Display + fmt::Debug {
     fn print(&self) {
         println!("Display: {}", self);
@@ -1075,13 +1079,13 @@ impl fmt::Display for Report {
     }
 }
 
-// Display + Debug を実装しているので Printable を実装可能
+// Since Display + Debug are implemented, Printable can be implemented
 impl Printable for Report {}
 
 fn main() {
     let report = Report {
-        title: "月次報告".to_string(),
-        content: "売上は前月比10%増".to_string(),
+        title: "Monthly Report".to_string(),
+        content: "Sales increased by 10% from last month".to_string(),
     };
     report.print();
     report.debug_print();
@@ -1089,29 +1093,29 @@ fn main() {
 }
 ```
 
-### 8.3 ブランケット実装
+### 8.3 Blanket Implementations
 
 ```rust
-// ブランケット実装: 条件を満たす全ての型に対して一括実装
+// Blanket implementation: implement for all types that satisfy a condition at once
 trait Greet {
     fn greet(&self) -> String;
 }
 
-// Display を実装している全ての型に Greet を実装
+// Implement Greet for all types that implement Display
 impl<T: std::fmt::Display> Greet for T {
     fn greet(&self) -> String {
-        format!("こんにちは、{}さん！", self)
+        format!("Hello, {}!", self)
     }
 }
 
 fn main() {
-    println!("{}", "太郎".greet());     // こんにちは、太郎さん！
-    println!("{}", 42.greet());          // こんにちは、42さん！
-    println!("{}", 3.14f64.greet());     // こんにちは、3.14さん！
+    println!("{}", "Taro".greet());     // Hello, Taro!
+    println!("{}", 42.greet());          // Hello, 42!
+    println!("{}", 3.14f64.greet());     // Hello, 3.14!
 }
 ```
 
-### 8.4 演算子オーバーロード
+### 8.4 Operator Overloading
 
 ```rust
 use std::ops::{Add, Mul, Neg};
@@ -1136,7 +1140,7 @@ impl Vector2D {
     }
 }
 
-// + 演算子
+// + operator
 impl Add for Vector2D {
     type Output = Self;
 
@@ -1148,7 +1152,7 @@ impl Add for Vector2D {
     }
 }
 
-// * 演算子（スカラー倍）
+// * operator (scalar multiplication)
 impl Mul<f64> for Vector2D {
     type Output = Self;
 
@@ -1160,7 +1164,7 @@ impl Mul<f64> for Vector2D {
     }
 }
 
-// - 演算子（符号反転）
+// - operator (sign inversion)
 impl Neg for Vector2D {
     type Output = Self;
 
@@ -1193,105 +1197,105 @@ fn main() {
 
 ---
 
-## 9. 比較表
+## 9. Comparison Tables
 
 ### 9.1 struct vs enum
 
-| 特性 | struct | enum |
+| Property | struct | enum |
 |------|--------|------|
-| 代数型 | 直積型 (product type) | 直和型 (sum type) |
-| フィールド | 全フィールド同時に持つ | バリアントの1つだけ |
-| パターンマッチ | 分解代入 | match で網羅的に分岐 |
-| メモリ | 全フィールドの合計 | 最大バリアント + タグ |
-| 用途 | データのまとまり | 状態・選択肢の表現 |
-| 型安全性 | フィールドの型で保証 | バリアントの網羅性で保証 |
+| Algebraic type | Product type | Sum type |
+| Fields | Holds all fields simultaneously | Only one of the variants |
+| Pattern matching | Destructuring assignment | Exhaustive branching with match |
+| Memory | Sum of all fields | Largest variant + tag |
+| Use case | Grouping of data | Representing states/choices |
+| Type safety | Guaranteed by field types | Guaranteed by exhaustive variants |
 
-### 9.2 静的ディスパッチ vs 動的ディスパッチ
+### 9.2 Static Dispatch vs Dynamic Dispatch
 
-| 特性 | 静的 (impl Trait / ジェネリクス) | 動的 (dyn Trait) |
+| Property | Static (impl Trait / generics) | Dynamic (dyn Trait) |
 |------|-------------------------------|------------------|
-| 仕組み | 単態化 (monomorphization) | vtable (仮想関数テーブル) |
-| 実行速度 | 高速(インライン化可能) | オーバーヘッドあり |
-| バイナリサイズ | 大きくなりやすい | 小さい |
-| 型消去 | なし(コンパイル時に具体型決定) | あり |
-| 使い方 | `fn f(x: impl Trait)` | `fn f(x: &dyn Trait)` |
-| オブジェクト安全 | 不要 | 必要 |
-| コレクション | 同一型のみ | 異なる型を混在可能 |
-| コンパイル時間 | 型ごとにコード生成（遅くなりうる） | コード共有（速い） |
+| Mechanism | Monomorphization | vtable (virtual function table) |
+| Execution speed | Fast (inlining possible) | Some overhead |
+| Binary size | Tends to grow large | Small |
+| Type erasure | None (concrete types determined at compile time) | Yes |
+| Usage | `fn f(x: impl Trait)` | `fn f(x: &dyn Trait)` |
+| Object safety | Not required | Required |
+| Collections | Single type only | Different types can be mixed |
+| Compile time | Code generated per type (can be slow) | Code sharing (fast) |
 
-### 9.3 トレイト関連の比較
+### 9.3 Trait-Related Comparison
 
-| パターン | 記法 | 用途 |
+| Pattern | Notation | Purpose |
 |----------|------|------|
-| トレイト境界 | `T: Clone + Debug` | ジェネリック関数の制約 |
-| where句 | `where T: Clone` | 複雑な境界を読みやすく |
-| impl Trait (引数) | `item: &impl Summary` | 簡潔なトレイト境界 |
-| impl Trait (戻り値) | `-> impl Summary` | 具体型を隠す |
-| dyn Trait | `&dyn Summary` | 動的ディスパッチ |
-| Box<dyn Trait> | `Box<dyn Summary>` | ヒープ上のトレイトオブジェクト |
-| 関連型 | `type Item = u32;` | 型ごとに1つの関連型 |
-| derive | `#[derive(Debug)]` | 標準トレイトの自動実装 |
+| Trait bound | `T: Clone + Debug` | Constraints on generic functions |
+| where clause | `where T: Clone` | Make complex bounds more readable |
+| impl Trait (parameter) | `item: &impl Summary` | Concise trait bound |
+| impl Trait (return) | `-> impl Summary` | Hide concrete types |
+| dyn Trait | `&dyn Summary` | Dynamic dispatch |
+| Box<dyn Trait> | `Box<dyn Summary>` | Trait object on the heap |
+| Associated type | `type Item = u32;` | One associated type per type |
+| derive | `#[derive(Debug)]` | Automatic implementation of standard traits |
 
 ---
 
-## 10. アンチパターン
+## 10. Anti-patterns
 
-### アンチパターン1: String フィールドに &str を入れようとする
+### Anti-pattern 1: Trying to put &str in a String field
 
 ```rust
-// BAD: ライフタイムが必要で複雑になる
+// BAD: Requires lifetimes and becomes complicated
 // struct User<'a> {
-//     name: &'a str,  // ライフタイム注釈が伝播して大変
+//     name: &'a str,  // lifetime annotations propagate, causing complexity
 // }
 
-// GOOD: 所有型を使う (ほとんどのケースで推奨)
+// GOOD: Use owned types (recommended in most cases)
 struct User {
-    name: String,  // 構造体は自身のデータを所有する
+    name: String,  // The struct owns its own data
 }
 ```
 
-### アンチパターン2: トレイトオブジェクトの不必要な使用
+### Anti-pattern 2: Unnecessary Use of Trait Objects
 
 ```rust
-// BAD: ジェネリクスで十分なのに動的ディスパッチ
+// BAD: Dynamic dispatch when generics would suffice
 fn process(items: &[Box<dyn Summary>]) {
     for item in items {
         println!("{}", item.summarize());
     }
 }
 
-// GOOD: 同一型なら静的ディスパッチ
+// GOOD: Static dispatch when types are uniform
 fn process_good<T: Summary>(items: &[T]) {
     for item in items {
         println!("{}", item.summarize());
     }
 }
-// 注: 異なる型を混在させるならdyn Traitが正解
+// Note: dyn Trait is the right answer when mixing different types
 ```
 
-### アンチパターン3: 不必要に複雑なトレイト境界
+### Anti-pattern 3: Unnecessarily Complex Trait Bounds
 
 ```rust
-// BAD: 使わないトレイト境界を付ける
+// BAD: Adding trait bounds that are not used
 fn print_item<T: Display + Debug + Clone + Send + Sync>(item: &T) {
-    println!("{}", item);  // Display しか使っていない
+    println!("{}", item);  // Only Display is used
 }
 
-// GOOD: 必要最小限のトレイト境界
+// GOOD: Minimal necessary trait bounds
 fn print_item_good<T: Display>(item: &T) {
     println!("{}", item);
 }
 ```
 
-### アンチパターン4: enum の過度な使用
+### Anti-pattern 4: Excessive Use of enum
 
 ```rust
-// BAD: 状態が追加されるたびに全てのmatch式を修正する必要がある
+// BAD: Every match expression must be modified each time a state is added
 enum Shape {
     Circle(f64),
     Rectangle(f64, f64),
     Triangle(f64, f64),
-    // Pentagon, Hexagon, ... と増えていく
+    // Pentagon, Hexagon, ... continues to grow
 }
 
 fn area(shape: &Shape) -> f64 {
@@ -1299,20 +1303,20 @@ fn area(shape: &Shape) -> f64 {
         Shape::Circle(r) => std::f64::consts::PI * r * r,
         Shape::Rectangle(w, h) => w * h,
         Shape::Triangle(b, h) => 0.5 * b * h,
-        // 新しいバリアントを追加するたびにここも修正
+        // Must be modified each time a new variant is added
     }
 }
 
-// GOOD: トレイトを使えば拡張に開かれた設計になる
+// GOOD: Using traits gives a design that is open to extension
 trait ShapeTrait {
     fn area(&self) -> f64;
 }
 
-// 新しい形状は新しい struct + impl で追加するだけ
+// New shapes can be added simply with new structs + impls
 struct Pentagon { side: f64 }
 impl ShapeTrait for Pentagon {
     fn area(&self) -> f64 {
-        // 正五角形の面積
+        // Area of a regular pentagon
         0.25 * (5.0f64).sqrt() * (5.0 + 2.0 * (5.0f64).sqrt()) * self.side.powi(2)
     }
 }
@@ -1321,45 +1325,45 @@ impl ShapeTrait for Pentagon {
 
 ---
 
-## 実践演習
+## Practical Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that satisfies the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate input data
+- Implement appropriate error handling
+- Also write test code
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Template for basic implementation
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Exercise for basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate the input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main logic for data processing"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Get processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Test
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1368,26 +1372,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "An exception should have been raised"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation to add the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Advanced patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Exercise for advanced patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1395,7 +1399,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1406,14 +1410,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Remove by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1421,7 +1425,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1429,44 +1433,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Test
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1475,7 +1479,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1490,47 +1494,47 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient version: {slow_time:.4f} sec")
+    print(f"Efficient version:   {fast_time:.6f} sec")
+    print(f"Speedup ratio: {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key points:**
+- Be aware of algorithmic complexity
+- Choose appropriate data structures
+- Measure the effect with benchmarks
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
+| Error | Cause | Solution |
 |--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Initialization error | Defective configuration file | Check the path and format of the configuration file |
+| Timeout | Network latency / resource shortage | Adjust timeout values, add retry logic |
+| Out of memory | Increase in data volume | Introduce batch processing, implement pagination |
+| Permission error | Insufficient access permissions | Check execution user permissions, review settings |
+| Data inconsistency | Concurrent processing conflicts | Introduce locking mechanism, transaction management |
 
-### デバッグの手順
+### Debugging Procedure
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check the error message**: Read the stack trace and identify the location of the error
+2. **Establish reproduction steps**: Reproduce the error with minimal code
+3. **Formulate hypotheses**: List possible causes
+4. **Stepwise verification**: Verify hypotheses using log output or a debugger
+5. **Fix and regression testing**: After fixing, also run tests for related areas
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utility
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -1538,146 +1542,146 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs function inputs and outputs"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Call: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return value: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception raised: {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debug target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Problems
 
-パフォーマンス問題が発生した場合の診断手順:
+Diagnostic procedure when performance problems occur:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify bottlenecks**: Measure with profiling tools
+2. **Check memory usage**: Check for memory leaks
+3. **Check I/O wait**: Check the status of disk and network I/O
+4. **Check the number of concurrent connections**: Check the state of connection pools
 
-| 問題の種類 | 診断ツール | 対策 |
+| Type of problem | Diagnostic tool | Countermeasure |
 |-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| CPU load | cProfile, py-spy | Algorithm improvement, parallelization |
+| Memory leak | tracemalloc, objgraph | Proper release of references |
+| I/O bottleneck | strace, iostat | Asynchronous I/O, caching |
+| DB latency | EXPLAIN, slow query log | Indexing, query optimization |
 ---
 
 ## 11. FAQ
 
-### Q1: struct のフィールドを String にするか &str にするかの基準は？
+### Q1: What is the criterion for choosing between String and &str for struct fields?
 
-**A:** 原則として構造体には所有型(String)を使います。構造体が独立してデータを管理でき、ライフタイムの伝播を避けられます。パフォーマンスが重要で短命な構造体(パーサーの中間結果など)の場合のみ `&str` + ライフタイムを検討してください。
+**A:** As a rule, use owned types (String) for structs. The struct can manage data independently and avoid the propagation of lifetimes. Only consider `&str` + lifetimes when performance is important and the struct is short-lived (such as intermediate results in a parser).
 
-### Q2: `impl Trait` と `dyn Trait` はどう使い分けますか？
+### Q2: How do you choose between `impl Trait` and `dyn Trait`?
 
 **A:**
-- **`impl Trait`**: コンパイル時に具体型が決まる場合。高速で型安全。
-- **`dyn Trait`**: 実行時に異なる型を扱う場合。`Vec<Box<dyn Trait>>` のようにコレクションに異なる型を入れたいとき。
+- **`impl Trait`**: When the concrete type is determined at compile time. Fast and type-safe.
+- **`dyn Trait`**: When you need to handle different types at runtime. Such as when you want to put different types into a collection like `Vec<Box<dyn Trait>>`.
 
-### Q3: trait を実装するとき、孤児ルールとは何ですか？
+### Q3: When implementing a trait, what is the orphan rule?
 
-**A:** 他のクレートが定義したトレイトを、他のクレートが定義した型に実装することはできません。少なくとも型またはトレイトのどちらかが自分のクレートで定義されている必要があります。これにより実装の衝突を防ぎます。
+**A:** You cannot implement a trait defined in another crate for a type defined in another crate. At least either the type or the trait must be defined in your own crate. This prevents implementation conflicts.
 
 ```rust
-// OK: 自分のトレイトを外部の型に実装
+// OK: Implement your own trait for an external type
 impl MyTrait for Vec<i32> { ... }
 
-// OK: 外部のトレイトを自分の型に実装
+// OK: Implement an external trait for your own type
 impl Display for MyStruct { ... }
 
-// NG: 外部のトレイトを外部の型に実装
-// impl Display for Vec<i32> { ... }  // コンパイルエラー
+// NG: Implement an external trait for an external type
+// impl Display for Vec<i32> { ... }  // compile error
 ```
 
-### Q4: 関連型とジェネリクスはどう違いますか？
+### Q4: What is the difference between associated types and generics?
 
 **A:**
-- **関連型**: 1つの型に対して1つの実装のみ可能。Iterator の Item が代表例
-- **ジェネリクス**: 1つの型に対して複数の実装が可能。From<T> が代表例
+- **Associated types**: Only one implementation per type is possible. The Item of Iterator is a representative example.
+- **Generics**: Multiple implementations per type are possible. From<T> is a representative example.
 
 ```rust
-// 関連型: Vec<i32> の Iterator は Item=&i32 のみ
+// Associated type: Iterator for Vec<i32> is Item=&i32 only
 impl Iterator for MyIter {
-    type Item = u32;  // 固定
+    type Item = u32;  // fixed
     fn next(&mut self) -> Option<u32> { ... }
 }
 
-// ジェネリクス: 同じ型に複数の From を実装可能
+// Generics: multiple From implementations on the same type are possible
 impl From<String> for MyType { ... }
 impl From<i32> for MyType { ... }
 ```
 
-### Q5: derive できるトレイトの一覧は？
+### Q5: What is the list of derivable traits?
 
-**A:** 標準ライブラリでは以下のトレイトが derive 可能です:
+**A:** In the standard library, the following traits can be derived:
 - `Debug`, `Clone`, `Copy`
 - `PartialEq`, `Eq`
 - `PartialOrd`, `Ord`
 - `Hash`, `Default`
 
-外部クレートでは `serde::Serialize`, `serde::Deserialize`, `thiserror::Error` なども derive 可能です。
+In external crates, traits such as `serde::Serialize`, `serde::Deserialize`, and `thiserror::Error` can also be derived.
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining practical experience is the most important thing. Beyond theory, writing code yourself and confirming its behavior deepens understanding.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What mistakes do beginners often make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the basics and moving on to applications. We recommend thoroughly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+Knowledge of this topic is frequently utilized in everyday development work. It is especially important during code reviews and architectural design.
 
 ---
 
-## 12. まとめ
+## 12. Summary
 
-| 概念 | 要点 |
+| Concept | Key points |
 |------|------|
-| struct | 名前付き/タプル/ユニットの3種類。直積型 |
-| enum | バリアントを持つ直和型。パターンマッチで分岐 |
-| impl | メソッドと関連関数を定義するブロック |
-| trait | インターフェース定義。デフォルト実装も可能 |
-| ジェネリクス | 型パラメータで汎用コードを記述 |
-| トレイト境界 | ジェネリクスに制約を付ける (`T: Clone + Debug`) |
-| derive | 標準トレイトの自動実装 |
-| 静的/動的ディスパッチ | 単態化 vs vtable。用途に応じて選択 |
-| 関連型 | トレイト内で定義する型パラメータ |
-| 演算子オーバーロード | std::ops のトレイトを実装 |
-| ブランケット実装 | 条件を満たす全型への一括実装 |
+| struct | Three kinds: named, tuple, and unit. Product type |
+| enum | Sum type with variants. Branched via pattern matching |
+| impl | Block for defining methods and associated functions |
+| trait | Interface definition. Default implementations are also possible |
+| Generics | Write generic code with type parameters |
+| Trait bound | Add constraints to generics (`T: Clone + Debug`) |
+| derive | Automatic implementation of standard traits |
+| Static/Dynamic dispatch | Monomorphization vs vtable. Choose according to use case |
+| Associated type | Type parameter defined within a trait |
+| Operator overloading | Implement traits from std::ops |
+| Blanket impl | Bulk implementation for all types satisfying a condition |
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Reading
 
-- [03-error-handling.md](03-error-handling.md) -- Result/Option を活用したエラー処理
-- [04-collections-iterators.md](04-collections-iterators.md) -- コレクションとイテレータ
-- [../01-advanced/00-lifetimes.md](../01-advanced/00-lifetimes.md) -- ライフタイム詳解
+- [03-error-handling.md](03-error-handling.md) -- Error handling using Result/Option
+- [04-collections-iterators.md](04-collections-iterators.md) -- Collections and iterators
+- [../01-advanced/00-lifetimes.md](../01-advanced/00-lifetimes.md) -- Detailed explanation of lifetimes
 
 ---
 
-## 参考文献
+## References
 
 1. **The Rust Programming Language - Ch.5 Structs, Ch.6 Enums, Ch.10 Generics/Traits** -- https://doc.rust-lang.org/book/
 2. **Rust by Example - Custom Types** -- https://doc.rust-lang.org/rust-by-example/custom_types.html
