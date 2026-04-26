@@ -1,58 +1,58 @@
-# スマートポインタ -- 所有権と参照カウントによる柔軟なメモリ管理
+# Smart Pointers -- Flexible Memory Management via Ownership and Reference Counting
 
-> Box、Rc、Arc、RefCell、Mutex等のスマートポインタは、所有権システムの制約を安全に緩和し、共有所有権や内部可変性といった高度なパターンを実現する。
-
----
-
-## この章で学ぶこと
-
-1. **Box / Rc / Arc** -- ヒープ確保、参照カウント、スレッド安全な共有所有権を理解する
-2. **RefCell / Cell** -- 内部可変性パターンで不変参照越しにデータを変更する方法を習得する
-3. **Mutex / RwLock** -- スレッド間でデータを安全に共有する仕組みを学ぶ
-4. **Cow / Pin** -- 遅延クローンとメモリ固定の用途と実装を理解する
-5. **カスタムスマートポインタ** -- Deref / Drop トレイトを実装して独自のスマートポインタを設計する
-
-
-## 前提知識
-
-このガイドを読む前に、以下の知識があると理解が深まります:
-
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [ライフタイム詳解 -- 参照の有効期間をコンパイル時に証明する仕組み](./00-lifetimes.md) の内容を理解していること
+> Smart pointers such as Box, Rc, Arc, RefCell, and Mutex safely relax the constraints of the ownership system, enabling advanced patterns like shared ownership and interior mutability.
 
 ---
 
-## 1. スマートポインタの全体像
+## What You Will Learn in This Chapter
+
+1. **Box / Rc / Arc** -- Understand heap allocation, reference counting, and thread-safe shared ownership
+2. **RefCell / Cell** -- Master the interior mutability pattern for modifying data through immutable references
+3. **Mutex / RwLock** -- Learn the mechanisms for safely sharing data between threads
+4. **Cow / Pin** -- Understand the use cases and implementations of lazy cloning and memory pinning
+5. **Custom smart pointers** -- Implement the Deref / Drop traits to design your own smart pointers
+
+
+## Prerequisites
+
+Reading the following before this guide will deepen your understanding:
+
+- Basic programming knowledge
+- Understanding of related fundamental concepts
+- The content of [Lifetimes Explained -- The Mechanism for Proving Reference Validity at Compile Time](./00-lifetimes.md)
+
+---
+
+## 1. Overview of Smart Pointers
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                  スマートポインタ一覧                         │
+│                  Smart Pointer Catalog                      │
 ├─────────────┬────────────────┬──────────────────────────────┤
-│ 型           │ 所有権         │ 主な用途                     │
+│ Type        │ Ownership      │ Primary Use                  │
 ├─────────────┼────────────────┼──────────────────────────────┤
-│ Box<T>      │ 単一所有       │ ヒープ確保、再帰型           │
-│ Rc<T>       │ 共有(単スレ)  │ グラフ、複数所有者            │
-│ Arc<T>      │ 共有(マルチ)  │ スレッド間共有               │
-│ Cell<T>     │ 内部可変(Copy)│ 不変参照越しの書き換え       │
-│ RefCell<T>  │ 内部可変       │ 実行時借用チェック           │
-│ Mutex<T>    │ 排他ロック     │ スレッド間の可変アクセス     │
-│ RwLock<T>   │ 読み書きロック │ 多読み少書きのスレッド共有   │
-│ Cow<'a, T>  │ 遅延クローン   │ 変更時のみクローン           │
-│ Pin<P>      │ 固定           │ 自己参照型、async            │
-│ Weak<T>     │ 弱参照         │ 循環参照の防止               │
+│ Box<T>      │ Single owner   │ Heap allocation, recursive   │
+│ Rc<T>       │ Shared (1-thr) │ Graphs, multiple owners      │
+│ Arc<T>      │ Shared (multi) │ Sharing across threads       │
+│ Cell<T>     │ Interior (Copy)│ Modify through &T            │
+│ RefCell<T>  │ Interior mut.  │ Runtime borrow checking      │
+│ Mutex<T>    │ Exclusive lock │ Mutable cross-thread access  │
+│ RwLock<T>   │ Read/write lock│ Many readers, few writers    │
+│ Cow<'a, T>  │ Lazy clone     │ Clone only on modification   │
+│ Pin<P>      │ Pinned         │ Self-referential, async      │
+│ Weak<T>     │ Weak reference │ Prevent reference cycles     │
 └─────────────┴────────────────┴──────────────────────────────┘
 ```
 
-### 1.1 スマートポインタとは何か
+### 1.1 What Is a Smart Pointer?
 
-スマートポインタとは、ポインタのように振る舞いつつ、追加のメタデータや機能を持つデータ構造である。Rustでは `Deref` トレイトと `Drop` トレイトを実装することで、通常の参照のように使いながら、自動的なリソース管理を行える。
+A smart pointer is a data structure that behaves like a pointer but carries additional metadata or functionality. In Rust, by implementing the `Deref` and `Drop` traits, you can use a type like an ordinary reference while it manages resources automatically.
 
 ```rust
 use std::ops::Deref;
 
-// Deref トレイトの仕組み
-// Box<T> は Deref<Target = T> を実装している
+// How the Deref trait works
+// Box<T> implements Deref<Target = T>
 fn takes_str(s: &str) {
     println!("{}", s);
 }
@@ -60,28 +60,29 @@ fn takes_str(s: &str) {
 fn main() {
     let boxed_string = Box::new(String::from("hello"));
 
-    // Box<String> → &String → &str (Deref coercion)
+    // Box<String> -> &String -> &str (Deref coercion)
     takes_str(&boxed_string);
 
-    // 明示的な Deref
+    // Explicit Deref
     let s: &String = &*boxed_string;
     println!("{}", s);
 }
 ```
 
-### 1.2 Deref と Drop の重要性
+### 1.2 The Importance of Deref and Drop
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│  Deref トレイト                                       │
-│  - スマートポインタを透過的に参照として使えるようにする│
-│  - Deref coercion: &Box<T> → &T の自動変換            │
-│  - DerefMut: 可変参照への自動変換                     │
+│  Deref trait                                         │
+│  - Lets you use a smart pointer transparently        │
+│    as a reference                                    │
+│  - Deref coercion: &Box<T> -> &T automatic conversion│
+│  - DerefMut: automatic conversion to mutable refs    │
 │                                                      │
-│  Drop トレイト                                       │
-│  - スコープ終了時にリソースを自動解放する              │
-│  - ファイルハンドル、ネットワーク接続、メモリの解放    │
-│  - RAII パターンの実現                                │
+│  Drop trait                                          │
+│  - Automatically releases resources at scope exit    │
+│  - File handles, network connections, memory release │
+│  - Realizes the RAII pattern                         │
 └──────────────────────────────────────────────────────┘
 ```
 
@@ -111,28 +112,28 @@ impl<T> DerefMut for MyBox<T> {
 
 impl<T> Drop for MyBox<T> {
     fn drop(&mut self) {
-        println!("MyBox がドロップされました");
+        println!("MyBox has been dropped");
     }
 }
 
 fn main() {
     let x = MyBox::new(42);
-    println!("値: {}", *x); // Deref で i32 として参照
+    println!("Value: {}", *x); // Deref to reference an i32
 
     let mut s = MyBox::new(String::from("hello"));
-    s.push_str(" world"); // DerefMut で String として可変参照
+    s.push_str(" world"); // DerefMut for mutable reference as String
     println!("{}", *s);
-} // MyBox がドロップされる
+} // MyBox is dropped
 ```
 
 ---
 
 ## 2. Box<T>
 
-### 例1: Box の基本と再帰型
+### Example 1: Box Basics and Recursive Types
 
 ```rust
-// 再帰的なデータ構造(コンパイル時にサイズ不明)
+// Recursive data structure (size unknown at compile time)
 #[derive(Debug)]
 enum List {
     Cons(i32, Box<List>),
@@ -140,11 +141,11 @@ enum List {
 }
 
 fn main() {
-    // Box: ヒープにデータを確保
+    // Box: allocate data on the heap
     let b = Box::new(5);
-    println!("Box の中身: {}", b);
+    println!("Box contents: {}", b);
 
-    // 再帰型の使用
+    // Using a recursive type
     let list = List::Cons(1,
         Box::new(List::Cons(2,
             Box::new(List::Cons(3,
@@ -153,10 +154,10 @@ fn main() {
 }
 ```
 
-### Box のメモリレイアウト
+### Memory Layout of Box
 
 ```
-  スタック          ヒープ
+  Stack             Heap
   ┌──────────┐     ┌───────────────┐
   │ Box<i32> │     │               │
   │ ptr ─────────>│     42        │
@@ -164,18 +165,18 @@ fn main() {
   └──────────┘     └───────────────┘
   8 bytes           4 bytes
 
-  Box<T> はスタック上のポインタ1つ分のサイズ
-  Drop 時にヒープメモリを自動解放
+  Box<T> is the size of a single pointer on the stack
+  Heap memory is automatically released on Drop
 ```
 
-### 例2: Box によるトレイトオブジェクト
+### Example 2: Trait Objects via Box
 
 ```rust
 trait Animal {
     fn name(&self) -> &str;
     fn sound(&self) -> &str;
     fn info(&self) -> String {
-        format!("{}は{}と鳴く", self.name(), self.sound())
+        format!("{} says {}", self.name(), self.sound())
     }
 }
 
@@ -185,7 +186,7 @@ struct Dog {
 
 impl Animal for Dog {
     fn name(&self) -> &str { &self.name }
-    fn sound(&self) -> &str { "ワン" }
+    fn sound(&self) -> &str { "Woof" }
 }
 
 struct Cat {
@@ -194,23 +195,23 @@ struct Cat {
 
 impl Animal for Cat {
     fn name(&self) -> &str { &self.name }
-    fn sound(&self) -> &str { "ニャー" }
+    fn sound(&self) -> &str { "Meow" }
 }
 
-// Box<dyn Trait> で動的ディスパッチ
+// Dynamic dispatch via Box<dyn Trait>
 fn create_animal(kind: &str, name: &str) -> Box<dyn Animal> {
     match kind {
         "dog" => Box::new(Dog { name: name.to_string() }),
         "cat" => Box::new(Cat { name: name.to_string() }),
-        _ => panic!("不明な動物種"),
+        _ => panic!("Unknown animal kind"),
     }
 }
 
 fn main() {
     let animals: Vec<Box<dyn Animal>> = vec![
-        create_animal("dog", "ポチ"),
-        create_animal("cat", "タマ"),
-        create_animal("dog", "ハチ"),
+        create_animal("dog", "Pochi"),
+        create_animal("cat", "Tama"),
+        create_animal("dog", "Hachi"),
     ];
 
     for animal in &animals {
@@ -219,16 +220,16 @@ fn main() {
 }
 ```
 
-### 例3: Box による大きなデータのムーブ最適化
+### Example 3: Move Optimization for Large Data with Box
 
 ```rust
-// 大きな構造体
+// A large struct
 struct LargeStruct {
     data: [u8; 1_000_000], // 1MB
 }
 
-// スタック上にあると、ムーブ時に1MBのコピーが発生
-// Box で包むと、ポインタ(8bytes)のコピーだけで済む
+// On the stack, moving incurs a 1MB copy
+// Wrapped in Box, only the pointer (8 bytes) is copied
 fn create_large() -> Box<LargeStruct> {
     Box::new(LargeStruct {
         data: [0u8; 1_000_000],
@@ -236,26 +237,26 @@ fn create_large() -> Box<LargeStruct> {
 }
 
 fn process_large(data: Box<LargeStruct>) {
-    println!("データサイズ: {} bytes", data.data.len());
-    // Box はスコープ終了時にヒープメモリを解放
+    println!("Data size: {} bytes", data.data.len());
+    // Box releases heap memory at the end of its scope
 }
 
 fn main() {
-    let large = create_large(); // ポインタのムーブのみ
-    process_large(large);       // ポインタのムーブのみ
+    let large = create_large(); // Only the pointer is moved
+    process_large(large);       // Only the pointer is moved
 
-    // Box のサイズはポインタ1つ分
-    println!("Box<LargeStruct> のサイズ: {} bytes",
+    // Box is the size of a single pointer
+    println!("Size of Box<LargeStruct>: {} bytes",
         std::mem::size_of::<Box<LargeStruct>>());
-    // 8 bytes (64bit環境)
+    // 8 bytes (on 64-bit platforms)
 }
 ```
 
 ---
 
-## 3. Rc<T> と Arc<T>
+## 3. Rc<T> and Arc<T>
 
-### 例4: Rc による共有所有権
+### Example 4: Shared Ownership via Rc
 
 ```rust
 use std::rc::Rc;
@@ -267,24 +268,24 @@ struct SharedData {
 
 fn main() {
     let data = Rc::new(SharedData {
-        value: "共有データ".to_string(),
+        value: "shared data".to_string(),
     });
-    println!("参照カウント: {}", Rc::strong_count(&data)); // 1
+    println!("Reference count: {}", Rc::strong_count(&data)); // 1
 
-    let data2 = Rc::clone(&data); // 参照カウント増加(データはコピーしない)
-    println!("参照カウント: {}", Rc::strong_count(&data)); // 2
+    let data2 = Rc::clone(&data); // Increases the reference count (does not copy data)
+    println!("Reference count: {}", Rc::strong_count(&data)); // 2
 
     {
         let data3 = Rc::clone(&data);
-        println!("参照カウント: {}", Rc::strong_count(&data)); // 3
-    } // data3 が drop → 参照カウント減少
+        println!("Reference count: {}", Rc::strong_count(&data)); // 3
+    } // data3 is dropped -> reference count decreases
 
-    println!("参照カウント: {}", Rc::strong_count(&data)); // 2
-    println!("値: {}", data.value);
+    println!("Reference count: {}", Rc::strong_count(&data)); // 2
+    println!("Value: {}", data.value);
 }
 ```
 
-### 例5: Arc によるスレッド間共有
+### Example 5: Cross-Thread Sharing with Arc
 
 ```rust
 use std::sync::Arc;
@@ -298,7 +299,7 @@ fn main() {
         let data = Arc::clone(&data);
         let handle = thread::spawn(move || {
             let sum: i32 = data.iter().sum();
-            println!("スレッド{}: 合計={}", i, sum);
+            println!("Thread {}: sum={}", i, sum);
         });
         handles.push(handle);
     }
@@ -309,11 +310,11 @@ fn main() {
 }
 ```
 
-### Rc / Arc の仕組み
+### How Rc / Arc Work
 
 ```
-  Rc::clone は参照カウントを増やすだけ
-  データ自体はコピーしない
+  Rc::clone only increments the reference count
+  The data itself is not copied
 
   data ──┐
          │     ┌────────────────────────┐
@@ -324,12 +325,12 @@ fn main() {
                │ └────────────────────┘ │
                └────────────────────────┘
 
-  全ての Rc が drop されたとき(count == 0)にデータを解放
-  Rc: 単一スレッド用(Send を実装しない)
-  Arc: マルチスレッド用(アトミック操作で参照カウント管理)
+  Data is freed when all Rcs are dropped (count == 0)
+  Rc: single-threaded use (does not implement Send)
+  Arc: multi-threaded use (manages reference count via atomic operations)
 ```
 
-### 例6: Weak<T> による循環参照の防止
+### Example 6: Preventing Reference Cycles with Weak<T>
 
 ```rust
 use std::rc::{Rc, Weak};
@@ -352,9 +353,9 @@ impl Node {
     }
 
     fn add_child(parent: &Rc<Node>, child: &Rc<Node>) {
-        // 子ノードに親への弱い参照を設定
+        // Set a weak reference to the parent on the child node
         *child.parent.borrow_mut() = Rc::downgrade(parent);
-        // 親ノードに子への強い参照を追加
+        // Add a strong reference to the child on the parent node
         parent.children.borrow_mut().push(Rc::clone(child));
     }
 }
@@ -367,24 +368,24 @@ fn main() {
     Node::add_child(&root, &child1);
     Node::add_child(&root, &child2);
 
-    // 参照カウントの確認
-    println!("root の強い参照: {}", Rc::strong_count(&root));
-    println!("root の弱い参照: {}", Rc::weak_count(&root));
-    println!("child1 の強い参照: {}", Rc::strong_count(&child1));
+    // Check the reference counts
+    println!("Strong refs to root: {}", Rc::strong_count(&root));
+    println!("Weak refs to root: {}", Rc::weak_count(&root));
+    println!("Strong refs to child1: {}", Rc::strong_count(&child1));
 
-    // 弱い参照から強い参照への昇格
+    // Promote a weak reference to a strong reference
     if let Some(parent) = child1.parent.borrow().upgrade() {
-        println!("child1 の親の値: {}", parent.value);
+        println!("child1's parent value: {}", parent.value);
     }
 
-    // root を drop した場合、弱い参照は無効になる
+    // After dropping root, the weak reference becomes invalid
     drop(root);
-    println!("root drop 後の child1 の親: {:?}",
+    println!("child1's parent after dropping root: {:?}",
         child1.parent.borrow().upgrade()); // None
 }
 ```
 
-### 例7: Rc を使ったグラフ構造
+### Example 7: Graph Structure Using Rc
 
 ```rust
 use std::rc::Rc;
@@ -449,17 +450,17 @@ fn main() {
     graph.add_edge("A", "C");
     graph.add_edge("B", "C");
 
-    println!("A の隣接ノード: {:?}", graph.neighbors("A")); // ["B", "C"]
-    println!("B の隣接ノード: {:?}", graph.neighbors("B")); // ["C"]
-    println!("C の隣接ノード: {:?}", graph.neighbors("C")); // []
+    println!("Neighbors of A: {:?}", graph.neighbors("A")); // ["B", "C"]
+    println!("Neighbors of B: {:?}", graph.neighbors("B")); // ["C"]
+    println!("Neighbors of C: {:?}", graph.neighbors("C")); // []
 }
 ```
 
 ---
 
-## 4. RefCell<T> と内部可変性
+## 4. RefCell<T> and Interior Mutability
 
-### 例8: RefCell による実行時借用チェック
+### Example 8: Runtime Borrow Checking with RefCell
 
 ```rust
 use std::cell::RefCell;
@@ -476,13 +477,13 @@ impl Logger {
         }
     }
 
-    // &self (不変参照) なのに中身を変更できる
+    // Modifies contents even though &self (immutable reference) is taken
     fn log(&self, msg: &str) {
         self.messages.borrow_mut().push(msg.to_string());
     }
 
     fn dump(&self) {
-        let msgs = self.messages.borrow(); // 不変借用
+        let msgs = self.messages.borrow(); // immutable borrow
         for msg in msgs.iter() {
             println!("[LOG] {}", msg);
         }
@@ -499,17 +500,17 @@ impl Logger {
 
 fn main() {
     let logger = Logger::new();
-    logger.log("初期化完了");
-    logger.log("処理開始");
-    logger.log("処理完了");
-    println!("ログ件数: {}", logger.count());
+    logger.log("initialization complete");
+    logger.log("processing started");
+    logger.log("processing complete");
+    println!("Number of logs: {}", logger.count());
     logger.dump();
     logger.clear();
-    println!("クリア後のログ件数: {}", logger.count());
+    println!("Number of logs after clearing: {}", logger.count());
 }
 ```
 
-### 例9: Cell<T> の使い方
+### Example 9: How to Use Cell<T>
 
 ```rust
 use std::cell::Cell;
@@ -528,7 +529,7 @@ impl Counter {
     }
 
     fn increment(&self) {
-        // Cell は get/set でアトミックに値を入れ替え
+        // Cell atomically swaps the value via get/set
         self.count.set(self.count.get() + 1);
     }
 
@@ -537,12 +538,12 @@ impl Counter {
     }
 }
 
-// Cell と RefCell の違い
-// Cell<T>: T が Copy の場合に使用。get/set のみ。参照を取れない
-// RefCell<T>: 任意の T に使用。borrow/borrow_mut で参照を取得
+// Difference between Cell and RefCell
+// Cell<T>: used when T is Copy. Only get/set; cannot obtain a reference
+// RefCell<T>: usable for any T. Acquire references via borrow/borrow_mut
 
 fn main() {
-    let counter = Counter::new("テスト");
+    let counter = Counter::new("test");
     counter.increment();
     counter.increment();
     counter.increment();
@@ -550,7 +551,7 @@ fn main() {
 }
 ```
 
-### 例10: Rc<RefCell<T>> パターン
+### Example 10: The Rc<RefCell<T>> Pattern
 
 ```rust
 use std::cell::RefCell;
@@ -594,15 +595,15 @@ fn main() {
     Node::add_child(&root, Rc::clone(&child1));
     Node::add_child(&root, Rc::clone(&child2));
 
-    // 共有所有の状態で値を変更
+    // Modify the value while in shared ownership
     grandchild.borrow_mut().value = 10;
 
-    println!("ツリーの合計: {}", sum_tree(&root)); // 1 + 2 + 3 + 10 = 16
+    println!("Tree sum: {}", sum_tree(&root)); // 1 + 2 + 3 + 10 = 16
     println!("root: {:?}", root.borrow());
 }
 ```
 
-### 例11: RefCell のパニック回避テクニック
+### Example 11: Techniques to Avoid Panics with RefCell
 
 ```rust
 use std::cell::RefCell;
@@ -618,40 +619,40 @@ impl SafeContainer {
         }
     }
 
-    // try_borrow / try_borrow_mut でパニックを回避
+    // Avoid panics with try_borrow / try_borrow_mut
     fn safe_push(&self, item: String) -> Result<(), String> {
         match self.data.try_borrow_mut() {
             Ok(mut data) => {
                 data.push(item);
                 Ok(())
             }
-            Err(_) => Err("借用中のため変更できません".to_string()),
+            Err(_) => Err("Cannot modify because it is currently borrowed".to_string()),
         }
     }
 
     fn safe_read(&self) -> Result<Vec<String>, String> {
         match self.data.try_borrow() {
             Ok(data) => Ok(data.clone()),
-            Err(_) => Err("可変借用中のため読み取れません".to_string()),
+            Err(_) => Err("Cannot read because it is currently mutably borrowed".to_string()),
         }
     }
 
-    // 借用のスコープを明確に制限する
+    // Clearly limit the scope of borrows
     fn process(&self) {
-        // NG: この書き方はパニックする可能性がある
+        // BAD: this style can panic
         // let r = self.data.borrow();
-        // self.data.borrow_mut().push("new".to_string()); // パニック!
+        // self.data.borrow_mut().push("new".to_string()); // panic!
 
-        // OK: 借用を早期にドロップ
+        // OK: drop the borrow early
         let items: Vec<String> = {
             let r = self.data.borrow();
             r.clone()
         };
-        // ここで r はドロップ済み
+        // r has been dropped here
         for item in items {
-            println!("処理: {}", item);
+            println!("processing: {}", item);
         }
-        self.data.borrow_mut().push("処理完了".to_string());
+        self.data.borrow_mut().push("processing complete".to_string());
     }
 }
 
@@ -666,9 +667,9 @@ fn main() {
 
 ---
 
-## 5. Mutex<T> と RwLock<T>
+## 5. Mutex<T> and RwLock<T>
 
-### 例12: Arc<Mutex<T>> によるスレッド安全な共有
+### Example 12: Thread-Safe Sharing via Arc<Mutex<T>>
 
 ```rust
 use std::sync::{Arc, Mutex};
@@ -683,7 +684,7 @@ fn main() {
         let handle = thread::spawn(move || {
             let mut num = counter.lock().unwrap();
             *num += 1;
-            // MutexGuard が drop される → 自動的にロック解放
+            // MutexGuard is dropped -> lock is automatically released
         });
         handles.push(handle);
     }
@@ -692,11 +693,11 @@ fn main() {
         handle.join().unwrap();
     }
 
-    println!("結果: {}", *counter.lock().unwrap()); // 10
+    println!("Result: {}", *counter.lock().unwrap()); // 10
 }
 ```
 
-### 例13: RwLock によるリーダー・ライター制御
+### Example 13: Reader/Writer Control with RwLock
 
 ```rust
 use std::sync::{Arc, RwLock};
@@ -747,22 +748,22 @@ fn main() {
 
     let mut handles = vec![];
 
-    // 複数リーダー
+    // Multiple readers
     for i in 0..5 {
         let config = config.clone();
         handles.push(thread::spawn(move || {
             thread::sleep(Duration::from_millis(10));
             let all = config.get_all();
-            println!("リーダー{}: {:?}", i, all);
+            println!("Reader {}: {:?}", i, all);
         }));
     }
 
-    // 1ライター
+    // One writer
     {
         let config = config.clone();
         handles.push(thread::spawn(move || {
             config.set("debug".to_string(), "true".to_string());
-            println!("ライター: debug=true を設定");
+            println!("Writer: set debug=true");
         }));
     }
 
@@ -770,28 +771,28 @@ fn main() {
         handle.join().unwrap();
     }
 
-    println!("最終設定: {:?}", config.get_all());
+    println!("Final config: {:?}", config.get_all());
 }
 ```
 
-### 例14: Mutex のデッドロック回避
+### Example 14: Avoiding Deadlocks with Mutex
 
 ```rust
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-// デッドロックの典型例
-// スレッド1: lock(A) → lock(B)
-// スレッド2: lock(B) → lock(A)
-// → 互いにロックを待ち合って永久にブロック
+// Classic deadlock example
+// Thread 1: lock(A) -> lock(B)
+// Thread 2: lock(B) -> lock(A)
+// -> They wait for each other's locks and block forever
 
-// 回避策1: ロックの順序を統一する
+// Mitigation 1: enforce a consistent lock order
 fn safe_transfer(
     from: &Mutex<i64>,
     to: &Mutex<i64>,
     amount: i64,
 ) {
-    // 常にアドレスが小さい方を先にロック
+    // Always lock the one with the smaller address first
     let (first, second, is_reversed) = {
         let from_ptr = from as *const Mutex<i64> as usize;
         let to_ptr = to as *const Mutex<i64> as usize;
@@ -814,13 +815,13 @@ fn safe_transfer(
     }
 }
 
-// 回避策2: try_lock でタイムアウト
+// Mitigation 2: timeout via try_lock
 fn try_transfer(
     from: &Mutex<i64>,
     to: &Mutex<i64>,
     amount: i64,
 ) -> Result<(), &'static str> {
-    // ロック取得を試み、失敗したらリトライ
+    // Attempt to acquire the lock; retry on failure
     for _ in 0..100 {
         if let Ok(mut from_guard) = from.try_lock() {
             if let Ok(mut to_guard) = to.try_lock() {
@@ -831,7 +832,7 @@ fn try_transfer(
         }
         std::thread::yield_now();
     }
-    Err("ロック取得に失敗")
+    Err("failed to acquire lock")
 }
 
 fn main() {
@@ -840,7 +841,7 @@ fn main() {
 
     let mut handles = vec![];
 
-    // 複数スレッドで同時に送金
+    // Concurrent transfers from multiple threads
     for _ in 0..10 {
         let a = Arc::clone(&account_a);
         let b = Arc::clone(&account_b);
@@ -853,9 +854,9 @@ fn main() {
         handle.join().unwrap();
     }
 
-    println!("口座A: {}", account_a.lock().unwrap());
-    println!("口座B: {}", account_b.lock().unwrap());
-    // 合計は常に 2000
+    println!("Account A: {}", account_a.lock().unwrap());
+    println!("Account B: {}", account_b.lock().unwrap());
+    // The total is always 2000
 }
 ```
 
@@ -863,41 +864,41 @@ fn main() {
 
 ## 6. Cow (Clone on Write)
 
-### 例15: Cow の基本
+### Example 15: Cow Basics
 
 ```rust
 use std::borrow::Cow;
 
 fn normalize(input: &str) -> Cow<'_, str> {
     if input.contains(' ') {
-        // 変更が必要な場合のみ新しい String を作成
+        // Create a new String only when modification is required
         Cow::Owned(input.replace(' ', "_"))
     } else {
-        // 変更不要ならそのまま借用を返す
+        // If no modification is needed, return the borrow as-is
         Cow::Borrowed(input)
     }
 }
 
 fn main() {
-    let s1 = normalize("hello_world"); // Borrowed → コピーなし
-    let s2 = normalize("hello world"); // Owned → 新しい String
+    let s1 = normalize("hello_world"); // Borrowed -> no copy
+    let s2 = normalize("hello world"); // Owned -> new String
     println!("{}, {}", s1, s2);
 
-    // Cow は Deref で &str として使える
+    // Cow can be used as &str via Deref
     fn takes_str(s: &str) {
-        println!("受信: {}", s);
+        println!("received: {}", s);
     }
     takes_str(&s1);
     takes_str(&s2);
 }
 ```
 
-### 例16: Cow の実践的な活用
+### Example 16: Practical Use of Cow
 
 ```rust
 use std::borrow::Cow;
 
-// エスケープ処理: 変更が必要な場合のみアロケーション
+// Escape processing: allocate only when modification is needed
 fn html_escape(input: &str) -> Cow<'_, str> {
     if input.contains(|c: char| matches!(c, '<' | '>' | '&' | '"' | '\'')) {
         let mut result = String::with_capacity(input.len());
@@ -917,7 +918,7 @@ fn html_escape(input: &str) -> Cow<'_, str> {
     }
 }
 
-// パス正規化: 必要な場合のみクローン
+// Path normalization: clone only when needed
 fn normalize_path(path: &str) -> Cow<'_, str> {
     if path.starts_with("~/") {
         let home = std::env::var("HOME").unwrap_or_default();
@@ -929,7 +930,7 @@ fn normalize_path(path: &str) -> Cow<'_, str> {
     }
 }
 
-// Cow をジェネリックに使う
+// Using Cow generically
 fn process_items<'a>(items: &'a [String], prefix: &str) -> Vec<Cow<'a, str>> {
     items
         .iter()
@@ -944,19 +945,19 @@ fn process_items<'a>(items: &'a [String], prefix: &str) -> Vec<Cow<'a, str>> {
 }
 
 fn main() {
-    // HTML エスケープ
+    // HTML escape
     let safe = html_escape("Hello World");       // Borrowed
     let escaped = html_escape("<script>alert('xss')</script>"); // Owned
-    println!("安全: {}", safe);
-    println!("エスケープ: {}", escaped);
+    println!("Safe: {}", safe);
+    println!("Escaped: {}", escaped);
 
-    // パス正規化
+    // Path normalization
     let path1 = normalize_path("/usr/local/bin");  // Borrowed
     let path2 = normalize_path("~/Documents");     // Owned
-    println!("パス1: {}", path1);
-    println!("パス2: {}", path2);
+    println!("Path 1: {}", path1);
+    println!("Path 2: {}", path2);
 
-    // ジェネリック処理
+    // Generic processing
     let items = vec!["hello".to_string(), "prefix_world".to_string()];
     let processed = process_items(&items, "prefix_");
     for item in &processed {
@@ -969,34 +970,35 @@ fn main() {
 
 ## 7. Pin<P>
 
-### 7.1 Pin の概要
+### 7.1 Overview of Pin
 
-`Pin<P>` はポインタ `P` が指すデータのメモリ上の位置を固定する。主に自己参照型と async/await で使用される。
+`Pin<P>` fixes the memory location of the data that pointer `P` points to. It is mainly used with self-referential types and async/await.
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│  Pin<P> の目的                                        │
+│  Purpose of Pin<P>                                   │
 ├──────────────────────────────────────────────────────┤
 │                                                      │
-│  問題: 自己参照型はムーブすると内部参照が壊れる       │
+│  Problem: moving a self-referential type breaks      │
+│  the internal references                             │
 │                                                      │
-│  ムーブ前:                                           │
+│  Before move:                                        │
 │  ┌──────────────────┐                                │
-│  │ data: "hello"    │ ← ptr が data を指す           │
+│  │ data: "hello"    │ <- ptr points to data          │
 │  │ ptr: &data ──────┘                                │
 │  └──────────────────┘                                │
 │                                                      │
-│  ムーブ後:                                           │
-│  ┌──────────────────┐  ← 新しいアドレス              │
+│  After move:                                         │
+│  ┌──────────────────┐  <- new address                │
 │  │ data: "hello"    │                                │
-│  │ ptr: &旧data ────── → ダングリング！              │
+│  │ ptr: &old_data ──── -> dangling!                  │
 │  └──────────────────┘                                │
 │                                                      │
-│  Pin を使うと: ムーブが防止される → 安全              │
+│  Using Pin: moves are prevented -> safe              │
 └──────────────────────────────────────────────────────┘
 ```
 
-### 例17: Pin の基本的な使い方
+### Example 17: Basic Use of Pin
 
 ```rust
 use std::pin::Pin;
@@ -1004,9 +1006,9 @@ use std::marker::PhantomPinned;
 
 struct SelfReferential {
     data: String,
-    // 自己参照ポインタ(初期化後にセット)
+    // Self-referential pointer (set after initialization)
     ptr: *const String,
-    // Unpin を実装しないようにする
+    // Prevent the type from implementing Unpin
     _pin: PhantomPinned,
 }
 
@@ -1019,7 +1021,7 @@ impl SelfReferential {
         };
         let mut boxed = Box::pin(s);
 
-        // 自己参照ポインタをセット
+        // Set the self-referential pointer
         let self_ptr: *const String = &boxed.data;
         unsafe {
             let mut_ref = Pin::as_mut(&mut boxed);
@@ -1041,23 +1043,23 @@ impl SelfReferential {
 fn main() {
     let pinned = SelfReferential::new("Hello, Pin!".to_string());
     println!("data: {}", pinned.get_data());
-    println!("ptr→data: {}", pinned.get_ptr_data());
+    println!("ptr->data: {}", pinned.get_ptr_data());
 
-    // pinned はムーブできない(Pin で固定されている)
-    // let moved = pinned; // コンパイルエラー (PhantomPinned のため)
+    // pinned cannot be moved (it is fixed by Pin)
+    // let moved = pinned; // compile error (because of PhantomPinned)
 }
 ```
 
-### 例18: async/await と Pin
+### Example 18: async/await and Pin
 
 ```rust
 use std::pin::Pin;
 use std::future::Future;
 
-// async fn は内部的に自己参照構造を生成する
-// そのため Future を直接扱う場合は Pin が必要
+// async fn internally generates a self-referential structure
+// Therefore Pin is required when handling Future directly
 
-// 手動で Future トレイトを実装する例
+// Example of manually implementing the Future trait
 struct CountdownFuture {
     count: u32,
 }
@@ -1070,7 +1072,7 @@ impl Future for CountdownFuture {
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Self::Output> {
         if self.count == 0 {
-            std::task::Poll::Ready("カウントダウン完了!".to_string())
+            std::task::Poll::Ready("countdown complete!".to_string())
         } else {
             self.count -= 1;
             cx.waker().wake_by_ref();
@@ -1079,10 +1081,10 @@ impl Future for CountdownFuture {
     }
 }
 
-// Pin を要求する関数
+// A function that requires Pin
 fn execute_pinned<F: Future<Output = String>>(future: Pin<Box<F>>) {
-    // 実際にはランタイムが poll を呼ぶ
-    println!("Future を受け取りました");
+    // In practice, the runtime calls poll
+    println!("received the Future");
 }
 
 fn main() {
@@ -1094,9 +1096,9 @@ fn main() {
 
 ---
 
-## 8. カスタムスマートポインタの設計
+## 8. Designing Custom Smart Pointers
 
-### 例19: 監査ログ付きスマートポインタ
+### Example 19: Smart Pointer with Audit Logging
 
 ```rust
 use std::ops::{Deref, DerefMut};
@@ -1142,30 +1144,30 @@ impl<T> DerefMut for Audited<T> {
 impl<T> Drop for Audited<T> {
     fn drop(&mut self) {
         let (reads, writes) = self.stats();
-        println!("[監査] '{}': 読取={}, 書込={}", self.name, reads, writes);
+        println!("[audit] '{}': reads={}, writes={}", self.name, reads, writes);
     }
 }
 
 fn main() {
     {
-        let mut data = Audited::new("重要データ", vec![1, 2, 3]);
+        let mut data = Audited::new("important data", vec![1, 2, 3]);
 
-        // 読み取りアクセス
-        println!("長さ: {}", data.len());       // Deref → read_count++
-        println!("先頭: {}", data[0]);           // Deref → read_count++
+        // Read accesses
+        println!("len: {}", data.len());        // Deref -> read_count++
+        println!("first: {}", data[0]);          // Deref -> read_count++
 
-        // 書き込みアクセス
-        data.push(4);                            // DerefMut → write_count++
-        data.push(5);                            // DerefMut → write_count++
+        // Write accesses
+        data.push(4);                            // DerefMut -> write_count++
+        data.push(5);                            // DerefMut -> write_count++
 
         let (reads, writes) = data.stats();
-        println!("中間統計: 読取={}, 書込={}", reads, writes);
+        println!("intermediate stats: reads={}, writes={}", reads, writes);
     }
-    // ドロップ時に最終統計が表示される
+    // Final stats are printed on drop
 }
 ```
 
-### 例20: プール管理スマートポインタ
+### Example 20: Pool-Managed Smart Pointer
 
 ```rust
 use std::ops::Deref;
@@ -1185,16 +1187,16 @@ impl<T> Deref for PoolItem<T> {
 
 impl<T> Drop for PoolItem<T> {
     fn drop(&mut self) {
-        // ドロップ時にプールに返却
-        // 注意: std::mem::replace で値を取り出す
+        // Return to the pool on drop
+        // Note: extract the value with std::mem::replace
         let value = unsafe {
             std::ptr::read(&self.value)
         };
         if let Ok(mut pool) = self.pool.lock() {
             pool.push(value);
-            println!("プールに返却 (プールサイズ: {})", pool.len());
+            println!("returned to pool (pool size: {})", pool.len());
         }
-        // value のドロップを防ぐ
+        // Prevent value from being dropped
         std::mem::forget(std::mem::ManuallyDrop::new(()));
     }
 }
@@ -1213,7 +1215,7 @@ impl<T> Pool<T> {
     fn acquire(&self) -> Option<PoolItem<T>> {
         let mut items = self.items.lock().unwrap();
         items.pop().map(|value| {
-            println!("プールから取得 (残り: {})", items.len());
+            println!("acquired from pool (remaining: {})", items.len());
             PoolItem {
                 value,
                 pool: Arc::clone(&self.items),
@@ -1224,102 +1226,102 @@ impl<T> Pool<T> {
 
 fn main() {
     let pool = Pool::new(vec![
-        String::from("接続1"),
-        String::from("接続2"),
-        String::from("接続3"),
+        String::from("connection 1"),
+        String::from("connection 2"),
+        String::from("connection 3"),
     ]);
 
     {
         let conn1 = pool.acquire().unwrap();
         let conn2 = pool.acquire().unwrap();
-        println!("使用中: {}, {}", *conn1, *conn2);
-        // conn2 がドロップ → プールに返却
+        println!("in use: {}, {}", *conn1, *conn2);
+        // conn2 is dropped -> returned to the pool
     }
-    // conn1 もドロップ → プールに返却
+    // conn1 is also dropped -> returned to the pool
 
-    // 返却された接続を再利用
+    // Reuse a returned connection
     let conn3 = pool.acquire().unwrap();
-    println!("再利用: {}", *conn3);
+    println!("reused: {}", *conn3);
 }
 ```
 
 ---
 
-## 9. 比較表
+## 9. Comparison Tables
 
-### 9.1 スマートポインタ選択ガイド
+### 9.1 Smart Pointer Selection Guide
 
-| 要件 | 選択する型 | 理由 |
+| Requirement | Type to Choose | Reason |
 |------|-----------|------|
-| ヒープに確保したい | `Box<T>` | 最も単純。単一所有 |
-| 同一スレッドで共有 | `Rc<T>` | 参照カウントで共有所有 |
-| スレッド間で共有(読取のみ) | `Arc<T>` | アトミック参照カウント |
-| スレッド間で共有(変更あり) | `Arc<Mutex<T>>` | ロックで排他アクセス |
-| 不変参照越しに変更 | `RefCell<T>` | 実行時借用チェック |
-| Copy型の内部可変性 | `Cell<T>` | get/set で値を差し替え |
-| 多読み少書き(スレッド) | `Arc<RwLock<T>>` | 読み取りは並行可能 |
-| 変更時のみクローン | `Cow<'a, T>` | 不要なアロケーション回避 |
-| 循環参照の防止 | `Weak<T>` | 参照カウントに含まれない |
-| 自己参照・async | `Pin<P>` | メモリ位置を固定 |
+| Allocate on the heap | `Box<T>` | Simplest. Single ownership |
+| Share within the same thread | `Rc<T>` | Shared ownership via reference counting |
+| Share across threads (read only) | `Arc<T>` | Atomic reference counting |
+| Share across threads (with mutation) | `Arc<Mutex<T>>` | Exclusive access via locking |
+| Mutate through immutable references | `RefCell<T>` | Runtime borrow checking |
+| Interior mutability for Copy types | `Cell<T>` | Swap values via get/set |
+| Many readers, few writers (threads) | `Arc<RwLock<T>>` | Reads can run in parallel |
+| Clone only on modification | `Cow<'a, T>` | Avoids unnecessary allocations |
+| Prevent reference cycles | `Weak<T>` | Not counted in the reference count |
+| Self-referential / async | `Pin<P>` | Pin the memory location |
 
 ### 9.2 Rc vs Arc
 
-| 特性 | Rc<T> | Arc<T> |
+| Property | Rc<T> | Arc<T> |
 |------|-------|--------|
-| スレッド安全 | No (Send 未実装) | Yes |
-| 参照カウント操作 | 通常の加減算 | アトミック操作 |
-| オーバーヘッド | 小さい | やや大きい |
-| 用途 | 単一スレッド内の共有 | マルチスレッドの共有 |
-| 内部可変性 | + RefCell | + Mutex / RwLock |
+| Thread-safe | No (does not implement Send) | Yes |
+| Reference count operations | Plain inc/dec | Atomic operations |
+| Overhead | Small | Slightly larger |
+| Use case | Sharing within a single thread | Sharing across threads |
+| Interior mutability | + RefCell | + Mutex / RwLock |
 
 ### 9.3 RefCell vs Mutex vs RwLock
 
-| 特性 | RefCell<T> | Mutex<T> | RwLock<T> |
+| Property | RefCell<T> | Mutex<T> | RwLock<T> |
 |------|-----------|----------|-----------|
-| スレッド安全 | No | Yes | Yes |
-| 借用チェック | 実行時 | ロック | ロック |
-| 複数リーダー | borrow() で可能 | 不可 | read() で可能 |
-| ライターの排他性 | borrow_mut() | lock() | write() |
-| 違反時の動作 | パニック | ブロック | ブロック |
-| try操作 | try_borrow() | try_lock() | try_read/try_write() |
-| Poison | なし | あり | あり |
-| オーバーヘッド | 小さい | 中程度 | 中程度 |
+| Thread-safe | No | Yes | Yes |
+| Borrow checking | Runtime | Lock | Lock |
+| Multiple readers | Possible via borrow() | Not possible | Possible via read() |
+| Writer exclusivity | borrow_mut() | lock() | write() |
+| Behavior on violation | Panic | Block | Block |
+| Try operations | try_borrow() | try_lock() | try_read/try_write() |
+| Poison | None | Yes | Yes |
+| Overhead | Small | Moderate | Moderate |
 
-### 9.4 メモリレイアウト比較
+### 9.4 Memory Layout Comparison
 
-| 型 | スタックサイズ | ヒープ使用 |
+| Type | Stack Size | Heap Usage |
 |----|---------------|-----------|
-| `T` | `size_of::<T>()` | なし |
-| `Box<T>` | ポインタ1つ (8B) | `size_of::<T>()` |
-| `Rc<T>` | ポインタ1つ (8B) | `size_of::<T>()` + カウンタ(16B) |
-| `Arc<T>` | ポインタ1つ (8B) | `size_of::<T>()` + アトミックカウンタ(16B) |
-| `RefCell<T>` | `size_of::<T>()` + フラグ | なし |
-| `Cell<T>` | `size_of::<T>()` | なし |
+| `T` | `size_of::<T>()` | None |
+| `Box<T>` | One pointer (8B) | `size_of::<T>()` |
+| `Rc<T>` | One pointer (8B) | `size_of::<T>()` + counters (16B) |
+| `Arc<T>` | One pointer (8B) | `size_of::<T>()` + atomic counters (16B) |
+| `RefCell<T>` | `size_of::<T>()` + flag | None |
+| `Cell<T>` | `size_of::<T>()` | None |
 
 ---
 
-## 10. アンチパターン
+## 10. Anti-Patterns
 
-### アンチパターン1: RefCell の実行時パニック
+### Anti-Pattern 1: Runtime Panic with RefCell
 
 ```rust
 use std::cell::RefCell;
 
-// BAD: 同時に borrow と borrow_mut → 実行時パニック
+// BAD: simultaneous borrow and borrow_mut -> runtime panic
 fn bad_example() {
     let data = RefCell::new(vec![1, 2, 3]);
-    let r1 = data.borrow();     // 不変借用
-    // let r2 = data.borrow_mut(); // パニック！不変借用中に可変借用
+    let r1 = data.borrow();     // immutable borrow
+    // let r2 = data.borrow_mut(); // panic! mutable borrow during immutable borrow
     println!("{:?}", r1);
 }
 
-// GOOD: 借用のスコープを制限する
+// GOOD: limit the scope of borrows
 fn good_example() {
     let data = RefCell::new(vec![1, 2, 3]);
     {
         let r1 = data.borrow();
         println!("{:?}", r1);
-    } // r1 が drop される
+    } // r1 is dropped
     let mut r2 = data.borrow_mut(); // OK
     r2.push(4);
 }
@@ -1330,20 +1332,20 @@ fn main() {
 }
 ```
 
-### アンチパターン2: 不要な Arc<Mutex<T>>
+### Anti-Pattern 2: Unnecessary Arc<Mutex<T>>
 
 ```rust
 use std::sync::{Arc, Mutex};
 use std::cell::RefCell;
 
-// BAD: 単一スレッドなのに Arc<Mutex> を使用
+// BAD: using Arc<Mutex> for single-threaded code
 fn single_thread_bad() {
     let data = Arc::new(Mutex::new(vec![1, 2, 3]));
     let mut guard = data.lock().unwrap();
     guard.push(4);
 }
 
-// GOOD: 単一スレッドなら RefCell で十分
+// GOOD: RefCell suffices for single-threaded code
 fn single_thread_good() {
     let data = RefCell::new(vec![1, 2, 3]);
     data.borrow_mut().push(4);
@@ -1355,7 +1357,7 @@ fn main() {
 }
 ```
 
-### アンチパターン3: Rc の循環参照によるメモリリーク
+### Anti-Pattern 3: Memory Leaks from Rc Reference Cycles
 
 ```rust
 use std::rc::Rc;
@@ -1376,60 +1378,60 @@ fn demonstrate_leak() {
         value: 2,
         next: RefCell::new(Some(Rc::clone(&a))),
     });
-    // 循環参照を作成！
+    // Create a reference cycle!
     *a.next.borrow_mut() = Some(Rc::clone(&b));
 
-    // a → b → a → b → ... の循環
-    // 参照カウントが 0 にならないためメモリリーク
-    println!("a の参照カウント: {}", Rc::strong_count(&a)); // 2
-    println!("b の参照カウント: {}", Rc::strong_count(&b)); // 2
+    // Cycle: a -> b -> a -> b -> ...
+    // Reference count never reaches 0, causing a memory leak
+    println!("Reference count of a: {}", Rc::strong_count(&a)); // 2
+    println!("Reference count of b: {}", Rc::strong_count(&b)); // 2
 }
-// a と b がドロップされても、互いに参照し合っているため
-// 参照カウントは 1 のまま → メモリリーク
+// Even after a and b are dropped, they reference each other
+// so the reference count stays at 1 -> memory leak
 
-// GOOD: Weak を使って循環を防ぐ
+// GOOD: prevent the cycle with Weak
 use std::rc::Weak;
 
 #[derive(Debug)]
 struct GoodNode {
     value: i32,
     next: RefCell<Option<Rc<GoodNode>>>,
-    prev: RefCell<Option<Weak<GoodNode>>>,  // 弱い参照
+    prev: RefCell<Option<Weak<GoodNode>>>,  // weak reference
 }
 
 fn main() {
     demonstrate_leak();
-    println!("循環参照のデモ完了 (メモリリークが発生)");
+    println!("Reference cycle demo complete (memory leak occurred)");
 }
 ```
 
-### アンチパターン4: Box の不要な使用
+### Anti-Pattern 4: Unnecessary Use of Box
 
 ```rust
-// BAD: 小さい値を Box に包む必要はない
+// BAD: no need to wrap a small value in a Box
 fn bad_box() {
-    let x = Box::new(42);  // ヒープ確保のオーバーヘッド
+    let x = Box::new(42);  // overhead of heap allocation
     println!("{}", x);
 }
 
-// GOOD: スタックに直接置く
+// GOOD: place it directly on the stack
 fn good_stack() {
     let x = 42;
     println!("{}", x);
 }
 
-// Box が必要なケース
+// Cases where Box is needed
 fn good_box_usage() {
-    // 1. 再帰型
+    // 1. Recursive types
     enum List<T> {
         Cons(T, Box<List<T>>),
         Nil,
     }
 
-    // 2. トレイトオブジェクト
+    // 2. Trait objects
     let _: Box<dyn std::fmt::Display> = Box::new(42);
 
-    // 3. 大きなデータ
+    // 3. Large data
     let _: Box<[u8; 1_000_000]> = Box::new([0u8; 1_000_000]);
 }
 
@@ -1443,45 +1445,45 @@ fn main() {
 
 ---
 
-## 実践演習
+## Hands-On Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that satisfies the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate the input data
+- Implement appropriate error handling
+- Also write test code
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Template for the basic implementation
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Practice for basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate the input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main logic for data processing"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Retrieve processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1490,26 +1492,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "an exception should have been raised"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation by adding the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Advanced patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Practice for advanced patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1517,7 +1519,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1528,14 +1530,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Delete by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1543,7 +1545,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1551,44 +1553,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1597,7 +1599,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1612,47 +1614,47 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient version: {slow_time:.4f} sec")
+    print(f"Efficient version:   {fast_time:.6f} sec")
+    print(f"Speedup factor: {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key Points:**
+- Be aware of algorithmic complexity
+- Choose appropriate data structures
+- Measure the effect with benchmarks
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
+| Error | Cause | Solution |
 |--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Initialization error | Misconfiguration | Check the path and format of the configuration file |
+| Timeout | Network latency / lack of resources | Adjust timeout values, add retry logic |
+| Out of memory | Growing data volume | Introduce batch processing, implement pagination |
+| Permission error | Insufficient access rights | Check the executing user's privileges, review settings |
+| Data inconsistency | Concurrent processing conflicts | Introduce locking mechanisms, transaction management |
 
-### デバッグの手順
+### Debugging Procedure
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check the error message**: read the stack trace and identify where it occurs
+2. **Establish a reproduction procedure**: reproduce the error with minimal code
+3. **Formulate hypotheses**: list possible causes
+4. **Verify step by step**: validate the hypotheses with logging or a debugger
+5. **Fix and regression test**: after fixing, also run tests for related areas
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utilities
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger setup
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -1660,146 +1662,146 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs the inputs and outputs of a function"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"call: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"return: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"exception: {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debug target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Problems
 
-パフォーマンス問題が発生した場合の診断手順:
+Procedure for diagnosing performance issues:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify the bottleneck**: measure with profiling tools
+2. **Check memory usage**: detect any memory leaks
+3. **Check for I/O waits**: examine disk and network I/O conditions
+4. **Check the number of concurrent connections**: examine the state of connection pools
 
-| 問題の種類 | 診断ツール | 対策 |
+| Type of issue | Diagnostic tool | Countermeasure |
 |-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| CPU load | cProfile, py-spy | Algorithmic improvements, parallelization |
+| Memory leak | tracemalloc, objgraph | Properly release references |
+| I/O bottleneck | strace, iostat | Async I/O, caching |
+| DB latency | EXPLAIN, slow query log | Indexes, query optimization |
 ---
 
 ## 11. FAQ
 
-### Q1: Box<T> はいつ使いますか？
+### Q1: When should I use Box<T>?
 
-**A:** 主に以下の場面です:
-- **再帰的なデータ構造** (リスト、ツリーなど): コンパイル時にサイズが決まらない
-- **大きなデータのムーブ回避**: スタックではなくヒープに置く
-- **トレイトオブジェクト**: `Box<dyn Trait>` で動的ディスパッチ
-- **所有権の転送**: ヒープに置いてポインタだけムーブ
+**A:** Mainly in the following situations:
+- **Recursive data structures** (lists, trees, etc.): the size cannot be determined at compile time
+- **Avoiding moves of large data**: place on the heap rather than the stack
+- **Trait objects**: dynamic dispatch via `Box<dyn Trait>`
+- **Transferring ownership**: place on the heap and only move the pointer
 
-### Q2: Rc の循環参照はどう防ぎますか？
+### Q2: How do I prevent reference cycles with Rc?
 
-**A:** `Weak<T>` を使います。Rc::downgrade() で弱い参照を作成し、循環参照を防ぎます:
+**A:** Use `Weak<T>`. Create a weak reference with Rc::downgrade() to prevent cycles:
 ```rust
 use std::rc::{Rc, Weak};
 use std::cell::RefCell;
 struct Node {
-    parent: RefCell<Weak<Node>>,   // 弱い参照 → 循環を防ぐ
-    children: RefCell<Vec<Rc<Node>>>, // 強い参照
+    parent: RefCell<Weak<Node>>,   // weak reference -> prevents cycles
+    children: RefCell<Vec<Rc<Node>>>, // strong references
 }
 ```
-Weak は参照カウントに含まれないため、循環があっても正しくメモリが解放されます。
+Because Weak does not contribute to the reference count, memory is properly freed even if cycles exist.
 
-### Q3: Pin<T> は何のためにありますか？
+### Q3: What is Pin<T> for?
 
-**A:** Pin は値のメモリ上の位置を固定し、ムーブを防止します。主に以下で必要です:
-- **async/await**: Future は自己参照構造を持つため、ムーブすると参照が壊れる
-- **自己参照型**: 構造体内の参照が自身のフィールドを指す場合
-- 多くの場合、`Box::pin()` や `pin!()` マクロ経由で使います。
+**A:** Pin fixes a value's memory location and prevents it from being moved. It is mainly required for:
+- **async/await**: Future values contain self-referential structures, so moving them would break references
+- **Self-referential types**: when a reference inside a struct points to one of its own fields
+- In most cases you use it via `Box::pin()` or the `pin!()` macro.
 
-### Q4: Mutex の Poison (毒) とは何ですか？
+### Q4: What is Mutex "Poison"?
 
-**A:** ロックを保持したスレッドがパニックした場合、Mutex は "poisoned" 状態になります。他のスレッドが `lock()` すると `PoisonError` が返されます。これは、パニックによりデータが不整合な状態にある可能性を通知するための安全機構です:
+**A:** If a thread holding a lock panics, the Mutex enters a "poisoned" state. When other threads call `lock()`, they receive a `PoisonError`. This is a safety mechanism to signal that the data may be in an inconsistent state due to the panic:
 ```rust
 use std::sync::Mutex;
 let m = Mutex::new(42);
 
-// Poison を無視して使う場合
+// Using the value while ignoring poisoning
 let value = m.lock().unwrap_or_else(|e| e.into_inner());
 ```
 
-### Q5: Cell<T> と RefCell<T> はどう使い分けますか？
+### Q5: How do I choose between Cell<T> and RefCell<T>?
 
 **A:**
-- `Cell<T>` は `T: Copy` の型に使用。値の get/set のみで、参照を取ることはできない。オーバーヘッドが最小
-- `RefCell<T>` は任意の型に使用。`borrow()` / `borrow_mut()` で参照を取得する。実行時に借用ルールを検証する
-- 可能なら `Cell<T>` を優先。参照が必要な場合は `RefCell<T>` を使う
+- `Cell<T>` is used for types where `T: Copy`. Only get/set; you cannot obtain a reference. Has the smallest overhead
+- `RefCell<T>` is used for any type. Acquire references with `borrow()` / `borrow_mut()`. It enforces borrowing rules at runtime
+- Prefer `Cell<T>` when possible. Use `RefCell<T>` when references are required
 
-### Q6: Arc<Mutex<T>> vs Arc<RwLock<T>> の選択基準は？
+### Q6: What are the criteria for choosing between Arc<Mutex<T>> and Arc<RwLock<T>>?
 
 **A:**
-- **Arc<Mutex<T>>**: 読み取りと書き込みが同程度の頻度。実装が単純。デッドロックのリスクが低い
-- **Arc<RwLock<T>>**: 読み取りが圧倒的に多く、書き込みは稀。読み取り同士は並行実行可能なので高スループット
-- 迷ったらまず `Mutex` を使い、プロファイリングで読み取りがボトルネックと分かったら `RwLock` に移行する
+- **Arc<Mutex<T>>**: when reads and writes occur at similar frequencies. Implementation is simple. Lower risk of deadlocks
+- **Arc<RwLock<T>>**: when reads vastly outnumber writes. Reads can run in parallel for higher throughput
+- When in doubt, start with `Mutex`, and if profiling shows reads are the bottleneck, migrate to `RwLock`
 
 ---
 
 
 ## FAQ
 
-### Q1: このトピックを学ぶ上で最も重要なポイントは何ですか？
+### Q1: What is the most important point when learning this topic?
 
-実践的な経験を積むことが最も重要です。理論だけでなく、実際にコードを書いて動作を確認することで理解が深まります。
+Gaining hands-on experience is the most important. Beyond theory, writing actual code and observing its behavior deepens your understanding.
 
-### Q2: 初心者がよく陥る間違いは何ですか？
+### Q2: What are common mistakes that beginners make?
 
-基礎を飛ばして応用に進むことです。このガイドで説明している基本概念をしっかり理解してから、次のステップに進むことをお勧めします。
+Skipping the fundamentals and jumping to advanced topics. We recommend thoroughly understanding the basic concepts explained in this guide before moving on to the next step.
 
-### Q3: 実務ではどのように活用されていますか？
+### Q3: How is this used in practice?
 
-このトピックの知識は、日常的な開発業務で頻繁に活用されます。特にコードレビューやアーキテクチャ設計の際に重要になります。
+The knowledge of this topic is frequently used in everyday development work. It is especially important during code reviews and architectural design.
 
 ---
 
-## 12. まとめ
+## 12. Summary
 
-| 概念 | 要点 |
+| Concept | Key Points |
 |------|------|
-| Box<T> | ヒープ確保。単一所有。再帰型やdyn Traitに必須 |
-| Rc<T> | 参照カウントで共有所有。単一スレッド専用 |
-| Arc<T> | アトミック参照カウント。マルチスレッド対応 |
-| Weak<T> | 弱い参照。循環参照を防止。カウントに含まれない |
-| RefCell<T> | 実行時借用チェック。内部可変性パターン |
-| Cell<T> | Copy型の内部可変性。get/setのみ |
-| Mutex<T> | 排他ロック。Arc と組み合わせてスレッド間共有 |
-| RwLock<T> | 読み書きロック。多読み少書きに最適 |
-| Cow<T> | 変更時のみクローン。不要なアロケーション回避 |
-| Pin<P> | メモリ位置を固定。async/await に必須 |
-| Deref/Drop | スマートポインタの基盤トレイト |
+| Box<T> | Heap allocation. Single ownership. Essential for recursive types and dyn Trait |
+| Rc<T> | Shared ownership via reference counting. Single-threaded only |
+| Arc<T> | Atomic reference counting. Multi-threaded support |
+| Weak<T> | Weak reference. Prevents reference cycles. Not counted toward the count |
+| RefCell<T> | Runtime borrow checking. Interior mutability pattern |
+| Cell<T> | Interior mutability for Copy types. Only get/set |
+| Mutex<T> | Exclusive lock. Combine with Arc for cross-thread sharing |
+| RwLock<T> | Read/write lock. Ideal for many readers, few writers |
+| Cow<T> | Clones only on modification. Avoids unnecessary allocations |
+| Pin<P> | Pins the memory location. Essential for async/await |
+| Deref/Drop | The foundational traits of smart pointers |
 
 ---
 
-## 次に読むべきガイド
+## Recommended Next Reads
 
-- [02-closures-fn-traits.md](02-closures-fn-traits.md) -- クロージャとFnトレイト
-- [../03-systems/01-concurrency.md](../03-systems/01-concurrency.md) -- 並行プログラミング詳解
-- [03-unsafe-rust.md](03-unsafe-rust.md) -- unsafe と生ポインタ
+- [02-closures-fn-traits.md](02-closures-fn-traits.md) -- Closures and Fn traits
+- [../03-systems/01-concurrency.md](../03-systems/01-concurrency.md) -- Concurrent programming explained
+- [03-unsafe-rust.md](03-unsafe-rust.md) -- unsafe and raw pointers
 
 ---
 
-## 参考文献
+## References
 
 1. **The Rust Programming Language - Ch.15 Smart Pointers** -- https://doc.rust-lang.org/book/ch15-00-smart-pointers.html
 2. **The Rustonomicon - Concurrency** -- https://doc.rust-lang.org/nomicon/concurrency.html
