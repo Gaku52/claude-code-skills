@@ -1,33 +1,33 @@
-# ネットワーク — reqwest/hyper、WebSocket、tonic
+# Networking -- reqwest/hyper, WebSocket, tonic
 
-> Rust の非同期ネットワークスタックとして HTTP クライアント/サーバー、WebSocket、gRPC の実装パターンを習得する
+> Master implementation patterns for HTTP clients/servers, WebSocket, and gRPC as Rust's asynchronous networking stack.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-1. **HTTPクライアント** — reqwest による REST API 呼び出しと接続プール管理
-2. **HTTPサーバー (低レベル)** — hyper による HTTP サーバーの直接実装
-3. **WebSocket** — tokio-tungstenite によるリアルタイム双方向通信
-4. **gRPC** — tonic による Protocol Buffers ベースの高性能 RPC
-5. **DNS解決とTLS** — trust-dns と rustls による安全な接続
-6. **接続管理** — 接続プール、リトライ、タイムアウト戦略
+1. **HTTP Client** -- REST API calls and connection pool management with reqwest
+2. **HTTP Server (low-level)** -- Direct HTTP server implementation with hyper
+3. **WebSocket** -- Real-time bidirectional communication with tokio-tungstenite
+4. **gRPC** -- High-performance Protocol Buffers-based RPC with tonic
+5. **DNS Resolution and TLS** -- Secure connections with trust-dns and rustls
+6. **Connection Management** -- Connection pooling, retries, and timeout strategies
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Reading the following before this guide will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [非同期パターン — Stream、並行制限、リトライ](./02-async-patterns.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding the contents of [Async Patterns -- Stream, Concurrency Limits, Retry](./02-async-patterns.md)
 
 ---
 
-## 1. HTTPスタックの全体像
+## 1. The Big Picture of the HTTP Stack
 
 ```
-┌───────────────── Rust HTTP エコシステム ─────────────────┐
+┌───────────────── Rust HTTP Ecosystem ────────────────────┐
 │                                                          │
-│  アプリケーション層                                       │
+│  Application Layer                                       │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐              │
 │  │  reqwest  │  │   Axum   │  │  tonic   │              │
 │  │ (Client)  │  │ (Server) │  │ (gRPC)   │              │
@@ -42,34 +42,34 @@
 │  └─────────────────┬─────────────────────┘              │
 │                    │                                     │
 │  ┌─────────────────┴─────────────────────┐              │
-│  │     mio (epoll/kqueue/IOCP 抽象化)     │              │
+│  │  mio (epoll/kqueue/IOCP abstraction)   │              │
 │  └───────────────────────────────────────┘              │
 └──────────────────────────────────────────────────────────┘
 ```
 
-### 各レイヤーの役割
+### Role of Each Layer
 
-| レイヤー | クレート | 役割 |
+| Layer | Crate | Role |
 |---|---|---|
-| アプリケーション | reqwest / Axum / tonic | 高レベルAPI。開発者が通常触る層 |
-| HTTPプロトコル | hyper | HTTP/1.1 と HTTP/2 のパース・生成 |
-| 非同期ランタイム | tokio | タスクスケジューリング、非同期I/O |
-| OS抽象化 | mio | epoll (Linux) / kqueue (macOS) / IOCP (Windows) |
-| TLS | rustls / native-tls | TLS 1.2/1.3 暗号化 |
-| DNS | trust-dns / system resolver | ホスト名解決 |
+| Application | reqwest / Axum / tonic | High-level API. The layer developers normally interact with |
+| HTTP Protocol | hyper | Parsing/generation of HTTP/1.1 and HTTP/2 |
+| Async Runtime | tokio | Task scheduling, async I/O |
+| OS Abstraction | mio | epoll (Linux) / kqueue (macOS) / IOCP (Windows) |
+| TLS | rustls / native-tls | TLS 1.2/1.3 encryption |
+| DNS | trust-dns / system resolver | Hostname resolution |
 
-### HTTPリクエストの処理フロー
+### HTTP Request Processing Flow
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                HTTPリクエスト処理の内部フロー                   │
+│            Internal Flow of HTTP Request Processing         │
 │                                                             │
-│  1. DNS解決                                                 │
+│  1. DNS Resolution                                          │
 │     app.example.com → 203.0.113.50                         │
 │         │                                                   │
-│  2. TCP接続 (接続プールから取得 or 新規作成)                   │
+│  2. TCP Connection (fetch from pool or create new)          │
 │         │                                                   │
-│  3. TLSハンドシェイク (HTTPS の場合)                          │
+│  3. TLS Handshake (for HTTPS)                               │
 │     ┌──────────┐     ┌──────────┐                          │
 │     │ Client   │────→│ Server   │  ClientHello             │
 │     │          │←────│          │  ServerHello + Cert       │
@@ -77,52 +77,52 @@
 │     │          │←────│          │  Finished                 │
 │     └──────────┘     └──────────┘                          │
 │         │                                                   │
-│  4. HTTP リクエスト送信                                      │
+│  4. Send HTTP Request                                       │
 │     GET /api/users HTTP/1.1                                 │
 │     Host: app.example.com                                   │
 │     Authorization: Bearer xxx                               │
 │         │                                                   │
-│  5. HTTP レスポンス受信                                      │
+│  5. Receive HTTP Response                                   │
 │     HTTP/1.1 200 OK                                         │
 │     Content-Type: application/json                          │
 │     {"users": [...]}                                        │
 │         │                                                   │
-│  6. 接続をプールに返却 (Keep-Alive)                          │
+│  6. Return Connection to Pool (Keep-Alive)                  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 2. reqwest — HTTPクライアント
+## 2. reqwest -- HTTP Client
 
-### 2.1 Client の構築と設定
+### 2.1 Building and Configuring a Client
 
-reqwest の `Client` は内部に接続プールを持つ。アプリケーション全体で1つ（またはホスト群ごとに少数）のインスタンスを共有するのが鉄則である。
+reqwest's `Client` holds a connection pool internally. It is a hard rule to share a single instance (or a small number per host group) across the entire application.
 
 ```rust
 use reqwest::{Client, ClientBuilder, redirect::Policy};
 use std::time::Duration;
 
-/// 本番向けの Client 構築例
+/// Example of building a Client for production
 fn build_production_client() -> reqwest::Result<Client> {
     ClientBuilder::new()
-        // タイムアウト設定
-        .timeout(Duration::from_secs(30))           // リクエスト全体のタイムアウト
-        .connect_timeout(Duration::from_secs(5))    // TCP接続確立のタイムアウト
-        .read_timeout(Duration::from_secs(15))      // 読み取りタイムアウト
+        // Timeout settings
+        .timeout(Duration::from_secs(30))           // Overall request timeout
+        .connect_timeout(Duration::from_secs(5))    // TCP connection establishment timeout
+        .read_timeout(Duration::from_secs(15))      // Read timeout
 
-        // 接続プール
-        .pool_max_idle_per_host(20)                  // ホストごとのアイドル接続数上限
-        .pool_idle_timeout(Duration::from_secs(90))  // アイドル接続のTTL
+        // Connection pool
+        .pool_max_idle_per_host(20)                  // Max idle connections per host
+        .pool_idle_timeout(Duration::from_secs(90))  // TTL for idle connections
 
         // TLS
         .min_tls_version(reqwest::tls::Version::TLS_1_2)
-        .danger_accept_invalid_certs(false)          // 本番では必ず false
+        .danger_accept_invalid_certs(false)          // Always false in production
 
-        // リダイレクト
-        .redirect(Policy::limited(10))               // 最大10回のリダイレクト
+        // Redirects
+        .redirect(Policy::limited(10))               // Up to 10 redirects
 
-        // ヘッダー
+        // Headers
         .user_agent("my-rust-app/1.0")
         .default_headers({
             let mut headers = reqwest::header::HeaderMap::new();
@@ -130,7 +130,7 @@ fn build_production_client() -> reqwest::Result<Client> {
             headers
         })
 
-        // 圧縮
+        // Compression
         .gzip(true)
         .brotli(true)
         .deflate(true)
@@ -139,7 +139,7 @@ fn build_production_client() -> reqwest::Result<Client> {
 }
 ```
 
-### 2.2 基本的なHTTPリクエスト
+### 2.2 Basic HTTP Requests
 
 ```rust
 use reqwest::Client;
@@ -169,7 +169,7 @@ struct ApiResponse<T> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // クライアントの構築 (接続プール付き — 再利用すべき)
+    // Build the client (with connection pool -- should be reused)
     let client = Client::builder()
         .timeout(Duration::from_secs(30))
         .connect_timeout(Duration::from_secs(5))
@@ -177,18 +177,18 @@ async fn main() -> anyhow::Result<()> {
         .user_agent("my-rust-app/1.0")
         .build()?;
 
-    // GET リクエスト + JSON デシリアライズ
+    // GET request + JSON deserialization
     let user: User = client
         .get("https://api.github.com/users/rust-lang")
         .header("Accept", "application/json")
         .send()
         .await?
-        .error_for_status()?  // 4xx/5xx をエラーに変換
+        .error_for_status()?  // Convert 4xx/5xx into errors
         .json()
         .await?;
     println!("User: {} ({})", user.login, user.name.unwrap_or_default());
 
-    // POST リクエスト
+    // POST request
     let issue = CreateIssue {
         title: "Bug report".into(),
         body: "Description here".into(),
@@ -202,7 +202,7 @@ async fn main() -> anyhow::Result<()> {
         .await?;
     println!("Status: {}", response.status());
 
-    // PUT リクエスト
+    // PUT request
     let response = client
         .put("https://api.example.com/users/1")
         .json(&serde_json::json!({
@@ -213,7 +213,7 @@ async fn main() -> anyhow::Result<()> {
         .await?;
     println!("PUT Status: {}", response.status());
 
-    // DELETE リクエスト
+    // DELETE request
     let response = client
         .delete("https://api.example.com/users/1")
         .bearer_auth("your-token")
@@ -221,7 +221,7 @@ async fn main() -> anyhow::Result<()> {
         .await?;
     println!("DELETE Status: {}", response.status());
 
-    // PATCH リクエスト
+    // PATCH request
     let response = client
         .patch("https://api.example.com/users/1")
         .json(&serde_json::json!({"name": "Patched"}))
@@ -233,7 +233,7 @@ async fn main() -> anyhow::Result<()> {
 }
 ```
 
-### 2.3 レスポンスの詳細処理
+### 2.3 Detailed Response Handling
 
 ```rust
 use reqwest::{Client, StatusCode};
@@ -242,16 +242,16 @@ use std::collections::HashMap;
 async fn inspect_response(client: &Client, url: &str) -> anyhow::Result<()> {
     let response = client.get(url).send().await?;
 
-    // ステータスコード
+    // Status code
     let status = response.status();
     println!("Status: {} ({})", status.as_u16(), status.canonical_reason().unwrap_or(""));
 
-    // レスポンスヘッダー
+    // Response headers
     for (name, value) in response.headers() {
         println!("  {}: {}", name, value.to_str().unwrap_or("<binary>"));
     }
 
-    // Content-Type に基づく処理分岐
+    // Branch processing based on Content-Type
     let content_type = response.headers()
         .get("content-type")
         .and_then(|v| v.to_str().ok())
@@ -271,39 +271,39 @@ async fn inspect_response(client: &Client, url: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// ステータスコード別のエラーハンドリング
+/// Error handling per status code
 async fn handle_api_response(client: &Client, url: &str) -> anyhow::Result<String> {
     let response = client.get(url).send().await?;
 
     match response.status() {
         StatusCode::OK => Ok(response.text().await?),
         StatusCode::NOT_FOUND => {
-            anyhow::bail!("リソースが見つかりません: {}", url);
+            anyhow::bail!("Resource not found: {}", url);
         }
         StatusCode::UNAUTHORIZED => {
-            anyhow::bail!("認証が必要です");
+            anyhow::bail!("Authentication required");
         }
         StatusCode::TOO_MANY_REQUESTS => {
-            // Rate limit — Retry-After ヘッダーを確認
+            // Rate limit -- check the Retry-After header
             let retry_after = response.headers()
                 .get("retry-after")
                 .and_then(|v| v.to_str().ok())
                 .and_then(|v| v.parse::<u64>().ok())
                 .unwrap_or(60);
-            anyhow::bail!("レート制限。{}秒後にリトライしてください", retry_after);
+            anyhow::bail!("Rate limited. Please retry after {} seconds", retry_after);
         }
         status if status.is_server_error() => {
             let body = response.text().await.unwrap_or_default();
-            anyhow::bail!("サーバーエラー {}: {}", status, body);
+            anyhow::bail!("Server error {}: {}", status, body);
         }
         status => {
-            anyhow::bail!("予期しないステータス: {}", status);
+            anyhow::bail!("Unexpected status: {}", status);
         }
     }
 }
 ```
 
-### 2.4 ストリーミングダウンロード
+### 2.4 Streaming Download
 
 ```rust
 use futures::StreamExt;
@@ -324,19 +324,19 @@ async fn download_file(url: &str, path: &str) -> anyhow::Result<()> {
         downloaded += chunk.len() as u64;
         if total_size > 0 {
             let pct = (downloaded as f64 / total_size as f64) * 100.0;
-            eprint!("\r進捗: {:.1}%", pct);
+            eprint!("\rProgress: {:.1}%", pct);
         }
     }
-    eprintln!("\n完了: {} バイト", downloaded);
+    eprintln!("\nDone: {} bytes", downloaded);
 
     Ok(())
 }
 
-/// レジューム対応ダウンロード
+/// Resumable download
 async fn resumable_download(url: &str, path: &str) -> anyhow::Result<()> {
     let client = reqwest::Client::new();
 
-    // 既存ファイルのサイズを確認
+    // Check the size of the existing file
     let existing_size = match tokio::fs::metadata(path).await {
         Ok(meta) => meta.len(),
         Err(_) => 0,
@@ -344,17 +344,17 @@ async fn resumable_download(url: &str, path: &str) -> anyhow::Result<()> {
 
     let mut request = client.get(url);
     if existing_size > 0 {
-        // Range ヘッダーで途中から再開
+        // Resume from the middle using the Range header
         request = request.header("Range", format!("bytes={}-", existing_size));
-        println!("{}バイトから再開", existing_size);
+        println!("Resuming from {} bytes", existing_size);
     }
 
     let response = request.send().await?.error_for_status()?;
 
-    // 206 Partial Content の確認
+    // Confirm 206 Partial Content
     let is_partial = response.status() == reqwest::StatusCode::PARTIAL_CONTENT;
     let total_size = if is_partial {
-        // Content-Range: bytes 1000-9999/10000 からトータルサイズを取得
+        // Obtain the total size from Content-Range: bytes 1000-9999/10000
         response.headers()
             .get("content-range")
             .and_then(|v| v.to_str().ok())
@@ -382,16 +382,16 @@ async fn resumable_download(url: &str, path: &str) -> anyhow::Result<()> {
         downloaded += chunk.len() as u64;
         if total_size > 0 {
             let pct = (downloaded as f64 / total_size as f64) * 100.0;
-            eprint!("\r進捗: {:.1}% ({}/{})", pct, downloaded, total_size);
+            eprint!("\rProgress: {:.1}% ({}/{})", pct, downloaded, total_size);
         }
     }
-    eprintln!("\nダウンロード完了: {} バイト", downloaded);
+    eprintln!("\nDownload complete: {} bytes", downloaded);
 
     Ok(())
 }
 ```
 
-### 2.5 並行リクエストとレート制限
+### 2.5 Concurrent Requests and Rate Limiting
 
 ```rust
 use futures::stream::{self, StreamExt};
@@ -399,7 +399,7 @@ use reqwest::Client;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
 
-/// 並行数を制限した一括リクエスト (Semaphore方式)
+/// Bulk requests with a concurrency limit (Semaphore approach)
 async fn fetch_all_with_limit(
     client: &Client,
     urls: Vec<String>,
@@ -428,7 +428,7 @@ async fn fetch_all_with_limit(
     results
 }
 
-/// buffer_unordered を使った並行リクエスト (Stream方式)
+/// Concurrent requests using buffer_unordered (Stream approach)
 async fn fetch_all_stream(
     client: &Client,
     urls: Vec<String>,
@@ -456,7 +456,7 @@ async fn fetch_all_stream(
         .await
 }
 
-/// レート制限付き連続リクエスト
+/// Sequential requests with rate limiting
 async fn rate_limited_requests(
     client: &Client,
     urls: Vec<String>,
@@ -470,7 +470,7 @@ async fn rate_limited_requests(
         let result = client.get(&url).send().await?.text().await;
         results.push(result);
 
-        // 次のリクエストまで待機
+        // Wait until the next request
         let elapsed = start.elapsed();
         if elapsed < interval {
             tokio::time::sleep(interval - elapsed).await;
@@ -481,7 +481,7 @@ async fn rate_limited_requests(
 }
 ```
 
-### 2.6 マルチパートファイルアップロード
+### 2.6 Multipart File Upload
 
 ```rust
 use reqwest::{Client, multipart};
@@ -494,7 +494,7 @@ async fn upload_file(
     file_path: &str,
     field_name: &str,
 ) -> anyhow::Result<reqwest::Response> {
-    // ファイル読み込み
+    // Read file
     let mut file = File::open(file_path).await?;
     let mut buffer = Vec::new();
     file.read_to_end(&mut buffer).await?;
@@ -505,7 +505,7 @@ async fn upload_file(
         .unwrap_or("upload")
         .to_string();
 
-    // MIME タイプ推定
+    // Infer MIME type
     let mime_type = match file_path.rsplit('.').next() {
         Some("png") => "image/png",
         Some("jpg") | Some("jpeg") => "image/jpeg",
@@ -533,7 +533,7 @@ async fn upload_file(
     Ok(response)
 }
 
-/// 複数ファイルの同時アップロード
+/// Concurrent upload of multiple files
 async fn upload_multiple_files(
     client: &Client,
     url: &str,
@@ -569,13 +569,13 @@ async fn upload_multiple_files(
 }
 ```
 
-### 2.7 リトライ付きHTTPクライアント
+### 2.7 HTTP Client with Retry
 
 ```rust
 use reqwest::{Client, Response, StatusCode};
 use std::time::Duration;
 
-/// 指数バックオフ付きリトライ
+/// Retry with exponential backoff
 async fn retry_request<F, Fut>(
     max_retries: u32,
     base_delay: Duration,
@@ -590,13 +590,13 @@ where
     for attempt in 0..=max_retries {
         if attempt > 0 {
             let delay = base_delay * 2u32.pow(attempt - 1);
-            // ジッタを追加 (0.5 ~ 1.5 倍)
+            // Add jitter (0.5x to 1.5x)
             let jitter = rand::random::<f64>() + 0.5;
             let actual_delay = Duration::from_millis(
                 (delay.as_millis() as f64 * jitter) as u64
             );
             tracing::warn!(
-                "リトライ {}/{}: {}ms 後に再試行",
+                "Retry {}/{}: retrying in {}ms",
                 attempt, max_retries, actual_delay.as_millis()
             );
             tokio::time::sleep(actual_delay).await;
@@ -605,20 +605,20 @@ where
         match (request_fn)().await {
             Ok(response) => {
                 let status = response.status();
-                // リトライ可能なステータスコード
+                // Retryable status codes
                 if status == StatusCode::TOO_MANY_REQUESTS
                     || status == StatusCode::SERVICE_UNAVAILABLE
                     || status == StatusCode::GATEWAY_TIMEOUT
                     || status == StatusCode::BAD_GATEWAY
                 {
-                    last_error = Some(anyhow::anyhow!("リトライ可能なエラー: {}", status));
+                    last_error = Some(anyhow::anyhow!("Retryable error: {}", status));
                     continue;
                 }
                 return Ok(response);
             }
             Err(e) => {
                 if e.is_connect() || e.is_timeout() {
-                    last_error = Some(anyhow::anyhow!("接続エラー: {}", e));
+                    last_error = Some(anyhow::anyhow!("Connection error: {}", e));
                     continue;
                 }
                 return Err(e.into());
@@ -626,10 +626,10 @@ where
         }
     }
 
-    Err(last_error.unwrap_or_else(|| anyhow::anyhow!("最大リトライ回数超過")))
+    Err(last_error.unwrap_or_else(|| anyhow::anyhow!("Maximum retry count exceeded")))
 }
 
-/// 使用例
+/// Usage example
 async fn fetch_with_retry(client: &Client, url: &str) -> anyhow::Result<String> {
     let url = url.to_string();
     let client = client.clone();
@@ -648,11 +648,11 @@ async fn fetch_with_retry(client: &Client, url: &str) -> anyhow::Result<String> 
 
 ---
 
-## 3. hyper — 低レベルHTTPサーバー
+## 3. hyper -- Low-Level HTTP Server
 
-### 3.1 hyper によるHTTPサーバー実装
+### 3.1 Implementing an HTTP Server with hyper
 
-reqwest が高レベルHTTPクライアントであるのに対し、hyper は HTTP プロトコル自体の実装を提供する。Axum は内部で hyper を使っているが、直接 hyper を使うケースもある。
+While reqwest is a high-level HTTP client, hyper provides the implementation of the HTTP protocol itself. Axum uses hyper internally, but there are cases where you use hyper directly.
 
 ```rust
 use hyper::{body::Incoming, server::conn::http1, Request, Response};
@@ -717,7 +717,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-### 3.2 hyper による HTTP/2 サーバー
+### 3.2 HTTP/2 Server with hyper
 
 ```rust
 use hyper::{body::Incoming, server::conn::http2, Request, Response};
@@ -743,8 +743,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let io = TokioIo::new(stream);
 
         tokio::spawn(async move {
-            // HTTP/2 は h2c (cleartext) モードで起動
-            // 本番では TLS が必要
+            // HTTP/2 starts in h2c (cleartext) mode
+            // TLS is required in production
             if let Err(err) = http2::Builder::new(TokioExecutor::new())
                 .serve_connection(io, service_fn(handle))
                 .await
@@ -756,7 +756,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-### 3.3 Graceful Shutdown 付きサーバー
+### 3.3 Server with Graceful Shutdown
 
 ```rust
 use hyper::{body::Incoming, server::conn::http1, Request, Response};
@@ -779,13 +779,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let listener = TcpListener::bind("0.0.0.0:3000").await?;
     let (shutdown_tx, mut shutdown_rx) = tokio::sync::broadcast::channel::<()>(1);
 
-    println!("サーバー起動。Ctrl+C で終了");
+    println!("Server started. Press Ctrl+C to terminate");
 
-    // Ctrl+C ハンドラ
+    // Ctrl+C handler
     let shutdown_tx_clone = shutdown_tx.clone();
     tokio::spawn(async move {
         signal::ctrl_c().await.unwrap();
-        println!("\nシャットダウン開始...");
+        println!("\nShutdown initiated...");
         let _ = shutdown_tx_clone.send(());
     });
 
@@ -799,7 +799,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let conn = http1::Builder::new()
                         .serve_connection(io, service_fn(handle));
 
-                    // graceful shutdown: 進行中のリクエストの完了を待つ
+                    // graceful shutdown: wait for in-flight requests to complete
                     tokio::pin!(conn);
                     tokio::select! {
                         result = &mut conn => {
@@ -809,7 +809,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                         _ = shutdown_rx.recv() => {
                             conn.as_mut().graceful_shutdown();
-                            // 残りの処理を完了させる
+                            // Let the remaining processing complete
                             if let Err(e) = conn.await {
                                 eprintln!("Error during shutdown: {}", e);
                             }
@@ -818,13 +818,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 });
             }
             _ = shutdown_rx.recv() => {
-                println!("新規接続の受付を停止");
+                println!("Stop accepting new connections");
                 break;
             }
         }
     }
 
-    println!("サーバー停止完了");
+    println!("Server shutdown complete");
     Ok(())
 }
 ```
@@ -833,7 +833,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 4. WebSocket
 
-### 4.1 WebSocket クライアント
+### 4.1 WebSocket Client
 
 ```rust
 use futures::{SinkExt, StreamExt};
@@ -843,33 +843,33 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 async fn main() -> anyhow::Result<()> {
     let url = "wss://echo.websocket.org";
     let (ws_stream, response) = connect_async(url).await?;
-    println!("接続成功: {}", response.status());
+    println!("Connected: {}", response.status());
 
     let (mut write, mut read) = ws_stream.split();
 
-    // 送信タスク
+    // Send task
     let send_task = tokio::spawn(async move {
         for i in 1..=5 {
-            let msg = Message::Text(format!("メッセージ #{}", i));
+            let msg = Message::Text(format!("Message #{}", i));
             write.send(msg).await.unwrap();
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         }
         write.send(Message::Close(None)).await.unwrap();
     });
 
-    // 受信タスク
+    // Receive task
     let recv_task = tokio::spawn(async move {
         while let Some(msg) = read.next().await {
             match msg {
-                Ok(Message::Text(text)) => println!("受信: {}", text),
-                Ok(Message::Binary(data)) => println!("バイナリ: {} bytes", data.len()),
+                Ok(Message::Text(text)) => println!("Received: {}", text),
+                Ok(Message::Binary(data)) => println!("Binary: {} bytes", data.len()),
                 Ok(Message::Ping(data)) => println!("Ping: {:?}", data),
                 Ok(Message::Close(_)) => {
-                    println!("切断");
+                    println!("Disconnected");
                     break;
                 }
                 Err(e) => {
-                    eprintln!("エラー: {}", e);
+                    eprintln!("Error: {}", e);
                     break;
                 }
                 _ => {}
@@ -882,7 +882,7 @@ async fn main() -> anyhow::Result<()> {
 }
 ```
 
-### WebSocket のメッセージフロー
+### WebSocket Message Flow
 
 ```
 ┌──────────┐                         ┌──────────┐
@@ -900,12 +900,12 @@ async fn main() -> anyhow::Result<()> {
 │          │←── Close ────────────── │          │
 └──────────┘                         └──────────┘
      ▲                                    ▲
-     │    全二重: 送受信を同時に実行可能    │
-     │    split() で read/write を分離     │
+     │  Full duplex: can send/receive simultaneously │
+     │  Use split() to separate read/write           │
      └────────────────────────────────────┘
 ```
 
-### 4.2 自動再接続付き WebSocket クライアント
+### 4.2 WebSocket Client with Auto-Reconnect
 
 ```rust
 use futures::{SinkExt, StreamExt};
@@ -913,7 +913,7 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 use std::time::Duration;
 use tokio::sync::mpsc;
 
-/// 再接続ロジック付きWebSocketクライアント
+/// WebSocket client with reconnect logic
 struct ReconnectingWsClient {
     url: String,
     max_retries: u32,
@@ -939,19 +939,19 @@ impl ReconnectingWsClient {
         loop {
             match self.connect_and_handle(outgoing_rx, &incoming_tx).await {
                 Ok(()) => {
-                    println!("WebSocket 正常切断");
+                    println!("WebSocket disconnected normally");
                     break;
                 }
                 Err(e) => {
                     retry_count += 1;
                     if retry_count > self.max_retries {
-                        eprintln!("最大リトライ回数超過: {}", e);
+                        eprintln!("Maximum retry count exceeded: {}", e);
                         break;
                     }
 
                     let delay = self.base_delay * 2u32.pow((retry_count - 1).min(6));
                     eprintln!(
-                        "接続エラー ({}回目): {}。{}秒後に再接続...",
+                        "Connection error (attempt {}): {}. Reconnecting in {} seconds...",
                         retry_count, e, delay.as_secs()
                     );
                     tokio::time::sleep(delay).await;
@@ -966,43 +966,43 @@ impl ReconnectingWsClient {
         incoming_tx: &mpsc::Sender<String>,
     ) -> anyhow::Result<()> {
         let (ws_stream, _) = connect_async(&self.url).await?;
-        println!("WebSocket 接続成功: {}", self.url);
+        println!("WebSocket connected: {}", self.url);
 
         let (mut write, mut read) = ws_stream.split();
 
         loop {
             tokio::select! {
-                // サーバーからのメッセージ受信
+                // Receive messages from the server
                 msg = read.next() => {
                     match msg {
                         Some(Ok(Message::Text(text))) => {
                             if incoming_tx.send(text).await.is_err() {
-                                break; // 受信側がドロップされた
+                                break; // Receiver was dropped
                             }
                         }
                         Some(Ok(Message::Ping(data))) => {
                             write.send(Message::Pong(data)).await?;
                         }
                         Some(Ok(Message::Close(_))) => {
-                            return Ok(()); // 正常切断
+                            return Ok(()); // Normal disconnect
                         }
                         Some(Err(e)) => {
                             return Err(e.into());
                         }
                         None => {
-                            return Err(anyhow::anyhow!("ストリーム終了"));
+                            return Err(anyhow::anyhow!("Stream ended"));
                         }
                         _ => {}
                     }
                 }
-                // アプリからの送信メッセージ
+                // Outgoing messages from the application
                 msg = outgoing_rx.recv() => {
                     match msg {
                         Some(text) => {
                             write.send(Message::Text(text)).await?;
                         }
                         None => {
-                            // 送信チャネルがクローズ
+                            // Send channel was closed
                             write.send(Message::Close(None)).await?;
                             return Ok(());
                         }
@@ -1016,7 +1016,7 @@ impl ReconnectingWsClient {
 }
 ```
 
-### 4.3 WebSocket サーバー (Axum統合)
+### 4.3 WebSocket Server (Axum Integration)
 
 ```rust
 use axum::{
@@ -1029,7 +1029,7 @@ use axum::{
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
-/// 共有状態: ブロードキャストチャネルでチャットルームを実現
+/// Shared state: implement a chat room with a broadcast channel
 #[derive(Clone)]
 struct ChatState {
     tx: broadcast::Sender<String>,
@@ -1046,7 +1046,7 @@ async fn handle_socket(socket: WebSocket, state: ChatState) {
     let (mut sender, mut receiver) = socket.split();
     let mut rx = state.tx.subscribe();
 
-    // サーバー → クライアント (ブロードキャスト受信 → WebSocket送信)
+    // Server -> Client (broadcast receive -> WebSocket send)
     let mut send_task = tokio::spawn(async move {
         while let Ok(msg) = rx.recv().await {
             if sender.send(Message::Text(msg)).await.is_err() {
@@ -1055,7 +1055,7 @@ async fn handle_socket(socket: WebSocket, state: ChatState) {
         }
     });
 
-    // クライアント → サーバー (WebSocket受信 → ブロードキャスト送信)
+    // Client -> Server (WebSocket receive -> broadcast send)
     let tx = state.tx.clone();
     let mut recv_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = receiver.next().await {
@@ -1065,14 +1065,14 @@ async fn handle_socket(socket: WebSocket, state: ChatState) {
         }
     });
 
-    // どちらかのタスクが終了したら両方を停止
+    // When either task finishes, stop both
     tokio::select! {
         _ = &mut send_task => recv_task.abort(),
         _ = &mut recv_task => send_task.abort(),
     }
 }
 
-// WebSocket サーバーの起動
+// Starting the WebSocket server
 // #[tokio::main]
 // async fn main() {
 //     let (tx, _) = broadcast::channel(100);
@@ -1085,14 +1085,14 @@ async fn handle_socket(socket: WebSocket, state: ChatState) {
 // }
 ```
 
-### 4.4 Heartbeat (定期Ping) 管理
+### 4.4 Heartbeat (Periodic Ping) Management
 
 ```rust
 use futures::{SinkExt, StreamExt};
 use tokio_tungstenite::tungstenite::Message;
 use std::time::Duration;
 
-/// Heartbeat 付き WebSocket 接続管理
+/// WebSocket connection management with heartbeat
 async fn ws_with_heartbeat(
     ws_stream: tokio_tungstenite::WebSocketStream<
         tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>
@@ -1106,11 +1106,11 @@ async fn ws_with_heartbeat(
 
     loop {
         tokio::select! {
-            // 受信メッセージの処理
+            // Process received messages
             msg = read.next() => {
                 match msg {
                     Some(Ok(Message::Text(text))) => {
-                        println!("受信: {}", text);
+                        println!("Received: {}", text);
                     }
                     Some(Ok(Message::Pong(_))) => {
                         last_pong = std::time::Instant::now();
@@ -1119,22 +1119,22 @@ async fn ws_with_heartbeat(
                         write.send(Message::Pong(data)).await?;
                     }
                     Some(Ok(Message::Close(_))) | None => {
-                        println!("接続終了");
+                        println!("Connection closed");
                         break;
                     }
                     Some(Err(e)) => {
-                        eprintln!("エラー: {}", e);
+                        eprintln!("Error: {}", e);
                         break;
                     }
                     _ => {}
                 }
             }
 
-            // 定期 Heartbeat
+            // Periodic heartbeat
             _ = heartbeat.tick() => {
-                // Pong タイムアウトチェック
+                // Pong timeout check
                 if last_pong.elapsed() > pong_timeout {
-                    eprintln!("Pong タイムアウト。接続切断");
+                    eprintln!("Pong timeout. Disconnecting");
                     break;
                 }
                 write.send(Message::Ping(vec![].into())).await?;
@@ -1142,7 +1142,7 @@ async fn ws_with_heartbeat(
         }
     }
 
-    // クリーンな切断
+    // Clean disconnect
     let _ = write.send(Message::Close(None)).await;
     Ok(())
 }
@@ -1150,9 +1150,9 @@ async fn ws_with_heartbeat(
 
 ---
 
-## 5. gRPC — tonic
+## 5. gRPC -- tonic
 
-### 5.1 Protocol Buffers 定義
+### 5.1 Protocol Buffers Definition
 
 ```protobuf
 // proto/greeter.proto
@@ -1160,16 +1160,16 @@ syntax = "proto3";
 package greeter;
 
 service Greeter {
-    // Unary RPC: 単一リクエスト → 単一レスポンス
+    // Unary RPC: single request -> single response
     rpc SayHello (HelloRequest) returns (HelloReply);
 
-    // Server Streaming RPC: 単一リクエスト → ストリームレスポンス
+    // Server Streaming RPC: single request -> stream response
     rpc SayHelloStream (HelloRequest) returns (stream HelloReply);
 
-    // Client Streaming RPC: ストリームリクエスト → 単一レスポンス
+    // Client Streaming RPC: stream request -> single response
     rpc RecordGreetings (stream HelloRequest) returns (GreetingSummary);
 
-    // Bidirectional Streaming RPC: ストリーム ↔ ストリーム
+    // Bidirectional Streaming RPC: stream <-> stream
     rpc Chat (stream ChatMessage) returns (stream ChatMessage);
 }
 
@@ -1194,7 +1194,7 @@ message ChatMessage {
 }
 ```
 
-### 5.2 ビルドスクリプト
+### 5.2 Build Script
 
 ```rust
 // build.rs
@@ -1202,7 +1202,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     tonic_build::configure()
         .build_server(true)
         .build_client(true)
-        .out_dir("src/generated")   // 生成先 (任意)
+        .out_dir("src/generated")   // Output destination (optional)
         .compile_protos(
             &["proto/greeter.proto"],
             &["proto"],
@@ -1211,7 +1211,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-### 5.3 4パターンの gRPC サーバー実装
+### 5.3 gRPC Server Implementation in 4 Patterns
 
 ```rust
 // src/server.rs
@@ -1244,7 +1244,7 @@ impl Greeter for MyGreeter {
         request: Request<HelloRequest>,
     ) -> Result<Response<HelloReply>, Status> {
         let metadata = request.metadata();
-        // メタデータからの情報取得
+        // Retrieve information from metadata
         let request_id = metadata
             .get("x-request-id")
             .and_then(|v| v.to_str().ok())
@@ -1253,11 +1253,11 @@ impl Greeter for MyGreeter {
 
         let name = request.into_inner().name;
         if name.is_empty() {
-            return Err(Status::invalid_argument("name は必須です"));
+            return Err(Status::invalid_argument("name is required"));
         }
 
         let reply = HelloReply {
-            message: format!("こんにちは、{}!", name),
+            message: format!("Hello, {}!", name),
             timestamp: now_timestamp(),
         };
         Ok(Response::new(reply))
@@ -1276,7 +1276,7 @@ impl Greeter for MyGreeter {
         tokio::spawn(async move {
             for i in 1..=5 {
                 let reply = HelloReply {
-                    message: format!("{}回目: こんにちは、{}!", i, name),
+                    message: format!("#{}: Hello, {}!", i, name),
                     timestamp: now_timestamp(),
                 };
                 if tx.send(Ok(reply)).await.is_err() { break; }
@@ -1297,13 +1297,13 @@ impl Greeter for MyGreeter {
 
         while let Some(req) = stream.next().await {
             let req = req?;
-            println!("Client Stream 受信: {}", req.name);
+            println!("Client Stream received: {}", req.name);
             names.push(req.name);
         }
 
         let summary = GreetingSummary {
             count: names.len() as i32,
-            summary: format!("受信した名前: {}", names.join(", ")),
+            summary: format!("Names received: {}", names.join(", ")),
         };
 
         Ok(Response::new(summary))
@@ -1324,7 +1324,7 @@ impl Greeter for MyGreeter {
                 match result {
                     Ok(msg) => {
                         println!("[{}] {}", msg.user, msg.content);
-                        // エコーバック (実際にはブロードキャストなど)
+                        // Echo back (in practice, broadcast etc.)
                         let reply = ChatMessage {
                             user: "Server".to_string(),
                             content: format!("Echo: {}", msg.content),
@@ -1333,7 +1333,7 @@ impl Greeter for MyGreeter {
                         if tx.send(Ok(reply)).await.is_err() { break; }
                     }
                     Err(e) => {
-                        eprintln!("ストリームエラー: {}", e);
+                        eprintln!("Stream error: {}", e);
                         break;
                     }
                 }
@@ -1347,7 +1347,7 @@ impl Greeter for MyGreeter {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr = "[::1]:50051".parse()?;
-    println!("gRPC サーバー起動: {}", addr);
+    println!("gRPC server started: {}", addr);
 
     Server::builder()
         .add_service(GreeterServer::new(MyGreeter::default()))
@@ -1357,7 +1357,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-### 5.4 gRPC クライアント (全4パターン)
+### 5.4 gRPC Client (All 4 Patterns)
 
 ```rust
 use greeter::greeter_client::GreeterClient;
@@ -1377,13 +1377,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut request = tonic::Request::new(HelloRequest {
         name: "Rust".into(),
     });
-    // メタデータの付与
+    // Attach metadata
     request.metadata_mut().insert(
         "x-request-id",
         "req-12345".parse().unwrap(),
     );
     let response = client.say_hello(request).await?;
-    println!("応答: {}", response.into_inner().message);
+    println!("Response: {}", response.into_inner().message);
 
     // 2. Server Streaming RPC
     println!("\n=== Server Streaming RPC ===");
@@ -1393,7 +1393,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut stream = client.say_hello_stream(request).await?.into_inner();
     while let Some(reply) = stream.next().await {
         let reply = reply?;
-        println!("ストリーム: {} (ts={})", reply.message, reply.timestamp);
+        println!("Stream: {} (ts={})", reply.message, reply.timestamp);
     }
 
     // 3. Client Streaming RPC
@@ -1404,18 +1404,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     let response = client.record_greetings(request_stream).await?;
     let summary = response.into_inner();
-    println!("サマリー: {} 件 — {}", summary.count, summary.summary);
+    println!("Summary: {} entries -- {}", summary.count, summary.summary);
 
     // 4. Bidirectional Streaming RPC
     println!("\n=== Bidirectional Streaming RPC ===");
     let (tx, rx) = tokio::sync::mpsc::channel(32);
 
-    // 送信ストリーム
+    // Outgoing stream
     tokio::spawn(async move {
         for i in 1..=3 {
             let msg = ChatMessage {
                 user: "Client".to_string(),
-                content: format!("メッセージ #{}", i),
+                content: format!("Message #{}", i),
                 timestamp: 0,
             };
             tx.send(msg).await.unwrap();
@@ -1435,13 +1435,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-### 5.5 gRPC 認証とインターセプター
+### 5.5 gRPC Authentication and Interceptors
 
 ```rust
 use tonic::{transport::Channel, Request, Status};
 use tonic::service::Interceptor;
 
-/// 認証インターセプター
+/// Authentication interceptor
 #[derive(Clone)]
 struct AuthInterceptor {
     token: String,
@@ -1454,7 +1454,7 @@ impl Interceptor for AuthInterceptor {
             "authorization",
             token.parse().map_err(|_| Status::internal("invalid token"))?,
         );
-        // リクエストIDも付与
+        // Also attach a request ID
         let request_id = uuid::Uuid::new_v4().to_string();
         request.metadata_mut().insert(
             "x-request-id",
@@ -1464,46 +1464,46 @@ impl Interceptor for AuthInterceptor {
     }
 }
 
-/// サーバー側の認証チェック
+/// Server-side authentication check
 fn check_auth(request: &Request<impl std::fmt::Debug>) -> Result<String, Status> {
     let token = request.metadata()
         .get("authorization")
         .and_then(|v| v.to_str().ok())
-        .ok_or_else(|| Status::unauthenticated("認証トークンなし"))?;
+        .ok_or_else(|| Status::unauthenticated("no authentication token"))?;
 
     let token = token
         .strip_prefix("Bearer ")
-        .ok_or_else(|| Status::unauthenticated("Bearer トークン形式不正"))?;
+        .ok_or_else(|| Status::unauthenticated("invalid Bearer token format"))?;
 
-    // トークン検証 (実際にはJWT検証など)
+    // Token verification (in practice, JWT verification etc.)
     if token == "valid-token" {
         Ok("user-123".to_string())
     } else {
-        Err(Status::unauthenticated("無効なトークン"))
+        Err(Status::unauthenticated("invalid token"))
     }
 }
 
-// 使用例
+// Usage example
 // let channel = Channel::from_static("http://[::1]:50051").connect().await?;
 // let interceptor = AuthInterceptor { token: "valid-token".into() };
 // let client = GreeterClient::with_interceptor(channel, interceptor);
 ```
 
-### 5.6 gRPC サーバー — TLS と健全性チェック
+### 5.6 gRPC Server -- TLS and Health Checks
 
 ```rust
 use tonic::transport::{Server, ServerTlsConfig, Identity};
 use tonic_health::server::HealthReporter;
 
 async fn start_grpc_server() -> Result<(), Box<dyn std::error::Error>> {
-    // TLS 設定
+    // TLS configuration
     let cert = tokio::fs::read("server.pem").await?;
     let key = tokio::fs::read("server.key").await?;
     let identity = Identity::from_pem(cert, key);
 
     let tls_config = ServerTlsConfig::new().identity(identity);
 
-    // Health check サービス
+    // Health check service
     let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
     health_reporter
         .set_serving::<GreeterServer<MyGreeter>>()
@@ -1522,42 +1522,42 @@ async fn start_grpc_server() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-### gRPC の4つの通信パターン
+### The 4 Communication Patterns of gRPC
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                 gRPC 通信パターン                        │
+│                gRPC Communication Patterns              │
 │                                                         │
-│  1. Unary (単一 → 単一)                                 │
+│  1. Unary (single -> single)                            │
 │     Client ──── Request ────→ Server                    │
 │     Client ←─── Response ──── Server                    │
 │                                                         │
-│  2. Server Streaming (単一 → ストリーム)                  │
+│  2. Server Streaming (single -> stream)                 │
 │     Client ──── Request ────→ Server                    │
 │     Client ←─── Response 1 ── Server                    │
 │     Client ←─── Response 2 ── Server                    │
 │     Client ←─── Response N ── Server                    │
 │                                                         │
-│  3. Client Streaming (ストリーム → 単一)                  │
+│  3. Client Streaming (stream -> single)                 │
 │     Client ──── Request 1 ──→ Server                    │
 │     Client ──── Request 2 ──→ Server                    │
 │     Client ──── Request N ──→ Server                    │
 │     Client ←─── Response ──── Server                    │
 │                                                         │
-│  4. Bidirectional Streaming (ストリーム ↔ ストリーム)     │
+│  4. Bidirectional Streaming (stream <-> stream)         │
 │     Client ──── Request 1 ──→ Server                    │
 │     Client ←─── Response 1 ── Server                    │
 │     Client ──── Request 2 ──→ Server                    │
 │     Client ←─── Response 2 ── Server                    │
-│     (リクエストとレスポンスは独立して流れる)               │
+│     (requests and responses flow independently)         │
 └─────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 6. DNS解決とTLS
+## 6. DNS Resolution and TLS
 
-### 6.1 カスタムDNSリゾルバ
+### 6.1 Custom DNS Resolver
 
 ```rust
 use reqwest::dns::{Resolve, Resolving, Name};
@@ -1565,7 +1565,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use std::collections::HashMap;
 
-/// 静的DNS解決 (テスト用やサービスディスカバリ向け)
+/// Static DNS resolution (for testing or service discovery)
 struct StaticResolver {
     overrides: HashMap<String, Vec<SocketAddr>>,
 }
@@ -1594,7 +1594,7 @@ impl Resolve for StaticResolver {
                 Ok(Box::new(addrs.into_iter()) as Box<dyn Iterator<Item = SocketAddr> + Send>)
             })
         } else {
-            // フォールバック: システムDNSを使用
+            // Fallback: use system DNS
             Box::pin(async move {
                 let addrs = tokio::net::lookup_host(format!("{}:0", host))
                     .await
@@ -1605,7 +1605,7 @@ impl Resolve for StaticResolver {
     }
 }
 
-// 使用例
+// Usage example
 // let mut resolver = StaticResolver::new();
 // resolver.add_override("api.local", IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8080);
 // let client = reqwest::Client::builder()
@@ -1613,21 +1613,21 @@ impl Resolve for StaticResolver {
 //     .build()?;
 ```
 
-### 6.2 TLS設定のカスタマイズ
+### 6.2 Customizing TLS Configuration
 
 ```rust
 use reqwest::Client;
 use std::time::Duration;
 
-/// rustls を使ったセキュアなクライアント構築
+/// Build a secure client using rustls
 fn build_secure_client() -> reqwest::Result<Client> {
-    // カスタムCA証明書の追加
-    let ca_cert = std::fs::read("ca.pem").expect("CA証明書の読み込み失敗");
+    // Add a custom CA certificate
+    let ca_cert = std::fs::read("ca.pem").expect("Failed to read CA certificate");
     let ca = reqwest::Certificate::from_pem(&ca_cert)?;
 
-    // クライアント証明書 (mTLS)
-    let client_cert = std::fs::read("client.pem").expect("クライアント証明書の読み込み失敗");
-    let client_key = std::fs::read("client.key").expect("クライアント鍵の読み込み失敗");
+    // Client certificate (mTLS)
+    let client_cert = std::fs::read("client.pem").expect("Failed to read client certificate");
+    let client_key = std::fs::read("client.key").expect("Failed to read client key");
     let identity = reqwest::Identity::from_pem(
         &[client_cert, client_key].concat()
     )?;
@@ -1641,10 +1641,10 @@ fn build_secure_client() -> reqwest::Result<Client> {
         .build()
 }
 
-/// 自己署名証明書を許可するクライアント (開発環境のみ)
+/// Client that allows self-signed certificates (development only)
 fn build_dev_client() -> reqwest::Result<Client> {
     Client::builder()
-        .danger_accept_invalid_certs(true)  // 本番では絶対に使わない!
+        .danger_accept_invalid_certs(true)  // Never use in production!
         .timeout(Duration::from_secs(30))
         .build()
 }
@@ -1652,50 +1652,50 @@ fn build_dev_client() -> reqwest::Result<Client> {
 
 ---
 
-## 7. 接続プールと接続管理
+## 7. Connection Pool and Connection Management
 
-### 接続プールの動作原理
+### How a Connection Pool Works
 
 ```
-┌──────────────────── 接続プール管理 ────────────────────┐
+┌──────────────── Connection Pool Management ───────────┐
 │                                                         │
 │  reqwest::Client                                        │
 │  ┌────────────────────────────────────────────────┐    │
 │  │  Connection Pool                                │    │
 │  │                                                 │    │
 │  │  api.example.com:443                           │    │
-│  │  ├── Conn #1 [IDLE]     ← 再利用可能           │    │
-│  │  ├── Conn #2 [ACTIVE]   ← リクエスト処理中     │    │
-│  │  └── Conn #3 [IDLE]     ← 再利用可能           │    │
+│  │  ├── Conn #1 [IDLE]     <- reusable            │    │
+│  │  ├── Conn #2 [ACTIVE]   <- handling request    │    │
+│  │  └── Conn #3 [IDLE]     <- reusable            │    │
 │  │                                                 │    │
 │  │  db.example.com:5432                           │    │
 │  │  ├── Conn #1 [ACTIVE]                          │    │
 │  │  └── Conn #2 [IDLE]                            │    │
 │  │                                                 │    │
-│  │  設定:                                          │    │
+│  │  Settings:                                      │    │
 │  │  pool_max_idle_per_host = 10                    │    │
 │  │  pool_idle_timeout = 90s                        │    │
 │  └────────────────────────────────────────────────┘    │
 │                                                         │
-│  新しいリクエスト:                                       │
-│  1. プールからアイドル接続を取得 (あれば)               │
-│  2. なければ新規TCP接続 + TLSハンドシェイク             │
-│  3. レスポンス受信後、接続をプールに返却                 │
-│  4. アイドルタイムアウト後に自動切断                     │
+│  New request:                                           │
+│  1. Get an idle connection from the pool (if any)       │
+│  2. Otherwise, new TCP connection + TLS handshake       │
+│  3. After receiving response, return connection to pool │
+│  4. Auto-disconnect after idle timeout                  │
 └─────────────────────────────────────────────────────────┘
 ```
 
-### 接続プール最適化の指針
+### Guidelines for Connection Pool Optimization
 
 ```rust
 use reqwest::Client;
 use std::time::Duration;
 
-/// ユースケース別の Client 設定
+/// Client configurations by use case
 mod pool_configs {
     use super::*;
 
-    /// 高スループット向け (大量の並行リクエスト)
+    /// For high throughput (large numbers of concurrent requests)
     pub fn high_throughput() -> Client {
         Client::builder()
             .pool_max_idle_per_host(50)
@@ -1706,7 +1706,7 @@ mod pool_configs {
             .unwrap()
     }
 
-    /// 低レイテンシ向け (少数のクリティカルリクエスト)
+    /// For low latency (a small number of critical requests)
     pub fn low_latency() -> Client {
         Client::builder()
             .pool_max_idle_per_host(5)
@@ -1719,7 +1719,7 @@ mod pool_configs {
             .unwrap()
     }
 
-    /// メモリ節約向け (リソース制約環境)
+    /// For memory efficiency (resource-constrained environments)
     pub fn memory_efficient() -> Client {
         Client::builder()
             .pool_max_idle_per_host(2)
@@ -1732,68 +1732,68 @@ mod pool_configs {
 
 ---
 
-## 8. 比較表
+## 8. Comparison Tables
 
-### 通信プロトコル比較
+### Communication Protocol Comparison
 
-| 特性 | REST (HTTP) | WebSocket | gRPC |
+| Property | REST (HTTP) | WebSocket | gRPC |
 |---|---|---|---|
-| プロトコル | HTTP/1.1, HTTP/2 | WebSocket over TCP | HTTP/2 |
-| データ形式 | JSON / XML | テキスト / バイナリ | Protocol Buffers |
-| 通信方向 | リクエスト-レスポンス | 双方向 | 4パターン (Unary/Stream) |
-| スキーマ | OpenAPI (任意) | なし | .proto (必須) |
-| パフォーマンス | 中 | 高 | 非常に高い |
-| ブラウザ対応 | 完全 | 完全 | grpc-web 経由 |
-| ユースケース | CRUD API | チャット、リアルタイム | マイクロサービス間 |
-| シリアライズ速度 | 遅い (テキスト) | N/A | 速い (バイナリ) |
-| ペイロードサイズ | 大きい | 可変 | 小さい |
-| コード生成 | 任意 | なし | 必須 |
-| エラーハンドリング | HTTPステータスコード | アプリ定義 | Status + Code |
-| ストリーミング | SSE / chunked | ネイティブ | ネイティブ |
-| ロードバランシング | L7 (HTTP) | L4/L7 | L7 (HTTP/2) |
+| Protocol | HTTP/1.1, HTTP/2 | WebSocket over TCP | HTTP/2 |
+| Data Format | JSON / XML | Text / Binary | Protocol Buffers |
+| Direction | Request-Response | Bidirectional | 4 patterns (Unary/Stream) |
+| Schema | OpenAPI (optional) | None | .proto (required) |
+| Performance | Medium | High | Very High |
+| Browser Support | Full | Full | Via grpc-web |
+| Use Case | CRUD API | Chat, real-time | Inter-microservice |
+| Serialization Speed | Slow (text) | N/A | Fast (binary) |
+| Payload Size | Large | Variable | Small |
+| Code Generation | Optional | None | Required |
+| Error Handling | HTTP status code | App-defined | Status + Code |
+| Streaming | SSE / chunked | Native | Native |
+| Load Balancing | L7 (HTTP) | L4/L7 | L7 (HTTP/2) |
 
-### Rust HTTP クライアントライブラリ比較
+### Rust HTTP Client Library Comparison
 
-| ライブラリ | レベル | 用途 | 特徴 | 非同期 |
+| Library | Level | Use | Features | Async |
 |---|---|---|---|---|
-| reqwest | 高レベル | REST API 呼び出し | 簡潔、Cookie/リダイレクト自動 | Yes |
-| hyper | 低レベル | カスタムHTTP実装 | 高性能、フルコントロール | Yes |
-| ureq | 同期 | 同期HTTPクライアント | シンプル、async不要 | No |
-| surf | 中レベル | async-std 向け | ミドルウェア対応 | Yes |
-| isahc | 中レベル | curl ベース | HTTP/2、接続プール | Yes |
-| attohttpc | 軽量 | 組み込み向け | 依存少、小バイナリ | No |
+| reqwest | High | REST API calls | Concise, automatic Cookie/redirect | Yes |
+| hyper | Low | Custom HTTP impl | High performance, full control | Yes |
+| ureq | Sync | Synchronous HTTP client | Simple, no async needed | No |
+| surf | Mid | For async-std | Middleware support | Yes |
+| isahc | Mid | curl-based | HTTP/2, connection pool | Yes |
+| attohttpc | Lightweight | For embedded | Few deps, small binary | No |
 
-### WebSocket ライブラリ比較
+### WebSocket Library Comparison
 
-| ライブラリ | ランタイム | レベル | 特徴 |
+| Library | Runtime | Level | Features |
 |---|---|---|---|
-| tokio-tungstenite | tokio | 中レベル | tungstenite のtokio統合。最も広く使われる |
-| tungstenite | sync | 低レベル | 同期/非同期両対応の基盤ライブラリ |
-| axum::extract::ws | tokio | 高レベル | Axum組み込み。サーバー向け |
-| warp::ws | tokio | 高レベル | Warp組み込み。サーバー向け |
+| tokio-tungstenite | tokio | Mid | tokio integration of tungstenite. Most widely used |
+| tungstenite | sync | Low | Foundational lib supporting both sync and async |
+| axum::extract::ws | tokio | High | Built into Axum. Server-oriented |
+| warp::ws | tokio | High | Built into Warp. Server-oriented |
 
-### gRPC ライブラリ比較
+### gRPC Library Comparison
 
-| ライブラリ | 特徴 | 用途 |
+| Library | Features | Use |
 |---|---|---|
-| tonic | Pure Rust。tokio ベース | 推奨。最も成熟 |
-| grpc-rs | C++ gRPC バインディング | 特殊要件時のみ |
-| volo-grpc | CloudWeGo 提供 | 高性能マイクロサービス |
+| tonic | Pure Rust. tokio-based | Recommended. Most mature |
+| grpc-rs | C++ gRPC bindings | Only for special requirements |
+| volo-grpc | Provided by CloudWeGo | High-performance microservices |
 
 ---
 
-## 9. アンチパターン
+## 9. Anti-Patterns
 
-### アンチパターン1: Client のリクエスト毎生成
+### Anti-Pattern 1: Creating a Client Per Request
 
 ```rust
-// NG: 毎回 Client を作成 → 接続プール未活用、TLSハンドシェイクが毎回発生
+// NG: Create Client every time -> connection pool not utilized, TLS handshake every time
 async fn bad_fetch(url: &str) -> reqwest::Result<String> {
-    let client = reqwest::Client::new(); // 毎回生成
+    let client = reqwest::Client::new(); // created every time
     client.get(url).send().await?.text().await
 }
 
-// OK: Client をアプリケーション全体で共有
+// OK: Share Client across the entire application
 use std::sync::LazyLock;
 static HTTP_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
     reqwest::Client::builder()
@@ -1808,18 +1808,18 @@ async fn good_fetch(url: &str) -> reqwest::Result<String> {
 }
 ```
 
-### アンチパターン2: WebSocket の Ping/Pong 未対応
+### Anti-Pattern 2: Not Handling WebSocket Ping/Pong
 
 ```rust
-// NG: Ping を無視 → サーバーが接続をタイムアウトで切断
+// NG: Ignoring Ping -> server times out and disconnects
 while let Some(msg) = read.next().await {
     if let Ok(Message::Text(text)) = msg {
         process(text);
     }
-    // Ping を無視!
+    // Ignoring Ping!
 }
 
-// OK: Ping に自動応答
+// OK: Auto-respond to Ping
 while let Some(msg) = read.next().await {
     match msg? {
         Message::Text(text) => process(&text),
@@ -1832,13 +1832,13 @@ while let Some(msg) = read.next().await {
 }
 ```
 
-### アンチパターン3: タイムアウト未設定
+### Anti-Pattern 3: No Timeout Configured
 
 ```rust
-// NG: タイムアウトなし → 応答しないサーバーで永久にブロック
+// NG: No timeout -> blocks forever on an unresponsive server
 let response = reqwest::get("https://slow-server.example.com").await?;
 
-// OK: 必ずタイムアウトを設定
+// OK: Always set a timeout
 let client = reqwest::Client::builder()
     .timeout(std::time::Duration::from_secs(30))
     .connect_timeout(std::time::Duration::from_secs(5))
@@ -1846,83 +1846,83 @@ let client = reqwest::Client::builder()
 let response = client.get("https://slow-server.example.com").send().await?;
 ```
 
-### アンチパターン4: error_for_status() の呼び忘れ
+### Anti-Pattern 4: Forgetting to Call error_for_status()
 
 ```rust
-// NG: 4xx/5xx でもエラーにならない → サイレントに失敗
+// NG: 4xx/5xx is not treated as error -> silent failure
 let body: MyData = client.get(url).send().await?.json().await?;
-// 404 のHTML をデシリアライズしようとしてパニック!
+// Panic when trying to deserialize 404 HTML!
 
-// OK: error_for_status() で明示的にチェック
+// OK: Explicitly check with error_for_status()
 let body: MyData = client.get(url)
     .send()
     .await?
-    .error_for_status()?  // 4xx/5xx → Err に変換
+    .error_for_status()?  // 4xx/5xx -> Err
     .json()
     .await?;
 ```
 
-### アンチパターン5: gRPC のエラーステータス不適切な使用
+### Anti-Pattern 5: Inappropriate Use of gRPC Error Statuses
 
 ```rust
-// NG: 全てのエラーを Internal にする
+// NG: Map all errors to Internal
 impl Greeter for MyGreeter {
     async fn say_hello(&self, req: Request<HelloRequest>) -> Result<Response<HelloReply>, Status> {
         let name = req.into_inner().name;
-        do_something(&name).map_err(|e| Status::internal(e.to_string()))?; // 全部 Internal!
+        do_something(&name).map_err(|e| Status::internal(e.to_string()))?; // All Internal!
         todo!()
     }
 }
 
-// OK: 適切なステータスコードを使い分ける
+// OK: Use the appropriate status code per case
 impl Greeter for MyGreeter {
     async fn say_hello(&self, req: Request<HelloRequest>) -> Result<Response<HelloReply>, Status> {
         let name = req.into_inner().name;
         if name.is_empty() {
-            return Err(Status::invalid_argument("name は空にできません"));
+            return Err(Status::invalid_argument("name cannot be empty"));
         }
         let user = find_user(&name).await
-            .map_err(|_| Status::not_found(format!("ユーザー '{}' が見つかりません", name)))?;
+            .map_err(|_| Status::not_found(format!("User '{}' not found", name)))?;
         let result = process(user).await
-            .map_err(|e| Status::internal(format!("処理エラー: {}", e)))?;
+            .map_err(|e| Status::internal(format!("Processing error: {}", e)))?;
         todo!()
     }
 }
 ```
 
-### gRPC ステータスコード一覧
+### gRPC Status Code List
 
-| コード | 名前 | 用途 |
+| Code | Name | Use |
 |---|---|---|
-| 0 | OK | 成功 |
-| 1 | CANCELLED | クライアントがキャンセル |
-| 2 | UNKNOWN | 不明なエラー |
-| 3 | INVALID_ARGUMENT | 不正な引数 |
-| 4 | DEADLINE_EXCEEDED | タイムアウト |
-| 5 | NOT_FOUND | リソース未発見 |
-| 6 | ALREADY_EXISTS | リソース重複 |
-| 7 | PERMISSION_DENIED | 権限不足 |
-| 8 | RESOURCE_EXHAUSTED | リソース枯渇 (レート制限) |
-| 9 | FAILED_PRECONDITION | 前提条件不成立 |
-| 10 | ABORTED | 中断 (競合など) |
-| 11 | OUT_OF_RANGE | 範囲外 |
-| 12 | UNIMPLEMENTED | 未実装 |
-| 13 | INTERNAL | 内部エラー |
-| 14 | UNAVAILABLE | サービス一時的に利用不可 |
-| 16 | UNAUTHENTICATED | 認証失敗 |
+| 0 | OK | Success |
+| 1 | CANCELLED | Cancelled by client |
+| 2 | UNKNOWN | Unknown error |
+| 3 | INVALID_ARGUMENT | Invalid argument |
+| 4 | DEADLINE_EXCEEDED | Timeout |
+| 5 | NOT_FOUND | Resource not found |
+| 6 | ALREADY_EXISTS | Resource already exists |
+| 7 | PERMISSION_DENIED | Insufficient permissions |
+| 8 | RESOURCE_EXHAUSTED | Resource exhausted (rate limit) |
+| 9 | FAILED_PRECONDITION | Precondition failed |
+| 10 | ABORTED | Aborted (contention etc.) |
+| 11 | OUT_OF_RANGE | Out of range |
+| 12 | UNIMPLEMENTED | Not implemented |
+| 13 | INTERNAL | Internal error |
+| 14 | UNAVAILABLE | Service temporarily unavailable |
+| 16 | UNAUTHENTICATED | Authentication failed |
 
 ---
 
-## 10. 実践パターン
+## 10. Practical Patterns
 
-### 10.1 API クライアントラッパー
+### 10.1 API Client Wrapper
 
 ```rust
 use reqwest::Client;
 use serde::{de::DeserializeOwned, Serialize};
 use std::time::Duration;
 
-/// 型安全なAPIクライアント
+/// Type-safe API client
 struct ApiClient {
     client: Client,
     base_url: String,
@@ -1983,13 +1983,13 @@ impl ApiClient {
     }
 }
 
-// 使用例:
+// Usage example:
 // let api = ApiClient::new("https://api.example.com", "my-key")?;
 // let users: Vec<User> = api.get("/users").await?;
 // let new_user: User = api.post("/users", &CreateUser { name: "Alice".into() }).await?;
 ```
 
-### 10.2 Server-Sent Events (SSE) クライアント
+### 10.2 Server-Sent Events (SSE) Client
 
 ```rust
 use futures::StreamExt;
@@ -2002,7 +2002,7 @@ struct SseEvent {
     id: Option<String>,
 }
 
-/// SSE ストリームの受信
+/// Receive an SSE stream
 async fn consume_sse(client: &Client, url: &str) -> anyhow::Result<()> {
     let response = client
         .get(url)
@@ -2019,7 +2019,7 @@ async fn consume_sse(client: &Client, url: &str) -> anyhow::Result<()> {
         let text = String::from_utf8_lossy(&chunk);
         buffer.push_str(&text);
 
-        // イベント区切り (空行) で分割
+        // Split by event delimiter (blank line)
         while let Some(pos) = buffer.find("\n\n") {
             let event_text = buffer[..pos].to_string();
             buffer = buffer[pos + 2..].to_string();
@@ -2060,26 +2060,26 @@ fn parse_sse_event(text: &str) -> Option<SseEvent> {
 }
 ```
 
-### 10.3 TCP ソケット直接操作
+### 10.3 Direct TCP Socket Operations
 
 ```rust
 use tokio::net::{TcpListener, TcpStream};
 use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader, AsyncBufReadExt};
 
-/// シンプルなエコーサーバー
+/// Simple echo server
 async fn echo_server(addr: &str) -> anyhow::Result<()> {
     let listener = TcpListener::bind(addr).await?;
-    println!("Echo サーバー起動: {}", addr);
+    println!("Echo server started: {}", addr);
 
     loop {
         let (stream, peer_addr) = listener.accept().await?;
-        println!("接続: {}", peer_addr);
+        println!("Connected: {}", peer_addr);
 
         tokio::spawn(async move {
             if let Err(e) = handle_echo_client(stream).await {
-                eprintln!("クライアントエラー ({}): {}", peer_addr, e);
+                eprintln!("Client error ({}): {}", peer_addr, e);
             }
-            println!("切断: {}", peer_addr);
+            println!("Disconnected: {}", peer_addr);
         });
     }
 }
@@ -2092,7 +2092,7 @@ async fn handle_echo_client(mut stream: TcpStream) -> anyhow::Result<()> {
     loop {
         line.clear();
         let n = reader.read_line(&mut line).await?;
-        if n == 0 { break; } // 接続切断
+        if n == 0 { break; } // Connection closed
 
         writer.write_all(line.as_bytes()).await?;
         writer.flush().await?;
@@ -2101,16 +2101,16 @@ async fn handle_echo_client(mut stream: TcpStream) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// TCP クライアント
+/// TCP client
 async fn echo_client(addr: &str) -> anyhow::Result<()> {
     let mut stream = TcpStream::connect(addr).await?;
-    println!("サーバーに接続: {}", addr);
+    println!("Connected to server: {}", addr);
 
     stream.write_all(b"Hello, server!\n").await?;
 
     let mut buf = vec![0u8; 1024];
     let n = stream.read(&mut buf).await?;
-    println!("応答: {}", String::from_utf8_lossy(&buf[..n]));
+    println!("Response: {}", String::from_utf8_lossy(&buf[..n]));
 
     Ok(())
 }
@@ -2120,16 +2120,16 @@ async fn echo_client(addr: &str) -> anyhow::Result<()> {
 
 ## FAQ
 
-### Q1: reqwest と hyper のどちらを使うべき?
+### Q1: Should I use reqwest or hyper?
 
-**A:** 一般的なREST API呼び出しなら reqwest で十分です。カスタムプロトコル実装やフレームワーク構築など HTTP の低レベル制御が必要な場合のみ hyper を直接使います。Axum は内部で hyper を使っていますが、直接触る必要はほぼありません。判断基準は以下の通りです:
+**A:** For typical REST API calls, reqwest is sufficient. Use hyper directly only when you need low-level HTTP control such as implementing a custom protocol or building a framework. Axum uses hyper internally, but you almost never need to touch hyper directly. The decision criteria are:
 
-- **reqwest を使う場合**: REST API クライアント、ファイルダウンロード、Webhook 送信、外部サービス連携
-- **hyper を使う場合**: カスタムプロキシサーバー、独自プロトコルのHTTP拡張、極限のパフォーマンスチューニング
+- **Use reqwest when**: REST API client, file downloads, sending webhooks, integrating external services
+- **Use hyper when**: custom proxy server, HTTP extensions for proprietary protocols, extreme performance tuning
 
-### Q2: gRPC で認証はどう実装する?
+### Q2: How do I implement authentication in gRPC?
 
-**A:** tonic の `Interceptor` でメタデータに Bearer トークンを付与します。サーバー側ではリクエストのメタデータからトークンを検証します。JWT トークンの場合は `jsonwebtoken` クレートと組み合わせるのが一般的です。
+**A:** Attach a Bearer token to the metadata using tonic's `Interceptor`. On the server side, validate the token from the request metadata. For JWT tokens, combining with the `jsonwebtoken` crate is common.
 
 ```rust
 let channel = tonic::transport::Channel::from_static("http://[::1]:50051")
@@ -2145,101 +2145,101 @@ let client = GreeterClient::with_interceptor(channel, |mut req: tonic::Request<(
 });
 ```
 
-### Q3: HTTP/2 のメリットは?
+### Q3: What are the benefits of HTTP/2?
 
-**A:** 単一TCP接続上で複数リクエストを多重化でき、ヘッダー圧縮 (HPACK) によりオーバーヘッドを削減します。gRPC は HTTP/2 を前提としており、ストリーミング RPC も HTTP/2 のフレーム機能で実現されています。具体的なメリットは:
+**A:** It allows multiplexing several requests over a single TCP connection, and reduces overhead via header compression (HPACK). gRPC requires HTTP/2, and streaming RPCs are realized using HTTP/2's frame features. Specific benefits include:
 
-- **多重化**: 1つのTCP接続で複数のリクエスト/レスポンスを同時処理
-- **ヘッダー圧縮**: HPACK によりヘッダーサイズを大幅に削減
-- **サーバープッシュ**: サーバーからクライアントへの事前送信
-- **ストリーム優先度**: 重要なリクエストを優先的に処理
-- **フロー制御**: ストリームごとのフロー制御
+- **Multiplexing**: handle multiple requests/responses simultaneously over one TCP connection
+- **Header compression**: HPACK significantly reduces header size
+- **Server push**: proactive sends from server to client
+- **Stream priority**: prioritize important requests
+- **Flow control**: per-stream flow control
 
-### Q4: WebSocket と SSE (Server-Sent Events) のどちらを使うべき?
+### Q4: Should I use WebSocket or SSE (Server-Sent Events)?
 
-**A:** 用途に応じて使い分けます:
+**A:** Choose based on use case:
 
-- **WebSocket**: 双方向通信が必要な場合（チャット、ゲーム、コラボレーション）
-- **SSE**: サーバーからの一方向通知で十分な場合（ダッシュボード更新、ログストリーミング）
+- **WebSocket**: when you need bidirectional communication (chat, games, collaboration)
+- **SSE**: when one-way notifications from the server are sufficient (dashboard updates, log streaming)
 
-SSE は HTTP/1.1 上で動作し、実装が簡単で自動再接続機能があります。一方 WebSocket は双方向通信が可能でバイナリデータも送れますが、実装が複雑になります。
+SSE runs over HTTP/1.1, is easy to implement, and provides automatic reconnection. WebSocket allows bidirectional communication and binary data, but is more complex to implement.
 
-### Q5: reqwest で Cookie を管理するには?
+### Q5: How do I manage cookies in reqwest?
 
-**A:** `cookie_store(true)` を有効にすると、セッションCookieが自動管理されます。
+**A:** Enabling `cookie_store(true)` automatically manages session cookies.
 
 ```rust
 let client = reqwest::Client::builder()
     .cookie_store(true)
     .build()?;
 
-// ログインリクエスト
+// Login request
 client.post("https://example.com/login")
     .json(&credentials)
     .send()
     .await?;
 
-// 以降のリクエストには自動でCookieが付与される
+// Subsequent requests automatically include the cookies
 let profile = client.get("https://example.com/profile")
     .send()
     .await?;
 ```
 
-### Q6: gRPC のデッドラインとタイムアウトの違いは?
+### Q6: What is the difference between gRPC's deadline and timeout?
 
-**A:** デッドライン（Deadline）は「この時刻までに完了」、タイムアウトは「この時間内に完了」です。gRPC では内部的にデッドラインに変換されます。デッドラインはサービス間で伝播するため、マイクロサービスチェーン全体で一貫したタイムアウト管理ができます。
+**A:** A deadline is "complete by this point in time"; a timeout is "complete within this duration." gRPC internally converts to a deadline. Because deadlines propagate across services, you can manage timeouts consistently across an entire microservice chain.
 
 ```rust
 use std::time::Duration;
 
 let mut request = tonic::Request::new(HelloRequest { name: "test".into() });
-request.set_timeout(Duration::from_secs(5)); // タイムアウトを5秒に設定
+request.set_timeout(Duration::from_secs(5)); // Set timeout to 5 seconds
 ```
 
-### Q7: 大量の並行HTTPリクエストでのベストプラクティスは?
+### Q7: What are the best practices for many concurrent HTTP requests?
 
-**A:** 以下の3つの原則を守ります:
+**A:** Follow these three principles:
 
-1. **Client の共有**: 1つの `reqwest::Client` を全リクエストで共有し、接続プールを活用
-2. **並行数の制限**: `Semaphore` や `buffer_unordered` で同時リクエスト数を制御
-3. **タイムアウトの設定**: 個別リクエストとClient全体の両方でタイムアウトを設定
+1. **Share the Client**: share a single `reqwest::Client` across all requests to leverage the connection pool
+2. **Limit concurrency**: control the number of simultaneous requests with `Semaphore` or `buffer_unordered`
+3. **Set timeouts**: set timeouts both on individual requests and on the Client as a whole
 
 ```rust
-// 推奨パターン
+// Recommended pattern
 let results = stream::iter(urls)
     .map(|url| {
         let client = client.clone();
         async move { client.get(&url).send().await?.text().await }
     })
-    .buffer_unordered(10) // 最大10並行
+    .buffer_unordered(10) // up to 10 concurrent
     .collect::<Vec<_>>()
     .await;
 ```
 
 ---
 
-## まとめ
+## Summary
 
-| 項目 | 要点 |
+| Topic | Key Points |
 |---|---|
-| reqwest | 高レベル HTTP クライアント。Client は再利用必須。接続プール内蔵 |
-| hyper | 低レベル HTTP。フレームワーク構築やカスタムプロキシ用 |
-| WebSocket | tokio-tungstenite で双方向通信。split() で送受信分離。Ping/Pong必須 |
-| gRPC | tonic + .proto。4つの通信パターン。高性能マイクロサービス通信 |
-| 接続プール | Client を static/Arc で共有して接続プール活用。ホスト別に設定可能 |
-| ストリーミング | bytes_stream() / Server Streaming で逐次処理。メモリ効率が高い |
-| Ping/Pong | WebSocket の keepalive に必須。タイムアウト検出にも活用 |
-| TLS | rustls がデフォルト推奨。mTLS はクライアント証明書で実現 |
-| リトライ | 指数バックオフ + ジッタ。リトライ可能なステータスコードを判別 |
-| エラー | error_for_status() の使用必須。gRPC は適切なステータスコードを使い分け |
+| reqwest | High-level HTTP client. Client must be reused. Built-in connection pool |
+| hyper | Low-level HTTP. For framework building or custom proxies |
+| WebSocket | Bidirectional comms with tokio-tungstenite. Use split() to separate read/write. Ping/Pong required |
+| gRPC | tonic + .proto. 4 communication patterns. High-performance microservice comms |
+| Connection Pool | Share Client via static/Arc to leverage pool. Configurable per host |
+| Streaming | Sequential processing with bytes_stream() / Server Streaming. Memory-efficient |
+| Ping/Pong | Required for WebSocket keepalive. Also useful for timeout detection |
+| TLS | rustls is the recommended default. mTLS is achieved via client certificates |
+| Retry | Exponential backoff + jitter. Identify retryable status codes |
+| Errors | Always use error_for_status(). For gRPC, use appropriate status codes |
 
-## 次に読むべきガイド
+## Recommended Next Reading
 
-- [Axum](./04-axum-web.md) — Webフレームワークでのサーバーサイド実装
-- [Serde](../04-ecosystem/02-serde.md) — JSON/Protobuf のシリアライズ
-- [非同期パターン](./02-async-patterns.md) — リトライ、並行制限の実装
+- [Axum](./04-axum-web.md) -- Server-side implementation with a web framework
+- [Serde](../04-ecosystem/02-serde.md) -- JSON/Protobuf serialization
+- [Async Patterns](./02-async-patterns.md) -- Implementation of retry and concurrency limits
 
-## 参考文献
+## References
 
 1. **reqwest documentation**: https://docs.rs/reqwest/latest/reqwest/
 2. **hyper documentation**: https://docs.rs/hyper/latest/hyper/
