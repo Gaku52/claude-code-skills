@@ -1,47 +1,47 @@
-# FFI（Foreign Function Interface）
+# FFI (Foreign Function Interface)
 
-> Rust と他言語の相互運用を理解し、bindgen・PyO3・napi-rs を使ったクロス言語連携を実践的に習得する
+> Understand interoperability between Rust and other languages, and master cross-language integration in practice using bindgen, PyO3, and napi-rs
 
-## この章で学ぶこと
+## What you will learn in this chapter
 
-1. **FFI の基本概念** — C ABI、unsafe の扱い、メモリ管理の責任分界
-2. **C/C++ 連携** — bindgen によるバインディング自動生成と安全なラッパー設計
-3. **高レベル連携** — PyO3 による Python 拡張、napi-rs による Node.js ネイティブモジュール
-4. **cxx クレート** — C++ との型安全な双方向連携
-5. **UniFFI** — モバイル (Kotlin/Swift) 向けのマルチ言語バインディング
+1. **FFI fundamentals** — C ABI, handling unsafe, and the boundary of memory management responsibility
+2. **C/C++ integration** — Automatic binding generation with bindgen and safe wrapper design
+3. **High-level integration** — Python extensions with PyO3, Node.js native modules with napi-rs
+4. **The cxx crate** — Type-safe bidirectional integration with C++
+5. **UniFFI** — Multi-language bindings for mobile (Kotlin/Swift)
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [並行性 — スレッド、Mutex/RwLock、rayon](./01-concurrency.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Familiarity with the contents of [Concurrency — Threads, Mutex/RwLock, rayon](./01-concurrency.md)
 
 ---
 
-## 1. FFI の基本
+## 1. FFI Fundamentals
 
 ```
-FFI の仕組み
+How FFI Works
 =============
 
-Rust                 C ABI 境界              他言語
+Rust                 C ABI Boundary          Other Languages
 +-------------+     +-----------+     +-------------+
 | safe Rust   |     | extern "C"|     | Python      |
 | code        | --> | #[no_mangle] | <-- | ctypes /    |
 |             |     | unsafe {}  |     | PyO3        |
 +-------------+     +-----------+     +-------------+
 
-  - C ABI は言語間の共通インターフェース
-  - Rust 側は extern "C" で C 互換関数を公開
-  - メモリ管理の責任を明確にすることが最重要
+  - C ABI is the common interface between languages
+  - The Rust side exposes C-compatible functions via extern "C"
+  - Clarifying the responsibility for memory management is paramount
 ```
 
-### FFI で使われる主要な型マッピング
+### Major type mappings used in FFI
 
-| Rust 型 | C 型 | サイズ | 備考 |
+| Rust type | C type | Size | Notes |
 |---|---|---|---|
 | `i8` / `u8` | `int8_t` / `uint8_t` | 1 byte | |
 | `i16` / `u16` | `int16_t` / `uint16_t` | 2 bytes | |
@@ -49,15 +49,15 @@ Rust                 C ABI 境界              他言語
 | `i64` / `u64` | `int64_t` / `uint64_t` | 8 bytes | |
 | `f32` | `float` | 4 bytes | |
 | `f64` | `double` | 8 bytes | |
-| `bool` | `bool` / `_Bool` | 1 byte | C99 以降 |
+| `bool` | `bool` / `_Bool` | 1 byte | C99 and later |
 | `*const T` | `const T*` | ptr size | |
 | `*mut T` | `T*` | ptr size | |
-| `*const c_char` | `const char*` | ptr size | NUL 終端文字列 |
-| `()` | `void` | 0 | 戻り値のみ |
-| `Option<&T>` | `const T*` (nullable) | ptr size | ニッチ最適化 |
-| `Option<extern "C" fn()>` | 関数ポインタ (nullable) | ptr size | ニッチ最適化 |
+| `*const c_char` | `const char*` | ptr size | NUL-terminated string |
+| `()` | `void` | 0 | Return value only |
+| `Option<&T>` | `const T*` (nullable) | ptr size | Niche optimization |
+| `Option<extern "C" fn()>` | function pointer (nullable) | ptr size | Niche optimization |
 
-### コード例 1: Rust から C 関数を呼び出す
+### Code example 1: Calling a C function from Rust
 
 ```rust
 use std::ffi::{CStr, CString};
@@ -93,15 +93,15 @@ fn main() {
 }
 ```
 
-### コード例 2: Rust の関数を C に公開
+### Code example 2: Exposing Rust functions to C
 
 ```rust
-// lib.rs -- cdylib としてビルド
+// lib.rs -- build as cdylib
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::ptr;
 
-/// C から呼び出し可能な文字列反転関数
+/// String reversal function callable from C
 #[no_mangle]
 pub extern "C" fn rust_string_reverse(input: *const c_char) -> *mut c_char {
     if input.is_null() {
@@ -114,12 +114,12 @@ pub extern "C" fn rust_string_reverse(input: *const c_char) -> *mut c_char {
     };
     let reversed: String = rust_str.chars().rev().collect();
     match CString::new(reversed) {
-        Ok(c_string) => c_string.into_raw(),  // 所有権を呼び出し側に渡す
+        Ok(c_string) => c_string.into_raw(),  // Transfer ownership to the caller
         Err(_) => ptr::null_mut(),
     }
 }
 
-/// メモリ解放用関数（呼び出し側が必ず呼ぶ）
+/// Memory deallocation function (the caller must always invoke this)
 #[no_mangle]
 pub extern "C" fn rust_string_free(s: *mut c_char) {
     if !s.is_null() {
@@ -129,7 +129,7 @@ pub extern "C" fn rust_string_free(s: *mut c_char) {
 ```
 
 ```c
-/* C 側: main.c */
+/* C side: main.c */
 #include <stdio.h>
 extern char* rust_string_reverse(const char* input);
 extern void rust_string_free(char* s);
@@ -138,49 +138,49 @@ int main() {
     char* result = rust_string_reverse("Hello, Rust!");
     if (result) {
         printf("Reversed: %s\n", result);  // "!tsuR ,olleH"
-        rust_string_free(result);  // 必ず解放
+        rust_string_free(result);  // Always free
     }
     return 0;
 }
 ```
 
-### コード例: CString と CStr の違いと使い分け
+### Code example: Differences between CString and CStr and how to use them
 
 ```rust
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 
 fn demonstrate_cstring_cstr() {
-    // CString: Rust が所有する NUL 終端文字列 (ヒープ割当)
-    // - Rust → C に文字列を渡すときに使う
-    // - 内部にNULバイトがあると panic
+    // CString: NUL-terminated string owned by Rust (heap allocated)
+    // - Used when passing strings from Rust to C
+    // - Panics if it contains an interior NUL byte
     let owned = CString::new("Hello, FFI!").unwrap();
     println!("CString: {:?}", owned);
     println!("  as_ptr: {:p}", owned.as_ptr());
     println!("  as_bytes_with_nul: {:?}", owned.as_bytes_with_nul());
 
-    // CStr: NUL 終端文字列への借用 (ヒープ割当なし)
-    // - C → Rust に文字列を受け取るときに使う
+    // CStr: A borrow of a NUL-terminated string (no heap allocation)
+    // - Used when receiving strings from C into Rust
     let borrowed: &CStr = owned.as_c_str();
     println!("CStr: {:?}", borrowed);
 
-    // C から受け取ったポインタを CStr に変換
+    // Convert a pointer received from C into a CStr
     let ptr: *const c_char = owned.as_ptr();
     let from_ptr: &CStr = unsafe { CStr::from_ptr(ptr) };
     println!("from_ptr: {:?}", from_ptr.to_str().unwrap());
 
     // to_str() vs to_string_lossy()
-    // to_str():          Result<&str> — 不正な UTF-8 でエラー
-    // to_string_lossy(): Cow<str>    — 不正な UTF-8 を U+FFFD に置換
+    // to_str():          Result<&str> — errors on invalid UTF-8
+    // to_string_lossy(): Cow<str>    — replaces invalid UTF-8 with U+FFFD
     match from_ptr.to_str() {
         Ok(s) => println!("Valid UTF-8: {}", s),
         Err(e) => println!("Invalid UTF-8: {}", e),
     }
 
-    // NUL バイトを含む文字列は CString::new() でエラー
+    // A string containing a NUL byte causes CString::new() to error
     match CString::new("hello\0world") {
         Ok(_) => unreachable!(),
-        Err(e) => println!("NulError: {} (位置: {})", e, e.nul_position()),
+        Err(e) => println!("NulError: {} (position: {})", e, e.nul_position()),
     }
 }
 
@@ -189,13 +189,13 @@ fn main() {
 }
 ```
 
-### コード例: 構造体の受け渡し
+### Code example: Passing structs
 
 ```rust
 use std::os::raw::c_char;
 use std::ffi::CStr;
 
-/// C と共有する構造体 — repr(C) が必須
+/// Struct shared with C — repr(C) is required
 #[repr(C)]
 pub struct Point {
     pub x: f64,
@@ -215,13 +215,13 @@ pub struct ErrorInfo {
     pub message: [c_char; 256],
 }
 
-/// 構造体を値渡し
+/// Pass struct by value
 #[no_mangle]
 pub extern "C" fn rect_area(rect: Rect) -> f64 {
     rect.width * rect.height
 }
 
-/// 構造体をポインタ渡し (大きな構造体に適切)
+/// Pass struct by pointer (suitable for large structs)
 #[no_mangle]
 pub extern "C" fn rect_area_ptr(rect: *const Rect) -> f64 {
     if rect.is_null() {
@@ -231,7 +231,7 @@ pub extern "C" fn rect_area_ptr(rect: *const Rect) -> f64 {
     rect.width * rect.height
 }
 
-/// 構造体を出力パラメータとして返す
+/// Return struct via an out parameter
 #[no_mangle]
 pub extern "C" fn create_rect(x: f64, y: f64, w: f64, h: f64, out: *mut Rect) -> i32 {
     if out.is_null() {
@@ -242,10 +242,10 @@ pub extern "C" fn create_rect(x: f64, y: f64, w: f64, h: f64, out: *mut Rect) ->
         (*out).width = w;
         (*out).height = h;
     }
-    0 // 成功
+    0 // Success
 }
 
-/// エラー情報を構造体で返す
+/// Return error information via a struct
 #[no_mangle]
 pub extern "C" fn get_error_info(out: *mut ErrorInfo) -> i32 {
     if out.is_null() {
@@ -264,7 +264,7 @@ pub extern "C" fn get_error_info(out: *mut ErrorInfo) -> i32 {
             dest.as_mut_ptr(),
             len,
         );
-        dest[len] = 0; // NUL 終端
+        dest[len] = 0; // NUL terminator
     }
     0
 }
@@ -275,19 +275,19 @@ fn main() {
         width: 10.0,
         height: 5.0,
     };
-    println!("面積: {}", rect_area(rect));
+    println!("Area: {}", rect_area(rect));
 }
 ```
 
-### コード例: コールバック関数の受け渡し
+### Code example: Passing callback functions
 
 ```rust
 use std::os::raw::c_void;
 
-/// C 側から渡されるコールバック型
+/// Callback type passed in from the C side
 type ProgressCallback = extern "C" fn(current: u64, total: u64, user_data: *mut c_void);
 
-/// コールバックを受け取る関数
+/// Function that accepts a callback
 #[no_mangle]
 pub extern "C" fn process_with_callback(
     data_ptr: *const u8,
@@ -305,19 +305,19 @@ pub extern "C" fn process_with_callback(
     for (i, _chunk) in data.chunks(1024).enumerate() {
         let current = ((i + 1) * 1024).min(data.len()) as u64;
 
-        // コールバックが設定されていれば呼び出す
+        // Call the callback if it has been set
         if let Some(cb) = callback {
             cb(current, total, user_data);
         }
     }
 
-    0 // 成功
+    0 // Success
 }
 
-/// Rust 側のコールバック実装例
+/// Example callback implementation on the Rust side
 extern "C" fn my_progress(current: u64, total: u64, _user_data: *mut c_void) {
     let percent = (current as f64 / total as f64 * 100.0) as u32;
-    println!("進捗: {}% ({}/{})", percent, current, total);
+    println!("Progress: {}% ({}/{})", percent, current, total);
 }
 
 fn main() {
@@ -333,28 +333,28 @@ fn main() {
 
 ---
 
-## 2. bindgen による自動バインディング
+## 2. Automatic bindings with bindgen
 
 ```
-bindgen のワークフロー
+bindgen Workflow
 ========================
 
-C/C++ ヘッダー (.h)
+C/C++ header (.h)
        |
        v
-  [bindgen]  <-- build.rs で自動実行
+  [bindgen]  <-- run automatically in build.rs
        |
        v
-Rust バインディング (.rs)
+Rust bindings (.rs)
        |
        v
-安全なラッパー (safe API)
+Safe wrapper (safe API)
        |
        v
-アプリケーションコード
+Application code
 ```
 
-### コード例 3: bindgen を使った C ライブラリのラッピング
+### Code example 3: Wrapping a C library with bindgen
 
 ```rust
 // build.rs
@@ -382,7 +382,7 @@ fn main() {
 #![allow(non_camel_case_types)]
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
-// 安全なラッパー
+// Safe wrapper
 pub struct MyLibHandle {
     raw: *mut MyLibContext,
 }
@@ -423,37 +423,37 @@ impl Drop for MyLibHandle {
 unsafe impl Send for MyLibHandle {}
 ```
 
-### コード例: bindgen の高度な設定
+### Code example: Advanced bindgen configuration
 
 ```rust
-// build.rs — より詳細な bindgen 設定
+// build.rs — more detailed bindgen configuration
 fn main() {
-    // システムライブラリのリンク
+    // Link a system library
     pkg_config::Config::new()
         .probe("libssl")
         .expect("OpenSSL not found");
 
     let bindings = bindgen::Builder::default()
         .header("wrapper.h")
-        // 特定の関数・型のみ生成
+        // Generate only specific functions/types
         .allowlist_function("SSL_.*")
         .allowlist_type("SSL_CTX")
-        // ブロックリスト
+        // Block list
         .blocklist_function("SSL_internal_.*")
-        // 型のマッピングカスタマイズ
+        // Customize type mappings
         .default_enum_style(bindgen::EnumVariation::Rust {
             non_exhaustive: true,
         })
-        // レイアウトテスト生成
+        // Generate layout tests
         .layout_tests(true)
-        // derive の自動付与
+        // Auto-derive
         .derive_debug(true)
         .derive_default(true)
         .derive_eq(true)
         .derive_hash(true)
-        // ドキュメントコメントの生成
+        // Generate doc comments
         .generate_comments(true)
-        // include パスの追加
+        // Add include paths
         .clang_arg("-I/usr/include")
         .clang_arg("-I/usr/local/include")
         .generate()
@@ -464,14 +464,14 @@ fn main() {
 }
 ```
 
-### コード例: 安全なラッパーの設計パターン
+### Code example: Safe wrapper design pattern
 
 ```rust
 use std::ffi::CString;
 use std::os::raw::c_char;
 use std::ptr;
 
-// FFI 関数の宣言 (bindgen が生成するもの)
+// FFI function declarations (what bindgen generates)
 extern "C" {
     fn db_open(path: *const c_char) -> *mut DbHandle;
     fn db_close(handle: *mut DbHandle);
@@ -483,7 +483,7 @@ extern "C" {
 
 #[repr(C)]
 pub struct DbHandle {
-    _private: [u8; 0], // 不透明型
+    _private: [u8; 0], // Opaque type
 }
 
 #[repr(C)]
@@ -491,7 +491,7 @@ pub struct ResultSet {
     _private: [u8; 0],
 }
 
-/// 安全なデータベースラッパー
+/// Safe database wrapper
 pub struct Database {
     handle: *mut DbHandle,
 }
@@ -526,10 +526,10 @@ impl Drop for Database {
     }
 }
 
-// Send は手動で保証 (スレッド安全なC API の場合のみ)
+// Send is asserted manually (only when the C API is thread-safe)
 unsafe impl Send for Database {}
 
-/// クエリ結果のイテレータ
+/// Iterator over query results
 pub struct QueryResult {
     handle: *mut ResultSet,
 }
@@ -558,7 +558,7 @@ impl Drop for QueryResult {
     }
 }
 
-// 使用例
+// Usage example
 fn main() {
     // let db = Database::open("/tmp/test.db").unwrap();
     // let mut result = db.query("SELECT name FROM users").unwrap();
@@ -572,9 +572,9 @@ fn main() {
 
 ---
 
-## 3. PyO3 -- Python 拡張
+## 3. PyO3 -- Python extensions
 
-### コード例 4: PyO3 による Python モジュール
+### Code example 4: A Python module with PyO3
 
 ```rust
 // Cargo.toml: pyo3 = { version = "0.22", features = ["extension-module"] }
@@ -648,7 +648,7 @@ fn my_rust_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
 ```
 
 ```python
-# Python 側
+# Python side
 import my_rust_module
 
 print(my_rust_module.fibonacci(50))   # 12586269025
@@ -660,7 +660,7 @@ df.add_row([3.0, 4.0])
 print(df.mean("y"))  # 3.0
 ```
 
-### コード例: PyO3 の高度な機能
+### Code example: Advanced features of PyO3
 
 ```rust
 use pyo3::prelude::*;
@@ -668,7 +668,7 @@ use pyo3::exceptions::{PyValueError, PyIOError};
 use pyo3::types::{PyDict, PyList, PyBytes};
 use std::io::Read;
 
-/// Python のプロトコルを実装 (__len__, __getitem__, __iter__ 等)
+/// Implement Python protocols (__len__, __getitem__, __iter__, etc.)
 #[pyclass]
 struct Matrix {
     data: Vec<Vec<f64>>,
@@ -687,17 +687,17 @@ impl Matrix {
         }
     }
 
-    /// Python の len() に対応
+    /// Corresponds to Python's len()
     fn __len__(&self) -> usize {
         self.rows * self.cols
     }
 
-    /// Python の str() / print() に対応
+    /// Corresponds to Python's str() / print()
     fn __repr__(&self) -> String {
         format!("Matrix({}x{})", self.rows, self.cols)
     }
 
-    /// Python の matrix[i, j] に対応
+    /// Corresponds to Python's matrix[i, j]
     fn __getitem__(&self, idx: (usize, usize)) -> PyResult<f64> {
         let (i, j) = idx;
         if i >= self.rows || j >= self.cols {
@@ -706,7 +706,7 @@ impl Matrix {
         Ok(self.data[i][j])
     }
 
-    /// Python の matrix[i, j] = value に対応
+    /// Corresponds to Python's matrix[i, j] = value
     fn __setitem__(&mut self, idx: (usize, usize), value: f64) -> PyResult<()> {
         let (i, j) = idx;
         if i >= self.rows || j >= self.cols {
@@ -716,7 +716,7 @@ impl Matrix {
         Ok(())
     }
 
-    /// 行列の転置
+    /// Matrix transpose
     fn transpose(&self) -> Matrix {
         let mut result = Matrix::new(self.cols, self.rows);
         for i in 0..self.rows {
@@ -727,12 +727,12 @@ impl Matrix {
         result
     }
 
-    /// NumPy 配列との相互変換 (numpy feature が必要)
+    /// Mutual conversion with NumPy arrays (requires the numpy feature)
     fn to_list(&self) -> Vec<Vec<f64>> {
         self.data.clone()
     }
 
-    /// バイト列に変換 (シリアライズ)
+    /// Convert to a byte sequence (serialization)
     fn to_bytes<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
         let mut bytes = Vec::new();
         bytes.extend_from_slice(&self.rows.to_le_bytes());
@@ -745,7 +745,7 @@ impl Matrix {
         PyBytes::new(py, &bytes)
     }
 
-    /// クラスメソッド
+    /// Class method
     #[classmethod]
     fn identity(_cls: &Bound<'_, pyo3::types::PyType>, size: usize) -> Self {
         let mut m = Matrix::new(size, size);
@@ -755,21 +755,21 @@ impl Matrix {
         m
     }
 
-    /// 静的メソッド
+    /// Static method
     #[staticmethod]
     fn zeros(rows: usize, cols: usize) -> Self {
         Matrix::new(rows, cols)
     }
 }
 
-/// async 関数の PyO3 での扱い
+/// Handling async functions in PyO3
 #[pyfunction]
 fn read_file_sync(path: &str) -> PyResult<String> {
     std::fs::read_to_string(path)
         .map_err(|e| PyIOError::new_err(e.to_string()))
 }
 
-/// Python の dict を受け取って処理
+/// Receive and process a Python dict
 #[pyfunction]
 fn process_config(config: &Bound<'_, PyDict>) -> PyResult<String> {
     let host = config
@@ -798,9 +798,9 @@ fn advanced_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
 ---
 
-## 4. napi-rs -- Node.js ネイティブモジュール
+## 4. napi-rs -- Node.js native modules
 
-### コード例 5: napi-rs による Node.js アドオン
+### Code example 5: A Node.js addon with napi-rs
 
 ```rust
 use napi::bindgen_prelude::*;
@@ -874,13 +874,13 @@ processor.addLine("hello rust");
 console.log(processor.wordFrequencies());
 ```
 
-### コード例: napi-rs の高度な機能
+### Code example: Advanced features of napi-rs
 
 ```rust
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 
-/// TypeScript の enum に対応
+/// Corresponds to a TypeScript enum
 #[napi]
 pub enum LogLevel {
     Debug,
@@ -889,7 +889,7 @@ pub enum LogLevel {
     Error,
 }
 
-/// TypeScript のインターフェースに対応する構造体
+/// Struct corresponding to a TypeScript interface
 #[napi(object)]
 pub struct ServerConfig {
     pub host: String,
@@ -898,7 +898,7 @@ pub struct ServerConfig {
     pub tls_enabled: bool,
 }
 
-/// ストリーミング処理 (Node.js の ReadableStream 風)
+/// Streaming processing (similar to Node.js's ReadableStream)
 #[napi]
 pub struct LineReader {
     lines: Vec<String>,
@@ -935,7 +935,7 @@ impl LineReader {
     }
 }
 
-/// コールバック関数を受け取る
+/// Receive a callback function
 #[napi]
 pub fn process_items(
     items: Vec<String>,
@@ -950,10 +950,10 @@ pub fn process_items(
     Ok(results)
 }
 
-/// Buffer (バイナリデータ) の受け渡し
+/// Passing Buffer (binary data)
 #[napi]
 pub fn compress_data(input: Buffer) -> Result<Buffer> {
-    // 簡易的な RLE 圧縮
+    // Simple RLE compression
     let data = input.as_ref();
     let mut compressed = Vec::new();
     let mut i = 0;
@@ -978,21 +978,21 @@ pub fn compress_data(input: Buffer) -> Result<Buffer> {
 
 ---
 
-## 5. cxx クレート — C++ との型安全な連携
+## 5. The cxx crate — Type-safe integration with C++
 
-### コード例: cxx による C++ バインディング
+### Code example: C++ bindings with cxx
 
 ```rust
 // src/main.rs
 #[cxx::bridge]
 mod ffi {
-    // C++ に公開する Rust 型
+    // Rust types exposed to C++
     struct RustConfig {
         name: String,
         value: i64,
     }
 
-    // C++ 側で定義された関数
+    // Functions defined on the C++ side
     unsafe extern "C++" {
         include!("my_project/cpp_lib.h");
 
@@ -1003,7 +1003,7 @@ mod ffi {
         fn get_stats(self: &CppProcessor) -> String;
     }
 
-    // Rust 側で定義し、C++ から呼べる関数
+    // Functions defined on the Rust side, callable from C++
     extern "Rust" {
         fn rust_log(message: &str);
         fn rust_compute(values: &[f64]) -> f64;
@@ -1022,8 +1022,8 @@ fn main() {
     let processor = ffi::new_processor("default");
     let input = b"Hello from Rust";
     let output = processor.process(input);
-    println!("処理結果: {} bytes", output.len());
-    println!("統計: {}", processor.get_stats());
+    println!("Result: {} bytes", output.len());
+    println!("Stats: {}", processor.get_stats());
 }
 ```
 
@@ -1050,65 +1050,65 @@ std::unique_ptr<CppProcessor> new_processor(rust::Str config);
 
 ---
 
-## FFI 方式比較表
+## FFI approach comparison table
 
-| 方式 | 対象言語 | 安全性 | 性能 | 開発体験 | ユースケース |
+| Approach | Target language | Safety | Performance | DX | Use cases |
 |---|---|---|---|---|---|
-| **raw FFI** | C/C++ | 低（unsafe 必須） | 最高 | 低 | 既存 C ライブラリの利用 |
-| **bindgen** | C/C++ | 中（自動生成） | 最高 | 中 | 大規模 C ヘッダーのバインド |
-| **cxx** | C++ | 高（型安全） | 高 | 高 | C++ との双方向連携 |
-| **PyO3** | Python | 高 | 高 | 高 | Python 拡張モジュール |
-| **napi-rs** | Node.js | 高 | 高 | 高 | Node.js ネイティブアドオン |
-| **uniffi** | 多言語 | 高 | 中 | 中 | モバイル（Kotlin/Swift） |
+| **raw FFI** | C/C++ | Low (unsafe required) | Highest | Low | Using existing C libraries |
+| **bindgen** | C/C++ | Medium (auto-generated) | Highest | Medium | Binding large C headers |
+| **cxx** | C++ | High (type safe) | High | High | Bidirectional C++ integration |
+| **PyO3** | Python | High | High | High | Python extension modules |
+| **napi-rs** | Node.js | High | High | High | Node.js native add-ons |
+| **uniffi** | Multi-language | High | Medium | Medium | Mobile (Kotlin/Swift) |
 
-### パフォーマンス改善の目安
+### Performance improvement guidelines
 
-| 操作 | Pure Python | PyO3 (Rust) | 速度向上 |
+| Operation | Pure Python | PyO3 (Rust) | Speedup |
 |---|---|---|---|
-| フィボナッチ(40) | 25s | 0.5s | 50x |
-| 文字列処理(1M行) | 3.2s | 0.15s | 21x |
-| JSON パース(100MB) | 8.5s | 1.2s | 7x |
-| 画像リサイズ(4K) | 2.1s | 0.3s | 7x |
+| Fibonacci(40) | 25s | 0.5s | 50x |
+| String processing (1M lines) | 3.2s | 0.15s | 21x |
+| JSON parsing (100MB) | 8.5s | 1.2s | 7x |
+| Image resize (4K) | 2.1s | 0.3s | 7x |
 
-### Cargo.toml の crate-type 設定
+### crate-type setting in Cargo.toml
 
-| crate-type | 出力 | 用途 |
+| crate-type | Output | Use |
 |---|---|---|
-| `lib` | `.rlib` | Rust ライブラリ (デフォルト) |
-| `cdylib` | `.so` / `.dylib` / `.dll` | C 互換動的ライブラリ (FFI 用) |
-| `staticlib` | `.a` / `.lib` | C 互換静的ライブラリ |
-| `dylib` | `.so` / `.dylib` / `.dll` | Rust 動的ライブラリ |
+| `lib` | `.rlib` | Rust library (default) |
+| `cdylib` | `.so` / `.dylib` / `.dll` | C-compatible dynamic library (for FFI) |
+| `staticlib` | `.a` / `.lib` | C-compatible static library |
+| `dylib` | `.so` / `.dylib` / `.dll` | Rust dynamic library |
 
 ```toml
-# Cargo.toml の設定例
+# Example Cargo.toml configuration
 [lib]
 name = "my_ffi_lib"
-crate-type = ["cdylib", "lib"]  # FFI + Rust 両方で使用
+crate-type = ["cdylib", "lib"]  # Use for both FFI and Rust
 
 [dependencies]
-# PyO3 の場合
+# For PyO3
 pyo3 = { version = "0.22", features = ["extension-module"] }
 
-# napi-rs の場合
+# For napi-rs
 napi = { version = "2", features = ["async"] }
 napi-derive = "2"
 ```
 
 ---
 
-## アンチパターン
+## Anti-patterns
 
-### 1. メモリ解放の責任不明確
+### 1. Unclear memory deallocation responsibility
 
 ```rust
-// [NG] 解放関数を提供しない
+// [NG] Not providing a free function
 #[no_mangle]
 pub extern "C" fn create_data() -> *mut Data {
     Box::into_raw(Box::new(Data::new()))
-    // 呼び出し側はどう解放する?
+    // How is the caller supposed to free this?
 }
 
-// [OK] 必ず対になる解放関数を提供
+// [OK] Always provide a paired deallocation function
 #[no_mangle]
 pub extern "C" fn create_data() -> *mut Data {
     Box::into_raw(Box::new(Data::new()))
@@ -1122,19 +1122,19 @@ pub extern "C" fn free_data(ptr: *mut Data) {
 }
 ```
 
-### 2. FFI 境界でのパニック
+### 2. Panicking across the FFI boundary
 
-**問題**: Rust のパニックが FFI 境界を越えると未定義動作になる。
+**Problem**: A Rust panic crossing the FFI boundary leads to undefined behavior.
 
 ```rust
-// [NG] パニックの可能性
+// [NG] Possibility of panic
 #[no_mangle]
 pub extern "C" fn process(data: *const u8, len: usize) -> i32 {
     let slice = unsafe { std::slice::from_raw_parts(data, len) };
-    slice[100] as i32  // 範囲外でパニック!
+    slice[100] as i32  // Out-of-range access panics!
 }
 
-// [OK] catch_unwind でパニックを捕捉
+// [OK] Catch panics with catch_unwind
 #[no_mangle]
 pub extern "C" fn process(data: *const u8, len: usize) -> i32 {
     std::panic::catch_unwind(|| {
@@ -1145,21 +1145,21 @@ pub extern "C" fn process(data: *const u8, len: usize) -> i32 {
 }
 ```
 
-### 3. 文字列エンコーディングの不一致
+### 3. String encoding mismatch
 
 ```rust
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 
-// [NG] UTF-8 前提で CStr を変換
+// [NG] Converting CStr assuming UTF-8
 #[no_mangle]
 pub extern "C" fn bad_process_string(s: *const c_char) -> i32 {
     let cstr = unsafe { CStr::from_ptr(s) };
-    let rust_str = cstr.to_str().unwrap(); // パニックの可能性!
+    let rust_str = cstr.to_str().unwrap(); // Possible panic!
     rust_str.len() as i32
 }
 
-// [OK] 不正な UTF-8 を安全に処理
+// [OK] Safely handle invalid UTF-8
 #[no_mangle]
 pub extern "C" fn good_process_string(s: *const c_char) -> i32 {
     if s.is_null() {
@@ -1169,7 +1169,7 @@ pub extern "C" fn good_process_string(s: *const c_char) -> i32 {
     match cstr.to_str() {
         Ok(valid_str) => valid_str.len() as i32,
         Err(_) => {
-            // lossy 変換でフォールバック
+            // Fall back to lossy conversion
             let lossy = cstr.to_string_lossy();
             lossy.len() as i32
         }
@@ -1177,23 +1177,23 @@ pub extern "C" fn good_process_string(s: *const c_char) -> i32 {
 }
 ```
 
-### 4. スレッド安全性の無視
+### 4. Ignoring thread safety
 
 ```rust
-// [NG] スレッド安全でない C ライブラリを Send/Sync マーク
+// [NG] Marking a thread-unsafe C library as Send/Sync
 struct UnsafeWrapper {
     handle: *mut CLibHandle,
 }
 
-unsafe impl Send for UnsafeWrapper {} // 危険!
-unsafe impl Sync for UnsafeWrapper {} // 危険!
+unsafe impl Send for UnsafeWrapper {} // Dangerous!
+unsafe impl Sync for UnsafeWrapper {} // Dangerous!
 
-// [OK] Mutex でラップしてスレッド安全性を確保
+// [OK] Wrap in a Mutex to ensure thread safety
 struct SafeWrapper {
     handle: std::sync::Mutex<*mut CLibHandle>,
 }
 
-unsafe impl Send for SafeWrapper {} // Mutex でガード済み
+unsafe impl Send for SafeWrapper {} // Guarded by Mutex
 
 impl SafeWrapper {
     fn call(&self, arg: i32) -> i32 {
@@ -1210,45 +1210,45 @@ extern "C" { fn c_lib_call(h: *mut CLibHandle, arg: i32) -> i32; }
 
 ---
 
-## 実践演習
+## Hands-on exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that satisfies the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate input data
+- Implement appropriate error handling
+- Also write test code
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Template for basic implementation
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Exercise on a basic implementation pattern"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main data processing logic"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Retrieve processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1257,26 +1257,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "An exception should be raised"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation by adding the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Advanced patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Exercise on advanced patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1284,7 +1284,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1295,14 +1295,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Look up by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Remove by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1310,7 +1310,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1318,44 +1318,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # Size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1364,7 +1364,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1379,47 +1379,47 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient version: {slow_time:.4f}s")
+    print(f"Efficient version:   {fast_time:.6f}s")
+    print(f"Speedup:             {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key points:**
+- Be aware of algorithmic complexity
+- Choose appropriate data structures
+- Measure the effect with benchmarks
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common errors and solutions
 
-| エラー | 原因 | 解決策 |
+| Error | Cause | Solution |
 |--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Initialization error | Misconfigured config file | Verify the path and format of the configuration file |
+| Timeout | Network latency / lack of resources | Adjust the timeout value, add retry logic |
+| Out of memory | Increased data volume | Introduce batch processing, implement pagination |
+| Permission error | Insufficient access rights | Verify the executing user's permissions, review settings |
+| Data inconsistency | Race conditions in concurrent processing | Introduce locking mechanisms, manage transactions |
 
-### デバッグの手順
+### Debugging procedure
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check the error message**: Read the stack trace and identify where the error occurred
+2. **Establish reproduction steps**: Reproduce the error with minimal code
+3. **Form hypotheses**: List the possible causes
+4. **Verify step by step**: Use logs and debuggers to test the hypotheses
+5. **Fix and regression test**: After fixing, also run tests on related areas
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utilities
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -1427,100 +1427,100 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs function inputs and outputs"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Call: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception: {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debug target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing performance issues
 
-パフォーマンス問題が発生した場合の診断手順:
+Procedure for diagnosing performance issues:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify the bottleneck**: Measure with profiling tools
+2. **Check memory usage**: Look for memory leaks
+3. **Check I/O wait**: Inspect disk and network I/O
+4. **Check concurrent connections**: Inspect the connection pool state
 
-| 問題の種類 | 診断ツール | 対策 |
+| Issue type | Diagnostic tool | Countermeasure |
 |-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| CPU load | cProfile, py-spy | Algorithmic improvement, parallelization |
+| Memory leak | tracemalloc, objgraph | Properly release references |
+| I/O bottleneck | strace, iostat | Async I/O, caching |
+| DB latency | EXPLAIN, slow query log | Indexes, query optimization |
 ---
 
 ## FAQ
 
-### Q1: PyO3 と ctypes/cffi のどちらを使うべきですか？
+### Q1: Should I use PyO3 or ctypes/cffi?
 
-**A**: PyO3 を推奨します。ctypes/cffi は C ABI を直接呼ぶため型安全性がなく手動マーシャリングが必要です。PyO3 は Rust の型システムを活かして Python 型との自動変換を行い、エラーハンドリングも自然です。既存 C ライブラリを Python から呼ぶだけなら ctypes が最小労力です。
+**A**: PyO3 is recommended. ctypes/cffi call the C ABI directly, so they lack type safety and require manual marshalling. PyO3 leverages Rust's type system to automatically convert to and from Python types, and error handling is natural. If you only want to call an existing C library from Python, ctypes is the lowest-effort option.
 
-### Q2: FFI のデバッグ手法は？
+### Q2: How do you debug FFI?
 
-**A**: 以下を組み合わせます:
-1. **Valgrind / AddressSanitizer**: メモリエラーの検出
-2. **RUST_BACKTRACE=1**: Rust 側のスタックトレース
-3. **ログ出力**: FFI 境界の入出力を記録
-4. **テスト**: Rust 側で安全なラッパーを十分にテストしてから FFI に公開
+**A**: Combine the following:
+1. **Valgrind / AddressSanitizer**: Detect memory errors
+2. **RUST_BACKTRACE=1**: Stack traces on the Rust side
+3. **Logging**: Record inputs and outputs at the FFI boundary
+4. **Tests**: Thoroughly test the safe wrapper on the Rust side before exposing it via FFI
 
-### Q3: napi-rs と N-API (node-addon-api) の違いは？
+### Q3: What is the difference between napi-rs and N-API (node-addon-api)?
 
-**A**: N-API は C/C++ で Node.js アドオンを書く公式 API、napi-rs はそれを Rust から使うラッパーです。Rust のメモリ安全性の恩恵を受けられ、パフォーマンスはほぼ同等ですがメモリバグのリスクが大幅に低下します。
+**A**: N-API is the official API for writing Node.js add-ons in C/C++; napi-rs is a wrapper that lets you use it from Rust. You gain the benefits of Rust's memory safety, performance is roughly equivalent, and the risk of memory bugs drops significantly.
 
-### Q4: cxx と bindgen のどちらを使うべきですか？
+### Q4: Should I use cxx or bindgen?
 
-**A**: C ライブラリには bindgen、C++ ライブラリには cxx が推奨です。cxx は Rust と C++ の型を直接マッピングでき、String, Vec, UniquePtr 等の安全な型変換を提供します。bindgen は C ヘッダーから自動生成しますが、C++ テンプレートやオーバーロードの処理は苦手です。
+**A**: bindgen is recommended for C libraries; cxx is recommended for C++ libraries. cxx can directly map Rust and C++ types and provides safe type conversions for String, Vec, UniquePtr, etc. bindgen auto-generates from C headers but is not good at handling C++ templates and overloads.
 
-### Q5: FFI で大きなデータを効率的に渡すには？
+### Q5: How can I efficiently pass large data across FFI?
 
-**A**: コピーを避けることが重要です。ポインタとサイズのペアでスライスとして渡すか、共有メモリを使います。
+**A**: Avoiding copies is essential. Pass it as a slice using a pointer-and-length pair, or use shared memory.
 
 ```rust
-/// [OK] ゼロコピーでバイト列を渡す
+/// [OK] Pass a byte sequence with zero copy
 #[no_mangle]
 pub extern "C" fn process_buffer(data: *const u8, len: usize) -> i32 {
     if data.is_null() || len == 0 {
         return -1;
     }
-    // データをコピーせずにスライスとして参照
+    // Reference as a slice without copying the data
     let slice = unsafe { std::slice::from_raw_parts(data, len) };
-    // ... 処理 ...
+    // ... processing ...
     0
 }
 
-/// [NG] データをコピーして処理 (大きなデータで非効率)
+/// [NG] Copy the data and process it (inefficient for large data)
 #[no_mangle]
 pub extern "C" fn bad_process_buffer(data: *const u8, len: usize) -> i32 {
     let slice = unsafe { std::slice::from_raw_parts(data, len) };
-    let copied: Vec<u8> = slice.to_vec(); // 不要なコピー!
-    // ... 処理 ...
+    let copied: Vec<u8> = slice.to_vec(); // Unnecessary copy!
+    // ... processing ...
     0
 }
 ```
 
-### Q6: UniFFI とは何ですか？
+### Q6: What is UniFFI?
 
-**A**: Mozilla が開発した多言語バインディングジェネレータです。UDL (Universal Definition Language) ファイルからKotlin, Swift, Python, Ruby のバインディングを自動生成します。モバイルアプリでRustのコアロジックを共有する場合に最適です。
+**A**: It is a multi-language binding generator developed by Mozilla. It auto-generates bindings for Kotlin, Swift, Python, and Ruby from a UDL (Universal Definition Language) file. It is ideal for sharing Rust core logic across mobile apps.
 
 ```rust
-// UDL ファイル (my_lib.udl):
+// UDL file (my_lib.udl):
 // namespace my_lib {
 //     string hello(string name);
 //     u64 add(u64 a, u64 b);
@@ -1532,7 +1532,7 @@ pub extern "C" fn bad_process_buffer(data: *const u8, len: usize) -> i32 {
 //     f64 result();
 // };
 
-// Rust 実装
+// Rust implementation
 pub fn hello(name: String) -> String {
     format!("Hello, {}!", name)
 }
@@ -1562,9 +1562,9 @@ impl Calculator {
 
 ---
 
-## FFI テストのベストプラクティス
+## Best practices for FFI testing
 
-### コード例: FFI ラッパーのテスト
+### Code example: Testing the FFI wrapper
 
 ```rust
 #[cfg(test)]
@@ -1581,7 +1581,7 @@ mod tests {
         let result_str = unsafe { CStr::from_ptr(result) };
         assert_eq!(result_str.to_str().unwrap(), "olleH");
 
-        // メモリリーク防止: 必ず解放
+        // Prevent memory leaks: always free
         rust_string_free(result);
     }
 
@@ -1638,7 +1638,7 @@ mod tests {
 }
 ```
 
-### FFI プロジェクトの CI 設定
+### CI configuration for an FFI project
 
 ```yaml
 # .github/workflows/ffi-test.yml
@@ -1659,7 +1659,7 @@ jobs:
         run: sudo apt-get install -y libclang-dev
       - name: Run tests
         run: cargo test --verbose
-      - name: Run Miri (メモリ安全性チェック)
+      - name: Run Miri (memory safety check)
         if: runner.os == 'Linux'
         run: |
           rustup component add miri
@@ -1674,31 +1674,31 @@ jobs:
 
 ---
 
-## まとめ
+## Summary
 
-| 項目 | 要点 |
+| Item | Key point |
 |---|---|
-| FFI の基本 | `extern "C"` + `#[no_mangle]` で C ABI 互換関数を公開 |
-| メモリ管理 | 所有権の責任を明確に。生成と解放は必ずペアで提供 |
-| CString / CStr | Rust → C は CString、C → Rust は CStr |
-| repr(C) | 構造体を C と共有する場合に必須 |
-| bindgen | C ヘッダーから Rust バインディングを自動生成 |
-| cxx | C++ との型安全な双方向連携 |
-| PyO3 | Python 拡張を Rust で記述。10-50倍の高速化が期待できる |
-| napi-rs | Node.js ネイティブアドオンを Rust で記述。async 対応 |
-| UniFFI | Kotlin/Swift/Python 向けマルチ言語バインディング |
-| 安全性 | FFI 境界でのパニック防止、null チェック、エラーハンドリング |
-| catch_unwind | FFI 境界でパニックを捕捉して未定義動作を防止 |
+| FFI fundamentals | Expose C ABI-compatible functions with `extern "C"` + `#[no_mangle]` |
+| Memory management | Make ownership responsibility clear. Always provide creation and deallocation as a pair |
+| CString / CStr | Use CString for Rust → C, CStr for C → Rust |
+| repr(C) | Required when sharing structs with C |
+| bindgen | Auto-generate Rust bindings from C headers |
+| cxx | Type-safe bidirectional integration with C++ |
+| PyO3 | Write Python extensions in Rust. Expect 10-50x speedups |
+| napi-rs | Write Node.js native add-ons in Rust. Async support |
+| UniFFI | Multi-language bindings for Kotlin/Swift/Python |
+| Safety | Prevent panics across the FFI boundary, null checks, error handling |
+| catch_unwind | Catch panics at the FFI boundary to prevent undefined behavior |
 
-## 次に読むべきガイド
+## What to read next
 
-- [ベストプラクティス](../04-ecosystem/04-best-practices.md) — Rust 全般の設計指針と品質管理
-- 非同期プログラミング — async FFI の設計パターン
+- [Best practices](../04-ecosystem/04-best-practices.md) — General Rust design principles and quality management
+- Asynchronous programming — Design patterns for async FFI
 
-## 参考文献
+## References
 
-1. **The Rust Reference**: [FFI](https://doc.rust-lang.org/reference/items/external-blocks.html) — FFI の公式仕様
-2. **PyO3 公式ガイド**: [PyO3 User Guide](https://pyo3.rs/) — PyO3 の包括的なドキュメント
-3. **napi-rs 公式**: [NAPI-RS Documentation](https://napi.rs/) — napi-rs の使い方とサンプル集
-4. **cxx ガイド**: [CXX Documentation](https://cxx.rs/) — cxx の型マッピングと使用方法
-5. **UniFFI**: [UniFFI User Guide](https://mozilla.github.io/uniffi-rs/) — 多言語バインディングの生成
+1. **The Rust Reference**: [FFI](https://doc.rust-lang.org/reference/items/external-blocks.html) — Official FFI specification
+2. **PyO3 Official Guide**: [PyO3 User Guide](https://pyo3.rs/) — Comprehensive PyO3 documentation
+3. **napi-rs Official**: [NAPI-RS Documentation](https://napi.rs/) — How to use napi-rs with samples
+4. **cxx Guide**: [CXX Documentation](https://cxx.rs/) — Type mapping and usage of cxx
+5. **UniFFI**: [UniFFI User Guide](https://mozilla.github.io/uniffi-rs/) — Generating multi-language bindings
