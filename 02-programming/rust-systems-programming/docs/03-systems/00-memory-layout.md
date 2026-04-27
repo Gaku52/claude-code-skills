@@ -1,65 +1,65 @@
-# メモリレイアウト — スタック/ヒープ、repr
+# Memory Layout — Stack/Heap, repr
 
-> Rust のデータ型がメモリ上でどう配置されるかを理解し、repr 属性やアライメント制御で低レベル最適化を行う技術を習得する
+> Understand how Rust data types are laid out in memory, and master low-level optimization techniques using the repr attribute and alignment control.
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-1. **スタックとヒープ** — 各領域の特性、割当コスト、所有権との関係
-2. **型のメモリレイアウト** — サイズ、アライメント、パディング、repr 属性
-3. **スマートポインタの内部構造** — Box, Vec, String, Arc のメモリ配置
-4. **高度なメモリ制御** — アロケータAPI、メモリマップドI/O、キャッシュ最適化
-5. **実践的なメモリプロファイリング** — ツールと手法
+1. **Stack and Heap** — Characteristics of each region, allocation cost, and relationship with ownership
+2. **Memory Layout of Types** — Size, alignment, padding, and the repr attribute
+3. **Internal Structure of Smart Pointers** — Memory layout of Box, Vec, String, and Arc
+4. **Advanced Memory Control** — Allocator API, memory-mapped I/O, and cache optimization
+5. **Practical Memory Profiling** — Tools and techniques
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Before reading this guide, the following knowledge will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
+- Basic programming knowledge
+- Understanding of related foundational concepts
 
 ---
 
-## 1. プロセスメモリマップ
+## 1. Process Memory Map
 
 ```
-┌──────────────────── プロセスメモリ空間 ────────────────┐
-│  高位アドレス                                          │
+┌──────────────────── Process Memory Space ─────────────┐
+│  High Address                                          │
 │  ┌─────────────────────────────────────────┐          │
-│  │           Stack (スタック)                │ ↓ 成長   │
-│  │  - ローカル変数、関数引数                  │          │
-│  │  - 固定サイズ (通常 8MB)                  │          │
-│  │  - LIFO (超高速割当/解放)                 │          │
+│  │           Stack                           │ ↓ grows  │
+│  │  - Local variables, function arguments    │          │
+│  │  - Fixed size (typically 8MB)             │          │
+│  │  - LIFO (ultra-fast alloc/dealloc)        │          │
 │  └─────────────────────────────────────────┘          │
-│                        ↕ (未使用空間)                   │
+│                        ↕ (unused space)                 │
 │  ┌─────────────────────────────────────────┐          │
-│  │           Heap (ヒープ)                   │ ↑ 成長   │
-│  │  - 動的割当 (Box, Vec, String)           │          │
-│  │  - OS アロケータ経由                      │          │
-│  │  - 任意のサイズ・ライフタイム              │          │
+│  │           Heap                            │ ↑ grows  │
+│  │  - Dynamic allocation (Box, Vec, String) │          │
+│  │  - Via OS allocator                       │          │
+│  │  - Arbitrary size and lifetime            │          │
 │  └─────────────────────────────────────────┘          │
 │  ┌─────────────────────────────────────────┐          │
-│  │  BSS (未初期化静的変数)                    │          │
+│  │  BSS (uninitialized static variables)     │          │
 │  ├─────────────────────────────────────────┤          │
-│  │  Data (初期化済み静的変数)                  │          │
+│  │  Data (initialized static variables)      │          │
 │  ├─────────────────────────────────────────┤          │
-│  │  Text (実行コード) [読み取り専用]           │          │
+│  │  Text (executable code) [read-only]       │          │
 │  └─────────────────────────────────────────┘          │
-│  低位アドレス                                          │
+│  Low Address                                           │
 └────────────────────────────────────────────────────────┘
 ```
 
-### 各セグメントの詳細
+### Details of Each Segment
 
-| セグメント | 内容 | 権限 | サイズ |
+| Segment | Contents | Permissions | Size |
 |---|---|---|---|
-| Text | 機械語命令 | 読み取り+実行 | 固定 |
-| Data | `static mut X: i32 = 42;` 等 | 読み書き | 固定 |
-| BSS | `static mut Y: i32 = 0;` 等 | 読み書き | 固定 |
-| Heap | `Box::new()`, `Vec::new()` | 読み書き | 可変(上方成長) |
-| Stack | ローカル変数、戻りアドレス | 読み書き | 可変(下方成長) |
+| Text | Machine instructions | Read + Execute | Fixed |
+| Data | `static mut X: i32 = 42;` etc. | Read/Write | Fixed |
+| BSS | `static mut Y: i32 = 0;` etc. | Read/Write | Fixed |
+| Heap | `Box::new()`, `Vec::new()` | Read/Write | Variable (grows upward) |
+| Stack | Local variables, return addresses | Read/Write | Variable (grows downward) |
 
-### コード例: メモリアドレスの観察
+### Code Example: Observing Memory Addresses
 
 ```rust
 use std::mem;
@@ -68,74 +68,74 @@ static GLOBAL: i32 = 100;
 static mut GLOBAL_MUT: i32 = 200;
 
 fn main() {
-    // スタック上の変数
+    // Variables on the stack
     let stack_var: i32 = 42;
     let stack_arr: [u8; 16] = [0; 16];
 
-    // ヒープ上の変数
+    // Variables on the heap
     let heap_var = Box::new(42i32);
     let heap_vec: Vec<u8> = vec![0; 16];
 
-    println!("=== メモリアドレス観察 ===");
-    println!("Text セグメント:");
-    println!("  main 関数:    {:p}", main as *const ());
+    println!("=== Memory Address Observation ===");
+    println!("Text segment:");
+    println!("  main function: {:p}", main as *const ());
 
-    println!("Data/BSS セグメント:");
+    println!("Data/BSS segment:");
     println!("  GLOBAL:       {:p}", &GLOBAL);
     unsafe {
         println!("  GLOBAL_MUT:   {:p}", &GLOBAL_MUT);
     }
 
-    println!("スタック:");
+    println!("Stack:");
     println!("  stack_var:    {:p}", &stack_var);
     println!("  stack_arr:    {:p}", &stack_arr);
 
-    println!("ヒープ:");
+    println!("Heap:");
     println!("  heap_var:     {:p}", &*heap_var);
     println!("  heap_vec[0]:  {:p}", heap_vec.as_ptr());
 
-    // スタックのポインタ値 > ヒープのポインタ値 (一般的)
+    // Stack pointer value > heap pointer value (typical)
     let stack_addr = &stack_var as *const i32 as usize;
     let heap_addr = &*heap_var as *const i32 as usize;
-    println!("\nスタック (0x{:x}) > ヒープ (0x{:x}): {}",
+    println!("\nStack (0x{:x}) > Heap (0x{:x}): {}",
         stack_addr, heap_addr, stack_addr > heap_addr);
 }
 ```
 
 ---
 
-## 2. スタックとヒープの比較
+## 2. Stack vs Heap Comparison
 
-### コード例1: スタック vs ヒープ割当
+### Code Example 1: Stack vs Heap Allocation
 
 ```rust
 use std::mem;
 
 fn main() {
-    // スタック割当: コンパイル時にサイズ確定
+    // Stack allocation: size determined at compile time
     let x: i32 = 42;              // 4 bytes on stack
     let arr: [u8; 1024] = [0; 1024]; // 1024 bytes on stack
     let point: (f64, f64) = (1.0, 2.0); // 16 bytes on stack
 
-    // ヒープ割当: 実行時にサイズ決定可能
-    let boxed: Box<i32> = Box::new(42);    // ポインタ(8b) on stack, 4b on heap
+    // Heap allocation: size can be determined at runtime
+    let boxed: Box<i32> = Box::new(42);    // pointer (8b) on stack, 4b on heap
     let vec: Vec<u8> = vec![0; 1024];      // 24b on stack, 1024b on heap
     let string: String = "hello".to_string(); // 24b on stack, 5b on heap
 
-    println!("--- スタック上のサイズ ---");
+    println!("--- Sizes on the stack ---");
     println!("i32:        {} bytes", mem::size_of::<i32>());
     println!("[u8; 1024]: {} bytes", mem::size_of::<[u8; 1024]>());
     println!("(f64, f64): {} bytes", mem::size_of::<(f64, f64)>());
     println!("Box<i32>:   {} bytes", mem::size_of::<Box<i32>>());
     println!("Vec<u8>:    {} bytes", mem::size_of::<Vec<u8>>());
     println!("String:     {} bytes", mem::size_of::<String>());
-    // Box<i32>:   8 bytes  (ポインタのみ)
+    // Box<i32>:   8 bytes  (pointer only)
     // Vec<u8>:    24 bytes (ptr + len + capacity)
     // String:     24 bytes (ptr + len + capacity)
 }
 ```
 
-### スマートポインタのメモリ配置
+### Memory Layout of Smart Pointers
 
 ```
 ┌──────── Stack ────────┐     ┌──────── Heap ────────┐
@@ -164,12 +164,12 @@ fn main() {
 └────────────────────────┘     └──────────────────────┘
 ```
 
-### コード例: スタックオーバーフローの検出
+### Code Example: Detecting Stack Overflow
 
 ```rust
-/// スタックサイズの限界を確認する例
+/// Example to verify the limit of stack size
 fn recursive_stack_usage(depth: usize) {
-    // 各呼び出しで約 1KB のスタックを消費
+    // Each call consumes about 1KB of stack
     let _buffer = [0u8; 1024];
     if depth > 0 {
         recursive_stack_usage(depth - 1);
@@ -177,40 +177,40 @@ fn recursive_stack_usage(depth: usize) {
 }
 
 fn main() {
-    // デフォルトスタックサイズ (8MB) では約 8000 回の再帰が限界
-    // スタックオーバーフロー → プロセスが SIGSEGV で終了
+    // With the default stack size (8MB), about 8000 recursions is the limit
+    // Stack overflow → process terminates with SIGSEGV
 
-    // 安全策: スレッドビルダーでスタックサイズを指定
+    // Safety measure: specify stack size with a thread builder
     let builder = std::thread::Builder::new()
         .name("large-stack".into())
         .stack_size(32 * 1024 * 1024); // 32MB
 
     let handle = builder.spawn(|| {
-        recursive_stack_usage(30000); // 32MB なら余裕
-        println!("再帰完了");
+        recursive_stack_usage(30000); // plenty of room with 32MB
+        println!("Recursion complete");
     }).unwrap();
 
     handle.join().unwrap();
 
-    // stacker クレートで動的スタック拡張も可能
+    // Dynamic stack expansion is also possible with the stacker crate
     // stacker::maybe_grow(32 * 1024, 1024 * 1024, || { ... });
 }
 ```
 
-### コード例: Vec の成長戦略とメモリ再割当
+### Code Example: Vec Growth Strategy and Memory Reallocation
 
 ```rust
 fn main() {
     let mut v: Vec<i32> = Vec::new();
 
-    println!("=== Vec の成長戦略 ===");
+    println!("=== Vec Growth Strategy ===");
     println!("{:>5} {:>10} {:>10} {:>18}", "len", "capacity", "size(B)", "ptr");
 
     let mut prev_ptr = v.as_ptr();
     for i in 0..33 {
         v.push(i);
         let ptr = v.as_ptr();
-        let reallocated = if ptr != prev_ptr { " ← 再割当!" } else { "" };
+        let reallocated = if ptr != prev_ptr { " ← realloc!" } else { "" };
         if ptr != prev_ptr || i == 0 {
             println!("{:>5} {:>10} {:>10} {:>18p}{}",
                 v.len(),
@@ -222,28 +222,28 @@ fn main() {
         }
         prev_ptr = ptr;
     }
-    // 出力例:
+    // Example output:
     //   len   capacity   size(B)                ptr
-    //     1          4        16   0x600000000010 ← 再割当!
-    //     5          8        32   0x600000000030 ← 再割当!
-    //     9         16        64   0x600000000050 ← 再割当!
-    //    17         32       128   0x600000000090 ← 再割当!
-    //    33         64       256   0x600000000110 ← 再割当!
+    //     1          4        16   0x600000000010 ← realloc!
+    //     5          8        32   0x600000000030 ← realloc!
+    //     9         16        64   0x600000000050 ← realloc!
+    //    17         32       128   0x600000000090 ← realloc!
+    //    33         64       256   0x600000000110 ← realloc!
 
-    // with_capacity で事前確保すれば再割当を避けられる
+    // Pre-reserving with with_capacity avoids reallocation
     let v2: Vec<i32> = Vec::with_capacity(100);
     println!("\nwith_capacity(100): len={}, capacity={}", v2.len(), v2.capacity());
 
-    // shrink_to_fit で余分な容量を解放
+    // Free excess capacity with shrink_to_fit
     let mut v3 = vec![1, 2, 3, 4, 5];
     v3.reserve(1000);
-    println!("reserve後: capacity={}", v3.capacity());
+    println!("After reserve: capacity={}", v3.capacity());
     v3.shrink_to_fit();
-    println!("shrink後:  capacity={}", v3.capacity());
+    println!("After shrink: capacity={}", v3.capacity());
 }
 ```
 
-### コード例: ヒープ割当のベンチマーク
+### Code Example: Heap Allocation Benchmark
 
 ```rust
 use std::time::Instant;
@@ -251,42 +251,42 @@ use std::time::Instant;
 fn benchmark_stack_vs_heap() {
     const ITERATIONS: usize = 1_000_000;
 
-    // スタック割当のベンチマーク
+    // Benchmark for stack allocation
     let start = Instant::now();
     for _ in 0..ITERATIONS {
-        let _data = [0u8; 256]; // スタック上に256バイト
+        let _data = [0u8; 256]; // 256 bytes on the stack
         std::hint::black_box(&_data);
     }
     let stack_time = start.elapsed();
 
-    // ヒープ割当のベンチマーク
+    // Benchmark for heap allocation
     let start = Instant::now();
     for _ in 0..ITERATIONS {
-        let _data = Box::new([0u8; 256]); // ヒープ上に256バイト
+        let _data = Box::new([0u8; 256]); // 256 bytes on the heap
         std::hint::black_box(&_data);
     }
     let heap_time = start.elapsed();
 
-    println!("スタック割当: {:?} ({} 回)", stack_time, ITERATIONS);
-    println!("ヒープ割当:   {:?} ({} 回)", heap_time, ITERATIONS);
-    println!("ヒープ/スタック比: {:.1}x",
+    println!("Stack allocation: {:?} ({} times)", stack_time, ITERATIONS);
+    println!("Heap allocation:  {:?} ({} times)", heap_time, ITERATIONS);
+    println!("Heap/Stack ratio: {:.1}x",
         heap_time.as_nanos() as f64 / stack_time.as_nanos() as f64);
 }
 
 fn main() {
     benchmark_stack_vs_heap();
-    // 典型的な結果:
-    // スタック割当: 1.2ms (1000000 回)
-    // ヒープ割当:   25ms (1000000 回)
-    // ヒープ/スタック比: 20.8x
+    // Typical results:
+    // Stack allocation: 1.2ms (1000000 times)
+    // Heap allocation:  25ms (1000000 times)
+    // Heap/Stack ratio: 20.8x
 }
 ```
 
 ---
 
-## 3. 型のメモリレイアウト
+## 3. Memory Layout of Types
 
-### コード例2: サイズとアライメントの確認
+### Code Example 2: Checking Size and Alignment
 
 ```rust
 use std::mem;
@@ -297,15 +297,15 @@ struct CLayout {
     b: u32,   // 4 bytes
     c: u8,    // 1 byte + 3 padding
 }
-// サイズ: 12 bytes (C互換レイアウト)
+// Size: 12 bytes (C-compatible layout)
 
 struct RustLayout {
     a: u8,
     b: u32,
     c: u8,
 }
-// Rustコンパイラが最適化 → フィールド並び替え可能
-// サイズ: 8 bytes (b, a, c の順に並べて最適化)
+// The Rust compiler optimizes → fields can be reordered
+// Size: 8 bytes (optimized by ordering b, a, c)
 
 fn main() {
     println!("CLayout:    size={}, align={}",
@@ -313,45 +313,45 @@ fn main() {
     println!("RustLayout: size={}, align={}",
         mem::size_of::<RustLayout>(), mem::align_of::<RustLayout>());
 
-    // 列挙体のサイズ
+    // Sizes of enums
     println!("Option<u8>:       {}", mem::size_of::<Option<u8>>());       // 2
-    println!("Option<Box<u8>>:  {}", mem::size_of::<Option<Box<u8>>>()); // 8 (ニッチ最適化!)
-    println!("Option<&u8>:      {}", mem::size_of::<Option<&u8>>());     // 8 (null最適化!)
+    println!("Option<Box<u8>>:  {}", mem::size_of::<Option<Box<u8>>>()); // 8 (niche optimization!)
+    println!("Option<&u8>:      {}", mem::size_of::<Option<&u8>>());     // 8 (null optimization!)
 }
 ```
 
-### コード例3: repr 属性の種類
+### Code Example 3: Types of repr Attributes
 
 ```rust
-// repr(C) — C言語と同じレイアウト (FFI用)
+// repr(C) — same layout as C language (for FFI)
 #[repr(C)]
 struct FFIPoint {
     x: f64,
     y: f64,
 }
 
-// repr(transparent) — 内部の単一フィールドと同じレイアウト
+// repr(transparent) — same layout as the inner single field
 #[repr(transparent)]
 struct Meters(f64);
-// Meters と f64 は ABI互換 → FFI で安全にキャスト可能
+// Meters and f64 are ABI-compatible → safe to cast in FFI
 
-// repr(packed) — パディングなし (アクセス遅い可能性)
+// repr(packed) — no padding (access may be slow)
 #[repr(C, packed)]
 struct PackedHeader {
     magic: u8,
-    version: u32,  // アライメントなし → アクセスが遅い場合あり
+    version: u32,  // no alignment → access may be slow
     length: u16,
 }
-// サイズ: 7 bytes (パディングなし)
+// Size: 7 bytes (no padding)
 
-// repr(align(N)) — 最小アライメントを指定
+// repr(align(N)) — specify minimum alignment
 #[repr(align(64))]
 struct CacheLine {
     data: [u8; 64],
 }
-// キャッシュラインに整列 → false sharing 防止
+// Aligned to cache line → prevents false sharing
 
-// repr(u8/u16/u32...) — 列挙体の判別子サイズを指定
+// repr(u8/u16/u32...) — specify enum discriminant size
 #[repr(u8)]
 enum PacketType {
     Ping = 0,
@@ -360,12 +360,12 @@ enum PacketType {
 }
 ```
 
-### コード例: パディングの可視化
+### Code Example: Visualizing Padding
 
 ```rust
 use std::mem;
 
-/// フィールドのオフセットを取得するマクロ
+/// Macro to get the offset of a field
 macro_rules! offset_of {
     ($type:ty, $field:ident) => {{
         let dummy = core::mem::MaybeUninit::<$type>::uninit();
@@ -387,15 +387,15 @@ struct Example1 {
 
 #[repr(C)]
 struct Example2 {
-    b: u32,   // offset 0, size 4 — 最大アライメント型を先頭に
+    b: u32,   // offset 0, size 4 — place largest-aligned type first
     d: u16,   // offset 4, size 2
     a: u8,    // offset 6, size 1
     c: u8,    // offset 7, size 1
 }
 
 fn main() {
-    println!("=== パディング解析 ===");
-    println!("Example1 (非効率な配置):");
+    println!("=== Padding Analysis ===");
+    println!("Example1 (inefficient layout):");
     println!("  size={}, align={}", mem::size_of::<Example1>(), mem::align_of::<Example1>());
     println!("  a: offset={}", offset_of!(Example1, a));
     println!("  b: offset={}", offset_of!(Example1, b));
@@ -403,7 +403,7 @@ fn main() {
     println!("  d: offset={}", offset_of!(Example1, d));
     // size=12, padding=4 bytes
 
-    println!("\nExample2 (効率的な配置):");
+    println!("\nExample2 (efficient layout):");
     println!("  size={}, align={}", mem::size_of::<Example2>(), mem::align_of::<Example2>());
     println!("  b: offset={}", offset_of!(Example2, b));
     println!("  d: offset={}", offset_of!(Example2, d));
@@ -413,7 +413,7 @@ fn main() {
 }
 ```
 
-### コード例: 各種プリミティブ型のサイズとアライメント一覧
+### Code Example: Size and Alignment Table for Various Primitive Types
 
 ```rust
 use std::mem;
@@ -426,7 +426,7 @@ fn print_layout<T>(name: &str) {
 }
 
 fn main() {
-    println!("=== プリミティブ型 ===");
+    println!("=== Primitive Types ===");
     print_layout::<bool>("bool");
     print_layout::<u8>("u8");
     print_layout::<u16>("u16");
@@ -438,7 +438,7 @@ fn main() {
     print_layout::<f64>("f64");
     print_layout::<char>("char");
 
-    println!("\n=== ポインタ型 ===");
+    println!("\n=== Pointer Types ===");
     print_layout::<*const u8>("*const u8");
     print_layout::<*const [u8]>("*const [u8] (fat ptr)");
     print_layout::<*const dyn std::fmt::Debug>("*const dyn Debug (fat ptr)");
@@ -446,7 +446,7 @@ fn main() {
     print_layout::<&[u8]>("&[u8] (slice ref)");
     print_layout::<&dyn std::fmt::Debug>("&dyn Debug (trait obj)");
 
-    println!("\n=== コレクション型 ===");
+    println!("\n=== Collection Types ===");
     print_layout::<Vec<u8>>("Vec<u8>");
     print_layout::<String>("String");
     print_layout::<Box<u8>>("Box<u8>");
@@ -454,13 +454,13 @@ fn main() {
     print_layout::<std::collections::BTreeMap<u64, u64>>("BTreeMap<u64, u64>");
     print_layout::<std::collections::VecDeque<u8>>("VecDeque<u8>");
 
-    println!("\n=== スマートポインタ ===");
+    println!("\n=== Smart Pointers ===");
     print_layout::<std::sync::Arc<u8>>("Arc<u8>");
     print_layout::<std::rc::Rc<u8>>("Rc<u8>");
     print_layout::<std::sync::Mutex<u8>>("Mutex<u8>");
     print_layout::<std::sync::RwLock<u8>>("RwLock<u8>");
 
-    println!("\n=== ゼロサイズ型 ===");
+    println!("\n=== Zero-Sized Types ===");
     print_layout::<()>("()");
     print_layout::<std::marker::PhantomData<u8>>("PhantomData<u8>");
     print_layout::<[u8; 0]>("[u8; 0]");
@@ -469,71 +469,71 @@ fn main() {
 
 ---
 
-## 4. 列挙体のメモリ最適化
+## 4. Memory Optimization of Enums
 
 ```
-┌──────────── enum のメモリレイアウト ────────────┐
+┌──────────── enum Memory Layout ─────────────────┐
 │                                                  │
 │  enum Shape {                                    │
-│      Circle(f64),        // 半径                 │
-│      Rect(f64, f64),     // 幅, 高さ             │
+│      Circle(f64),        // radius               │
+│      Rect(f64, f64),     // width, height        │
 │      Point,                                      │
 │  }                                               │
 │                                                  │
-│  メモリ: [tag: 8 bytes][data: 16 bytes] = 24b   │
+│  Memory: [tag: 8 bytes][data: 16 bytes] = 24b   │
 │                                                  │
 │  Circle: [0][radius: f64][padding: 8]           │
 │  Rect:   [1][width: f64][height: f64]           │
 │  Point:  [2][unused: 16]                        │
 │                                                  │
-│  ── ニッチ最適化 ──                               │
+│  ── Niche Optimization ──                        │
 │                                                  │
 │  Option<Box<T>>:                                 │
-│    Some(ptr) → [ptr値]     (8 bytes)            │
-│    None      → [0x0]       (8 bytes)            │
-│  ※ Box は非NULL保証 → 0 を None に使える        │
-│  ※ tag 不要! Box と同じサイズ!                   │
+│    Some(ptr) → [ptr value]    (8 bytes)         │
+│    None      → [0x0]          (8 bytes)         │
+│  * Box guarantees non-NULL → 0 can be used as None │
+│  * No tag needed! Same size as Box!              │
 └──────────────────────────────────────────────────┘
 ```
 
-### コード例4: ニッチ最適化の確認
+### Code Example 4: Verifying Niche Optimization
 
 ```rust
 use std::mem::size_of;
 use std::num::NonZeroU64;
 
 fn main() {
-    // ニッチ最適化なし
+    // Without niche optimization
     println!("Option<u64>:       {} bytes", size_of::<Option<u64>>());       // 16
 
-    // ニッチ最適化あり (NonZero の 0 を None に使う)
+    // With niche optimization (using 0 of NonZero as None)
     println!("Option<NonZeroU64>: {} bytes", size_of::<Option<NonZeroU64>>()); // 8
 
-    // ポインタ型はニッチ最適化される
+    // Pointer types are niche-optimized
     println!("Option<Box<i32>>:   {} bytes", size_of::<Option<Box<i32>>>()); // 8
     println!("Option<&i32>:       {} bytes", size_of::<Option<&i32>>());     // 8
-    println!("Option<String>:     {} bytes", size_of::<Option<String>>());   // 24 (Stringと同じ!)
+    println!("Option<String>:     {} bytes", size_of::<Option<String>>());   // 24 (same as String!)
 
-    // Result も最適化
+    // Result is also optimized
     println!("Result<Box<i32>, Box<str>>: {} bytes",
         size_of::<Result<Box<i32>, Box<str>>>());  // 16
 }
 ```
 
-### コード例: enum サイズの詳細分析
+### Code Example: Detailed Analysis of enum Sizes
 
 ```rust
 use std::mem;
 
-// 各バリアントのデータサイズが異なる enum
+// An enum where each variant has different data sizes
 enum Message {
-    Quit,                       // 0 bytes のデータ
-    Move { x: i32, y: i32 },   // 8 bytes のデータ
-    Write(String),              // 24 bytes のデータ
-    Color(u8, u8, u8),          // 3 bytes のデータ
+    Quit,                       // 0 bytes of data
+    Move { x: i32, y: i32 },   // 8 bytes of data
+    Write(String),              // 24 bytes of data
+    Color(u8, u8, u8),          // 3 bytes of data
 }
 
-// ネストされた enum
+// Nested enum
 enum Outer {
     A(Inner),
     B(u8),
@@ -545,52 +545,52 @@ enum Inner {
 }
 
 fn main() {
-    println!("=== enum サイズ分析 ===");
+    println!("=== enum Size Analysis ===");
     println!("Message:  size={}, align={}",
         mem::size_of::<Message>(), mem::align_of::<Message>());
-    // サイズは最大バリアント (Write: 24 bytes) + tag + padding
+    // Size = largest variant (Write: 24 bytes) + tag + padding
 
     println!("Outer:    size={}", mem::size_of::<Outer>());
     println!("Inner:    size={}", mem::size_of::<Inner>());
 
-    // ネストされた Option のニッチ最適化
-    println!("\n=== 多重 Option のニッチ最適化 ===");
+    // Niche optimization for nested Option
+    println!("\n=== Niche Optimization for Nested Options ===");
     println!("Option<bool>:                       {} bytes", mem::size_of::<Option<bool>>());
     println!("Option<Option<bool>>:               {} bytes", mem::size_of::<Option<Option<bool>>>());
-    // bool は 0 か 1 なので、2 を None に使える → 1 byte!
+    // bool is 0 or 1, so 2 can be used as None → 1 byte!
 
     println!("Option<Option<Option<bool>>>:        {} bytes",
         mem::size_of::<Option<Option<Option<bool>>>>());
-    // 0=false, 1=true, 2=Some(None), 3=None → まだ 1 byte!
+    // 0=false, 1=true, 2=Some(None), 3=None → still 1 byte!
 
-    // 参照のネスト
+    // Nested references
     println!("\nOption<&u8>:                        {} bytes", mem::size_of::<Option<&u8>>());
     println!("Option<Option<&u8>>:                {} bytes", mem::size_of::<Option<Option<&u8>>>());
-    // Option<&u8> は null=None, 非null=Some → 8 bytes
-    // Option<Option<&u8>> はニッチが足りない → 16 bytes
+    // Option<&u8> uses null=None, non-null=Some → 8 bytes
+    // Option<Option<&u8>> doesn't have enough niches → 16 bytes
 }
 ```
 
-### コード例: enum のサイズを最小化するテクニック
+### Code Example: Techniques to Minimize enum Size
 
 ```rust
 use std::mem;
 
-// 改善前: 最大バリアントに合わせて巨大になる
+// Before improvement: becomes huge to fit the largest variant
 enum LargeEnum {
     Small(u32),
     Medium([u8; 64]),
-    Large([u8; 1024]),  // ← この 1024 bytes が全体サイズを決定
+    Large([u8; 1024]),  // ← these 1024 bytes determine the total size
 }
 
-// 改善方法1: 大きなバリアントを Box で包む
+// Improvement 1: wrap the large variant in a Box
 enum OptimizedEnum1 {
     Small(u32),
     Medium([u8; 64]),
-    Large(Box<[u8; 1024]>),  // 8 bytes (ポインタ)
+    Large(Box<[u8; 1024]>),  // 8 bytes (pointer)
 }
 
-// 改善方法2: 共通データを外に出す
+// Improvement 2: extract common data outside
 struct MessageBase {
     id: u64,
     timestamp: u64,
@@ -607,15 +607,15 @@ struct OptimizedMessage {
     payload: MessagePayload,
 }
 
-// 改善方法3: インデックスで間接参照
+// Improvement 3: indirect reference via index
 struct Arena {
     texts: Vec<String>,
     binaries: Vec<Vec<u8>>,
 }
 
 enum ArenaMessage {
-    Text(usize),     // texts へのインデックス
-    Binary(usize),   // binaries へのインデックス
+    Text(usize),     // index into texts
+    Binary(usize),   // index into binaries
     Ping,
 }
 
@@ -629,19 +629,19 @@ fn main() {
 
 ---
 
-## 5. ゼロサイズ型 (ZST) とファントムデータ
+## 5. Zero-Sized Types (ZST) and PhantomData
 
-### コード例5: ZST の活用
+### Code Example 5: Using ZSTs
 
 ```rust
 use std::marker::PhantomData;
 use std::mem;
 
-// ゼロサイズ型: メモリを消費しない
+// Zero-sized types: do not consume memory
 struct Meters;
 struct Seconds;
 
-// 型レベルで単位を区別 (メモリコストなし)
+// Distinguishing units at the type level (no memory cost)
 struct Quantity<Unit> {
     value: f64,
     _unit: PhantomData<Unit>,
@@ -657,30 +657,30 @@ fn main() {
     let distance = Quantity::<Meters>::new(100.0);
     let time = Quantity::<Seconds>::new(9.58);
 
-    // Quantity<Meters> と Quantity<Seconds> は異なる型
-    // → コンパイル時に単位の混同を防止
+    // Quantity<Meters> and Quantity<Seconds> are different types
+    // → unit confusion is prevented at compile time
 
-    println!("Quantity<Meters> サイズ: {}", mem::size_of::<Quantity<Meters>>());
-    // 8 bytes (f64 のみ。PhantomData は 0 bytes)
+    println!("Quantity<Meters> size: {}", mem::size_of::<Quantity<Meters>>());
+    // 8 bytes (only f64; PhantomData is 0 bytes)
 
-    // Vec<()> のサイズ
+    // Size of Vec<()>
     let units: Vec<()> = vec![(); 1000];
-    println!("Vec<()> 要素は {} bytes", mem::size_of::<()>()); // 0
-    // メモリ割当されない (len だけ追跡)
+    println!("Vec<()> element is {} bytes", mem::size_of::<()>()); // 0
+    // No memory is allocated (only len is tracked)
 }
 ```
 
-### コード例: 型状態パターンでの ZST 活用
+### Code Example: Using ZSTs in the Type-State Pattern
 
 ```rust
 use std::marker::PhantomData;
 
-// 型状態を表す ZST
+// ZSTs representing type states
 struct Idle;
 struct Connected;
 struct Authenticated;
 
-// 接続の状態を型パラメータで管理
+// Manage connection state via type parameter
 struct Connection<State> {
     host: String,
     port: u16,
@@ -697,7 +697,7 @@ impl Connection<Idle> {
     }
 
     fn connect(self) -> Result<Connection<Connected>, String> {
-        println!("接続中: {}:{}", self.host, self.port);
+        println!("Connecting: {}:{}", self.host, self.port);
         Ok(Connection {
             host: self.host,
             port: self.port,
@@ -708,7 +708,7 @@ impl Connection<Idle> {
 
 impl Connection<Connected> {
     fn authenticate(self, _token: &str) -> Result<Connection<Authenticated>, String> {
-        println!("認証中...");
+        println!("Authenticating...");
         Ok(Connection {
             host: self.host,
             port: self.port,
@@ -717,7 +717,7 @@ impl Connection<Connected> {
     }
 
     fn disconnect(self) -> Connection<Idle> {
-        println!("切断");
+        println!("Disconnect");
         Connection {
             host: self.host,
             port: self.port,
@@ -728,12 +728,12 @@ impl Connection<Connected> {
 
 impl Connection<Authenticated> {
     fn query(&self, sql: &str) -> Result<String, String> {
-        println!("クエリ実行: {}", sql);
-        Ok("結果".to_string())
+        println!("Executing query: {}", sql);
+        Ok("result".to_string())
     }
 
     fn disconnect(self) -> Connection<Idle> {
-        println!("切断");
+        println!("Disconnect");
         Connection {
             host: self.host,
             port: self.port,
@@ -745,35 +745,35 @@ impl Connection<Authenticated> {
 fn main() {
     use std::mem;
 
-    // すべての状態で同じサイズ (ZST のおかげ)
+    // Same size in all states (thanks to ZSTs)
     println!("Connection<Idle>:          {} bytes", mem::size_of::<Connection<Idle>>());
     println!("Connection<Connected>:     {} bytes", mem::size_of::<Connection<Connected>>());
     println!("Connection<Authenticated>: {} bytes", mem::size_of::<Connection<Authenticated>>());
 
-    // コンパイル時に不正な状態遷移を防止
+    // Prevent invalid state transitions at compile time
     let conn = Connection::<Idle>::new("localhost", 5432);
     let conn = conn.connect().unwrap();
-    // conn.query("SELECT 1"); // コンパイルエラー! Connected 状態では query できない
+    // conn.query("SELECT 1"); // compile error! cannot query in Connected state
     let conn = conn.authenticate("secret").unwrap();
     let _result = conn.query("SELECT 1").unwrap(); // OK
 }
 ```
 
-### コード例: PhantomData による所有権・ライフタイムの表現
+### Code Example: Expressing Ownership and Lifetimes via PhantomData
 
 ```rust
 use std::marker::PhantomData;
 use std::mem;
 
-/// PhantomData で所有権の意味を表現する例
+/// Example expressing ownership semantics with PhantomData
 struct Owned<T> {
     ptr: *mut T,
-    _owns: PhantomData<T>, // T を「所有」する → drop 時に T を解放する責任
+    _owns: PhantomData<T>, // "owns" T → responsible for freeing T on drop
 }
 
 struct Borrowed<'a, T> {
     ptr: *const T,
-    _borrows: PhantomData<&'a T>, // T を「借用」する → ライフタイム 'a が有効
+    _borrows: PhantomData<&'a T>, // "borrows" T → lifetime 'a is valid
 }
 
 impl<T> Owned<T> {
@@ -798,35 +798,35 @@ impl<T> Drop for Owned<T> {
     }
 }
 
-/// PhantomData で共変性・反変性を制御
+/// Controlling covariance and contravariance with PhantomData
 struct Covariant<'a, T: 'a> {
-    _phantom: PhantomData<&'a T>, // 共変: T が 'a より長生きすればOK
+    _phantom: PhantomData<&'a T>, // covariant: OK if T outlives 'a
 }
 
 struct Invariant<'a, T: 'a> {
-    _phantom: PhantomData<&'a mut T>, // 不変: 完全一致が必要
+    _phantom: PhantomData<&'a mut T>, // invariant: requires exact match
 }
 
 fn main() {
-    println!("Owned<u64>:    {} bytes", mem::size_of::<Owned<u64>>());    // 8 (ptr のみ)
-    println!("Borrowed<u64>: {} bytes", mem::size_of::<Borrowed<u64>>()); // 8 (ptr のみ)
+    println!("Owned<u64>:    {} bytes", mem::size_of::<Owned<u64>>());    // 8 (ptr only)
+    println!("Borrowed<u64>: {} bytes", mem::size_of::<Borrowed<u64>>()); // 8 (ptr only)
 
     let owned = Owned::new(42u64);
-    println!("値: {}", owned.as_ref());
+    println!("value: {}", owned.as_ref());
 }
 ```
 
 ---
 
-## 6. 高度なメモリ制御
+## 6. Advanced Memory Control
 
-### コード例: カスタムアロケータ
+### Code Example: Custom Allocator
 
 ```rust
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-/// メモリ使用量を追跡するアロケータ
+/// Allocator that tracks memory usage
 struct TrackingAllocator {
     inner: System,
     allocated: AtomicUsize,
@@ -864,11 +864,11 @@ impl TrackingAllocator {
         let alloc = self.allocated.load(Ordering::Relaxed);
         let dealloc = self.deallocated.load(Ordering::Relaxed);
         let count = self.allocation_count.load(Ordering::Relaxed);
-        println!("=== メモリレポート ===");
-        println!("  総割当量:   {} bytes", alloc);
-        println!("  総解放量:   {} bytes", dealloc);
-        println!("  現在使用量: {} bytes", alloc - dealloc);
-        println!("  割当回数:   {} 回", count);
+        println!("=== Memory Report ===");
+        println!("  Total allocated:   {} bytes", alloc);
+        println!("  Total deallocated: {} bytes", dealloc);
+        println!("  Currently in use:  {} bytes", alloc - dealloc);
+        println!("  Allocation count:  {} times", count);
     }
 }
 
@@ -885,17 +885,17 @@ fn main() {
         ALLOCATOR.report();
     }
 
-    // スコープを抜けると解放される
+    // Memory is freed once the scope exits
     ALLOCATOR.report();
 }
 ```
 
-### コード例: MaybeUninit による未初期化メモリの安全な利用
+### Code Example: Safe Use of Uninitialized Memory with MaybeUninit
 
 ```rust
 use std::mem::MaybeUninit;
 
-/// MaybeUninit を使って配列を効率的に初期化する
+/// Use MaybeUninit to efficiently initialize an array
 fn create_fibonacci_array() -> [u64; 50] {
     let mut arr: [MaybeUninit<u64>; 50] = unsafe {
         MaybeUninit::uninit().assume_init()
@@ -910,14 +910,14 @@ fn create_fibonacci_array() -> [u64; 50] {
         arr[i] = MaybeUninit::new(a + b);
     }
 
-    // 全要素が初期化済みなので安全に変換
+    // All elements are initialized, so safe to convert
     unsafe {
-        // MaybeUninit<T> と T はメモリレイアウトが同じ
+        // MaybeUninit<T> and T have the same memory layout
         std::mem::transmute(arr)
     }
 }
 
-/// MaybeUninit を使った遅延初期化パターン
+/// Lazy initialization pattern using MaybeUninit
 struct LazyBuffer {
     data: MaybeUninit<[u8; 4096]>,
     initialized: bool,
@@ -933,7 +933,7 @@ impl LazyBuffer {
 
     fn get_or_init(&mut self) -> &[u8; 4096] {
         if !self.initialized {
-            // 初回アクセス時のみ初期化
+            // Initialize only on first access
             self.data = MaybeUninit::new([0u8; 4096]);
             self.initialized = true;
         }
@@ -951,20 +951,20 @@ fn main() {
 }
 ```
 
-### コード例: アライメント制御とキャッシュ最適化
+### Code Example: Alignment Control and Cache Optimization
 
 ```rust
 use std::mem;
 
-/// false sharing を防ぐためのキャッシュライン整列
+/// Cache-line alignment to prevent false sharing
 #[repr(align(64))]
 struct CacheAligned<T> {
     value: T,
 }
 
-/// 複数スレッドで独立にアクセスするカウンタ
+/// Counters accessed independently by multiple threads
 struct PerThreadCounters {
-    // 各カウンタが別のキャッシュラインに配置される
+    // Each counter is placed on a separate cache line
     counters: [CacheAligned<std::sync::atomic::AtomicU64>; 8],
 }
 
@@ -991,10 +991,10 @@ impl PerThreadCounters {
     }
 }
 
-/// SIMD 用のアライメント
+/// Alignment for SIMD
 #[repr(align(32))]
 struct SimdAligned {
-    data: [f32; 8], // AVX2 用に 32 バイト境界に整列
+    data: [f32; 8], // aligned to 32-byte boundary for AVX2
 }
 
 fn main() {
@@ -1009,7 +1009,7 @@ fn main() {
     // size=32, align=32
 
     let counters = PerThreadCounters::new();
-    // 各カウンタは 64 バイト間隔 → false sharing なし
+    // Each counter is 64 bytes apart → no false sharing
     println!("PerThreadCounters total size: {} bytes",
         mem::size_of::<PerThreadCounters>());
 }
@@ -1017,70 +1017,70 @@ fn main() {
 
 ---
 
-## 7. 実践的なメモリプロファイリング
+## 7. Practical Memory Profiling
 
-### コード例: std::alloc を使ったメモリ使用量の測定
+### Code Example: Measuring Memory Usage Using std::alloc
 
 ```rust
 use std::alloc::{Layout, alloc, dealloc};
 
-/// 手動メモリ割当のデモンストレーション
+/// Demonstration of manual memory allocation
 fn manual_allocation_demo() {
-    // Layout: サイズとアライメントを指定
+    // Layout: specifies size and alignment
     let layout = Layout::new::<[u8; 256]>();
     println!("Layout: size={}, align={}", layout.size(), layout.align());
 
     unsafe {
-        // メモリ割当
+        // Allocate memory
         let ptr = alloc(layout);
         if ptr.is_null() {
-            panic!("メモリ割当失敗");
+            panic!("Memory allocation failed");
         }
 
-        // 初期化
+        // Initialize
         std::ptr::write_bytes(ptr, 0, 256);
 
-        // 使用
+        // Use
         *ptr = 42;
-        println!("割当された値: {}", *ptr);
+        println!("Allocated value: {}", *ptr);
 
-        // 解放
+        // Deallocate
         dealloc(ptr, layout);
     }
 
-    // Layout::from_size_align で動的にレイアウトを作成
+    // Use Layout::from_size_align to create a layout dynamically
     let dynamic_layout = Layout::from_size_align(1024, 16).unwrap();
     println!("Dynamic layout: size={}, align={}",
         dynamic_layout.size(), dynamic_layout.align());
 }
 
-/// コレクションのメモリ使用量を推定する
+/// Estimate memory usage of collections
 fn estimate_collection_memory() {
     use std::mem;
     use std::collections::HashMap;
 
-    // Vec のメモリ使用量
+    // Memory usage of Vec
     let v: Vec<u64> = (0..1000).collect();
     let stack_size = mem::size_of::<Vec<u64>>();
     let heap_size = v.capacity() * mem::size_of::<u64>();
-    println!("Vec<u64> (1000要素):");
-    println!("  スタック: {} bytes", stack_size);
-    println!("  ヒープ:   {} bytes", heap_size);
-    println!("  合計:     {} bytes", stack_size + heap_size);
+    println!("Vec<u64> (1000 elements):");
+    println!("  Stack: {} bytes", stack_size);
+    println!("  Heap:  {} bytes", heap_size);
+    println!("  Total: {} bytes", stack_size + heap_size);
 
-    // HashMap のメモリ使用量 (概算)
+    // Memory usage of HashMap (estimate)
     let mut map: HashMap<u64, String> = HashMap::new();
     for i in 0..100 {
         map.insert(i, format!("value_{}", i));
     }
     let map_stack = mem::size_of::<HashMap<u64, String>>();
-    // HashMap の内部は複雑だが、概算値を計算
-    let avg_value_size = 16; // String のヒープデータ平均サイズ
+    // HashMap internals are complex, but compute an estimate
+    let avg_value_size = 16; // average heap data size of String
     let entry_overhead = mem::size_of::<u64>() + mem::size_of::<String>() + 8; // key + value + metadata
     let estimated_heap = map.capacity() * entry_overhead + 100 * avg_value_size;
-    println!("\nHashMap<u64, String> (100要素):");
-    println!("  スタック:     {} bytes", map_stack);
-    println!("  ヒープ (概算): {} bytes", estimated_heap);
+    println!("\nHashMap<u64, String> (100 elements):");
+    println!("  Stack:           {} bytes", map_stack);
+    println!("  Heap (estimate): {} bytes", estimated_heap);
 }
 
 fn main() {
@@ -1090,13 +1090,13 @@ fn main() {
 }
 ```
 
-### コード例: メモリリークの検出パターン
+### Code Example: Patterns for Detecting Memory Leaks
 
 ```rust
 use std::sync::Arc;
 use std::cell::RefCell;
 
-/// 循環参照によるメモリリークの例
+/// Example of a memory leak from a circular reference
 fn demonstrate_circular_reference() {
     struct Node {
         value: i32,
@@ -1113,22 +1113,22 @@ fn demonstrate_circular_reference() {
         next: RefCell::new(Some(Arc::clone(&a))),
     });
 
-    // 循環参照を作成
+    // Create a circular reference
     *a.next.borrow_mut() = Some(Arc::clone(&b));
 
     println!("a strong count: {}", Arc::strong_count(&a)); // 2
     println!("b strong count: {}", Arc::strong_count(&b)); // 2
-    // → スコープを抜けても strong count が 0 にならず、メモリリーク!
+    // → strong count never reaches 0 even after the scope ends, leaking memory!
 }
 
-/// Weak 参照で循環参照を防ぐ
+/// Prevent circular references with Weak
 fn demonstrate_weak_reference() {
     use std::sync::Weak;
 
     struct SafeNode {
         value: i32,
         next: RefCell<Option<Arc<SafeNode>>>,
-        prev: RefCell<Option<Weak<SafeNode>>>, // 弱い参照 → 循環しない
+        prev: RefCell<Option<Weak<SafeNode>>>, // weak reference → no cycle
     }
 
     let a = Arc::new(SafeNode {
@@ -1140,7 +1140,7 @@ fn demonstrate_weak_reference() {
     let b = Arc::new(SafeNode {
         value: 2,
         next: RefCell::new(None),
-        prev: RefCell::new(Some(Arc::downgrade(&a))), // Weak 参照
+        prev: RefCell::new(Some(Arc::downgrade(&a))), // Weak reference
     });
 
     *a.next.borrow_mut() = Some(Arc::clone(&b));
@@ -1148,116 +1148,116 @@ fn demonstrate_weak_reference() {
     println!("a strong count: {}", Arc::strong_count(&a)); // 1
     println!("b strong count: {}", Arc::strong_count(&b)); // 2
     println!("a weak count:   {}", Arc::weak_count(&a));   // 1
-    // → 正常に解放される
+    // → freed normally
 }
 
 fn main() {
-    println!("=== 循環参照 (メモリリーク) ===");
+    println!("=== Circular Reference (memory leak) ===");
     demonstrate_circular_reference();
-    println!("\n=== Weak 参照 (リーク防止) ===");
+    println!("\n=== Weak Reference (leak prevention) ===");
     demonstrate_weak_reference();
 }
 ```
 
 ---
 
-## 8. 比較表
+## 8. Comparison Tables
 
-### スタック vs ヒープ
+### Stack vs Heap
 
-| 特性 | スタック | ヒープ |
+| Characteristic | Stack | Heap |
 |---|---|---|
-| 割当速度 | 超高速 (SP移動のみ) | 遅い (アロケータ呼び出し) |
-| 解放速度 | 超高速 (自動) | 遅い (free/dealloc) |
-| サイズ制約 | 固定・小サイズ (通常8MB上限) | 動的・大サイズ可 |
-| ライフタイム | スコープに紐付き | 任意 (所有権で管理) |
-| キャッシュ効率 | 非常に高い (局所性) | 低い (分散配置) |
-| フラグメンテーション | なし | あり |
-| スレッド | 各スレッドに独立 | 全スレッドで共有 |
-| オーバーフロー | SIGSEGV で終了 | OOM エラー |
+| Allocation speed | Ultra-fast (just SP move) | Slow (allocator call) |
+| Deallocation speed | Ultra-fast (automatic) | Slow (free/dealloc) |
+| Size constraint | Fixed and small (typically 8MB max) | Dynamic, can be large |
+| Lifetime | Tied to scope | Arbitrary (managed by ownership) |
+| Cache efficiency | Very high (locality) | Low (scattered) |
+| Fragmentation | None | Yes |
+| Threads | Independent per thread | Shared across all threads |
+| Overflow | Terminates with SIGSEGV | OOM error |
 
-### repr 属性の比較
+### Comparison of repr Attributes
 
-| repr | レイアウト | 用途 | 注意点 |
+| repr | Layout | Use Case | Caveats |
 |---|---|---|---|
-| (デフォルト) | コンパイラ最適化 | 通常のRustコード | フィールド順不定 |
-| `repr(C)` | C言語互換 | FFI、外部ライブラリ | パディングあり |
-| `repr(transparent)` | 内部型と同一 | ニュータイプパターン | 単一フィールド限定 |
-| `repr(packed)` | パディングなし | バイナリプロトコル | アクセス性能低下 |
-| `repr(align(N))` | 最小アライメントN | キャッシュライン整列 | メモリ消費増加 |
+| (default) | Compiler-optimized | Normal Rust code | Field order undefined |
+| `repr(C)` | C-compatible | FFI, external libraries | Has padding |
+| `repr(transparent)` | Same as inner type | Newtype pattern | Single field only |
+| `repr(packed)` | No padding | Binary protocols | Reduced access performance |
+| `repr(align(N))` | Minimum alignment N | Cache-line alignment | Increased memory consumption |
 
-### スマートポインタのメモリコスト
+### Memory Cost of Smart Pointers
 
-| 型 | スタック上サイズ | ヒープオーバーヘッド | 用途 |
+| Type | Stack Size | Heap Overhead | Use Case |
 |---|---|---|---|
-| `Box<T>` | 8 bytes (ptr) | 0 | 単一値の所有権 |
-| `Rc<T>` | 8 bytes (ptr) | 16 bytes (strong+weak) | シングルスレッド共有 |
-| `Arc<T>` | 8 bytes (ptr) | 16 bytes (atomic strong+weak) | マルチスレッド共有 |
-| `Vec<T>` | 24 bytes (ptr+len+cap) | 0 | 動的配列 |
-| `String` | 24 bytes (ptr+len+cap) | 0 | UTF-8 文字列 |
-| `Cow<'a, T>` | 24 bytes (enum) | 条件付き | 遅延コピー |
+| `Box<T>` | 8 bytes (ptr) | 0 | Single value ownership |
+| `Rc<T>` | 8 bytes (ptr) | 16 bytes (strong+weak) | Single-threaded sharing |
+| `Arc<T>` | 8 bytes (ptr) | 16 bytes (atomic strong+weak) | Multi-threaded sharing |
+| `Vec<T>` | 24 bytes (ptr+len+cap) | 0 | Dynamic array |
+| `String` | 24 bytes (ptr+len+cap) | 0 | UTF-8 string |
+| `Cow<'a, T>` | 24 bytes (enum) | Conditional | Lazy copy |
 
 ---
 
-## 9. アンチパターン
+## 9. Anti-Patterns
 
-### アンチパターン1: 不必要なヒープ割当
+### Anti-Pattern 1: Unnecessary Heap Allocation
 
 ```rust
-// NG: 小さな固定長データを Box で包む
+// NG: wrapping small fixed-size data in Box
 fn bad() -> Box<(f64, f64)> {
-    Box::new((1.0, 2.0)) // 16 bytes をヒープに割当 → 無駄
+    Box::new((1.0, 2.0)) // allocates 16 bytes on the heap → wasteful
 }
 
-// OK: そのまま返す (コピー/ムーブで十分)
+// OK: just return as-is (copy/move is sufficient)
 fn good() -> (f64, f64) {
-    (1.0, 2.0) // スタック上でコピー
+    (1.0, 2.0) // copy on the stack
 }
 
-// Box が必要な場面:
-// - 再帰型 (コンパイル時にサイズ不定)
-// - trait object (dyn Trait)
-// - 大きな構造体のムーブコスト回避
+// When Box is needed:
+// - Recursive types (size unknown at compile time)
+// - Trait objects (dyn Trait)
+// - Avoiding move cost of large structs
 ```
 
-### アンチパターン2: repr(packed) の乱用
+### Anti-Pattern 2: Overuse of repr(packed)
 
 ```rust
-// NG: パフォーマンス重視のコードで packed を使う
+// NG: using packed in performance-sensitive code
 #[repr(packed)]
 struct BadPerf {
     flag: u8,
-    value: u64, // 非アラインアクセス → CPU性能低下
+    value: u64, // unaligned access → CPU performance penalty
 }
 
-// OK: アライメントを活かしてパディングを最小化
+// OK: leverage alignment to minimize padding
 struct GoodPerf {
-    value: u64,  // 8 byte align → 先頭に配置
-    flag: u8,    // 末尾 → パディング最小
+    value: u64,  // 8-byte aligned → place at the front
+    flag: u8,    // at the end → minimum padding
 }
-// packed は バイナリフォーマット解析など、
-// レイアウトの正確性が性能より重要な場面でのみ使用
+// Use packed only when layout precision matters more than performance,
+// such as parsing binary formats.
 ```
 
-### アンチパターン3: 過剰な Clone
+### Anti-Pattern 3: Excessive Clone
 
 ```rust
 use std::sync::Arc;
 
-// NG: 大きなデータを毎回 clone
+// NG: cloning large data every time
 fn bad_process(data: &Vec<String>) {
-    let cloned = data.clone(); // 全文字列をコピー → メモリ倍増
+    let cloned = data.clone(); // copies all strings → memory doubles
     process_data(cloned);
 }
 
-// OK: 参照で渡す
+// OK: pass by reference
 fn good_process(data: &[String]) {
-    process_data_ref(data); // コピーなし
+    process_data_ref(data); // no copy
 }
 
-// OK: 共有所有権が必要なら Arc を使う
+// OK: use Arc for shared ownership when needed
 fn good_shared_process(data: Arc<Vec<String>>) {
-    let shared = Arc::clone(&data); // ポインタのコピーのみ (8 bytes)
+    let shared = Arc::clone(&data); // only pointer copy (8 bytes)
     std::thread::spawn(move || {
         process_data_ref(&shared);
     });
@@ -1267,29 +1267,29 @@ fn process_data(_data: Vec<String>) {}
 fn process_data_ref(_data: &[String]) {}
 ```
 
-### アンチパターン4: String の非効率な構築
+### Anti-Pattern 4: Inefficient String Construction
 
 ```rust
 fn main() {
     let items = vec!["a", "b", "c", "d", "e"];
 
-    // NG: format! の連鎖 → 毎回新しい String を割当
+    // NG: chaining format! → allocates a new String every time
     let mut result = String::new();
     for item in &items {
         result = format!("{}{}, ", result, item);
-        // 毎回 result 全体 + item をコピーして新しい String を作成
-        // O(n^2) のメモリ割当!
+        // copies the entire result + item to create a new String each time
+        // O(n^2) memory allocations!
     }
 
-    // OK: push_str / write! を使う
-    let mut result = String::with_capacity(items.len() * 4); // 事前確保
+    // OK: use push_str / write!
+    let mut result = String::with_capacity(items.len() * 4); // pre-reserve
     for (i, item) in items.iter().enumerate() {
         if i > 0 { result.push_str(", "); }
         result.push_str(item);
     }
-    // O(n) のメモリ割当
+    // O(n) memory allocations
 
-    // OK: join を使う (最もシンプル)
+    // OK: use join (simplest)
     let result = items.join(", ");
     println!("{}", result);
 }
@@ -1297,15 +1297,15 @@ fn main() {
 
 ---
 
-## 10. 実践パターン集
+## 10. Practical Patterns
 
-### パターン1: Small String Optimization (SSO)
+### Pattern 1: Small String Optimization (SSO)
 
 ```rust
 use std::mem;
 
-/// スタック上に小さな文字列を格納する型
-/// 23バイト以下はスタック上、それ以上はヒープに割当
+/// A type that stores small strings on the stack
+/// 23 bytes or less are on the stack; larger are allocated on the heap
 enum SmallString {
     Inline {
         data: [u8; 23],
@@ -1353,11 +1353,11 @@ fn main() {
 }
 ```
 
-### パターン2: Arena Allocator パターン
+### Pattern 2: Arena Allocator Pattern
 
 ```rust
-/// 簡易的な Arena アロケータ
-/// 大量の小さなオブジェクトを高速に割当し、一括で解放する
+/// Simple arena allocator
+/// Quickly allocates many small objects and frees them all at once
 struct Arena {
     chunks: Vec<Vec<u8>>,
     current: Vec<u8>,
@@ -1374,11 +1374,11 @@ impl Arena {
     }
 
     fn alloc(&mut self, size: usize) -> &mut [u8] {
-        // アライメントを 8 バイトに揃える
+        // Align to 8 bytes
         let aligned_size = (size + 7) & !7;
 
         if self.current.len() + aligned_size > self.current.capacity() {
-            // 現在のチャンクが足りない → 新しいチャンクを作成
+            // Current chunk is insufficient → create a new chunk
             let old = std::mem::replace(
                 &mut self.current,
                 Vec::with_capacity(self.chunk_size.max(aligned_size)),
@@ -1406,26 +1406,26 @@ impl Arena {
 fn main() {
     let mut arena = Arena::new(4096);
 
-    // 1000 個の小さなオブジェクトを高速に割当
+    // Quickly allocate 1000 small objects
     for i in 0..1000 {
         let buf = arena.alloc(32);
         buf[0] = (i % 256) as u8;
     }
 
-    println!("Arena 割当量: {} bytes", arena.bytes_allocated());
+    println!("Arena allocation: {} bytes", arena.bytes_allocated());
 
-    // 一括解放
+    // Bulk free
     arena.reset();
-    println!("リセット後: {} bytes", arena.bytes_allocated());
+    println!("After reset: {} bytes", arena.bytes_allocated());
 }
 ```
 
-### パターン3: メモリ効率的なデータ構造 (SoA vs AoS)
+### Pattern 3: Memory-Efficient Data Structures (SoA vs AoS)
 
 ```rust
 use std::time::Instant;
 
-// AoS (Array of Structures) — 構造体の配列
+// AoS (Array of Structures)
 struct ParticleAoS {
     x: f32,
     y: f32,
@@ -1434,10 +1434,10 @@ struct ParticleAoS {
     vy: f32,
     vz: f32,
     mass: f32,
-    _padding: f32, // 32 bytes total, キャッシュライン半分
+    _padding: f32, // 32 bytes total, half a cache line
 }
 
-// SoA (Structure of Arrays) — 配列の構造体
+// SoA (Structure of Arrays)
 struct ParticlesSoA {
     x: Vec<f32>,
     y: Vec<f32>,
@@ -1461,7 +1461,7 @@ impl ParticlesSoA {
         }
     }
 
-    /// 位置を更新 (x, y, z と vx, vy, vz のみアクセス)
+    /// Update positions (only access x, y, z and vx, vy, vz)
     fn update_positions(&mut self, dt: f32) {
         for i in 0..self.x.len() {
             self.x[i] += self.vx[i] * dt;
@@ -1474,16 +1474,16 @@ impl ParticlesSoA {
 fn main() {
     let n = 1_000_000;
 
-    // SoA: 位置更新時に mass をロードしない → キャッシュ効率が良い
+    // SoA: mass is not loaded during position update → good cache efficiency
     let mut particles = ParticlesSoA::new(n);
     let start = Instant::now();
     for _ in 0..100 {
         particles.update_positions(0.016);
     }
     let soa_time = start.elapsed();
-    println!("SoA 位置更新 (100回): {:?}", soa_time);
+    println!("SoA position update (100 iters): {:?}", soa_time);
 
-    // AoS: 位置更新でも mass + padding が キャッシュにロードされる → 無駄
+    // AoS: mass + padding are loaded into the cache even during position update → wasteful
     let mut aos: Vec<ParticleAoS> = (0..n)
         .map(|_| ParticleAoS {
             x: 0.0, y: 0.0, z: 0.0,
@@ -1500,8 +1500,8 @@ fn main() {
         }
     }
     let aos_time = start.elapsed();
-    println!("AoS 位置更新 (100回): {:?}", aos_time);
-    println!("SoA/AoS 比: {:.2}x",
+    println!("AoS position update (100 iters): {:?}", aos_time);
+    println!("SoA/AoS ratio: {:.2}x",
         aos_time.as_nanos() as f64 / soa_time.as_nanos() as f64);
 }
 ```
@@ -1510,44 +1510,44 @@ fn main() {
 
 ## FAQ
 
-### Q1: なぜ `Vec<T>` はスタック上で24バイトなの?
+### Q1: Why is `Vec<T>` 24 bytes on the stack?
 
-**A:** `ptr`(8バイト) + `len`(8バイト) + `capacity`(8バイト) = 24バイトです。ヒープ上の実データへのポインタ、現在の要素数、確保済み容量を保持しています。`String` も内部的に `Vec<u8>` なので同じ構造です。
+**A:** `ptr` (8 bytes) + `len` (8 bytes) + `capacity` (8 bytes) = 24 bytes. It holds a pointer to the actual data on the heap, the current element count, and the reserved capacity. `String` is internally a `Vec<u8>`, so it has the same structure.
 
-### Q2: `Box<dyn Trait>` はなぜ16バイト?
+### Q2: Why is `Box<dyn Trait>` 16 bytes?
 
-**A:** データへのポインタ(8バイト) + vtable へのポインタ(8バイト) のファットポインタです。vtable には型のサイズ、drop 関数、各メソッドの関数ポインタが格納されています。
+**A:** It is a fat pointer: a pointer to the data (8 bytes) + a pointer to the vtable (8 bytes). The vtable stores the type's size, drop function, and function pointers for each method.
 
-### Q3: enum のサイズを小さくするには?
+### Q3: How do I shrink the size of an enum?
 
-**A:** (1) 大きなバリアントを `Box` で包む (2) `NonZero*` 型でニッチ最適化を活用 (3) フィールド型を小さくする。
+**A:** (1) Wrap large variants in `Box`. (2) Leverage niche optimization with `NonZero*` types. (3) Use smaller field types.
 
 ```rust
-// 改善前: 最大バリアントに合わせて 104 bytes
+// Before improvement: 104 bytes to fit the largest variant
 enum Message {
     Quit,
     Echo(String),       // 24 bytes
-    Data([u8; 100]),    // 100 bytes ← これが支配的
+    Data([u8; 100]),    // 100 bytes ← this dominates
 }
 
-// 改善後: Box で包んで 32 bytes
+// After improvement: 32 bytes by wrapping in Box
 enum MessageOpt {
     Quit,
     Echo(String),
-    Data(Box<[u8; 100]>), // 8 bytes (ポインタのみ)
+    Data(Box<[u8; 100]>), // 8 bytes (pointer only)
 }
 ```
 
-### Q4: `Cow<str>` はいつ使うべき?
+### Q4: When should I use `Cow<str>`?
 
-**A:** 入力が借用のままでOKな場合が多いが、場合によってはクローンが必要な場面で `Cow` を使います。例えばパース処理で、ほとんどの入力はそのまま返せるが、エスケープ処理が必要な場合だけコピーする、というパターンです。
+**A:** Use `Cow` when input often suffices as a borrow but sometimes a clone is required. For example, in parsing where most input can be returned as-is, but only inputs that need escape processing require copying.
 
 ```rust
 use std::borrow::Cow;
 
 fn escape_html(input: &str) -> Cow<str> {
     if input.contains(['<', '>', '&', '"', '\'']) {
-        // エスケープが必要 → 新しい String を作成
+        // Escape needed → create new String
         Cow::Owned(
             input
                 .replace('&', "&amp;")
@@ -1557,32 +1557,32 @@ fn escape_html(input: &str) -> Cow<str> {
                 .replace('\'', "&#39;")
         )
     } else {
-        // エスケープ不要 → 元の文字列を借用
+        // No escape needed → borrow the original string
         Cow::Borrowed(input)
     }
 }
 
 fn main() {
-    let safe = escape_html("Hello, World!");      // Borrowed (コピーなし)
-    let escaped = escape_html("<script>alert(1)</script>"); // Owned (コピーあり)
+    let safe = escape_html("Hello, World!");      // Borrowed (no copy)
+    let escaped = escape_html("<script>alert(1)</script>"); // Owned (copied)
     println!("{}", safe);
     println!("{}", escaped);
 }
 ```
 
-### Q5: `Pin<T>` とメモリレイアウトの関係は?
+### Q5: What is the relationship between `Pin<T>` and memory layout?
 
-**A:** `Pin<T>` はメモリ上の位置を固定することを保証するラッパーです。自己参照構造体（内部に自身のフィールドへのポインタを持つ型）が安全に動作するために必要です。async/await の Future が内部的に自己参照構造体を生成するため、Pin が不可欠です。
+**A:** `Pin<T>` is a wrapper that guarantees the position in memory is fixed. It is necessary for self-referential structs (types that internally hold pointers to their own fields) to operate safely. Pin is essential for async/await because Futures internally generate self-referential structs.
 
 ```rust
 use std::pin::Pin;
 use std::marker::PhantomPinned;
 
-/// 自己参照構造体の例
+/// Example of a self-referential struct
 struct SelfReferential {
     data: String,
-    ptr_to_data: *const String, // data フィールドへのポインタ
-    _pin: PhantomPinned,        // !Unpin を実装 → move を禁止
+    ptr_to_data: *const String, // pointer to the data field
+    _pin: PhantomPinned,        // implements !Unpin → forbids move
 }
 
 impl SelfReferential {
@@ -1594,7 +1594,7 @@ impl SelfReferential {
         });
         let ptr = &boxed.data as *const String;
         boxed.ptr_to_data = ptr;
-        // Pin で包んで移動を禁止
+        // Wrap in Pin to forbid moves
         unsafe { Pin::new_unchecked(boxed) }
     }
 
@@ -1609,12 +1609,12 @@ fn main() {
 }
 ```
 
-### Q6: メモリアロケータを切り替えるには?
+### Q6: How do I switch the memory allocator?
 
-**A:** `#[global_allocator]` 属性で指定します。高性能アロケータとして jemalloc や mimalloc が人気です。
+**A:** Specify it with the `#[global_allocator]` attribute. Popular high-performance allocators include jemalloc and mimalloc.
 
 ```rust
-// jemalloc の例
+// Example with jemalloc
 // Cargo.toml: tikv-jemallocator = "0.6"
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
@@ -1623,44 +1623,44 @@ use tikv_jemallocator::Jemalloc;
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
-// mimalloc の例
+// Example with mimalloc
 // Cargo.toml: mimalloc = "0.1"
 // use mimalloc::MiMalloc;
 // #[global_allocator]
 // static GLOBAL: MiMalloc = MiMalloc;
 
 fn main() {
-    // 以降すべてのヒープ割当が指定アロケータを使用
+    // From here on, all heap allocations use the specified allocator
     let v: Vec<u64> = (0..1_000_000).collect();
-    println!("要素数: {}", v.len());
+    println!("element count: {}", v.len());
 }
 ```
 
 ---
 
-## まとめ
+## Summary
 
-| 項目 | 要点 |
+| Item | Key Point |
 |---|---|
-| スタック | 高速・固定サイズ・スコープ管理。ローカル変数に最適 |
-| ヒープ | 動的サイズ・長寿命。Box/Vec/String が管理 |
-| repr(C) | FFI でC言語と互換レイアウトが必要な時 |
-| repr(transparent) | ニュータイプとABI互換を保証 |
-| アライメント | CPU のメモリアクセス効率に直結 |
-| ニッチ最適化 | Option<Box<T>> が Box<T> と同サイズ |
-| ZST | PhantomData で型情報を付加(メモリコストゼロ) |
-| MaybeUninit | 未初期化メモリの安全な操作 |
-| Arena | 大量小オブジェクトの高速割当・一括解放 |
-| SoA | キャッシュ効率を重視したデータ配置 |
-| カスタムアロケータ | jemalloc/mimalloc で性能向上 |
+| Stack | Fast, fixed size, scope-managed. Ideal for local variables |
+| Heap | Dynamic size, long-lived. Managed by Box/Vec/String |
+| repr(C) | When you need a C-compatible layout for FFI |
+| repr(transparent) | Guarantees newtype and ABI compatibility |
+| Alignment | Directly affects CPU memory access efficiency |
+| Niche Optimization | Option<Box<T>> is the same size as Box<T> |
+| ZST | Add type information with PhantomData (zero memory cost) |
+| MaybeUninit | Safe operations on uninitialized memory |
+| Arena | Fast allocation and bulk free of many small objects |
+| SoA | Data layout focused on cache efficiency |
+| Custom Allocators | Performance gains with jemalloc/mimalloc |
 
-## 次に読むべきガイド
+## Recommended Next Reading
 
-- [並行性](./01-concurrency.md) — メモリモデルとスレッド安全性
-- [FFI](./02-ffi-interop.md) — repr(C)を使った外部言語連携
-- [組み込み/WASM](./03-embedded-wasm.md) — メモリ制約環境での最適化
+- [Concurrency](./01-concurrency.md) — memory model and thread safety
+- [FFI](./02-ffi-interop.md) — interfacing with foreign languages using repr(C)
+- [Embedded/WASM](./03-embedded-wasm.md) — optimization in memory-constrained environments
 
-## 参考文献
+## References
 
 1. **The Rustonomicon — Data Representation**: https://doc.rust-lang.org/nomicon/data.html
 2. **Type Layout (Rust Reference)**: https://doc.rust-lang.org/reference/type-layout.html
