@@ -1,50 +1,50 @@
-# CLIツール — clap、クロスコンパイル
+# CLI Tools — clap, Cross-compilation
 
-> clap による引数解析、カラー出力、プログレスバー、クロスコンパイル/配布まで、実用的な CLI ツール開発の全工程を習得する
+> Master the entire workflow of practical CLI tool development, from argument parsing with clap, colored output, and progress bars to cross-compilation and distribution.
 
-## この章で学ぶこと
+## What You'll Learn in This Chapter
 
-1. **引数解析** — clap derive API による型安全なCLI定義、サブコマンド、バリデーション
-2. **ユーザー体験** — カラー出力、プログレスバー、対話的プロンプト
-3. **クロスコンパイルと配布** — cross、GitHub Actions、cargo-dist
+1. **Argument parsing** — Type-safe CLI definitions with the clap derive API, subcommands, and validation
+2. **User experience** — Colored output, progress bars, and interactive prompts
+3. **Cross-compilation and distribution** — cross, GitHub Actions, and cargo-dist
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Your understanding will deepen if you have the following knowledge before reading this guide:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [組み込み/WASM — no_std、wasm-bindgen](./03-embedded-wasm.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- An understanding of the contents of [Embedded/WASM — no_std, wasm-bindgen](./03-embedded-wasm.md)
 
 ---
 
-## 1. CLIツールの構成要素
+## 1. Components of a CLI Tool
 
 ```
-┌────────────────── CLI ツール構成 ──────────────────┐
+┌────────────── CLI Tool Architecture ───────────────┐
 │                                                     │
-│  ┌─ 引数解析 ─────────────────────────────────────┐│
+│  ┌─ Argument parsing ─────────────────────────────┐│
 │  │  clap (derive / builder)                       ││
-│  │  → コマンド、フラグ、オプション、サブコマンド    ││
+│  │  → commands, flags, options, subcommands       ││
 │  └────────────────────────────────────────────────┘│
 │                                                     │
-│  ┌─ 出力・UX ─────────────────────────────────────┐│
-│  │  colored / owo-colors  → カラー出力             ││
-│  │  indicatif             → プログレスバー          ││
-│  │  dialoguer             → 対話的プロンプト        ││
-│  │  tabled                → テーブル表示           ││
+│  ┌─ Output / UX ──────────────────────────────────┐│
+│  │  colored / owo-colors  → colored output         ││
+│  │  indicatif             → progress bars          ││
+│  │  dialoguer             → interactive prompts    ││
+│  │  tabled                → table display          ││
 │  └────────────────────────────────────────────────┘│
 │                                                     │
-│  ┌─ I/O・設定 ────────────────────────────────────┐│
-│  │  serde + toml/json     → 設定ファイル           ││
-│  │  directories           → XDG パス               ││
-│  │  tracing               → ログ出力               ││
+│  ┌─ I/O / Configuration ──────────────────────────┐│
+│  │  serde + toml/json     → config files           ││
+│  │  directories           → XDG paths              ││
+│  │  tracing               → log output             ││
 │  └────────────────────────────────────────────────┘│
 │                                                     │
-│  ┌─ ビルド・配布 ──────────────────────────────────┐│
-│  │  cross                 → クロスコンパイル        ││
-│  │  cargo-dist            → バイナリ配布           ││
+│  ┌─ Build / Distribution ─────────────────────────┐│
+│  │  cross                 → cross-compilation      ││
+│  │  cargo-dist            → binary distribution    ││
 │  │  GitHub Actions        → CI/CD                  ││
 │  └────────────────────────────────────────────────┘│
 └─────────────────────────────────────────────────────┘
@@ -52,28 +52,28 @@
 
 ---
 
-## 2. clap による引数解析
+## 2. Argument Parsing with clap
 
-### コード例1: derive API の基本
+### Code Example 1: Basics of the derive API
 
 ```rust
 use clap::{Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
-/// ファイル管理ツール — ファイルの検索・変換・分析を行う
+/// File management tool — search, convert, and analyze files
 #[derive(Parser, Debug)]
 #[command(name = "filetool")]
 #[command(version, about, long_about = None)]
 struct Cli {
-    /// 詳細出力を有効にする
+    /// Enable verbose output
     #[arg(short, long, global = true)]
     verbose: bool,
 
-    /// 設定ファイルのパス
+    /// Path to the configuration file
     #[arg(short, long, default_value = "~/.config/filetool/config.toml")]
     config: PathBuf,
 
-    /// 出力フォーマット
+    /// Output format
     #[arg(short, long, value_enum, default_value_t = OutputFormat::Text)]
     format: OutputFormat,
 
@@ -83,44 +83,44 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    /// ファイルを検索する
+    /// Search files
     Search {
-        /// 検索パターン (正規表現)
+        /// Search pattern (regex)
         pattern: String,
 
-        /// 検索対象ディレクトリ
+        /// Target directory for search
         #[arg(short, long, default_value = ".")]
         dir: PathBuf,
 
-        /// 最大結果数
+        /// Maximum number of results
         #[arg(short = 'n', long, default_value_t = 100)]
         max_results: usize,
 
-        /// ファイル拡張子フィルタ
+        /// File extension filter
         #[arg(short, long)]
         extension: Option<String>,
     },
 
-    /// ファイルを変換する
+    /// Convert files
     Convert {
-        /// 入力ファイル
+        /// Input file
         input: PathBuf,
 
-        /// 出力ファイル
+        /// Output file
         output: PathBuf,
 
-        /// 変換先フォーマット
+        /// Target format for conversion
         #[arg(short, long)]
         to: String,
     },
 
-    /// ディレクトリを分析する
+    /// Analyze a directory
     Analyze {
-        /// 対象パス
+        /// Target path
         #[arg(default_value = ".")]
         path: PathBuf,
 
-        /// 深度制限
+        /// Depth limit
         #[arg(short, long)]
         depth: Option<usize>,
     },
@@ -137,33 +137,33 @@ fn main() {
     let cli = Cli::parse();
 
     if cli.verbose {
-        eprintln!("設定ファイル: {:?}", cli.config);
-        eprintln!("出力形式: {:?}", cli.format);
+        eprintln!("Config file: {:?}", cli.config);
+        eprintln!("Output format: {:?}", cli.format);
     }
 
     match &cli.command {
         Commands::Search { pattern, dir, max_results, extension } => {
-            println!("検索: '{}' in {:?} (最大{}件)", pattern, dir, max_results);
+            println!("Search: '{}' in {:?} (max {})", pattern, dir, max_results);
             if let Some(ext) = extension {
-                println!("拡張子フィルタ: .{}", ext);
+                println!("Extension filter: .{}", ext);
             }
         }
         Commands::Convert { input, output, to } => {
-            println!("変換: {:?} -> {:?} ({}形式)", input, output, to);
+            println!("Convert: {:?} -> {:?} (format: {})", input, output, to);
         }
         Commands::Analyze { path, depth } => {
-            println!("分析: {:?} (深度: {:?})", path, depth);
+            println!("Analyze: {:?} (depth: {:?})", path, depth);
         }
     }
 }
 
-// 使用例:
+// Usage examples:
 // $ filetool search "TODO" --dir src/ -n 50 --extension rs
 // $ filetool convert input.csv output.json --to json
 // $ filetool analyze /var/log --depth 3 --verbose --format json
 ```
 
-### コード例2: バリデーション
+### Code Example 2: Validation
 
 ```rust
 use clap::Parser;
@@ -171,16 +171,16 @@ use std::path::PathBuf;
 
 #[derive(Parser)]
 struct Cli {
-    /// ポート番号 (1024-65535)
+    /// Port number (1024-65535)
     #[arg(short, long, default_value_t = 8080)]
     #[arg(value_parser = clap::value_parser!(u16).range(1024..=65535))]
     port: u16,
 
-    /// 入力ファイル (存在確認)
+    /// Input file (existence check)
     #[arg(value_parser = validate_file_exists)]
     input: PathBuf,
 
-    /// 並行度 (1-256)
+    /// Concurrency level (1-256)
     #[arg(short = 'j', long, default_value_t = num_cpus::get())]
     #[arg(value_parser = clap::value_parser!(usize).range(1..=256))]
     jobs: usize,
@@ -191,12 +191,12 @@ fn validate_file_exists(s: &str) -> Result<PathBuf, String> {
     if path.exists() {
         Ok(path)
     } else {
-        Err(format!("ファイルが見つかりません: {}", s))
+        Err(format!("File not found: {}", s))
     }
 }
 ```
 
-### コード例2b: 環境変数との連携
+### Code Example 2b: Integration with Environment Variables
 
 ```rust
 use clap::Parser;
@@ -204,29 +204,29 @@ use clap::Parser;
 #[derive(Parser, Debug)]
 #[command(name = "myapp")]
 struct Cli {
-    /// API キー (環境変数 MY_API_KEY でも設定可能)
+    /// API key (can also be set via the MY_API_KEY environment variable)
     #[arg(long, env = "MY_API_KEY")]
     api_key: String,
 
-    /// ログレベル (環境変数 RUST_LOG でも設定可能)
+    /// Log level (can also be set via the RUST_LOG environment variable)
     #[arg(long, env = "RUST_LOG", default_value = "info")]
     log_level: String,
 
-    /// データベース URL
+    /// Database URL
     #[arg(long, env = "DATABASE_URL")]
     database_url: Option<String>,
 
-    /// デバッグモード
+    /// Debug mode
     #[arg(long, env = "DEBUG", default_value_t = false)]
     debug: bool,
 }
 
-// 優先順位: コマンドライン引数 > 環境変数 > デフォルト値
+// Priority order: command-line arguments > environment variables > default values
 // $ MY_API_KEY=secret myapp --log-level debug
 // $ myapp --api-key secret --database-url postgres://localhost/mydb
 ```
 
-### コード例2c: グループ化とフラットン
+### Code Example 2c: Grouping and Flattening
 
 ```rust
 use clap::{Args, Parser};
@@ -239,46 +239,46 @@ struct Cli {
     #[command(flatten)]
     output: OutputArgs,
 
-    /// 実行するクエリ
+    /// Query to execute
     query: String,
 }
 
-/// 接続設定
+/// Connection settings
 #[derive(Args, Debug)]
 struct ConnectionArgs {
-    /// ホスト名
+    /// Hostname
     #[arg(long, default_value = "localhost")]
     host: String,
 
-    /// ポート番号
+    /// Port number
     #[arg(long, default_value_t = 5432)]
     port: u16,
 
-    /// ユーザー名
+    /// Username
     #[arg(long, env = "DB_USER")]
     user: String,
 
-    /// パスワード
+    /// Password
     #[arg(long, env = "DB_PASSWORD")]
     password: Option<String>,
 
-    /// SSL モード
+    /// SSL mode
     #[arg(long, value_enum, default_value_t = SslMode::Prefer)]
     ssl_mode: SslMode,
 }
 
-/// 出力設定
+/// Output settings
 #[derive(Args, Debug)]
 struct OutputArgs {
-    /// 出力フォーマット
+    /// Output format
     #[arg(short, long, value_enum, default_value_t = Format::Table)]
     format: Format,
 
-    /// 出力ファイル (省略時は stdout)
+    /// Output file (stdout if omitted)
     #[arg(short, long)]
     output: Option<std::path::PathBuf>,
 
-    /// ヘッダーを非表示
+    /// Hide header
     #[arg(long)]
     no_header: bool,
 }
@@ -292,14 +292,14 @@ enum Format { Table, Json, Csv, Tsv }
 // $ myapp --host db.example.com --user admin --format json "SELECT * FROM users"
 ```
 
-### コード例2d: カスタム derive とヘルプメッセージ
+### Code Example 2d: Custom Derive and Help Messages
 
 ```rust
 use clap::Parser;
 
-/// ログ解析ツール — 構造化ログを検索・集計・可視化する
+/// Log analysis tool — search, aggregate, and visualize structured logs
 ///
-/// 例:
+/// Examples:
 ///   logana search "ERROR" --since 1h --format json
 ///   logana stats --group-by level
 ///   logana tail --follow /var/log/app.log
@@ -309,7 +309,7 @@ use clap::Parser;
     version,
     about,
     long_about = None,
-    after_help = "詳細は https://example.com/logana を参照してください。",
+    after_help = "For details, see https://example.com/logana.",
     arg_required_else_help = true,
 )]
 struct Cli {
@@ -319,43 +319,43 @@ struct Cli {
 
 #[derive(clap::Subcommand)]
 enum Commands {
-    /// ログを検索する
+    /// Search logs
     Search {
-        /// 検索パターン (正規表現対応)
+        /// Search pattern (regex supported)
         pattern: String,
 
-        /// 期間フィルタ (例: 1h, 30m, 7d)
+        /// Time range filter (e.g., 1h, 30m, 7d)
         #[arg(long, value_parser = parse_duration)]
         since: Option<std::time::Duration>,
 
-        /// ログレベルフィルタ
+        /// Log level filter
         #[arg(long, value_delimiter = ',')]
         level: Vec<String>,
 
-        /// コンテキスト行数 (前後)
+        /// Number of context lines (before and after)
         #[arg(short = 'C', long, default_value_t = 0)]
         context: usize,
     },
-    /// 統計情報を表示する
+    /// Display statistics
     Stats {
-        /// グループ化キー
+        /// Grouping key
         #[arg(long)]
         group_by: Option<String>,
 
-        /// 上位 N 件のみ表示
+        /// Show only top N results
         #[arg(long, default_value_t = 10)]
         top: usize,
     },
-    /// リアルタイムでログを追跡する
+    /// Track logs in real time
     Tail {
-        /// 対象ファイル
+        /// Target file
         file: std::path::PathBuf,
 
-        /// follow モード (-f 相当)
+        /// follow mode (equivalent to -f)
         #[arg(short, long)]
         follow: bool,
 
-        /// フィルタパターン
+        /// Filter pattern
         #[arg(long)]
         filter: Option<String>,
     },
@@ -364,38 +364,38 @@ enum Commands {
 fn parse_duration(s: &str) -> Result<std::time::Duration, String> {
     let len = s.len();
     if len < 2 {
-        return Err("期間の形式が不正です (例: 1h, 30m, 7d)".to_string());
+        return Err("Invalid duration format (e.g., 1h, 30m, 7d)".to_string());
     }
     let (num_str, unit) = s.split_at(len - 1);
-    let num: u64 = num_str.parse().map_err(|_| "数値の解析に失敗しました".to_string())?;
+    let num: u64 = num_str.parse().map_err(|_| "Failed to parse number".to_string())?;
     match unit {
         "s" => Ok(std::time::Duration::from_secs(num)),
         "m" => Ok(std::time::Duration::from_secs(num * 60)),
         "h" => Ok(std::time::Duration::from_secs(num * 3600)),
         "d" => Ok(std::time::Duration::from_secs(num * 86400)),
-        _ => Err(format!("不明な単位: {}. s/m/h/d を使用してください", unit)),
+        _ => Err(format!("Unknown unit: {}. Please use s/m/h/d", unit)),
     }
 }
 ```
 
 ---
 
-## 3. ユーザー体験の向上
+## 3. Improving User Experience
 
-### コード例3: カラー出力とプログレスバー
+### Code Example 3: Colored Output and Progress Bars
 
 ```rust
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle, MultiProgress};
 
 fn main() {
-    // カラー出力
-    println!("{}", "成功!".green().bold());
-    println!("{}", "警告: ディスク容量低下".yellow());
-    println!("{}", "エラー: ファイル破損".red().bold());
-    println!("{}", "情報: 処理開始".blue());
+    // Colored output
+    println!("{}", "Success!".green().bold());
+    println!("{}", "Warning: Low disk space".yellow());
+    println!("{}", "Error: File corruption".red().bold());
+    println!("{}", "Info: Processing started".blue());
 
-    // 単一プログレスバー
+    // Single progress bar
     let pb = ProgressBar::new(100);
     pb.set_style(
         ProgressStyle::with_template(
@@ -408,9 +408,9 @@ fn main() {
         pb.set_position(i);
         std::thread::sleep(std::time::Duration::from_millis(20));
     }
-    pb.finish_with_message("完了!");
+    pb.finish_with_message("Done!");
 
-    // マルチプログレスバー
+    // Multi progress bar
     let multi = MultiProgress::new();
     let style = ProgressStyle::with_template(
         "{prefix:.bold} [{bar:30}] {pos}/{len}"
@@ -419,11 +419,11 @@ fn main() {
     let pb1 = multi.add(ProgressBar::new(50));
     let pb2 = multi.add(ProgressBar::new(80));
     pb1.set_style(style.clone());
-    pb1.set_prefix("ダウンロード");
+    pb1.set_prefix("Download ");
     pb2.set_style(style);
-    pb2.set_prefix("変換      ");
+    pb2.set_prefix("Convert  ");
 
-    // 並行処理でバーを更新
+    // Update bars concurrently
     let h1 = std::thread::spawn(move || {
         for i in 0..=50 { pb1.set_position(i); std::thread::sleep(std::time::Duration::from_millis(30)); }
         pb1.finish();
@@ -437,7 +437,7 @@ fn main() {
 }
 ```
 
-### コード例3b: テーブル出力
+### Code Example 3b: Table Output
 
 ```rust
 use tabled::{Table, Tabled, settings::{Style, Modify, object::Columns, Alignment}};
@@ -446,13 +446,13 @@ use tabled::{Table, Tabled, settings::{Style, Modify, object::Columns, Alignment
 struct ProcessInfo {
     #[tabled(rename = "PID")]
     pid: u32,
-    #[tabled(rename = "名前")]
+    #[tabled(rename = "Name")]
     name: String,
     #[tabled(rename = "CPU %")]
     cpu: f64,
-    #[tabled(rename = "メモリ (MB)")]
+    #[tabled(rename = "Memory (MB)")]
     memory_mb: f64,
-    #[tabled(rename = "状態")]
+    #[tabled(rename = "Status")]
     status: String,
 }
 
@@ -482,9 +482,9 @@ fn main() {
     ];
 
     display_processes(&processes);
-    // 出力:
+    // Output:
     // ╭──────┬──────────┬───────┬──────────────┬─────────╮
-    // │ PID  │ 名前     │ CPU % │ メモリ (MB)  │ 状態    │
+    // │ PID  │ Name     │ CPU % │ Memory (MB)  │ Status  │
     // ├──────┼──────────┼───────┼──────────────┼─────────┤
     // │ 1234 │ nginx    │   2.5 │        128.4 │ running │
     // │ 5678 │ postgres │  15.3 │        512.8 │ running │
@@ -493,13 +493,13 @@ fn main() {
 }
 ```
 
-### コード例3c: スピナーとステータス表示
+### Code Example 3c: Spinners and Status Display
 
 ```rust
 use indicatif::{ProgressBar, ProgressStyle};
 use std::time::Duration;
 
-/// 不定量の処理にはスピナーを使う
+/// Use a spinner for processes with indeterminate length
 fn process_with_spinner() {
     let spinner = ProgressBar::new_spinner();
     spinner.set_style(
@@ -507,19 +507,19 @@ fn process_with_spinner() {
             .unwrap()
             .tick_strings(&["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]),
     );
-    spinner.set_message("データベースに接続中...");
+    spinner.set_message("Connecting to the database...");
 
-    // 接続処理のシミュレーション
+    // Simulate the connection process
     std::thread::sleep(Duration::from_secs(2));
-    spinner.set_message("スキーマを検証中...");
+    spinner.set_message("Validating schema...");
     std::thread::sleep(Duration::from_secs(1));
-    spinner.set_message("マイグレーションを実行中...");
+    spinner.set_message("Running migrations...");
     std::thread::sleep(Duration::from_secs(3));
 
-    spinner.finish_with_message("✓ マイグレーション完了");
+    spinner.finish_with_message("✓ Migration complete");
 }
 
-/// ダウンロードのようなバイトベースの進捗表示
+/// Byte-based progress display, e.g. for downloads
 fn download_with_progress(total_bytes: u64) {
     let pb = ProgressBar::new(total_bytes);
     pb.set_style(
@@ -538,49 +538,49 @@ fn download_with_progress(total_bytes: u64) {
         std::thread::sleep(Duration::from_millis(10));
     }
 
-    pb.finish_with_message("ダウンロード完了");
+    pb.finish_with_message("Download complete");
 }
 ```
 
-### コード例4: 対話的プロンプト
+### Code Example 4: Interactive Prompts
 
 ```rust
 use dialoguer::{Confirm, Input, Select, MultiSelect, Password};
 use console::style;
 
 fn main() -> anyhow::Result<()> {
-    // テキスト入力
+    // Text input
     let name: String = Input::new()
-        .with_prompt("プロジェクト名")
+        .with_prompt("Project name")
         .default("my-project".into())
         .interact_text()?;
 
-    // 選択
+    // Selection
     let frameworks = &["Axum", "Actix-web", "Rocket", "Warp"];
     let selection = Select::new()
-        .with_prompt("フレームワークを選択")
+        .with_prompt("Choose a framework")
         .items(frameworks)
         .default(0)
         .interact()?;
-    println!("選択: {}", frameworks[selection]);
+    println!("Selected: {}", frameworks[selection]);
 
-    // 複数選択
+    // Multi-selection
     let features = &["Database", "Auth", "WebSocket", "GraphQL", "Metrics"];
     let selections = MultiSelect::new()
-        .with_prompt("機能を選択 (スペースキーで選択)")
+        .with_prompt("Choose features (space to select)")
         .items(features)
         .interact()?;
     for &i in &selections {
         println!("  + {}", features[i]);
     }
 
-    // 確認
+    // Confirmation
     if Confirm::new()
-        .with_prompt("プロジェクトを作成しますか?")
+        .with_prompt("Create the project?")
         .default(true)
         .interact()?
     {
-        println!("{} プロジェクト '{}' を作成しました!", style("✓").green(), name);
+        println!("{} Created project '{}'!", style("✓").green(), name);
     }
 
     Ok(())
@@ -589,31 +589,31 @@ fn main() -> anyhow::Result<()> {
 
 ---
 
-## 4. クロスコンパイルと配布
+## 4. Cross-compilation and Distribution
 
-### コード例5: クロスコンパイル設定
+### Code Example 5: Cross-compilation Configuration
 
 ```toml
 # .cargo/config.toml
 
 # macOS (Apple Silicon)
 [target.aarch64-apple-darwin]
-# ネイティブの場合は設定不要
+# No configuration needed when building natively
 
-# Linux (x86_64, musl で静的リンク)
+# Linux (x86_64, statically linked with musl)
 [target.x86_64-unknown-linux-musl]
 linker = "x86_64-linux-musl-gcc"
 
-# Windows (MinGW クロスコンパイル)
+# Windows (MinGW cross-compilation)
 [target.x86_64-pc-windows-gnu]
 linker = "x86_64-w64-mingw32-gcc"
 ```
 
 ```bash
-# cross を使ったクロスコンパイル (Docker ベース)
+# Cross-compile using cross (Docker-based)
 cargo install cross
 
-# Linux (静的リンク)
+# Linux (static linking)
 cross build --release --target x86_64-unknown-linux-musl
 
 # Windows
@@ -623,10 +623,10 @@ cross build --release --target x86_64-pc-windows-gnu
 cross build --release --target aarch64-unknown-linux-gnu
 ```
 
-### CI/CD パイプライン
+### CI/CD Pipeline
 
 ```
-┌───────── GitHub Actions リリースフロー ─────────┐
+┌────────── GitHub Actions Release Flow ──────────┐
 │                                                   │
 │  git push --tags v1.0.0                          │
 │    │                                              │
@@ -652,7 +652,7 @@ cross build --release --target aarch64-unknown-linux-gnu
 └───────────────────────────────────────────────────┘
 ```
 
-### コード例6: GitHub Actions ワークフロー
+### Code Example 6: GitHub Actions Workflow
 
 ```yaml
 # .github/workflows/release.yml
@@ -696,16 +696,16 @@ jobs:
           path: target/${{ matrix.target }}/release/filetool*
 ```
 
-### コード例6b: cargo-dist による自動配布
+### Code Example 6b: Automated Distribution with cargo-dist
 
 ```toml
-# Cargo.toml に以下を追加
+# Add the following to Cargo.toml
 [workspace.metadata.dist]
-# CI プロバイダ
+# CI provider
 ci = ["github"]
-# インストーラ生成
+# Generated installers
 installers = ["shell", "powershell", "homebrew"]
-# ターゲット
+# Targets
 targets = [
     "aarch64-apple-darwin",
     "x86_64-apple-darwin",
@@ -713,33 +713,33 @@ targets = [
     "x86_64-unknown-linux-musl",
     "x86_64-pc-windows-msvc",
 ]
-# Homebrew tap リポジトリ
+# Homebrew tap repository
 tap = "username/homebrew-tap"
-# リリース発行
+# Release publishing
 publish-jobs = ["homebrew"]
 ```
 
 ```bash
-# cargo-dist の初期化
+# Initialize cargo-dist
 cargo install cargo-dist
 cargo dist init
 
-# ローカルでビルドテスト
+# Test the build locally
 cargo dist build
 
-# プラン表示 (何がビルドされるか確認)
+# Show the plan (verify what will be built)
 cargo dist plan
 
-# タグプッシュでリリース自動実行
+# Pushing a tag triggers the release automatically
 git tag v1.0.0
 git push --tags
 ```
 
 ---
 
-## 5. 設定ファイルとデータ永続化
+## 5. Configuration Files and Data Persistence
 
-### コード例7: XDG 準拠の設定管理
+### Code Example 7: XDG-compliant Configuration Management
 
 ```rust
 use directories::ProjectDirs;
@@ -748,23 +748,23 @@ use std::path::PathBuf;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AppConfig {
-    /// デフォルトの出力フォーマット
+    /// Default output format
     #[serde(default = "default_format")]
     pub format: String,
 
-    /// 並行度
+    /// Concurrency level
     #[serde(default = "default_jobs")]
     pub jobs: usize,
 
-    /// カラー出力
+    /// Colored output
     #[serde(default = "default_color")]
     pub color: ColorMode,
 
-    /// エディタコマンド
+    /// Editor command
     #[serde(default)]
     pub editor: Option<String>,
 
-    /// カスタムエイリアス
+    /// Custom aliases
     #[serde(default)]
     pub aliases: std::collections::HashMap<String, Vec<String>>,
 }
@@ -782,28 +782,28 @@ fn default_jobs() -> usize { num_cpus::get() }
 fn default_color() -> ColorMode { ColorMode::Auto }
 
 impl AppConfig {
-    /// 設定ファイルのパスを取得 (XDG 準拠)
+    /// Get the configuration file path (XDG compliant)
     pub fn config_path() -> Option<PathBuf> {
         ProjectDirs::from("com", "example", "filetool")
             .map(|dirs| dirs.config_dir().join("config.toml"))
     }
 
-    /// データディレクトリのパスを取得
+    /// Get the data directory path
     pub fn data_dir() -> Option<PathBuf> {
         ProjectDirs::from("com", "example", "filetool")
             .map(|dirs| dirs.data_dir().to_path_buf())
     }
 
-    /// キャッシュディレクトリのパスを取得
+    /// Get the cache directory path
     pub fn cache_dir() -> Option<PathBuf> {
         ProjectDirs::from("com", "example", "filetool")
             .map(|dirs| dirs.cache_dir().to_path_buf())
     }
 
-    /// 設定を読み込む (なければデフォルト値)
+    /// Load the configuration (use default values if absent)
     pub fn load() -> anyhow::Result<Self> {
         let path = Self::config_path()
-            .ok_or_else(|| anyhow::anyhow!("設定ディレクトリを特定できません"))?;
+            .ok_or_else(|| anyhow::anyhow!("Cannot determine config directory"))?;
 
         if path.exists() {
             let content = std::fs::read_to_string(&path)?;
@@ -814,12 +814,12 @@ impl AppConfig {
         }
     }
 
-    /// 設定を保存する
+    /// Save the configuration
     pub fn save(&self) -> anyhow::Result<()> {
         let path = Self::config_path()
-            .ok_or_else(|| anyhow::anyhow!("設定ディレクトリを特定できません"))?;
+            .ok_or_else(|| anyhow::anyhow!("Cannot determine config directory"))?;
 
-        // ディレクトリを作成
+        // Create the directory
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
@@ -842,7 +842,7 @@ impl Default for AppConfig {
     }
 }
 
-// 設定ファイルの例 (~/.config/filetool/config.toml):
+// Example configuration file (~/.config/filetool/config.toml):
 // format = "json"
 // jobs = 8
 // color = "auto"
@@ -853,7 +853,7 @@ impl Default for AppConfig {
 // todo = ["search", "TODO|FIXME", "--extension", "rs"]
 ```
 
-### コード例8: 履歴とキャッシュの管理
+### Code Example 8: Managing History and Cache
 
 ```rust
 use serde::{Deserialize, Serialize};
@@ -892,7 +892,7 @@ impl CommandHistory {
 
     pub fn add(&mut self, entry: HistoryEntry) {
         self.entries.push(entry);
-        // 古いエントリを削除
+        // Remove old entries
         if self.entries.len() > self.max_entries {
             let excess = self.entries.len() - self.max_entries;
             self.entries.drain(..excess);
@@ -908,13 +908,13 @@ impl CommandHistory {
         Ok(())
     }
 
-    /// 直近 N 件を取得
+    /// Get the most recent N entries
     pub fn recent(&self, n: usize) -> &[HistoryEntry] {
         let start = self.entries.len().saturating_sub(n);
         &self.entries[start..]
     }
 
-    /// 特定コマンドの実行回数
+    /// Number of executions of a specific command
     pub fn command_count(&self, command: &str) -> usize {
         self.entries.iter().filter(|e| e.command == command).count()
     }
@@ -923,70 +923,70 @@ impl CommandHistory {
 
 ---
 
-## 6. エラーハンドリングとロギング
+## 6. Error Handling and Logging
 
-### コード例9: anyhow + thiserror による構造化エラー
+### Code Example 9: Structured Errors with anyhow + thiserror
 
 ```rust
 use thiserror::Error;
 
-/// アプリケーション固有のエラー型
+/// Application-specific error type
 #[derive(Error, Debug)]
 pub enum AppError {
-    #[error("設定ファイルの読み込みに失敗しました: {path}")]
+    #[error("Failed to load configuration file: {path}")]
     ConfigLoad {
         path: std::path::PathBuf,
         #[source]
         source: std::io::Error,
     },
 
-    #[error("パターン '{pattern}' は無効な正規表現です")]
+    #[error("Pattern '{pattern}' is an invalid regular expression")]
     InvalidPattern {
         pattern: String,
         #[source]
         source: regex::Error,
     },
 
-    #[error("ファイル '{path}' が見つかりません")]
+    #[error("File '{path}' not found")]
     FileNotFound { path: std::path::PathBuf },
 
-    #[error("権限が不足しています: {path}")]
+    #[error("Permission denied: {path}")]
     PermissionDenied { path: std::path::PathBuf },
 
-    #[error("操作がタイムアウトしました ({timeout_secs}秒)")]
+    #[error("Operation timed out ({timeout_secs}s)")]
     Timeout { timeout_secs: u64 },
 
-    #[error("不明なフォーマット: '{format}'. 使用可能: {available}")]
+    #[error("Unknown format: '{format}'. Available: {available}")]
     UnknownFormat {
         format: String,
         available: String,
     },
 }
 
-/// main 関数での統合
+/// Integration in the main function
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
-    // tracing の初期化
+    // Initialize tracing
     setup_logging(cli.verbose)?;
 
-    // 実行
+    // Run
     let result = run(&cli);
 
-    // エラー表示のカスタマイズ
+    // Customize error display
     match result {
         Ok(()) => std::process::exit(0),
         Err(e) => {
-            // anyhow のエラーチェーンを表示
+            // Display the anyhow error chain
             if cli.verbose {
-                // 詳細: エラーチェーン全体
-                eprintln!("{}: {:?}", "エラー".red().bold(), e);
+                // Detailed: full error chain
+                eprintln!("{}: {:?}", "Error".red().bold(), e);
             } else {
-                // 簡潔: 最上位のメッセージのみ
-                eprintln!("{}: {}", "エラー".red().bold(), e);
+                // Concise: top-level message only
+                eprintln!("{}: {}", "Error".red().bold(), e);
             }
 
-            // エラーの種類に応じた終了コード
+            // Exit code based on error kind
             let code = match e.downcast_ref::<AppError>() {
                 Some(AppError::FileNotFound { .. }) => 2,
                 Some(AppError::PermissionDenied { .. }) => 3,
@@ -1007,13 +1007,13 @@ fn run(_cli: &Cli) -> anyhow::Result<()> { Ok(()) }
 fn setup_logging(_verbose: bool) -> anyhow::Result<()> { Ok(()) }
 ```
 
-### コード例10: tracing によるログ出力
+### Code Example 10: Logging with tracing
 
 ```rust
 use tracing::{debug, error, info, instrument, warn};
 use tracing_subscriber::{fmt, EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
-/// ロギングのセットアップ
+/// Logging setup
 fn setup_logging(verbose: bool, log_file: Option<&std::path::Path>) -> anyhow::Result<()> {
     let env_filter = if verbose {
         EnvFilter::new("debug")
@@ -1031,7 +1031,7 @@ fn setup_logging(verbose: bool, log_file: Option<&std::path::Path>) -> anyhow::R
         .with(env_filter)
         .with(fmt_layer);
 
-    // ファイル出力を追加
+    // Add file output
     if let Some(log_path) = log_file {
         let file = std::fs::OpenOptions::new()
             .create(true)
@@ -1051,39 +1051,39 @@ fn setup_logging(verbose: bool, log_file: Option<&std::path::Path>) -> anyhow::R
     Ok(())
 }
 
-/// instrument マクロで自動トレーシング
+/// Automatic tracing with the instrument macro
 #[instrument(skip(content), fields(content_len = content.len()))]
 fn process_file(path: &std::path::Path, content: &str) -> anyhow::Result<usize> {
-    info!("ファイルを処理中: {:?}", path);
+    info!("Processing file: {:?}", path);
 
     let lines = content.lines().count();
-    debug!(lines, "行数を計算");
+    debug!(lines, "Counted lines");
 
     if lines == 0 {
-        warn!("空のファイルです: {:?}", path);
+        warn!("Empty file: {:?}", path);
     }
 
-    // エラーの場合
+    // Error case
     if !path.exists() {
-        error!("ファイルが存在しません: {:?}", path);
-        anyhow::bail!("ファイルが見つかりません");
+        error!("File does not exist: {:?}", path);
+        anyhow::bail!("File not found");
     }
 
-    info!(lines, "処理完了");
+    info!(lines, "Processing complete");
     Ok(lines)
 }
 
-// 使い方:
-// RUST_LOG=debug myapp process     ← debug 以上を表示
-// RUST_LOG=myapp=trace myapp       ← 自クレートのみ trace
-// myapp --verbose process          ← verbose で debug 有効
+// Usage:
+// RUST_LOG=debug myapp process     ← shows debug and above
+// RUST_LOG=myapp=trace myapp       ← trace for own crate only
+// myapp --verbose process          ← --verbose enables debug
 ```
 
 ---
 
-## 7. CLI テスト
+## 7. CLI Testing
 
-### コード例11: assert_cmd による統合テスト
+### Code Example 11: Integration Testing with assert_cmd
 
 ```rust
 // tests/integration_test.rs
@@ -1099,7 +1099,7 @@ fn test_help_flag() {
         .arg("--help")
         .assert()
         .success()
-        .stdout(predicate::str::contains("ファイル管理ツール"));
+        .stdout(predicate::str::contains("File management tool"));
 }
 
 #[test]
@@ -1139,7 +1139,7 @@ fn test_search_no_results() {
         .arg(dir.path())
         .assert()
         .success()
-        .stdout(predicate::str::contains("0 件"));
+        .stdout(predicate::str::contains("0 results"));
 }
 
 #[test]
@@ -1149,7 +1149,7 @@ fn test_invalid_pattern() {
         .args(["search", "[invalid", "--dir", "."])
         .assert()
         .failure()
-        .stderr(predicate::str::contains("無効な正規表現"));
+        .stderr(predicate::str::contains("invalid regular expression"));
 }
 
 #[test]
@@ -1178,13 +1178,13 @@ fn test_json_output_format() {
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).unwrap();
-    // JSON として妥当かチェック
+    // Validate that the output is valid JSON
     let _: serde_json::Value = serde_json::from_str(&stdout)
-        .expect("出力が有効な JSON であること");
+        .expect("output should be valid JSON");
 }
 ```
 
-### コード例12: trycmd によるスナップショットテスト
+### Code Example 12: Snapshot Testing with trycmd
 
 ```toml
 # Cargo.toml
@@ -1206,22 +1206,22 @@ bin.name = "filetool"
 args = ["search", "--help"]
 status.code = 0
 stdout.is = """
-ファイルを検索する
+Search files
 
 Usage: filetool search [OPTIONS] <PATTERN>
 
 Arguments:
-  <PATTERN>  検索パターン (正規表現)
+  <PATTERN>  Search pattern (regex)
 
 Options:
-  -d, --dir <DIR>            検索対象ディレクトリ [default: .]
-  -n, --max-results <MAX>    最大結果数 [default: 100]
-  -e, --extension <EXT>      ファイル拡張子フィルタ
+  -d, --dir <DIR>            Target directory for search [default: .]
+  -n, --max-results <MAX>    Maximum number of results [default: 100]
+  -e, --extension <EXT>      File extension filter
   -h, --help                 Print help
 """
 ```
 
-### コード例13: clap のユニットテスト
+### Code Example 13: Unit Testing of clap
 
 ```rust
 use clap::Parser;
@@ -1280,11 +1280,11 @@ mod tests {
         assert!(result.is_err());
     }
 
-    /// ヘルプが正常に生成されることを検証
+    /// Verify that help is generated correctly
     #[test]
     fn test_help_generation() {
-        // parse_from に --help を渡すとプロセスが終了するため、
-        // Command を直接使って検証する
+        // Passing --help to parse_from terminates the process,
+        // so we use Command directly to verify
         use clap::CommandFactory;
         let mut cmd = Cli::command();
         let help = cmd.render_help().to_string();
@@ -1296,25 +1296,25 @@ mod tests {
 
 ---
 
-## 8. 実践的な CLI ツール設計パターン
+## 8. Practical CLI Tool Design Patterns
 
-### パイプとリダイレクト対応
+### Pipe and Redirection Support
 
 ```rust
 use std::io::{self, BufRead, Write, IsTerminal};
 
-/// stdin がパイプされているか TTY かを判定して動作を変える
+/// Detect whether stdin is piped or a TTY and adjust behavior accordingly
 fn main() -> anyhow::Result<()> {
     let stdin = io::stdin();
     let stdout = io::stdout();
     let mut out = io::BufWriter::new(stdout.lock());
 
     if stdin.is_terminal() {
-        // 対話モード: ユーザーに入力を求める
-        eprintln!("テキストを入力してください (Ctrl+D で終了):");
+        // Interactive mode: prompt the user for input
+        eprintln!("Enter text (Ctrl+D to finish):");
     }
 
-    // パイプでもTTYでも統一的に処理
+    // Process uniformly whether piped or TTY
     for line in stdin.lock().lines() {
         let line = line?;
         let processed = process_line(&line);
@@ -1328,39 +1328,39 @@ fn process_line(line: &str) -> String {
     line.to_uppercase()
 }
 
-// 使い方:
-// $ echo "hello world" | myapp          ← パイプ入力
-// $ myapp < input.txt > output.txt      ← リダイレクト
-// $ myapp                                ← 対話モード
+// Usage:
+// $ echo "hello world" | myapp          ← piped input
+// $ myapp < input.txt > output.txt      ← redirection
+// $ myapp                                ← interactive mode
 ```
 
-### シグナルハンドリング (Graceful Shutdown)
+### Signal Handling (Graceful Shutdown)
 
 ```rust
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 fn main() -> anyhow::Result<()> {
-    // Ctrl+C ハンドラ
+    // Ctrl+C handler
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
 
     ctrlc::set_handler(move || {
         if !r.load(Ordering::SeqCst) {
-            // 2回目の Ctrl+C で強制終了
-            eprintln!("\n強制終了します");
+            // Force exit on second Ctrl+C
+            eprintln!("\nForce-quitting");
             std::process::exit(130);
         }
-        eprintln!("\n中断を受信しました。処理を停止しています...");
+        eprintln!("\nInterrupt received. Stopping processing...");
         r.store(false, Ordering::SeqCst);
     })?;
 
-    // メイン処理ループ
+    // Main processing loop
     let total = 1000;
     for i in 0..total {
         if !running.load(Ordering::SeqCst) {
-            eprintln!("処理を中断しました ({}/{})", i, total);
-            // クリーンアップ処理
+            eprintln!("Processing aborted ({}/{})", i, total);
+            // Cleanup
             cleanup()?;
             std::process::exit(130); // 128 + SIGINT(2)
         }
@@ -1376,17 +1376,17 @@ fn process_item(_i: usize) -> anyhow::Result<()> {
 }
 
 fn cleanup() -> anyhow::Result<()> {
-    eprintln!("一時ファイルを削除中...");
+    eprintln!("Removing temporary files...");
     Ok(())
 }
 ```
 
-### カラー出力の自動判定
+### Automatic Color Output Detection
 
 ```rust
 use std::io::IsTerminal;
 
-/// 出力先に応じてカラーを自動制御
+/// Automatically control color according to the output destination
 struct Output {
     color_enabled: bool,
 }
@@ -1397,9 +1397,9 @@ impl Output {
             "always" => true,
             "never" => false,
             _ => {
-                // auto: TTY ならカラー、パイプなら無効
+                // auto: color when TTY, disabled when piped
                 std::io::stdout().is_terminal()
-                    && std::env::var("NO_COLOR").is_err() // NO_COLOR 規約対応
+                    && std::env::var("NO_COLOR").is_err() // Honor the NO_COLOR convention
                     && std::env::var("TERM").map_or(true, |t| t != "dumb")
             }
         };
@@ -1442,76 +1442,76 @@ impl Output {
 
 ---
 
-## 9. 比較表
+## 9. Comparison Tables
 
-### CLI クレート一覧
+### CLI Crate Reference
 
-| カテゴリ | クレート | 用途 | Cargo.toml |
+| Category | Crate | Purpose | Cargo.toml |
 |---|---|---|---|
-| 引数解析 | clap | コマンドライン引数 | `clap = { version = "4", features = ["derive", "env"] }` |
-| カラー | colored | 色付きターミナル出力 | `colored = "2"` |
-| カラー | owo-colors | 軽量カラー出力 | `owo-colors = "4"` |
-| 進捗 | indicatif | プログレスバー / スピナー | `indicatif = "0.17"` |
-| 対話 | dialoguer | インタラクティブプロンプト | `dialoguer = "0.11"` |
-| テーブル | tabled | テーブル表示 | `tabled = "0.16"` |
-| コンソール | console | ターミナルユーティリティ | `console = "0.15"` |
-| エラー | anyhow | アプリケーションエラー | `anyhow = "1"` |
-| エラー | thiserror | ライブラリエラー定義 | `thiserror = "2"` |
-| ログ | tracing | 構造化ログ | `tracing = "0.1"` |
-| ログ | tracing-subscriber | ログ出力設定 | `tracing-subscriber = { version = "0.3", features = ["env-filter"] }` |
-| 設定 | directories | XDG パス | `directories = "5"` |
-| 設定 | toml | TOML パーサ | `toml = "0.8"` |
-| テスト | assert_cmd | CLI 統合テスト | `assert_cmd = "2"` |
-| テスト | predicates | アサーション | `predicates = "3"` |
-| テスト | trycmd | スナップショットテスト | `trycmd = "0.15"` |
-| シグナル | ctrlc | Ctrl+C ハンドリング | `ctrlc = "3"` |
-| ビルド | cross | クロスコンパイル | CLI ツール |
-| 配布 | cargo-dist | バイナリ配布 | CLI ツール |
+| Argument parsing | clap | Command-line arguments | `clap = { version = "4", features = ["derive", "env"] }` |
+| Color | colored | Colored terminal output | `colored = "2"` |
+| Color | owo-colors | Lightweight colored output | `owo-colors = "4"` |
+| Progress | indicatif | Progress bars / spinners | `indicatif = "0.17"` |
+| Interaction | dialoguer | Interactive prompts | `dialoguer = "0.11"` |
+| Tables | tabled | Table display | `tabled = "0.16"` |
+| Console | console | Terminal utilities | `console = "0.15"` |
+| Errors | anyhow | Application errors | `anyhow = "1"` |
+| Errors | thiserror | Library error definitions | `thiserror = "2"` |
+| Logging | tracing | Structured logging | `tracing = "0.1"` |
+| Logging | tracing-subscriber | Logging output configuration | `tracing-subscriber = { version = "0.3", features = ["env-filter"] }` |
+| Configuration | directories | XDG paths | `directories = "5"` |
+| Configuration | toml | TOML parser | `toml = "0.8"` |
+| Testing | assert_cmd | CLI integration testing | `assert_cmd = "2"` |
+| Testing | predicates | Assertions | `predicates = "3"` |
+| Testing | trycmd | Snapshot testing | `trycmd = "0.15"` |
+| Signals | ctrlc | Ctrl+C handling | `ctrlc = "3"` |
+| Build | cross | Cross-compilation | CLI tool |
+| Distribution | cargo-dist | Binary distribution | CLI tool |
 
-### CLI 引数解析ライブラリ比較
+### Comparison of CLI Argument Parsing Libraries
 
-| ライブラリ | API スタイル | コンパイル速度 | 機能 | 特徴 |
+| Library | API style | Compile speed | Features | Characteristics |
 |---|---|---|---|---|
-| clap (derive) | 構造体マクロ | 遅め | 最も豊富 | 業界標準 |
-| clap (builder) | ビルダーパターン | 遅め | 最も豊富 | 動的定義 |
-| argh | derive | 高速 | 基本的 | Google 製、軽量 |
-| pico-args | 手動 | 最速 | 最小限 | 依存ゼロ |
-| bpaf | derive + builder | 中程度 | 豊富 | 合成可能 |
+| clap (derive) | Struct macro | Slow | Most extensive | Industry standard |
+| clap (builder) | Builder pattern | Slow | Most extensive | Dynamic definition |
+| argh | derive | Fast | Basic | Made by Google, lightweight |
+| pico-args | Manual | Fastest | Minimal | Zero dependencies |
+| bpaf | derive + builder | Moderate | Rich | Composable |
 
-### 配布方式比較
+### Distribution Method Comparison
 
-| 方式 | 対象 | 利点 | 欠点 |
+| Method | Targets | Pros | Cons |
 |---|---|---|---|
-| GitHub Release | 全OS | 広い到達性 | 手動ダウンロード |
-| cargo install | Rust 開発者 | 最も簡単 | rustc 必要 |
-| Homebrew (tap) | macOS/Linux | パッケージ管理 | tap 管理が必要 |
-| cargo-dist | 全OS | 自動化 | 設定が必要 |
-| Docker イメージ | サーバー | 環境独立 | Docker 必要 |
+| GitHub Release | All OS | Wide reach | Manual download |
+| cargo install | Rust developers | Simplest | Requires rustc |
+| Homebrew (tap) | macOS/Linux | Package management | Tap maintenance required |
+| cargo-dist | All OS | Automated | Configuration required |
+| Docker image | Servers | Environment independent | Requires Docker |
 
 ---
 
-## 10. アンチパターン
+## 10. Anti-patterns
 
-### アンチパターン1: エラー出力を stdout に流す
+### Anti-pattern 1: Sending Error Output to stdout
 
 ```rust
-// NG: エラーメッセージを println! (stdout) で出力
+// BAD: Print error message via println! (stdout)
 fn bad_main() {
     let result = process_file("input.txt");
     if result.is_err() {
-        println!("エラー: ファイルが見つかりません");
-        // パイプ時に正常出力と混ざる!
-        // $ filetool input.txt | grep pattern  ← エラーも grep される
+        println!("Error: file not found");
+        // Mixed with normal output when piped!
+        // $ filetool input.txt | grep pattern  ← errors get grep'd too
     }
 }
 
-// OK: エラーは stderr、正常出力は stdout
+// GOOD: errors to stderr, normal output to stdout
 fn good_main() {
     match process_file("input.txt") {
         Ok(output) => print!("{}", output),           // stdout
         Err(e) => {
-            eprintln!("エラー: {}", e);                // stderr
-            std::process::exit(1);                      // 非ゼロ終了コード
+            eprintln!("Error: {}", e);                 // stderr
+            std::process::exit(1);                      // non-zero exit code
         }
     }
 }
@@ -1519,28 +1519,28 @@ fn good_main() {
 fn process_file(_: &str) -> Result<String, String> { Ok("data".into()) }
 ```
 
-### アンチパターン2: 終了コードの無視
+### Anti-pattern 2: Ignoring Exit Codes
 
 ```rust
-// NG: 常に exit(0)
+// BAD: always exit(0)
 fn bad() {
     if let Err(e) = run() {
         eprintln!("{}", e);
-        // exit code = 0 (成功扱い) → CI/CD で異常検知できない
+        // exit code = 0 (treated as success) → CI/CD cannot detect anomalies
     }
 }
 
-// OK: 適切な終了コード
+// GOOD: Appropriate exit codes
 fn main() {
     let result = run();
     std::process::exit(match result {
-        Ok(_) => 0,     // 成功
+        Ok(_) => 0,     // Success
         Err(e) => {
-            eprintln!("エラー: {:#}", e);
+            eprintln!("Error: {:#}", e);
             match e.downcast_ref::<std::io::Error>() {
                 Some(io_err) if io_err.kind() == std::io::ErrorKind::NotFound => 2,
-                Some(_) => 3,    // I/O エラー
-                None => 1,       // その他のエラー
+                Some(_) => 3,    // I/O error
+                None => 1,       // Other errors
             }
         }
     });
@@ -1549,49 +1549,49 @@ fn main() {
 fn run() -> anyhow::Result<()> { Ok(()) }
 ```
 
-### アンチパターン3: カラーの強制出力
+### Anti-pattern 3: Forced Color Output
 
 ```rust
-// NG: パイプ先でもカラーコードが出力されてしまう
+// BAD: color codes are emitted even when piped
 fn bad_output() {
-    // colored はデフォルトで TTY を検出するが、
-    // 環境変数 CLICOLOR_FORCE=1 などで常に有効になる場合がある
-    println!("{}", "結果".green());
-    // $ myapp | grep pattern → "\x1b[32m結果\x1b[0m" がそのまま出力
+    // colored detects TTY by default, but
+    // it can be forced on via env vars like CLICOLOR_FORCE=1
+    println!("{}", "Result".green());
+    // $ myapp | grep pattern → "\x1b[32mResult\x1b[0m" emitted as-is
 }
 
-// OK: NO_COLOR 規約と TTY 判定を尊重
+// GOOD: Honor the NO_COLOR convention and TTY detection
 fn good_output() {
-    // colored の自動検出を利用
+    // Use colored's automatic detection
     if std::env::var("NO_COLOR").is_ok() {
         colored::control::set_override(false);
     }
 
-    // もしくは手動制御
+    // Or control manually
     use std::io::IsTerminal;
     if !std::io::stdout().is_terminal() {
         colored::control::set_override(false);
     }
 
-    println!("{}", "結果".green());
+    println!("{}", "Result".green());
 }
 
 use colored::Colorize;
 ```
 
-### アンチパターン4: 大量出力のバッファリング不足
+### Anti-pattern 4: Insufficient Buffering for Large Output
 
 ```rust
 use std::io::{self, Write, BufWriter};
 
-// NG: 毎行 println! → 毎回 flush でパフォーマンス劣化
+// BAD: println! per line → flush on every call hurts performance
 fn bad_output(lines: &[String]) {
     for line in lines {
-        println!("{}", line); // 暗黙の flush が発生
+        println!("{}", line); // Implicit flush occurs
     }
 }
 
-// OK: BufWriter で一括書き出し
+// GOOD: Bulk write with BufWriter
 fn good_output(lines: &[String]) -> io::Result<()> {
     let stdout = io::stdout();
     let mut out = BufWriter::new(stdout.lock());
@@ -1599,28 +1599,28 @@ fn good_output(lines: &[String]) -> io::Result<()> {
     for line in lines {
         writeln!(out, "{}", line)?;
     }
-    out.flush()?; // 最後に明示的に flush
+    out.flush()?; // Explicit final flush
     Ok(())
 }
-// 数万行の出力で 10-100 倍の速度差が出る
+// For tens of thousands of lines, this can be 10-100x faster
 ```
 
-### アンチパターン5: unwrap の乱用
+### Anti-pattern 5: Overuse of unwrap
 
 ```rust
-// NG: CLI ツールで unwrap → ユーザーに不親切なパニックメッセージ
+// BAD: unwrap in a CLI tool → unfriendly panic message for users
 fn bad_main() {
     let content = std::fs::read_to_string("config.toml").unwrap();
     // thread 'main' panicked at 'called `Result::unwrap()` on an `Err` value: ...
     let config: Config = toml::from_str(&content).unwrap();
 }
 
-// OK: エラーを人間が読めるメッセージに変換
+// GOOD: Convert errors into human-readable messages
 fn good_main() -> anyhow::Result<()> {
     let content = std::fs::read_to_string("config.toml")
-        .context("設定ファイル config.toml を開けませんでした")?;
+        .context("Could not open config file config.toml")?;
     let config: Config = toml::from_str(&content)
-        .context("設定ファイルの形式が不正です")?;
+        .context("Configuration file has an invalid format")?;
     Ok(())
 }
 
@@ -1633,23 +1633,23 @@ use serde::Deserialize;
 
 ## FAQ
 
-### Q1: clap の derive API と builder API はどちらを使うべき?
+### Q1: Should I use clap's derive API or builder API?
 
-**A:** ほとんどの場合 derive API が推奨です。構造体に `#[derive(Parser)]` を付けるだけで型安全な CLI が定義できます。動的にコマンドを構築する必要がある場合(プラグインシステム等)のみ builder API を検討してください。
+**A:** In most cases the derive API is recommended. You can define a type-safe CLI just by adding `#[derive(Parser)]` to a struct. Consider the builder API only when you need to construct commands dynamically (such as in plugin systems).
 
-### Q2: musl と glibc の違いは?
+### Q2: What is the difference between musl and glibc?
 
-**A:** musl でビルドすると静的リンクされ、libc に依存しないバイナリになります。どの Linux ディストリビューションでもそのまま動作します。glibc は動的リンクのため、実行環境の glibc バージョンに依存します。配布用バイナリには musl が推奨です。
+**A:** Building with musl produces a statically linked binary that does not depend on libc. It runs as-is on any Linux distribution. glibc is dynamically linked, so it depends on the glibc version of the runtime environment. musl is recommended for distribution binaries.
 
-### Q3: シェル補完を生成するには?
+### Q3: How do I generate shell completions?
 
-**A:** clap の `clap_complete` クレートで各シェルの補完スクリプトを自動生成できます。
+**A:** clap's `clap_complete` crate can automatically generate completion scripts for various shells.
 
 ```rust
 use clap::CommandFactory;
 use clap_complete::{generate, Shell};
 
-// ビルド時に生成 (build.rs)
+// Generate at build time (build.rs)
 fn main() {
     let mut cmd = Cli::command();
     let out_dir = std::env::var("OUT_DIR").unwrap();
@@ -1662,16 +1662,16 @@ fn main() {
     }
 }
 
-// サブコマンドで生成するパターン
+// Pattern of generating via a subcommand
 #[derive(clap::Subcommand)]
 enum Commands {
-    /// シェル補完スクリプトを生成する
+    /// Generate shell completion scripts
     Completions {
-        /// 対象シェル
+        /// Target shell
         #[arg(value_enum)]
         shell: Shell,
     },
-    // ... 他のコマンド
+    // ... other commands
 }
 
 fn handle_completions(shell: Shell) {
@@ -1679,15 +1679,15 @@ fn handle_completions(shell: Shell) {
     generate(shell, &mut cmd, "filetool", &mut std::io::stdout());
 }
 
-// 使い方:
+// Usage:
 // $ filetool completions bash > ~/.local/share/bash-completion/completions/filetool
 // $ filetool completions zsh > ~/.zfunc/_filetool
 // $ filetool completions fish > ~/.config/fish/completions/filetool.fish
 ```
 
-### Q4: マニュアルページ (man page) を生成するには?
+### Q4: How do I generate man pages?
 
-**A:** `clap_mangen` クレートで man ページを自動生成できます。
+**A:** The `clap_mangen` crate can generate man pages automatically.
 
 ```rust
 // build.rs
@@ -1704,45 +1704,45 @@ fn main() {
 }
 ```
 
-### Q5: バイナリサイズを小さくするには?
+### Q5: How do I reduce binary size?
 
-**A:** 以下の設定を組み合わせることで、バイナリサイズを大幅に削減できます。
+**A:** Combining the following settings can substantially reduce the binary size.
 
 ```toml
 # Cargo.toml
 [profile.release]
-opt-level = "z"      # サイズ最適化
+opt-level = "z"      # Optimize for size
 lto = true           # Link-Time Optimization
-codegen-units = 1    # 単一コード生成ユニット
-panic = "abort"      # unwind テーブル除去
-strip = true         # デバッグ情報除去
+codegen-units = 1    # Single code generation unit
+panic = "abort"      # Remove unwind tables
+strip = true         # Strip debug info
 ```
 
-| 設定 | サイズ削減効果 | ビルド速度への影響 |
+| Setting | Size reduction | Impact on build speed |
 |---|---|---|
-| strip = true | 30-50% 削減 | なし |
-| lto = true | 10-20% 削減 | 大幅に遅化 |
-| opt-level = "z" | 5-15% 削減 | やや遅化 |
-| panic = "abort" | 5-10% 削減 | なし |
-| codegen-units = 1 | 5-10% 削減 | 遅化 |
+| strip = true | 30-50% reduction | None |
+| lto = true | 10-20% reduction | Significantly slower |
+| opt-level = "z" | 5-15% reduction | Slightly slower |
+| panic = "abort" | 5-10% reduction | None |
+| codegen-units = 1 | 5-10% reduction | Slower |
 
-さらに `cargo install cargo-bloat` でバイナリ内の関数サイズを分析できます。
+You can also analyze function sizes inside the binary with `cargo install cargo-bloat`.
 
-### Q6: CLI ツールのバージョニングはどうすべき?
+### Q6: How should I version a CLI tool?
 
-**A:** Cargo.toml の version をシングルソースオブトゥルースにし、clap の `version` マクロで自動反映させます。
+**A:** Use Cargo.toml's `version` as a single source of truth and have it propagated automatically via clap's `version` macro.
 
 ```rust
 #[derive(clap::Parser)]
-#[command(version)] // Cargo.toml の version を使用
+#[command(version)] // Use the version from Cargo.toml
 struct Cli {
     // ...
 }
 
-// git のコミットハッシュも含めたい場合:
+// If you want to include the git commit hash as well:
 // build.rs
 fn main() {
-    // vergen クレートで環境変数を自動設定
+    // The vergen crate sets environment variables automatically
     println!("cargo:rustc-env=GIT_HASH={}",
         std::process::Command::new("git")
             .args(["rev-parse", "--short", "HEAD"])
@@ -1762,9 +1762,9 @@ struct Cli {
 // myapp 1.2.3 (a1b2c3d)
 ```
 
-### Q7: テスト時に stdin をシミュレートするには?
+### Q7: How do I simulate stdin in tests?
 
-**A:** `assert_cmd` の `write_stdin` メソッドを使います。
+**A:** Use the `write_stdin` method of `assert_cmd`.
 
 ```rust
 use assert_cmd::Command;
@@ -1781,7 +1781,7 @@ fn test_stdin_input() {
 
 #[test]
 fn test_pipe_simulation() {
-    // パイプされた入力のシミュレーション
+    // Simulate piped input
     Command::cargo_bin("myapp")
         .unwrap()
         .write_stdin("hello world\n")
@@ -1791,56 +1791,56 @@ fn test_pipe_simulation() {
 }
 ```
 
-### Q8: Rust CLI は Go の CLI と比べてどう?
+### Q8: How does a Rust CLI compare to a Go CLI?
 
-**A:** 両者にそれぞれ長所があります。
+**A:** Each has its own strengths.
 
-| 項目 | Rust (clap) | Go (cobra) |
+| Item | Rust (clap) | Go (cobra) |
 |---|---|---|
-| コンパイル速度 | 遅い | 速い |
-| バイナリサイズ | 小さい (strip 時) | やや大きい |
-| 実行速度 | 最速クラス | 十分速い |
-| メモリ使用量 | 最小 | GC 分やや多い |
-| クロスコンパイル | cross が必要 | ネイティブ対応 |
-| 型安全性 | 非常に高い | 高い |
-| エコシステム | clap + 多数クレート | cobra が標準 |
-| 学習コスト | 高い | 低い |
+| Compile speed | Slow | Fast |
+| Binary size | Small (with strip) | Slightly larger |
+| Execution speed | Top tier | Sufficiently fast |
+| Memory usage | Minimal | Slightly higher due to GC |
+| Cross-compilation | Requires cross | Native support |
+| Type safety | Very high | High |
+| Ecosystem | clap + many crates | cobra is the standard |
+| Learning curve | High | Low |
 
-パフォーマンスが最重要な場合や、メモリ安全性が求められる場合は Rust が適しています。迅速な開発やチーム開発では Go が優位な場合もあります。
+Rust is suitable when performance is paramount or memory safety is required. Go can be more advantageous for rapid development and team-based development.
 
 ---
 
-## まとめ
+## Summary
 
-| 項目 | 要点 |
+| Item | Key points |
 |---|---|
-| clap derive | `#[derive(Parser)]` で型安全な CLI 定義 |
-| サブコマンド | `#[derive(Subcommand)]` で enum ベース |
-| 環境変数連携 | `#[arg(env = "...")]` で環境変数フォールバック |
-| バリデーション | `value_parser` とカスタム関数で入力検証 |
-| カラー出力 | colored / owo-colors で見やすい出力 |
-| NO_COLOR 対応 | NO_COLOR 環境変数と TTY 判定を尊重 |
-| プログレスバー | indicatif で長時間処理の可視化 |
-| テーブル表示 | tabled で構造化データの表形式出力 |
-| 対話的UI | dialoguer で入力・選択・確認 |
-| 設定ファイル | directories + toml で XDG 準拠の設定管理 |
-| エラーハンドリング | anyhow + thiserror で構造化エラー |
-| ログ出力 | tracing で構造化ログ |
-| クロスコンパイル | cross で Docker ベースの簡単クロスビルド |
-| 静的リンク | musl ターゲットで単一バイナリ配布 |
-| 配布 | cargo-dist で自動バイナリ配布 |
-| テスト | assert_cmd + trycmd で CLI 統合テスト |
-| シグナル | ctrlc で Ctrl+C の Graceful Shutdown |
-| 終了コード | 0=成功、非0=エラー。stderr にエラー出力 |
-| パイプ対応 | BufWriter で高速出力、is_terminal() で判定 |
+| clap derive | Define a type-safe CLI with `#[derive(Parser)]` |
+| Subcommands | Enum-based via `#[derive(Subcommand)]` |
+| Environment variable integration | Fall back to env vars with `#[arg(env = "...")]` |
+| Validation | Validate input using `value_parser` and custom functions |
+| Colored output | Readable output with colored / owo-colors |
+| NO_COLOR support | Honor the NO_COLOR env var and TTY detection |
+| Progress bars | Visualize long-running tasks with indicatif |
+| Table display | Tabular display of structured data with tabled |
+| Interactive UI | Input, selection, and confirmation with dialoguer |
+| Configuration files | XDG-compliant settings management with directories + toml |
+| Error handling | Structured errors with anyhow + thiserror |
+| Logging | Structured logs via tracing |
+| Cross-compilation | Easy Docker-based cross-builds with cross |
+| Static linking | Distribute a single binary using the musl target |
+| Distribution | Automated binary distribution with cargo-dist |
+| Testing | CLI integration tests via assert_cmd + trycmd |
+| Signals | Graceful Ctrl+C shutdown with ctrlc |
+| Exit codes | 0 = success, non-zero = error. Errors go to stderr |
+| Pipe support | Fast output with BufWriter, detect with is_terminal() |
 
-## 次に読むべきガイド
+## Recommended Next Reads
 
-- [Cargo/ワークスペース](../04-ecosystem/00-cargo-workspace.md) — パッケージ管理と公開
-- [テスト](../04-ecosystem/01-testing.md) — CLI の統合テスト
-- [ベストプラクティス](../04-ecosystem/04-best-practices.md) — API設計とエラーハンドリング
+- [Cargo / Workspaces](../04-ecosystem/00-cargo-workspace.md) — Package management and publishing
+- [Testing](../04-ecosystem/01-testing.md) — CLI integration testing
+- [Best Practices](../04-ecosystem/04-best-practices.md) — API design and error handling
 
-## 参考文献
+## References
 
 1. **clap documentation**: https://docs.rs/clap/latest/clap/
 2. **Command Line Applications in Rust**: https://rust-cli.github.io/book/
