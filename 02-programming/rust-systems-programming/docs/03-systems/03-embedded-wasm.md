@@ -1,87 +1,87 @@
-# 組み込み/WASM — no_std、wasm-bindgen
+# Embedded / WASM -- no_std, wasm-bindgen
 
-> Rust の no_std 環境と WebAssembly ターゲットを通じて、リソース制約環境での開発手法を習得する
+> Master development techniques for resource-constrained environments through Rust's no_std environment and WebAssembly targets
 
-## この章で学ぶこと
+## What You Will Learn in This Chapter
 
-1. **no_std プログラミング** — 標準ライブラリなしの Rust、alloc クレート、組み込みターゲット
-2. **WebAssembly (WASM)** — wasm-bindgen による JS 連携、wasm-pack ワークフロー
-3. **WASI** — サーバーサイド WASM とサンドボックス実行
-4. **embassy** — 組み込み向け async/await ランタイム
-5. **WASM の最適化** — バイナリサイズ削減、パフォーマンスチューニング
+1. **no_std Programming** -- Rust without the standard library, the alloc crate, embedded targets
+2. **WebAssembly (WASM)** -- JS interop with wasm-bindgen, wasm-pack workflow
+3. **WASI** -- Server-side WASM and sandboxed execution
+4. **embassy** -- async/await runtime for embedded systems
+5. **WASM Optimization** -- Binary size reduction, performance tuning
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Reading the following before this guide will deepen your understanding:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [FFI（Foreign Function Interface）](./02-ffi-interop.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Understanding the contents of [FFI (Foreign Function Interface)](./02-ffi-interop.md)
 
 ---
 
-## 1. no_std と std の関係
+## 1. The Relationship Between no_std and std
 
 ```
-┌─────────────── Rust ライブラリ階層 ────────────────┐
+┌─────────────── Rust Library Hierarchy ────────────────┐
 │                                                     │
 │  ┌─────────────────────────────────────────────┐   │
-│  │  std (標準ライブラリ)                         │   │
-│  │  - ファイル I/O, ネットワーク, スレッド        │   │
-│  │  - OS 依存機能                                │   │
+│  │  std (standard library)                       │   │
+│  │  - File I/O, network, threads                 │   │
+│  │  - OS-dependent features                      │   │
 │  │                                               │   │
 │  │  ┌─────────────────────────────────────────┐ │   │
-│  │  │  alloc (ヒープ割当)                      │ │   │
+│  │  │  alloc (heap allocation)                 │ │   │
 │  │  │  - Box, Vec, String, Arc, Rc            │ │   │
-│  │  │  - ヒープアロケータが必要                 │ │   │
+│  │  │  - Requires a heap allocator             │ │   │
 │  │  │                                         │ │   │
 │  │  │  ┌─────────────────────────────────┐   │ │   │
-│  │  │  │  core (コアライブラリ)            │   │ │   │
+│  │  │  │  core (core library)             │   │ │   │
 │  │  │  │  - Option, Result, Iterator     │   │ │   │
-│  │  │  │  - 数値型, スライス, 参照        │   │ │   │
-│  │  │  │  - OS依存なし、割当なし          │   │ │   │
+│  │  │  │  - Numeric types, slices, refs   │   │ │   │
+│  │  │  │  - No OS dependency, no alloc    │   │ │   │
 │  │  │  └─────────────────────────────────┘   │ │   │
 │  │  └─────────────────────────────────────────┘ │   │
 │  └─────────────────────────────────────────────────┘ │
 │                                                     │
-│  #![no_std]       → core のみ使用可能              │
-│  #![no_std] + alloc → core + alloc 使用可能        │
-│  (デフォルト)      → core + alloc + std             │
+│  #![no_std]       → core only is usable             │
+│  #![no_std] + alloc → core + alloc usable           │
+│  (default)         → core + alloc + std             │
 └─────────────────────────────────────────────────────┘
 ```
 
-### no_std で使える・使えない機能
+### Features Available / Unavailable in no_std
 
-| 機能 | core | alloc | std |
+| Feature | core | alloc | std |
 |---|---|---|---|
 | Option, Result | o | o | o |
 | Iterator | o | o | o |
-| 数値演算 | o | o | o |
-| スライス操作 | o | o | o |
-| fmt (フォーマット) | o | o | o |
+| Numeric operations | o | o | o |
+| Slice operations | o | o | o |
+| fmt (formatting) | o | o | o |
 | Vec, String | - | o | o |
 | Box, Arc, Rc | - | o | o |
 | HashMap | - | - | o |
-| ファイル I/O | - | - | o |
-| ネットワーク | - | - | o |
-| スレッド | - | - | o |
+| File I/O | - | - | o |
+| Network | - | - | o |
+| Threads | - | - | o |
 | println! | - | - | o |
 
 ---
 
-## 2. no_std プログラミング
+## 2. no_std Programming
 
-### コード例1: no_std ライブラリ
+### Code Example 1: no_std Library
 
 ```rust
 // src/lib.rs
 #![no_std]
 
-// core からのインポート (std と同じ API が多い)
+// Imports from core (many of the same APIs as std)
 use core::fmt;
 
-/// no_std 対応のリングバッファ
+/// no_std-compatible ring buffer
 pub struct RingBuffer<const N: usize> {
     data: [u8; N],
     head: usize,
@@ -101,7 +101,7 @@ impl<const N: usize> RingBuffer<N> {
 
     pub fn push(&mut self, byte: u8) -> Result<(), u8> {
         if self.len == N {
-            return Err(byte); // バッファ満杯
+            return Err(byte); // Buffer full
         }
         self.data[self.tail] = byte;
         self.tail = (self.tail + 1) % N;
@@ -141,7 +141,7 @@ impl<const N: usize> RingBuffer<N> {
         self.len = 0;
     }
 
-    /// イテレータを返す
+    /// Returns an iterator
     pub fn iter(&self) -> RingBufferIter<'_, N> {
         RingBufferIter {
             buffer: self,
@@ -174,7 +174,7 @@ impl<const N: usize> fmt::Debug for RingBuffer<N> {
     }
 }
 
-/// no_std 対応の固定サイズスタック
+/// no_std-compatible fixed-size stack
 pub struct FixedStack<T: Copy + Default, const N: usize> {
     data: [T; N],
     top: usize,
@@ -222,10 +222,10 @@ impl<T: Copy + Default, const N: usize> FixedStack<T, N> {
     }
 }
 
-/// no_std 対応の固定小数点数演算
+/// no_std-compatible fixed-point arithmetic
 #[derive(Clone, Copy, Debug)]
 pub struct FixedPoint {
-    raw: i32, // 16.16 固定小数点
+    raw: i32, // 16.16 fixed point
 }
 
 impl FixedPoint {
@@ -273,7 +273,7 @@ impl FixedPoint {
 }
 ```
 
-### コード例2: ベアメタル組み込み (ARM Cortex-M)
+### Code Example 2: Bare-Metal Embedded (ARM Cortex-M)
 
 ```rust
 // src/main.rs
@@ -281,25 +281,25 @@ impl FixedPoint {
 #![no_main]
 
 use cortex_m_rt::entry;
-use panic_halt as _; // パニック時に halt
+use panic_halt as _; // Halt on panic
 
-// グローバルアロケータ (alloc を使う場合)
+// Global allocator (when using alloc)
 // use embedded_alloc::Heap;
 // #[global_allocator]
 // static HEAP: Heap = Heap::empty();
 
 #[entry]
 fn main() -> ! {
-    // ペリフェラルの取得
+    // Acquire peripherals
     let peripherals = stm32f4xx_hal::pac::Peripherals::take().unwrap();
     let gpioa = peripherals.GPIOA.split();
 
-    // LED ピン設定 (PA5)
+    // LED pin configuration (PA5)
     let mut led = gpioa.pa5.into_push_pull_output();
 
     loop {
         led.set_high();
-        cortex_m::asm::delay(8_000_000); // 約1秒 (8MHz)
+        cortex_m::asm::delay(8_000_000); // ~1 second (8MHz)
         led.set_low();
         cortex_m::asm::delay(8_000_000);
     }
@@ -317,7 +317,7 @@ fn main() -> ! {
 // target = "thumbv7em-none-eabihf"
 ```
 
-### コード例: embassy による async 組み込み
+### Code Example: Async Embedded with embassy
 
 ```rust
 #![no_std]
@@ -328,8 +328,8 @@ use embassy_stm32::gpio::{Level, Output, Speed};
 use embassy_time::{Duration, Timer};
 use panic_halt as _;
 
-// embassy: 組み込み向け async/await ランタイム
-// スレッドなしで複数タスクを協調的に実行
+// embassy: async/await runtime for embedded systems
+// Cooperatively executes multiple tasks without threads
 
 #[embassy_executor::task]
 async fn blink_task(mut led: Output<'static>) {
@@ -344,7 +344,7 @@ async fn blink_task(mut led: Output<'static>) {
 #[embassy_executor::task]
 async fn sensor_task() {
     loop {
-        // センサー読み取り (I2C/SPI)
+        // Read sensor (I2C/SPI)
         // let value = i2c.read_register(0x48, 0x00).await;
         Timer::after(Duration::from_secs(1)).await;
     }
@@ -356,14 +356,14 @@ async fn main(spawner: Spawner) {
 
     let led = Output::new(p.PA5, Level::Low, Speed::Low);
 
-    // 非同期タスクを生成
+    // Spawn async tasks
     spawner.spawn(blink_task(led)).unwrap();
     spawner.spawn(sensor_task()).unwrap();
 
-    // メインタスクも async で動作
+    // The main task also runs as async
     loop {
         Timer::after(Duration::from_secs(10)).await;
-        // ウォッチドッグのリセット等
+        // Watchdog reset, etc.
     }
 }
 
@@ -375,7 +375,7 @@ async fn main(spawner: Spawner) {
 // panic-halt = "0.2"
 ```
 
-### コード例: HAL (Hardware Abstraction Layer) の活用
+### Code Example: Leveraging the HAL (Hardware Abstraction Layer)
 
 ```rust
 #![no_std]
@@ -397,7 +397,7 @@ fn main() -> ! {
     let dp = pac::Peripherals::take().unwrap();
     let cp = cortex_m::Peripherals::take().unwrap();
 
-    // クロック設定
+    // Clock configuration
     let rcc = dp.RCC.constrain();
     let clocks = rcc.cfgr
         .use_hse(8.MHz())
@@ -405,10 +405,10 @@ fn main() -> ! {
         .pclk1(42.MHz())
         .freeze();
 
-    // GPIO 設定
+    // GPIO configuration
     let gpioa = dp.GPIOA.split();
 
-    // UART 設定 (PA2: TX, PA3: RX)
+    // UART configuration (PA2: TX, PA3: RX)
     let tx_pin = gpioa.pa2.into_alternate();
     let rx_pin = gpioa.pa3.into_alternate();
 
@@ -419,24 +419,24 @@ fn main() -> ! {
         &clocks,
     ).unwrap();
 
-    // ADC 設定
+    // ADC configuration
     let adc_pin = gpioa.pa0.into_analog();
     let mut adc = Adc::adc1(dp.ADC1, true, AdcConfig::default());
 
-    // タイマー設定 (1秒周期)
+    // Timer configuration (1 second period)
     let mut timer = dp.TIM2.counter_ms(&clocks);
     timer.start(1000.millis()).unwrap();
 
     writeln!(serial, "System initialized at {}MHz\r", clocks.sysclk().to_MHz()).unwrap();
 
     loop {
-        // ADC 読み取り
+        // ADC read
         let value: u16 = adc.read(&mut adc_pin).unwrap();
         let voltage = value as f32 * 3.3 / 4096.0;
 
         writeln!(serial, "ADC: {} ({}V)\r", value, voltage).unwrap();
 
-        // タイマー待機
+        // Wait on timer
         nb::block!(timer.wait()).unwrap();
     }
 }
@@ -446,29 +446,29 @@ fn main() -> ! {
 
 ## 3. WebAssembly
 
-### WASM コンパイルターゲット
+### WASM Compilation Targets
 
 ```
-┌────────────── WASM ターゲット ──────────────┐
+┌────────────── WASM Targets ──────────────┐
 │                                              │
 │  wasm32-unknown-unknown                      │
-│  └─ ブラウザ / JS ランタイム向け             │
-│  └─ wasm-bindgen で JS 連携                  │
+│  └─ For browsers / JS runtimes               │
+│  └─ JS interop via wasm-bindgen              │
 │                                              │
-│  wasm32-wasip1 (旧 wasm32-wasi)             │
-│  └─ WASI 対応ランタイム向け                  │
-│  └─ ファイル I/O、ネットワーク等              │
-│  └─ wasmtime, wasmer で実行                  │
+│  wasm32-wasip1 (formerly wasm32-wasi)        │
+│  └─ For WASI-compatible runtimes             │
+│  └─ File I/O, networking, etc.               │
+│  └─ Run with wasmtime, wasmer                │
 │                                              │
-│  ビルドツール:                                │
+│  Build tools:                                │
 │  ┌─────────────────┐  ┌──────────────────┐  │
 │  │  wasm-pack      │  │  trunk           │  │
-│  │  npm パッケージ  │  │  Yew/Leptos SPA │  │
+│  │  npm packages   │  │  Yew/Leptos SPA  │  │
 │  └─────────────────┘  └──────────────────┘  │
 └──────────────────────────────────────────────┘
 ```
 
-### コード例3: wasm-bindgen 基本
+### Code Example 3: wasm-bindgen Basics
 
 ```rust
 // Cargo.toml:
@@ -482,19 +482,19 @@ fn main() -> ! {
 
 use wasm_bindgen::prelude::*;
 
-/// JS から呼べる関数
+/// A function callable from JS
 #[wasm_bindgen]
 pub fn greet(name: &str) -> String {
     format!("Hello, {}! (from Rust/WASM)", name)
 }
 
-/// JS のコンソールに出力
+/// Outputs to the JS console
 #[wasm_bindgen]
 pub fn log_to_console(message: &str) {
     web_sys::console::log_1(&message.into());
 }
 
-/// JS オブジェクトの操作
+/// Manipulating JS objects
 #[wasm_bindgen]
 pub fn fibonacci(n: u32) -> u64 {
     let (mut a, mut b) = (0u64, 1u64);
@@ -506,7 +506,7 @@ pub fn fibonacci(n: u32) -> u64 {
     a
 }
 
-/// 構造体を JS に公開
+/// Exposing a struct to JS
 #[wasm_bindgen]
 pub struct ImageProcessor {
     width: u32,
@@ -533,7 +533,7 @@ impl ImageProcessor {
         self.pixels.len()
     }
 
-    /// グレースケール変換
+    /// Grayscale conversion
     pub fn grayscale(&mut self) {
         for chunk in self.pixels.chunks_exact_mut(4) {
             let gray = (0.299 * chunk[0] as f64
@@ -542,11 +542,11 @@ impl ImageProcessor {
             chunk[0] = gray;
             chunk[1] = gray;
             chunk[2] = gray;
-            // chunk[3] (alpha) はそのまま
+            // chunk[3] (alpha) is left unchanged
         }
     }
 
-    /// ブラー (ボックスフィルタ)
+    /// Blur (box filter)
     pub fn blur(&mut self, radius: u32) {
         let w = self.width as usize;
         let h = self.height as usize;
@@ -584,7 +584,7 @@ impl ImageProcessor {
         self.pixels = output;
     }
 
-    /// 明るさ調整
+    /// Brightness adjustment
     pub fn adjust_brightness(&mut self, factor: f64) {
         for chunk in self.pixels.chunks_exact_mut(4) {
             chunk[0] = ((chunk[0] as f64 * factor).min(255.0).max(0.0)) as u8;
@@ -595,24 +595,24 @@ impl ImageProcessor {
 }
 ```
 
-### コード例4: JS 側の使用
+### Code Example 4: Usage on the JS Side
 
 ```javascript
-// wasm-pack build --target web 後に:
+// After wasm-pack build --target web:
 import init, { greet, fibonacci, ImageProcessor } from './pkg/my_wasm.js';
 
 async function main() {
     await init();
 
-    // 基本関数
+    // Basic functions
     console.log(greet("World"));        // "Hello, World! (from Rust/WASM)"
     console.log(fibonacci(50));          // 12586269025n
 
-    // 画像処理
+    // Image processing
     const processor = new ImageProcessor(800, 600);
     processor.grayscale();
 
-    // Rust のメモリに直接アクセス
+    // Direct access to Rust memory
     const ptr = processor.pixels_ptr();
     const len = processor.pixels_len();
     const pixels = new Uint8Array(
@@ -625,7 +625,7 @@ async function main() {
 main();
 ```
 
-### コード例: DOM 操作 (web-sys)
+### Code Example: DOM Manipulation (web-sys)
 
 ```rust
 use wasm_bindgen::prelude::*;
@@ -637,28 +637,28 @@ pub fn create_todo_app() -> Result<(), JsValue> {
     let document: Document = window.document().ok_or("No document")?;
     let body: HtmlElement = document.body().ok_or("No body")?;
 
-    // コンテナ作成
+    // Create container
     let container = document.create_element("div")?;
     container.set_id("todo-app");
     container.set_class_name("container");
 
-    // ヘッダー
+    // Header
     let header = document.create_element("h1")?;
     header.set_text_content(Some("Rust WASM TODO"));
     container.append_child(&header)?;
 
-    // 入力フォーム
+    // Input form
     let input = document.create_element("input")?;
     input.set_attribute("type", "text")?;
-    input.set_attribute("placeholder", "新しいタスク...")?;
+    input.set_attribute("placeholder", "New task...")?;
     input.set_id("todo-input");
     container.append_child(&input)?;
 
-    // 追加ボタン
+    // Add button
     let button = document.create_element("button")?;
-    button.set_text_content(Some("追加"));
+    button.set_text_content(Some("Add"));
 
-    // ボタンのクリックハンドラ
+    // Button click handler
     let document_clone = document.clone();
     let closure = Closure::wrap(Box::new(move || {
         let input = document_clone
@@ -677,10 +677,10 @@ pub fn create_todo_app() -> Result<(), JsValue> {
     }) as Box<dyn FnMut()>);
 
     button.add_event_listener_with_callback("click", closure.as_ref().unchecked_ref())?;
-    closure.forget(); // メモリリーク注意! 実用ではライフタイム管理が必要
+    closure.forget(); // Watch out for memory leaks! Lifetime management is required in production
     container.append_child(&button)?;
 
-    // リスト
+    // List
     let list = document.create_element("ul")?;
     list.set_id("todo-list");
     container.append_child(&list)?;
@@ -690,24 +690,24 @@ pub fn create_todo_app() -> Result<(), JsValue> {
 }
 ```
 
-### コード例5: WASI — サーバーサイド WASM
+### Code Example 5: WASI -- Server-Side WASM
 
 ```rust
-// WASI 対応プログラム (通常の Rust コードとほぼ同じ)
+// WASI-compatible program (almost the same as ordinary Rust code)
 use std::fs;
 use std::io::{self, Read};
 
 fn main() -> io::Result<()> {
-    // ファイル読み取り (WASI のサンドボックス内)
+    // File read (within the WASI sandbox)
     let content = fs::read_to_string("/input/data.txt")?;
-    println!("ファイル内容: {}", content);
+    println!("File contents: {}", content);
 
-    // 標準入力からの読み取り
+    // Read from standard input
     let mut buffer = String::new();
     io::stdin().read_to_string(&mut buffer)?;
-    println!("入力: {}", buffer);
+    println!("Input: {}", buffer);
 
-    // 環境変数
+    // Environment variables
     for (key, value) in std::env::vars() {
         println!("{}={}", key, value);
     }
@@ -715,19 +715,19 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
-// ビルドと実行:
+// Build and run:
 // $ rustup target add wasm32-wasip1
 // $ cargo build --target wasm32-wasip1 --release
 // $ wasmtime --dir /input::/path/to/input target/wasm32-wasip1/release/my_app.wasm
 ```
 
-### コード例: WASI プラグインシステム
+### Code Example: WASI Plugin System
 
 ```rust
-// プラグインのインターフェース定義
+// Plugin interface definition
 use std::io::{self, BufRead, Write};
 
-/// WASI ベースのプラグイン — stdin/stdout でホストと通信
+/// WASI-based plugin -- communicates with the host via stdin/stdout
 fn main() -> io::Result<()> {
     let stdin = io::stdin();
     let stdout = io::stdout();
@@ -736,7 +736,7 @@ fn main() -> io::Result<()> {
     for line in stdin.lock().lines() {
         let line = line?;
 
-        // JSON-RPC 風のプロトコル
+        // JSON-RPC-style protocol
         if line.starts_with("TRANSFORM:") {
             let input = &line["TRANSFORM:".len()..];
             let output = transform(input);
@@ -750,11 +750,11 @@ fn main() -> io::Result<()> {
 }
 
 fn transform(input: &str) -> String {
-    // プラグインの処理ロジック
+    // Plugin processing logic
     input.to_uppercase()
 }
 
-// ホスト側 (wasmtime API を使用)
+// Host side (using the wasmtime API)
 // use wasmtime::*;
 // use wasmtime_wasi::WasiCtxBuilder;
 //
@@ -769,10 +769,10 @@ fn transform(input: &str) -> String {
 
 ---
 
-## 4. wasm-pack ワークフロー
+## 4. wasm-pack Workflow
 
 ```
-┌──────────── wasm-pack ビルドフロー ──────────────┐
+┌──────────── wasm-pack Build Flow ──────────────┐
 │                                                   │
 │  src/lib.rs                                       │
 │    │                                              │
@@ -780,26 +780,26 @@ fn transform(input: &str) -> String {
 │  cargo build --target wasm32-unknown-unknown      │
 │    │                                              │
 │    ▼                                              │
-│  wasm-bindgen (JS バインディング生成)              │
+│  wasm-bindgen (generate JS bindings)              │
 │    │                                              │
 │    ▼                                              │
-│  wasm-opt (オプション: サイズ最適化)               │
+│  wasm-opt (optional: size optimization)           │
 │    │                                              │
 │    ▼                                              │
 │  pkg/                                             │
-│  ├── my_wasm_bg.wasm     (WASMバイナリ)          │
-│  ├── my_wasm.js          (JSグルーコード)         │
-│  ├── my_wasm.d.ts        (TypeScript型定義)      │
-│  └── package.json        (npm パッケージ)        │
+│  ├── my_wasm_bg.wasm     (WASM binary)           │
+│  ├── my_wasm.js          (JS glue code)          │
+│  ├── my_wasm.d.ts        (TypeScript typedefs)   │
+│  └── package.json        (npm package)           │
 │                                                   │
-│  コマンド:                                        │
+│  Commands:                                        │
 │  $ wasm-pack build --target web                   │
-│  $ wasm-pack build --target bundler  (webpack用) │
-│  $ wasm-pack build --target nodejs   (Node.js用) │
+│  $ wasm-pack build --target bundler  (for webpack) │
+│  $ wasm-pack build --target nodejs   (for Node.js) │
 └───────────────────────────────────────────────────┘
 ```
 
-### コード例: Cargo.toml の WASM 最適化設定
+### Code Example: WASM Optimization Settings in Cargo.toml
 
 ```toml
 [package]
@@ -829,34 +829,34 @@ serde-wasm-bindgen = "0.6"
 console_error_panic_hook = "0.1"
 
 [profile.release]
-opt-level = "s"       # サイズ最適化 ("z" でさらに小さく)
+opt-level = "s"       # Size optimization ("z" for even smaller)
 lto = true            # Link-Time Optimization
-codegen-units = 1     # 最大最適化 (ビルドは遅い)
-strip = true          # デバッグ情報除去
-panic = "abort"       # パニック時の巻き戻しなし (サイズ削減)
+codegen-units = 1     # Maximum optimization (slow build)
+strip = true          # Strip debug info
+panic = "abort"       # No unwinding on panic (size reduction)
 
 [profile.release.package."*"]
-opt-level = "s"       # 依存クレートもサイズ最適化
+opt-level = "s"       # Size-optimize dependent crates as well
 ```
 
 ---
 
-## 5. WASM の高度なパターン
+## 5. Advanced WASM Patterns
 
-### コード例: Web Worker との連携
+### Code Example: Integration with Web Workers
 
 ```rust
 use wasm_bindgen::prelude::*;
 use js_sys::{Promise, Uint8Array};
 
-/// Web Worker 内で重い計算を実行
+/// Run heavy computation inside a Web Worker
 #[wasm_bindgen]
 pub fn heavy_computation(data: &[u8]) -> Vec<u8> {
-    // ソート、フィルタ、変換等の重い処理
+    // Heavy operations like sort, filter, transform, etc.
     let mut result = data.to_vec();
     result.sort_unstable();
 
-    // SHA-256 風のハッシュ計算 (簡易版)
+    // SHA-256-style hash computation (simplified)
     let mut hash = [0u8; 32];
     for (i, byte) in data.iter().enumerate() {
         hash[i % 32] ^= byte;
@@ -866,7 +866,7 @@ pub fn heavy_computation(data: &[u8]) -> Vec<u8> {
     hash.to_vec()
 }
 
-/// SharedArrayBuffer を使ったゼロコピーデータ共有
+/// Zero-copy data sharing using SharedArrayBuffer
 #[wasm_bindgen]
 pub fn process_shared_buffer(buffer: &Uint8Array, offset: usize, length: usize) -> u32 {
     let mut sum: u32 = 0;
@@ -895,7 +895,7 @@ worker.onmessage = (e) => {
 worker.postMessage(new Uint8Array([1, 2, 3, 4, 5]));
 ```
 
-### コード例: Canvas 描画
+### Code Example: Canvas Rendering
 
 ```rust
 use wasm_bindgen::prelude::*;
@@ -934,7 +934,7 @@ impl GameRenderer {
         let width = canvas.width() as f64;
         let height = canvas.height() as f64;
 
-        // パーティクル初期化
+        // Initialize particles
         let mut particles = Vec::with_capacity(num_particles);
         for i in 0..num_particles {
             let angle = (i as f64 / num_particles as f64) * std::f64::consts::TAU;
@@ -961,7 +961,7 @@ impl GameRenderer {
             p.x += p.vx;
             p.y += p.vy;
 
-            // 壁との反射
+            // Wall reflection
             if p.x <= p.radius || p.x >= self.width - p.radius {
                 p.vx = -p.vx;
             }
@@ -969,18 +969,18 @@ impl GameRenderer {
                 p.vy = -p.vy;
             }
 
-            // 範囲内にクランプ
+            // Clamp within bounds
             p.x = p.x.clamp(p.radius, self.width - p.radius);
             p.y = p.y.clamp(p.radius, self.height - p.radius);
         }
     }
 
     pub fn render(&self) {
-        // 背景クリア
+        // Clear background
         self.ctx.set_fill_style_str("rgba(0, 0, 0, 0.1)");
         self.ctx.fill_rect(0.0, 0.0, self.width, self.height);
 
-        // パーティクル描画
+        // Render particles
         for p in &self.particles {
             self.ctx.begin_path();
             self.ctx.arc(p.x, p.y, p.radius, 0.0, std::f64::consts::TAU).unwrap();
@@ -997,86 +997,86 @@ impl GameRenderer {
 
 ---
 
-## 6. 比較表
+## 6. Comparison Tables
 
-### WASM ターゲット比較
+### WASM Target Comparison
 
-| 項目 | wasm32-unknown-unknown | wasm32-wasip1 |
+| Item | wasm32-unknown-unknown | wasm32-wasip1 |
 |---|---|---|
-| 実行環境 | ブラウザ / JS ランタイム | wasmtime / wasmer |
-| ファイル I/O | 不可 (web-sys 経由) | 可能 (サンドボックス内) |
-| ネットワーク | fetch API 経由 | WASI Socket (実験的) |
-| std サポート | 限定的 | ほぼ完全 |
-| JS 連携 | wasm-bindgen | 不要 |
-| ユースケース | フロントエンド高速化 | サーバーサイド、プラグイン |
-| バイナリサイズ | 小 (数十KB〜) | 中 (数百KB〜) |
+| Execution environment | Browser / JS runtime | wasmtime / wasmer |
+| File I/O | Not available (via web-sys) | Available (within sandbox) |
+| Networking | Via fetch API | WASI Socket (experimental) |
+| std support | Limited | Nearly complete |
+| JS interop | wasm-bindgen | Not required |
+| Use cases | Front-end speedup | Server-side, plugins |
+| Binary size | Small (tens of KB+) | Medium (hundreds of KB+) |
 
-### 組み込みフレームワーク比較
+### Embedded Framework Comparison
 
-| フレームワーク | 対象 | 特徴 | HAL |
+| Framework | Target | Features | HAL |
 |---|---|---|---|
-| embassy | ARM Cortex-M | async/await ベース | embassy-stm32 等 |
-| RTIC | ARM Cortex-M | 割り込み駆動、静的解析 | 独自 |
-| esp-hal | ESP32 | ESP32 シリーズ全対応 | 独自 |
-| Arduino (avr-hal) | AVR | Arduino UNO 等 | avr-device |
+| embassy | ARM Cortex-M | async/await based | embassy-stm32, etc. |
+| RTIC | ARM Cortex-M | Interrupt-driven, static analysis | Custom |
+| esp-hal | ESP32 | Full ESP32 series support | Custom |
+| Arduino (avr-hal) | AVR | Arduino UNO, etc. | avr-device |
 
-### WASM バイナリサイズの最適化レベル
+### WASM Binary Size Optimization Levels
 
-| 設定 | opt-level | lto | サイズ目安 | ビルド時間 |
+| Setting | opt-level | lto | Size estimate | Build time |
 |---|---|---|---|---|
-| デバッグ | 0 | false | 2-10 MB | 速い |
-| バランス | 2 | false | 200-500 KB | 中程度 |
-| サイズ優先 | "s" | true | 50-200 KB | 遅い |
-| 最小サイズ | "z" | true | 30-150 KB | 最も遅い |
+| Debug | 0 | false | 2-10 MB | Fast |
+| Balanced | 2 | false | 200-500 KB | Moderate |
+| Size-priority | "s" | true | 50-200 KB | Slow |
+| Minimum size | "z" | true | 30-150 KB | Slowest |
 
 ---
 
-## 7. アンチパターン
+## 7. Anti-Patterns
 
-### アンチパターン1: WASM バイナリの肥大化
+### Anti-Pattern 1: Bloated WASM Binaries
 
 ```rust
-// NG: 不要な機能を全て含める
+// NG: Including all unnecessary features
 // Cargo.toml:
 // [dependencies]
 // serde = { version = "1", features = ["derive"] }
-// chrono = "0.4"        ← タイムゾーンDB でサイズ増大
-// regex = "1"           ← コンパイル済み正規表現で増大
+// chrono = "0.4"        ← Increases size with the timezone DB
+// regex = "1"           ← Increases size with compiled regex
 
-// OK: WASM 向けに軽量な代替を選択
+// OK: Choose lightweight alternatives for WASM
 // Cargo.toml:
 // [dependencies]
 // serde = { version = "1", features = ["derive"] }
 // serde-wasm-bindgen = "0.6"
-// time = "0.3"          ← chrono より軽量
+// time = "0.3"          ← Lighter than chrono
 //
 // [profile.release]
-// opt-level = "s"       ← サイズ最適化
-// lto = true            ← リンク時最適化
-// codegen-units = 1     ← 最大最適化
-// strip = true          ← デバッグ情報除去
+// opt-level = "s"       ← Size optimization
+// lto = true            ← Link-time optimization
+// codegen-units = 1     ← Maximum optimization
+// strip = true          ← Strip debug info
 
-// wasm-opt でさらに縮小
+// Shrink further with wasm-opt
 // $ wasm-opt -Oz -o output.wasm input.wasm
 ```
 
-### アンチパターン2: no_std でのパニック未処理
+### Anti-Pattern 2: Missing Panic Handler in no_std
 
 ```rust
-// NG: パニックハンドラなしで #![no_std] → リンクエラー
+// NG: #![no_std] without a panic handler → link error
 #![no_std]
 // error: `#[panic_handler]` function required
 
-// OK: パニックハンドラを定義
+// OK: Define a panic handler
 #![no_std]
 
-// 方法1: panic-halt (無限ループで停止)
+// Method 1: panic-halt (stops in an infinite loop)
 use panic_halt as _;
 
-// 方法2: カスタムパニックハンドラ
+// Method 2: Custom panic handler
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
-    // UART にエラーを出力するなど
+    // Output the error to UART, etc.
     // unsafe { write_uart(format_args!("{}", info)); }
     loop {
         core::hint::spin_loop();
@@ -1084,37 +1084,37 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 }
 ```
 
-### アンチパターン3: WASM での大量 DOM 操作
+### Anti-Pattern 3: Bulk DOM Operations in WASM
 
 ```rust
-// NG: 個別に DOM 操作 (JS-WASM 境界のオーバーヘッド)
+// NG: Individual DOM operations (JS-WASM boundary overhead)
 #[wasm_bindgen]
 pub fn bad_create_list(items: Vec<String>) {
     let document = web_sys::window().unwrap().document().unwrap();
     let list = document.create_element("ul").unwrap();
 
     for item in &items {
-        let li = document.create_element("li").unwrap(); // 毎回 FFI 呼び出し
-        li.set_text_content(Some(item));                  // 毎回 FFI 呼び出し
-        list.append_child(&li).unwrap();                  // 毎回 FFI 呼び出し
+        let li = document.create_element("li").unwrap(); // FFI call each time
+        li.set_text_content(Some(item));                  // FFI call each time
+        list.append_child(&li).unwrap();                  // FFI call each time
     }
 
     document.body().unwrap().append_child(&list).unwrap();
 }
 
-// OK: innerHTML で一括挿入 (FFI 呼び出し回数を最小化)
+// OK: Bulk insert via innerHTML (minimize FFI call count)
 #[wasm_bindgen]
 pub fn good_create_list(items: Vec<String>) {
     let document = web_sys::window().unwrap().document().unwrap();
     let list = document.create_element("ul").unwrap();
 
-    // Rust 側で HTML を構築してから一括挿入
+    // Build HTML on the Rust side, then insert in bulk
     let html: String = items
         .iter()
         .map(|item| format!("<li>{}</li>", html_escape(item)))
         .collect();
 
-    list.set_inner_html(&html); // 1回の FFI 呼び出し
+    list.set_inner_html(&html); // Single FFI call
 
     document.body().unwrap().append_child(&list).unwrap();
 }
@@ -1126,7 +1126,7 @@ fn html_escape(s: &str) -> String {
 }
 ```
 
-### アンチパターン4: 組み込みでの動的割当の過剰使用
+### Anti-Pattern 4: Excessive Dynamic Allocation in Embedded
 
 ```rust
 #![no_std]
@@ -1134,69 +1134,69 @@ extern crate alloc;
 use alloc::vec::Vec;
 use alloc::string::String;
 
-// NG: 限られたメモリで動的割当を多用
+// NG: Heavy use of dynamic allocation in limited memory
 fn bad_process() {
-    let mut data = Vec::new(); // ヒープ割当
+    let mut data = Vec::new(); // Heap allocation
     for i in 0..1000 {
-        data.push(format!("item_{}", i)); // String もヒープ割当
+        data.push(format!("item_{}", i)); // String is also heap-allocated
     }
-    // メモリ不足でパニックの可能性
+    // May panic due to memory exhaustion
 }
 
-// OK: 固定サイズのバッファを使用
+// OK: Use a fixed-size buffer
 fn good_process() {
-    let mut buffer = [0u8; 256]; // スタック上に固定サイズ
+    let mut buffer = [0u8; 256]; // Fixed size on the stack
     let mut count = 0;
     for i in 0..256 {
         buffer[i] = (i % 256) as u8;
         count += 1;
     }
-    // メモリ使用量が予測可能
+    // Memory usage is predictable
 }
 ```
 
 
 ---
 
-## 実践演習
+## Practical Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that satisfies the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate input data
+- Implement appropriate error handling
+- Also write test code
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Basic implementation template
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Basic implementation pattern exercise"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Input value validation"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main data processing logic"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Get processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1205,26 +1205,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "An exception should have been raised"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation by adding the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Advanced patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Advanced pattern exercise"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1232,7 +1232,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1243,14 +1243,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Delete by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1258,7 +1258,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1266,44 +1266,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # Size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1312,7 +1312,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1327,47 +1327,47 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient version: {slow_time:.4f}s")
+    print(f"Efficient version:   {fast_time:.6f}s")
+    print(f"Speedup: {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key Points:**
+- Be aware of algorithmic complexity
+- Choose appropriate data structures
+- Measure the effect with benchmarks
 
 ---
 
-## トラブルシューティング
+## Troubleshooting
 
-### よくあるエラーと解決策
+### Common Errors and Solutions
 
-| エラー | 原因 | 解決策 |
+| Error | Cause | Solution |
 |--------|------|--------|
-| 初期化エラー | 設定ファイルの不備 | 設定ファイルのパスと形式を確認 |
-| タイムアウト | ネットワーク遅延/リソース不足 | タイムアウト値の調整、リトライ処理の追加 |
-| メモリ不足 | データ量の増大 | バッチ処理の導入、ページネーションの実装 |
-| 権限エラー | アクセス権限の不足 | 実行ユーザーの権限確認、設定の見直し |
-| データ不整合 | 並行処理の競合 | ロック機構の導入、トランザクション管理 |
+| Initialization error | Defective configuration file | Verify the path and format of the configuration file |
+| Timeout | Network latency / resource shortage | Adjust the timeout value, add retry logic |
+| Out of memory | Increased data volume | Introduce batch processing, implement pagination |
+| Permission error | Insufficient access privileges | Verify the executing user's permissions, review settings |
+| Data inconsistency | Race conditions in concurrent processing | Introduce locking, manage transactions |
 
-### デバッグの手順
+### Debugging Procedure
 
-1. **エラーメッセージの確認**: スタックトレースを読み、発生箇所を特定する
-2. **再現手順の確立**: 最小限のコードでエラーを再現する
-3. **仮説の立案**: 考えられる原因をリストアップする
-4. **段階的な検証**: ログ出力やデバッガを使って仮説を検証する
-5. **修正と回帰テスト**: 修正後、関連する箇所のテストも実行する
+1. **Check the error message**: Read the stack trace and identify the source
+2. **Establish reproduction steps**: Reproduce the error with minimal code
+3. **Formulate hypotheses**: List possible causes
+4. **Verify step by step**: Use log output or a debugger to verify hypotheses
+5. **Fix and run regression tests**: After fixing, also run tests for related areas
 
 ```python
-# デバッグ用ユーティリティ
+# Debugging utilities
 import logging
 import traceback
 from functools import wraps
 
-# ロガーの設定
+# Logger configuration
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
@@ -1375,94 +1375,94 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def debug_decorator(func):
-    """関数の入出力をログ出力するデコレータ"""
+    """Decorator that logs the inputs and outputs of a function"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logger.debug(f"呼び出し: {func.__name__}(args={args}, kwargs={kwargs})")
+        logger.debug(f"Called: {func.__name__}(args={args}, kwargs={kwargs})")
         try:
             result = func(*args, **kwargs)
-            logger.debug(f"戻り値: {func.__name__} -> {result}")
+            logger.debug(f"Return value: {func.__name__} -> {result}")
             return result
         except Exception as e:
-            logger.error(f"例外発生: {func.__name__}: {e}")
+            logger.error(f"Exception raised: {func.__name__}: {e}")
             logger.error(traceback.format_exc())
             raise
     return wrapper
 
 @debug_decorator
 def process_data(items):
-    """データ処理（デバッグ対象）"""
+    """Data processing (debug target)"""
     if not items:
-        raise ValueError("空のデータ")
+        raise ValueError("Empty data")
     return [item * 2 for item in items]
 ```
 
-### パフォーマンス問題の診断
+### Diagnosing Performance Issues
 
-パフォーマンス問題が発生した場合の診断手順:
+Diagnostic procedure when performance issues arise:
 
-1. **ボトルネックの特定**: プロファイリングツールで計測
-2. **メモリ使用量の確認**: メモリリークの有無をチェック
-3. **I/O待ちの確認**: ディスクやネットワークI/Oの状況を確認
-4. **同時接続数の確認**: コネクションプールの状態を確認
+1. **Identify the bottleneck**: Measure with profiling tools
+2. **Check memory usage**: Verify whether there are any memory leaks
+3. **Check I/O waits**: Verify the state of disk and network I/O
+4. **Check connection counts**: Verify the connection pool state
 
-| 問題の種類 | 診断ツール | 対策 |
+| Issue type | Diagnostic tool | Countermeasure |
 |-----------|-----------|------|
-| CPU負荷 | cProfile, py-spy | アルゴリズム改善、並列化 |
-| メモリリーク | tracemalloc, objgraph | 参照の適切な解放 |
-| I/Oボトルネック | strace, iostat | 非同期I/O、キャッシュ |
-| DB遅延 | EXPLAIN, slow query log | インデックス、クエリ最適化 |
+| CPU load | cProfile, py-spy | Algorithm improvement, parallelization |
+| Memory leak | tracemalloc, objgraph | Properly release references |
+| I/O bottleneck | strace, iostat | Async I/O, caching |
+| DB latency | EXPLAIN, slow query log | Indexing, query optimization |
 ---
 
 ## FAQ
 
-### Q1: WASM のパフォーマンスはネイティブと比べてどう?
+### Q1: How does WASM performance compare to native?
 
-**A:** 一般的にネイティブの 60-90% 程度の性能です。数値計算は特に良好で、JIT コンパイルされた JS より 2-10 倍高速な場合もあります。ただし DOM 操作は JS-WASM 境界のオーバーヘッドがあるため、大量の細かいDOM操作には不向きです。
+**A:** Generally around 60-90% of native performance. Numerical computation is particularly good and may run 2-10x faster than JIT-compiled JS. However, DOM operations have JS-WASM boundary overhead, so they are unsuitable for large numbers of fine-grained DOM operations.
 
-### Q2: no_std と alloc を同時に使うには?
+### Q2: How do I use no_std and alloc together?
 
-**A:** `#![no_std]` を宣言した上で `extern crate alloc;` を追加し、グローバルアロケータを設定します。
+**A:** After declaring `#![no_std]`, add `extern crate alloc;` and configure a global allocator.
 
 ```rust
 #![no_std]
 extern crate alloc;
 use alloc::{vec, vec::Vec, string::String};
 
-// アロケータ設定 (組み込み向け)
+// Allocator configuration (for embedded)
 use embedded_alloc::LlffHeap as Heap;
 #[global_allocator]
 static HEAP: Heap = Heap::empty();
 ```
 
-### Q3: WASM のデバッグ方法は?
+### Q3: How do I debug WASM?
 
-**A:** (1) `console_error_panic_hook` でパニック時にブラウザコンソールにスタックトレースを表示 (2) Chrome DevTools のWASMデバッガでソースマップを使う (3) `wasm2wat` でテキスト形式に変換して解析。
+**A:** (1) Use `console_error_panic_hook` to display stack traces in the browser console on panic. (2) Use the WASM debugger in Chrome DevTools with source maps. (3) Use `wasm2wat` to convert to text format for analysis.
 
 ```rust
-// デバッグ用パニックフック
+// Debug panic hook
 #[wasm_bindgen(start)]
 fn init() {
     console_error_panic_hook::set_once();
 }
 ```
 
-### Q4: embassy と RTIC の違いは?
+### Q4: What is the difference between embassy and RTIC?
 
-**A:** embassy は async/await ベースで、タスクを `.await` で中断・再開できます。RTIC は割り込み駆動で、ハードウェア割り込みに基づくタスク実行モデルです。新しいプロジェクトには embassy が推奨されます。async/await の方が Rust の標準的なプログラミングモデルに近く、学習コストが低いです。
+**A:** embassy is async/await based and can suspend/resume tasks at `.await`. RTIC is interrupt-driven and uses an execution model based on hardware interrupts. embassy is recommended for new projects: async/await is closer to Rust's standard programming model and has a lower learning curve.
 
-### Q5: WASM で Web フレームワークを使うには?
+### Q5: How do I use a web framework with WASM?
 
-**A:** Yew, Leptos, Dioxus が主要な選択肢です。
+**A:** Yew, Leptos, and Dioxus are the main options.
 
-| フレームワーク | 特徴 | アーキテクチャ |
+| Framework | Features | Architecture |
 |---|---|---|
-| **Yew** | React 風コンポーネントモデル | クライアント SPA |
-| **Leptos** | 細粒度リアクティビティ、SSR 対応 | フルスタック |
-| **Dioxus** | React 風、マルチプラットフォーム | Web + Desktop + Mobile |
+| **Yew** | React-style component model | Client-side SPA |
+| **Leptos** | Fine-grained reactivity, SSR support | Full-stack |
+| **Dioxus** | React-style, multi-platform | Web + Desktop + Mobile |
 
 ```rust
-// Leptos の例
+// Leptos example
 use leptos::*;
 
 #[component]
@@ -1477,15 +1477,15 @@ fn Counter() -> impl IntoView {
 }
 ```
 
-### Q6: WASM のメモリ制限は?
+### Q6: What are the memory limits in WASM?
 
-**A:** デフォルトでは 1 ページ (64KB) から開始し、最大で約 4GB (32-bit アドレス空間の制限) まで成長します。`memory.grow` 命令でページ単位 (64KB) で拡張されます。ブラウザごとに実際の上限は異なります。
+**A:** By default it starts at 1 page (64KB) and can grow up to about 4GB (the limit of 32-bit address space). It is expanded with the `memory.grow` instruction in page units (64KB). The actual upper limit varies by browser.
 
 ---
 
-## 8. テストとデバッグ
+## 8. Testing and Debugging
 
-### WASM ユニットテスト (wasm-bindgen-test)
+### WASM Unit Tests (wasm-bindgen-test)
 
 ```rust
 // tests/web.rs
@@ -1532,19 +1532,19 @@ fn test_dom_manipulation() {
 ```
 
 ```bash
-# テスト実行
+# Run tests
 wasm-pack test --headless --chrome
 wasm-pack test --headless --firefox
 wasm-pack test --node
 ```
 
-### 組み込みテスト戦略
+### Embedded Testing Strategy
 
 ```rust
-// 組み込みロジックのテストはホスト環境で実行可能にする
-// HAL に依存しないロジックを分離
+// Make embedded logic tests runnable in the host environment
+// Separate logic that does not depend on the HAL
 
-/// ハードウェア非依存のフィルタロジック
+/// Hardware-independent filter logic
 pub struct MovingAverage<const N: usize> {
     buffer: [f32; N],
     index: usize,
@@ -1578,7 +1578,7 @@ impl<const N: usize> MovingAverage<N> {
     }
 }
 
-// ホスト環境で通常の cargo test として実行
+// Run as ordinary cargo test in the host environment
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1590,7 +1590,7 @@ mod tests {
         assert_eq!(avg.push(20.0), 15.0);
         assert_eq!(avg.push(30.0), 20.0);
         assert_eq!(avg.push(40.0), 25.0);
-        // バッファが一周
+        // Buffer wraps around
         assert_eq!(avg.push(50.0), 35.0); // (20+30+40+50)/4
     }
 
@@ -1598,11 +1598,11 @@ mod tests {
     fn test_pid_controller() {
         let mut pid = PidController::new(1.0, 0.1, 0.05);
         let output = pid.update(100.0, 0.0, 0.01);
-        assert!(output > 0.0, "正の方向に制御されること");
+        assert!(output > 0.0, "Should be controlled in the positive direction");
     }
 }
 
-/// PID 制御器（組み込みでもホストでもテスト可能）
+/// PID controller (testable on both embedded and host)
 pub struct PidController {
     kp: f32,
     ki: f32,
@@ -1632,7 +1632,7 @@ impl PidController {
 }
 ```
 
-### WASM パフォーマンスプロファイリング
+### WASM Performance Profiling
 
 ```rust
 use wasm_bindgen::prelude::*;
@@ -1643,7 +1643,7 @@ extern "C" {
     fn now() -> f64;
 }
 
-/// パフォーマンス計測ユーティリティ
+/// Performance measurement utility
 #[wasm_bindgen]
 pub struct PerfTimer {
     label: String,
@@ -1673,40 +1673,40 @@ impl PerfTimer {
     }
 }
 
-/// メモリ使用量の監視
+/// Memory usage monitoring
 #[wasm_bindgen]
 pub fn wasm_memory_usage() -> usize {
-    // WASM のリニアメモリサイズを取得
-    core::arch::wasm32::memory_size(0) * 65536 // ページ数 × 64KB
+    // Get the size of the WASM linear memory
+    core::arch::wasm32::memory_size(0) * 65536 // pages × 64KB
 }
 ```
 
 ---
 
-## まとめ
+## Summary
 
-| 項目 | 要点 |
+| Item | Key points |
 |---|---|
-| no_std | OS なし環境向け。core のみ使用 |
-| alloc | ヒープ割当が使えれば Vec/String を追加可能 |
-| #![no_main] | エントリポイントを自分で定義 (ベアメタル) |
-| wasm-bindgen | Rust <-> JS の型安全なブリッジ |
-| wasm-pack | WASM + JS + d.ts + package.json を一括生成 |
-| WASI | サーバーサイド WASM。ファイル I/O 対応 |
-| サイズ最適化 | opt-level="s", lto=true, wasm-opt |
-| embassy | 組み込みasync ランタイム。現代的な開発体験 |
-| web-sys | DOM 操作、Canvas、WebGL 等のブラウザ API |
-| 固定サイズバッファ | 組み込みでは動的割当より固定サイズを優先 |
-| wasm-bindgen-test | ブラウザ内で WASM のユニットテストを実行 |
-| PID 制御 | ハードウェア非依存ロジックはホストでテスト可能 |
+| no_std | For OS-less environments. Uses core only |
+| alloc | Adds Vec/String when heap allocation is available |
+| #![no_main] | Define your own entry point (bare metal) |
+| wasm-bindgen | Type-safe bridge between Rust and JS |
+| wasm-pack | Generates WASM + JS + d.ts + package.json all at once |
+| WASI | Server-side WASM. Supports file I/O |
+| Size optimization | opt-level="s", lto=true, wasm-opt |
+| embassy | Embedded async runtime. Modern development experience |
+| web-sys | Browser APIs such as DOM manipulation, Canvas, WebGL |
+| Fixed-size buffers | In embedded, prefer fixed-size over dynamic allocation |
+| wasm-bindgen-test | Run WASM unit tests in the browser |
+| PID control | Hardware-independent logic can be tested on the host |
 
-## 次に読むべきガイド
+## Next Guides to Read
 
-- [CLIツール](./04-cli-tools.md) — クロスコンパイルの実践
-- [FFI](./02-ffi-interop.md) — WASM 以外の言語間連携
-- [メモリレイアウト](./00-memory-layout.md) — no_std 環境でのメモリ管理
+- [CLI Tools](./04-cli-tools.md) -- Cross-compilation in practice
+- [FFI](./02-ffi-interop.md) -- Cross-language interop beyond WASM
+- [Memory Layout](./00-memory-layout.md) -- Memory management in no_std environments
 
-## 参考文献
+## References
 
 1. **Rust and WebAssembly Book**: https://rustwasm.github.io/docs/book/
 2. **The Embedded Rust Book**: https://docs.rust-embedded.org/book/
