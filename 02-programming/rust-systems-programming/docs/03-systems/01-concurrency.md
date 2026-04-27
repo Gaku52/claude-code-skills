@@ -1,123 +1,123 @@
-# 並行性 — スレッド、Mutex/RwLock、rayon
+# Concurrency — Threads, Mutex/RwLock, rayon
 
-> Rust の所有権システムによるコンパイル時データ競合防止と、スレッド/ロック/並列イテレータによる実践的な並行処理を習得する
+> Master compile-time data race prevention through Rust's ownership system, and practical concurrent processing using threads, locks, and parallel iterators
 
-## この章で学ぶこと
+## What You'll Learn in This Chapter
 
-1. **スレッドと所有権** — std::thread、Send/Sync トレイト、スコープドスレッド
-2. **同期プリミティブ** — Mutex, RwLock, Condvar, Atomic, Barrier
-3. **データ並列処理** — rayon による並列イテレータと作業分割
-4. **チャネルによるメッセージパッシング** — mpsc, crossbeam-channel
-5. **高度な並行パターン** — ロックフリーデータ構造、Producer-Consumer、ワークスティーリング
+1. **Threads and ownership** — std::thread, Send/Sync traits, scoped threads
+2. **Synchronization primitives** — Mutex, RwLock, Condvar, Atomic, Barrier
+3. **Data parallelism** — Parallel iterators and work splitting with rayon
+4. **Message passing via channels** — mpsc, crossbeam-channel
+5. **Advanced concurrency patterns** — Lock-free data structures, Producer-Consumer, work stealing
 
 
-## 前提知識
+## Prerequisites
 
-このガイドを読む前に、以下の知識があると理解が深まります:
+Reading the following beforehand will deepen your understanding of this guide:
 
-- 基本的なプログラミングの知識
-- 関連する基礎概念の理解
-- [メモリレイアウト — スタック/ヒープ、repr](./00-memory-layout.md) の内容を理解していること
+- Basic programming knowledge
+- Understanding of related foundational concepts
+- Content of [Memory Layout — Stack/Heap, repr](./00-memory-layout.md)
 
 ---
 
-## 1. Rust の並行安全性モデル
+## 1. Rust's Concurrency Safety Model
 
 ```
-┌──────────── Rust の並行安全性保証 ────────────┐
-│                                                │
-│  コンパイル時チェック                           │
-│  ┌──────────────────────────────────────────┐  │
-│  │  Send: 型 T を別スレッドに移動できる      │  │
-│  │  Sync: &T を複数スレッドから共有できる    │  │
-│  │                                          │  │
-│  │  Send + Sync の例:                       │  │
-│  │    i32, String, Vec<T>, Arc<T>           │  │
-│  │                                          │  │
-│  │  !Send の例:                             │  │
-│  │    Rc<T>, *mut T                         │  │
-│  │                                          │  │
-│  │  !Sync の例:                             │  │
-│  │    Cell<T>, RefCell<T>                   │  │
-│  └──────────────────────────────────────────┘  │
-│                                                │
-│  → データ競合はコンパイルエラー               │
-│  → デッドロックは防げない (論理エラー)         │
-└────────────────────────────────────────────────┘
+┌────────── Rust's Concurrency Safety Guarantees ──────────┐
+│                                                            │
+│  Compile-time checks                                       │
+│  ┌──────────────────────────────────────────┐              │
+│  │  Send: type T can move to another thread │              │
+│  │  Sync: &T can be shared across threads   │              │
+│  │                                          │              │
+│  │  Send + Sync examples:                   │              │
+│  │    i32, String, Vec<T>, Arc<T>           │              │
+│  │                                          │              │
+│  │  !Send examples:                         │              │
+│  │    Rc<T>, *mut T                         │              │
+│  │                                          │              │
+│  │  !Sync examples:                         │              │
+│  │    Cell<T>, RefCell<T>                   │              │
+│  └──────────────────────────────────────────┘              │
+│                                                            │
+│  → Data races are compile errors                           │
+│  → Deadlocks cannot be prevented (logical errors)          │
+└────────────────────────────────────────────────────────────┘
 ```
 
-### Send / Sync の詳細ルール
+### Detailed Rules for Send / Sync
 
 ```rust
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::Arc;
 
-// Send: 型 T を別スレッドに「所有権ごと移動」できる
-// Sync: &T を複数スレッドで「同時に参照」できる
+// Send: type T can be "moved with ownership" to another thread
+// Sync: &T can be "referenced concurrently" from multiple threads
 
-// 基本ルール:
+// Basic rule:
 // T: Sync  ⟺  &T: Send
-// つまり「共有参照を送れる」＝「共有できる」
+// In other words, "shared references can be sent" = "can be shared"
 
 fn assert_send<T: Send>() {}
 fn assert_sync<T: Sync>() {}
 
 fn check_traits() {
-    // プリミティブ: Send + Sync
+    // Primitives: Send + Sync
     assert_send::<i32>();
     assert_sync::<i32>();
     assert_send::<String>();
     assert_sync::<String>();
 
-    // Arc<T>: T が Send + Sync なら Send + Sync
+    // Arc<T>: Send + Sync if T is Send + Sync
     assert_send::<Arc<i32>>();
     assert_sync::<Arc<i32>>();
 
-    // Rc<T>: !Send, !Sync (参照カウントが非Atomic)
-    // assert_send::<Rc<i32>>();  // コンパイルエラー!
-    // assert_sync::<Rc<i32>>();  // コンパイルエラー!
+    // Rc<T>: !Send, !Sync (reference count is non-atomic)
+    // assert_send::<Rc<i32>>();  // Compile error!
+    // assert_sync::<Rc<i32>>();  // Compile error!
 
-    // Cell<T>: Send だが !Sync (内部可変性がスレッド安全でない)
+    // Cell<T>: Send but !Sync (interior mutability is not thread-safe)
     assert_send::<Cell<i32>>();
-    // assert_sync::<Cell<i32>>();  // コンパイルエラー!
+    // assert_sync::<Cell<i32>>();  // Compile error!
 
-    // Mutex<T>: T が Send なら Send + Sync
+    // Mutex<T>: Send + Sync if T is Send
     assert_send::<std::sync::Mutex<Vec<i32>>>();
     assert_sync::<std::sync::Mutex<Vec<i32>>>();
 }
 
 fn main() {
     check_traits();
-    println!("全ての型チェックが通過");
+    println!("All type checks passed");
 }
 ```
 
-### コード例: Send/Sync の実用的な意味
+### Code Example: Practical Meaning of Send/Sync
 
 ```rust
 use std::rc::Rc;
 use std::sync::Arc;
 
 fn main() {
-    // NG: Rc をスレッドに渡す → コンパイルエラー
+    // NG: Passing Rc to a thread → compile error
     // let rc = Rc::new(42);
     // std::thread::spawn(move || {
     //     println!("{}", rc);
     // });
     // error: `Rc<i32>` cannot be sent between threads safely
 
-    // OK: Arc を使えばスレッド間で共有可能
+    // OK: Use Arc to share between threads
     let arc = Arc::new(42);
     let arc_clone = Arc::clone(&arc);
     let handle = std::thread::spawn(move || {
-        println!("別スレッド: {}", arc_clone);
+        println!("Other thread: {}", arc_clone);
     });
     handle.join().unwrap();
-    println!("メイン: {}", arc);
+    println!("Main: {}", arc);
 
-    // unsafe impl Send/Sync で手動マーク (危険!)
-    // 自分で安全性を保証する場合のみ使用
+    // Manually mark with unsafe impl Send/Sync (dangerous!)
+    // Use only when you guarantee safety yourself
     struct MyWrapper(*mut u8);
     unsafe impl Send for MyWrapper {}
     unsafe impl Sync for MyWrapper {}
@@ -126,47 +126,47 @@ fn main() {
 
 ---
 
-## 2. スレッド基本操作
+## 2. Basic Thread Operations
 
-### コード例1: スレッドの生成と join
+### Code Example 1: Spawning Threads and join
 
 ```rust
 use std::thread;
 use std::time::Duration;
 
 fn main() {
-    // スレッドの生成
+    // Spawning a thread
     let handle = thread::spawn(|| {
         for i in 1..=5 {
-            println!("[子スレッド] カウント: {}", i);
+            println!("[Child thread] count: {}", i);
             thread::sleep(Duration::from_millis(100));
         }
-        42 // 戻り値
+        42 // Return value
     });
 
-    // メインスレッドの処理
+    // Main thread processing
     for i in 1..=3 {
-        println!("[メイン] カウント: {}", i);
+        println!("[Main] count: {}", i);
         thread::sleep(Duration::from_millis(150));
     }
 
-    // join で完了を待ち、戻り値を取得
+    // Wait for completion with join and obtain return value
     let result = handle.join().unwrap();
-    println!("子スレッドの戻り値: {}", result);
+    println!("Child thread return value: {}", result);
 
-    // スレッドビルダーで名前・スタックサイズを指定
+    // Use the thread builder to specify name and stack size
     let builder = thread::Builder::new()
         .name("worker-1".into())
         .stack_size(4 * 1024 * 1024); // 4MB
 
     let handle = builder.spawn(|| {
-        println!("スレッド名: {:?}", thread::current().name());
+        println!("Thread name: {:?}", thread::current().name());
     }).unwrap();
     handle.join().unwrap();
 }
 ```
 
-### コード例2: スコープドスレッド (Rust 1.63+)
+### Code Example 2: Scoped Threads (Rust 1.63+)
 
 ```rust
 use std::thread;
@@ -175,28 +175,28 @@ fn main() {
     let data = vec![1, 2, 3, 4, 5];
     let mut results = vec![0; 5];
 
-    // scope 内のスレッドはスコープ終了時に自動 join
-    // → ローカル変数への参照を安全に渡せる
+    // Threads inside scope are auto-joined when the scope ends
+    // → references to local variables can be passed safely
     thread::scope(|s| {
-        // データの読み取りスレッド
+        // Data-reader thread
         s.spawn(|| {
             let sum: i32 = data.iter().sum();
-            println!("合計: {}", sum);
+            println!("Sum: {}", sum);
         });
 
-        // データの変更スレッド (分割借用)
+        // Data-mutating threads (split borrowing)
         for (i, slot) in results.iter_mut().enumerate() {
             s.spawn(move || {
                 *slot = data[i] * data[i];
             });
         }
-    }); // ← 全スレッドが完了するまでブロック
+    }); // ← blocks until all threads complete
 
-    println!("二乗: {:?}", results); // [1, 4, 9, 16, 25]
+    println!("Squares: {:?}", results); // [1, 4, 9, 16, 25]
 }
 ```
 
-### コード例: スレッドプールの自作
+### Code Example: Building Your Own Thread Pool
 
 ```rust
 use std::sync::{mpsc, Arc, Mutex};
@@ -216,7 +216,7 @@ struct Worker {
 
 impl ThreadPool {
     fn new(size: usize) -> Self {
-        assert!(size > 0, "スレッド数は1以上が必要");
+        assert!(size > 0, "thread count must be at least 1");
 
         let (sender, receiver) = mpsc::channel::<Job>();
         let receiver = Arc::new(Mutex::new(receiver));
@@ -230,11 +230,11 @@ impl ThreadPool {
                     let job = receiver.lock().unwrap().recv();
                     match job {
                         Ok(job) => {
-                            println!("[Worker {}] ジョブ実行開始", id);
+                            println!("[Worker {}] starting job execution", id);
                             job();
                         }
                         Err(_) => {
-                            println!("[Worker {}] チャネル閉鎖、終了", id);
+                            println!("[Worker {}] channel closed, exiting", id);
                             break;
                         }
                     }
@@ -264,11 +264,11 @@ impl ThreadPool {
 
 impl Drop for ThreadPool {
     fn drop(&mut self) {
-        // sender を drop → チャネルを閉じる → worker がループを抜ける
+        // Drop sender → close the channel → workers exit their loops
         drop(self.sender.take());
 
         for worker in &mut self.workers {
-            println!("Worker {} の終了を待機...", worker.id);
+            println!("Waiting for worker {} to finish...", worker.id);
             if let Some(handle) = worker.handle.take() {
                 handle.join().unwrap();
             }
@@ -281,30 +281,30 @@ fn main() {
 
     for i in 0..8 {
         pool.execute(move || {
-            println!("タスク {} 実行中 (スレッド: {:?})", i, thread::current().name());
+            println!("Task {} running (thread: {:?})", i, thread::current().name());
             thread::sleep(std::time::Duration::from_millis(100));
-            println!("タスク {} 完了", i);
+            println!("Task {} done", i);
         });
     }
 
-    // pool が drop される → 全タスク完了を待機
+    // When pool is dropped → wait for all tasks to complete
     drop(pool);
-    println!("全タスク完了");
+    println!("All tasks completed");
 }
 ```
 
 ---
 
-## 3. 同期プリミティブ
+## 3. Synchronization Primitives
 
-### コード例3: Mutex と RwLock
+### Code Example 3: Mutex and RwLock
 
 ```rust
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 
 fn main() {
-    // Mutex — 排他ロック (読み書き両方を1スレッドに制限)
+    // Mutex — exclusive lock (restricts both reads and writes to a single thread)
     let counter = Arc::new(Mutex::new(0u64));
     let mut handles = vec![];
 
@@ -314,27 +314,27 @@ fn main() {
             for _ in 0..1000 {
                 let mut num = counter.lock().unwrap();
                 *num += 1;
-                // num が drop されると自動的にロック解放
+                // The lock is released automatically when num is dropped
             }
         }));
     }
 
     for h in handles { h.join().unwrap(); }
-    println!("カウンタ: {}", *counter.lock().unwrap()); // 10000
+    println!("Counter: {}", *counter.lock().unwrap()); // 10000
 
-    // RwLock — 読み取りは並行、書き込みは排他
-    let config = Arc::new(RwLock::new(String::from("初期設定")));
+    // RwLock — concurrent reads, exclusive writes
+    let config = Arc::new(RwLock::new(String::from("initial config")));
 
     let config_reader = Arc::clone(&config);
     let reader = thread::spawn(move || {
-        let cfg = config_reader.read().unwrap(); // 読み取りロック
-        println!("設定: {}", *cfg);
+        let cfg = config_reader.read().unwrap(); // read lock
+        println!("Config: {}", *cfg);
     });
 
     let config_writer = Arc::clone(&config);
     let writer = thread::spawn(move || {
-        let mut cfg = config_writer.write().unwrap(); // 書き込みロック
-        *cfg = "更新された設定".to_string();
+        let mut cfg = config_writer.write().unwrap(); // write lock
+        *cfg = "updated config".to_string();
     });
 
     reader.join().unwrap();
@@ -342,29 +342,30 @@ fn main() {
 }
 ```
 
-### ロックの動作
+### How Locks Behave
 
 ```
 ┌─────────── Mutex vs RwLock ─────────────┐
 │                                          │
 │  Mutex:                                  │
-│    Thread A: [LOCK████████UNLOCK]       │
-│    Thread B:      [wait][LOCK████UNLOCK]│
-│    Thread C:           [wait....][LOCK] │
-│    → 同時に1つだけ                       │
+│    Thread A: [LOCK████████UNLOCK]        │
+│    Thread B:      [wait][LOCK████UNLOCK] │
+│    Thread C:           [wait....][LOCK]  │
+│    → Only one at a time                  │
 │                                          │
 │  RwLock:                                 │
 │    Reader A: [RLOCK██████████RUNLOCK]    │
 │    Reader B: [RLOCK██████████RUNLOCK]    │
 │    Reader C: [RLOCK██████████RUNLOCK]    │
-│    → 読み取りは並行OK                    │
+│    → Concurrent reads OK                 │
 │                                          │
-│    Writer:   [wait.........][WLOCK██UNL]│
-│    → 書き込みは排他 (全reader完了待ち)   │
+│    Writer:   [wait.........][WLOCK██UNL] │
+│    → Writes are exclusive (waits for     │
+│      all readers to finish)              │
 └──────────────────────────────────────────┘
 ```
 
-### コード例: Mutex のポイズニング処理
+### Code Example: Handling Mutex Poisoning
 
 ```rust
 use std::sync::{Arc, Mutex};
@@ -373,37 +374,37 @@ use std::thread;
 fn main() {
     let data = Arc::new(Mutex::new(vec![1, 2, 3]));
 
-    // パニックするスレッドを生成
+    // Spawn a thread that panics
     let data_clone = Arc::clone(&data);
     let handle = thread::spawn(move || {
         let mut guard = data_clone.lock().unwrap();
         guard.push(4);
-        panic!("意図的なパニック!"); // ← パニック時にロックがポイズニング
+        panic!("intentional panic!"); // ← lock is poisoned on panic
     });
 
-    // パニックは join で Result::Err として返る
+    // Panics are returned as Result::Err from join
     let _ = handle.join();
 
-    // ポイズニングされた Mutex のハンドリング
+    // Handling a poisoned Mutex
     match data.lock() {
         Ok(guard) => {
-            println!("正常ロック: {:?}", *guard);
+            println!("Normal lock: {:?}", *guard);
         }
         Err(poisoned) => {
-            // ポイズニングされたが、中のデータは取得可能
-            println!("ポイズニング検出! データ: {:?}", *poisoned.into_inner());
-            // データの整合性は自分で判断する必要がある
+            // Poisoned, but the inner data is still accessible
+            println!("Poisoning detected! data: {:?}", *poisoned.into_inner());
+            // You must judge data integrity yourself
         }
     }
 
-    // parking_lot::Mutex はポイズニングしない (unwrap 不要)
+    // parking_lot::Mutex never poisons (no unwrap needed)
     // use parking_lot::Mutex;
     // let m = Mutex::new(42);
-    // let guard = m.lock(); // Result ではなく直接 MutexGuard
+    // let guard = m.lock(); // returns MutexGuard directly, not Result
 }
 ```
 
-### コード例4: Atomic 操作
+### Code Example 4: Atomic Operations
 
 ```rust
 use std::sync::atomic::{AtomicU64, AtomicBool, Ordering};
@@ -422,20 +423,20 @@ fn main() {
         handles.push(thread::spawn(move || {
             while running.load(Ordering::Relaxed) {
                 counter.fetch_add(1, Ordering::Relaxed);
-                // Relaxed: 最も緩い順序保証 (カウンタに十分)
+                // Relaxed: weakest ordering guarantee (sufficient for a counter)
             }
         }));
     }
 
     thread::sleep(std::time::Duration::from_millis(100));
-    running.store(false, Ordering::Relaxed); // 全スレッドに停止を通知
+    running.store(false, Ordering::Relaxed); // tell all threads to stop
 
     for h in handles { h.join().unwrap(); }
-    println!("カウンタ: {}", counter.load(Ordering::Relaxed));
+    println!("Counter: {}", counter.load(Ordering::Relaxed));
 }
 ```
 
-### コード例: Ordering の違いを理解する
+### Code Example: Understanding the Differences in Ordering
 
 ```rust
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
@@ -443,38 +444,38 @@ use std::sync::Arc;
 use std::thread;
 
 fn main() {
-    // Ordering の種類と用途
-    // Relaxed:    最も緩い。他の操作との順序保証なし。カウンタに適する。
-    // Acquire:    この load 以降の読み書きが、この load より前に並べ替えられない。
-    // Release:    この store 以前の読み書きが、この store より後に並べ替えられない。
-    // AcqRel:     Acquire + Release。RMW (Read-Modify-Write) 操作に使用。
-    // SeqCst:     最も厳しい。全スレッドで全操作の順序が一致。
+    // Types of Ordering and their uses
+    // Relaxed:    Weakest. No ordering guarantees with other operations. Good for counters.
+    // Acquire:    Reads/writes after this load cannot be reordered before it.
+    // Release:    Reads/writes before this store cannot be reordered after it.
+    // AcqRel:     Acquire + Release. Used for RMW (Read-Modify-Write) operations.
+    // SeqCst:     Strongest. Total order of all operations across all threads.
 
-    // Release-Acquire ペアの例: フラグによるデータ公開
+    // Release-Acquire pair example: publishing data via a flag
     let data = Arc::new(AtomicU32::new(0));
     let ready = Arc::new(AtomicBool::new(false));
 
     let data_clone = Arc::clone(&data);
     let ready_clone = Arc::clone(&ready);
 
-    // プロデューサー
+    // Producer
     let producer = thread::spawn(move || {
-        data_clone.store(42, Ordering::Relaxed);      // データを書き込み
-        ready_clone.store(true, Ordering::Release);    // Release: 上の書き込みが先に完了
+        data_clone.store(42, Ordering::Relaxed);      // write data
+        ready_clone.store(true, Ordering::Release);    // Release: prior writes complete first
     });
 
-    // コンシューマー
+    // Consumer
     let data_clone2 = Arc::clone(&data);
     let ready_clone2 = Arc::clone(&ready);
 
     let consumer = thread::spawn(move || {
-        // Acquire: ready=true を読んだ後、data の読み込みが確実に 42 になる
+        // Acquire: after reading ready=true, the load of data is guaranteed to be 42
         while !ready_clone2.load(Ordering::Acquire) {
-            std::hint::spin_loop(); // ビジーウェイト
+            std::hint::spin_loop(); // busy-wait
         }
         let value = data_clone2.load(Ordering::Relaxed);
-        assert_eq!(value, 42); // Release-Acquire により保証される
-        println!("データ: {}", value);
+        assert_eq!(value, 42); // guaranteed by Release-Acquire pairing
+        println!("Data: {}", value);
     });
 
     producer.join().unwrap();
@@ -482,14 +483,14 @@ fn main() {
 }
 ```
 
-### コード例5: Condvar (条件変数)
+### Code Example 5: Condvar (Condition Variable)
 
 ```rust
 use std::sync::{Arc, Mutex, Condvar};
 use std::thread;
 use std::collections::VecDeque;
 
-/// Condvar によるスレッドセーフなキュー
+/// A thread-safe queue using Condvar
 struct BlockingQueue<T> {
     queue: Mutex<VecDeque<T>>,
     not_empty: Condvar,
@@ -506,13 +507,13 @@ impl<T> BlockingQueue<T> {
     fn push(&self, item: T) {
         let mut q = self.queue.lock().unwrap();
         q.push_back(item);
-        self.not_empty.notify_one(); // 待機中のスレッドを1つ起こす
+        self.not_empty.notify_one(); // wake one waiting thread
     }
 
     fn pop(&self) -> T {
         let mut q = self.queue.lock().unwrap();
         while q.is_empty() {
-            q = self.not_empty.wait(q).unwrap(); // 通知まで待機
+            q = self.not_empty.wait(q).unwrap(); // wait for notification
         }
         q.pop_front().unwrap()
     }
@@ -525,7 +526,7 @@ fn main() {
     let consumer = thread::spawn(move || {
         for _ in 0..5 {
             let item = consumer_queue.pop();
-            println!("消費: {}", item);
+            println!("Consumed: {}", item);
         }
     });
 
@@ -538,7 +539,7 @@ fn main() {
 }
 ```
 
-### コード例: Barrier による同期
+### Code Example: Synchronization with Barrier
 
 ```rust
 use std::sync::{Arc, Barrier};
@@ -554,24 +555,24 @@ fn main() {
     for id in 0..num_threads {
         let barrier = Arc::clone(&barrier);
         handles.push(thread::spawn(move || {
-            // Phase 1: 各スレッドが独立に初期化
-            println!("[Thread {}] Phase 1: 初期化中...", id);
+            // Phase 1: each thread initializes independently
+            println!("[Thread {}] Phase 1: initializing...", id);
             thread::sleep(std::time::Duration::from_millis(100 * id as u64));
-            println!("[Thread {}] Phase 1: 初期化完了", id);
+            println!("[Thread {}] Phase 1: initialization complete", id);
 
-            // 全スレッドが初期化完了するまで待機
+            // Wait until all threads finish initialization
             let result = barrier.wait();
             if result.is_leader() {
-                println!("=== 全スレッド初期化完了、Phase 2 開始 ===");
+                println!("=== All threads initialized, starting Phase 2 ===");
             }
 
-            // Phase 2: 全スレッドが同時に処理開始
+            // Phase 2: all threads start processing simultaneously
             let start = Instant::now();
-            println!("[Thread {}] Phase 2: 処理開始 at {:?}", id, start.elapsed());
+            println!("[Thread {}] Phase 2: started at {:?}", id, start.elapsed());
 
-            // 再度同期
+            // Sync again
             barrier.wait();
-            println!("[Thread {}] Phase 2: 完了", id);
+            println!("[Thread {}] Phase 2: complete", id);
         }));
     }
 
@@ -581,18 +582,18 @@ fn main() {
 }
 ```
 
-### コード例: Once と OnceLock による一回限り初期化
+### Code Example: One-Time Initialization with Once and OnceLock
 
 ```rust
 use std::sync::{Once, OnceLock};
 
-// Once: 初期化処理を一回だけ実行
+// Once: runs the initialization exactly once
 static INIT: Once = Once::new();
 static mut CONFIG: Option<String> = None;
 
 fn get_config_legacy() -> &'static str {
     INIT.call_once(|| {
-        // 初回呼び出し時のみ実行される
+        // Executed only on the first call
         unsafe {
             CONFIG = Some("production".to_string());
         }
@@ -600,34 +601,34 @@ fn get_config_legacy() -> &'static str {
     unsafe { CONFIG.as_ref().unwrap().as_str() }
 }
 
-// OnceLock (Rust 1.70+): 型安全な一回限り初期化
+// OnceLock (Rust 1.70+): type-safe one-time initialization
 static CONFIG_NEW: OnceLock<String> = OnceLock::new();
 
 fn get_config() -> &'static str {
     CONFIG_NEW.get_or_init(|| {
-        println!("設定を初期化中...");
+        println!("Initializing config...");
         "production".to_string()
     })
 }
 
 fn main() {
-    // 複数回呼んでも初期化は1回だけ
-    println!("1回目: {}", get_config());
-    println!("2回目: {}", get_config());
-    println!("3回目: {}", get_config());
-    // 出力:
-    // 設定を初期化中...
-    // 1回目: production
-    // 2回目: production
-    // 3回目: production
+    // Initialization runs only once even when called multiple times
+    println!("1st: {}", get_config());
+    println!("2nd: {}", get_config());
+    println!("3rd: {}", get_config());
+    // Output:
+    // Initializing config...
+    // 1st: production
+    // 2nd: production
+    // 3rd: production
 }
 ```
 
 ---
 
-## 4. チャネルによるメッセージパッシング
+## 4. Message Passing via Channels
 
-### コード例: mpsc チャネル
+### Code Example: mpsc Channel
 
 ```rust
 use std::sync::mpsc;
@@ -638,7 +639,7 @@ fn main() {
     // mpsc: Multiple Producer, Single Consumer
     let (tx, rx) = mpsc::channel();
 
-    // 複数のプロデューサー
+    // Multiple producers
     for id in 0..3 {
         let tx = tx.clone();
         thread::spawn(move || {
@@ -650,35 +651,35 @@ fn main() {
         });
     }
 
-    // 元の tx を drop (clone のみ残す)
+    // Drop the original tx (only the clones remain)
     drop(tx);
 
-    // コンシューマー: 全メッセージを受信
+    // Consumer: receive all messages
     let mut count = 0;
     while let Ok(msg) = rx.recv() {
-        println!("受信: {}", msg);
+        println!("Received: {}", msg);
         count += 1;
     }
-    println!("合計 {} メッセージ受信", count); // 15
+    println!("Received {} messages in total", count); // 15
 
-    // sync_channel: バッファ付きチャネル
-    let (tx, rx) = mpsc::sync_channel::<i32>(3); // バッファサイズ 3
+    // sync_channel: buffered channel
+    let (tx, rx) = mpsc::sync_channel::<i32>(3); // buffer size 3
 
     thread::spawn(move || {
         for i in 0..10 {
-            println!("送信: {} (バッファが満杯なら待機)", i);
-            tx.send(i).unwrap(); // バッファが満杯ならブロック
+            println!("Sending: {} (waits if buffer is full)", i);
+            tx.send(i).unwrap(); // blocks if the buffer is full
         }
     });
 
     thread::sleep(Duration::from_millis(500));
     while let Ok(v) = rx.recv() {
-        println!("受信: {}", v);
+        println!("Received: {}", v);
     }
 }
 ```
 
-### コード例: crossbeam-channel によるマルチコンシューマー
+### Code Example: Multi-Consumer with crossbeam-channel
 
 ```rust
 use std::thread;
@@ -690,53 +691,53 @@ use std::time::Duration;
 fn crossbeam_example() {
     use crossbeam_channel::{bounded, select, unbounded, Receiver, Sender};
 
-    // bounded チャネル (バッファ付き)
+    // bounded channel (with buffer)
     let (tx, rx): (Sender<String>, Receiver<String>) = bounded(10);
 
-    // 複数のコンシューマー
+    // Multiple consumers
     let mut consumers = vec![];
     for id in 0..3 {
         let rx = rx.clone();
         consumers.push(thread::spawn(move || {
             let mut processed = 0;
             while let Ok(msg) = rx.recv() {
-                println!("[Consumer {}] 処理: {}", id, msg);
+                println!("[Consumer {}] processing: {}", id, msg);
                 processed += 1;
             }
-            println!("[Consumer {}] 合計 {} 件処理", id, processed);
+            println!("[Consumer {}] processed {} items in total", id, processed);
         }));
     }
 
-    // プロデューサー
+    // Producer
     for i in 0..30 {
         tx.send(format!("Job {}", i)).unwrap();
     }
-    drop(tx); // チャネルを閉じる
+    drop(tx); // close the channel
 
     for c in consumers {
         c.join().unwrap();
     }
 }
 
-// select! マクロ: 複数チャネルの待ち受け
+// select! macro: wait on multiple channels
 fn select_example() {
     use crossbeam_channel::{bounded, select, after, tick};
 
     let (tx1, rx1) = bounded(1);
     let (tx2, rx2) = bounded(1);
 
-    // タイマー
+    // Timers
     let timeout = after(Duration::from_secs(1));
     let ticker = tick(Duration::from_millis(200));
 
     thread::spawn(move || {
         thread::sleep(Duration::from_millis(300));
-        tx1.send("チャネル1のデータ").unwrap();
+        tx1.send("data from channel 1").unwrap();
     });
 
     thread::spawn(move || {
         thread::sleep(Duration::from_millis(500));
-        tx2.send("チャネル2のデータ").unwrap();
+        tx2.send("data from channel 2").unwrap();
     });
 
     loop {
@@ -744,20 +745,20 @@ fn select_example() {
             recv(rx1) -> msg => {
                 match msg {
                     Ok(m) => println!("rx1: {}", m),
-                    Err(_) => println!("rx1 閉鎖"),
+                    Err(_) => println!("rx1 closed"),
                 }
             }
             recv(rx2) -> msg => {
                 match msg {
                     Ok(m) => println!("rx2: {}", m),
-                    Err(_) => println!("rx2 閉鎖"),
+                    Err(_) => println!("rx2 closed"),
                 }
             }
             recv(ticker) -> _ => {
                 println!("tick");
             }
             recv(timeout) -> _ => {
-                println!("タイムアウト!");
+                println!("timeout!");
                 break;
             }
         }
@@ -774,9 +775,9 @@ fn main() {
 
 ---
 
-## 5. rayon — データ並列処理
+## 5. rayon — Data Parallelism
 
-### コード例6: 並列イテレータ
+### Code Example 6: Parallel Iterators
 
 ```rust
 use rayon::prelude::*;
@@ -784,34 +785,34 @@ use rayon::prelude::*;
 fn main() {
     let data: Vec<u64> = (0..10_000_000).collect();
 
-    // 並列 map + filter + sum
+    // Parallel map + filter + sum
     let sum: u64 = data.par_iter()
         .filter(|&&x| x % 2 == 0)
         .map(|&x| x * x)
         .sum();
-    println!("偶数の二乗和: {}", sum);
+    println!("Sum of squares of evens: {}", sum);
 
-    // 並列ソート
+    // Parallel sort
     let mut nums: Vec<i32> = (0..1_000_000).rev().collect();
     nums.par_sort_unstable();
     assert!(nums.windows(2).all(|w| w[0] <= w[1]));
 
-    // 並列 for_each
+    // Parallel for_each
     let results: Vec<String> = (0..100)
         .into_par_iter()
-        .map(|i| format!("処理結果#{}", i))
+        .map(|i| format!("result#{}", i))
         .collect();
-    println!("結果数: {}", results.len());
+    println!("Result count: {}", results.len());
 }
 ```
 
-### コード例7: カスタムスレッドプール
+### Code Example 7: Custom Thread Pool
 
 ```rust
 use rayon::ThreadPoolBuilder;
 
 fn main() {
-    // カスタムスレッドプール (スレッド数制御)
+    // Custom thread pool (control number of threads)
     let pool = ThreadPoolBuilder::new()
         .num_threads(4)
         .thread_name(|index| format!("worker-{}", index))
@@ -821,10 +822,10 @@ fn main() {
     pool.install(|| {
         let data: Vec<i64> = (0..1_000_000).collect();
         let sum: i64 = data.par_iter().sum();
-        println!("合計: {}", sum);
+        println!("Sum: {}", sum);
     });
 
-    // join — 2つの処理を並列実行
+    // join — run two computations in parallel
     let (left, right) = rayon::join(
         || expensive_computation_a(),
         || expensive_computation_b(),
@@ -836,13 +837,13 @@ fn expensive_computation_a() -> u64 { (0..1_000_000u64).sum() }
 fn expensive_computation_b() -> u64 { (0..500_000u64).map(|x| x * 2).sum() }
 ```
 
-### コード例: rayon の高度な使い方
+### Code Example: Advanced Use of rayon
 
 ```rust
 use rayon::prelude::*;
 use std::collections::HashMap;
 
-/// 並列 reduce による集計
+/// Aggregation via parallel reduce
 fn parallel_word_count(texts: &[String]) -> HashMap<String, usize> {
     texts
         .par_iter()
@@ -866,7 +867,7 @@ fn parallel_word_count(texts: &[String]) -> HashMap<String, usize> {
         )
 }
 
-/// 並列 find (最初に条件を満たす要素を探す)
+/// Parallel find (first element satisfying the condition)
 fn parallel_find_prime(range: std::ops::Range<u64>) -> Option<u64> {
     range.into_par_iter().find_any(|&n| is_prime(n))
 }
@@ -879,48 +880,48 @@ fn is_prime(n: u64) -> bool {
     (3..=limit).step_by(2).all(|i| n % i != 0)
 }
 
-/// 並列チャンクプロセッシング
+/// Parallel chunk processing
 fn parallel_chunk_processing(data: &[u8]) -> Vec<u32> {
     data.par_chunks(1024)
         .map(|chunk| {
-            // 各チャンクの処理（例: チェックサム計算）
+            // Process each chunk (e.g., checksum computation)
             chunk.iter().map(|&b| b as u32).sum()
         })
         .collect()
 }
 
 fn main() {
-    // 並列ワードカウント
+    // Parallel word count
     let texts: Vec<String> = (0..1000)
         .map(|i| format!("hello world rust programming hello rust {}", i))
         .collect();
     let counts = parallel_word_count(&texts);
-    println!("'hello' の出現回数: {}", counts.get("hello").unwrap_or(&0));
-    println!("'rust' の出現回数: {}", counts.get("rust").unwrap_or(&0));
+    println!("Occurrences of 'hello': {}", counts.get("hello").unwrap_or(&0));
+    println!("Occurrences of 'rust': {}", counts.get("rust").unwrap_or(&0));
 
-    // 並列検索
+    // Parallel search
     let prime = parallel_find_prime(1_000_000..1_001_000);
-    println!("見つかった素数: {:?}", prime);
+    println!("Found prime: {:?}", prime);
 
-    // チャンク処理
+    // Chunk processing
     let data: Vec<u8> = (0..10_000).map(|i| (i % 256) as u8).collect();
     let checksums = parallel_chunk_processing(&data);
-    println!("チャンク数: {}, 最初のチェックサム: {}", checksums.len(), checksums[0]);
+    println!("Chunk count: {}, first checksum: {}", checksums.len(), checksums[0]);
 }
 ```
 
 ---
 
-## 6. 高度な並行パターン
+## 6. Advanced Concurrency Patterns
 
-### コード例: Read-Copy-Update (RCU) パターン
+### Code Example: Read-Copy-Update (RCU) Pattern
 
 ```rust
 use std::sync::{Arc, atomic::{AtomicPtr, Ordering}};
 use std::thread;
 
-/// Arc ベースの Read-Copy-Update パターン
-/// 読み取りはロックフリー、書き込みは新しいデータを作成して置き換え
+/// Arc-based Read-Copy-Update pattern
+/// Reads are lock-free; writes create new data and replace it
 struct RcuConfig {
     data: std::sync::RwLock<Arc<ConfigData>>,
 }
@@ -939,12 +940,12 @@ impl RcuConfig {
         }
     }
 
-    /// 読み取り: Arc のクローンを取得 (高速)
+    /// Read: get a clone of the Arc (fast)
     fn read(&self) -> Arc<ConfigData> {
         Arc::clone(&self.data.read().unwrap())
     }
 
-    /// 更新: 新しいデータで置き換え
+    /// Update: replace with new data
     fn update<F>(&self, f: F)
     where
         F: FnOnce(&ConfigData) -> ConfigData,
@@ -962,22 +963,22 @@ fn main() {
         timeout_ms: 5000,
     }));
 
-    // 読み取りスレッド群
+    // Reader threads
     let mut readers = vec![];
     for id in 0..5 {
         let config = Arc::clone(&config);
         readers.push(thread::spawn(move || {
             for _ in 0..100 {
                 let data = config.read();
-                // 読み取りはロックフリー (Arc::clone のみ)
+                // Reads are lock-free (just Arc::clone)
                 let _url = &data.database_url;
                 let _max = data.max_connections;
             }
-            println!("[Reader {}] 完了", id);
+            println!("[Reader {}] complete", id);
         }));
     }
 
-    // 書き込みスレッド
+    // Writer thread
     let config_writer = Arc::clone(&config);
     let writer = thread::spawn(move || {
         for i in 0..10 {
@@ -987,28 +988,28 @@ fn main() {
             });
             thread::sleep(std::time::Duration::from_millis(10));
         }
-        println!("[Writer] 完了");
+        println!("[Writer] complete");
     });
 
     for r in readers { r.join().unwrap(); }
     writer.join().unwrap();
 
     let final_config = config.read();
-    println!("最終 max_connections: {}", final_config.max_connections);
+    println!("Final max_connections: {}", final_config.max_connections);
 }
 ```
 
-### コード例: ダブルバッファリングパターン
+### Code Example: Double Buffering Pattern
 
 ```rust
 use std::sync::{Arc, RwLock, atomic::{AtomicBool, Ordering}};
 use std::thread;
 use std::time::Duration;
 
-/// ダブルバッファ: 読み取りと書き込みを分離
+/// Double buffer: separate reads and writes
 struct DoubleBuffer<T: Clone> {
     buffers: [RwLock<T>; 2],
-    active: std::sync::atomic::AtomicUsize, // 現在のアクティブバッファ (0 or 1)
+    active: std::sync::atomic::AtomicUsize, // currently active buffer (0 or 1)
 }
 
 impl<T: Clone> DoubleBuffer<T> {
@@ -1022,13 +1023,13 @@ impl<T: Clone> DoubleBuffer<T> {
         }
     }
 
-    /// 読み取り: アクティブバッファから (ロック競合最小)
+    /// Read: from the active buffer (minimum lock contention)
     fn read(&self) -> std::sync::RwLockReadGuard<'_, T> {
         let idx = self.active.load(Ordering::Acquire);
         self.buffers[idx].read().unwrap()
     }
 
-    /// 書き込み: 非アクティブバッファに書き込んでスワップ
+    /// Write: write to the inactive buffer and swap
     fn write<F>(&self, update_fn: F)
     where
         F: FnOnce(&T) -> T,
@@ -1036,7 +1037,7 @@ impl<T: Clone> DoubleBuffer<T> {
         let active = self.active.load(Ordering::Acquire);
         let inactive = 1 - active;
 
-        // 非アクティブバッファに新しいデータを書き込み
+        // Write new data to the inactive buffer
         {
             let current = self.buffers[active].read().unwrap();
             let new_data = update_fn(&current);
@@ -1044,7 +1045,7 @@ impl<T: Clone> DoubleBuffer<T> {
             *inactive_guard = new_data;
         }
 
-        // バッファをスワップ
+        // Swap the buffers
         self.active.store(inactive, Ordering::Release);
     }
 }
@@ -1054,7 +1055,7 @@ fn main() {
 
     let running = Arc::new(AtomicBool::new(true));
 
-    // 読み取りスレッド
+    // Reader thread
     let buf_reader = Arc::clone(&buffer);
     let run_r = Arc::clone(&running);
     let reader = thread::spawn(move || {
@@ -1064,10 +1065,10 @@ fn main() {
             let _sum: u64 = data.iter().sum();
             reads += 1;
         }
-        println!("読み取り回数: {}", reads);
+        println!("Read count: {}", reads);
     });
 
-    // 書き込みスレッド
+    // Writer thread
     let buf_writer = Arc::clone(&buffer);
     for i in 0..100 {
         buf_writer.write(|old| {
@@ -1080,18 +1081,18 @@ fn main() {
     reader.join().unwrap();
 
     let final_data = buffer.read();
-    println!("最終値[0]: {}", final_data[0]); // 100
+    println!("Final value[0]: {}", final_data[0]); // 100
 }
 ```
 
-### コード例: Sharded Lock (分割ロック) パターン
+### Code Example: Sharded Lock Pattern
 
 ```rust
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher, DefaultHasher};
 use std::sync::RwLock;
 
-/// ハッシュベースのシャーディングで並行性を向上
+/// Improve concurrency via hash-based sharding
 struct ShardedMap<K, V> {
     shards: Vec<RwLock<HashMap<K, V>>>,
     num_shards: usize,
@@ -1144,7 +1145,7 @@ fn main() {
     let map = Arc::new(ShardedMap::<String, u64>::new(16));
     let mut handles = vec![];
 
-    // 並行書き込み
+    // Concurrent writes
     for t in 0..8 {
         let map = Arc::clone(&map);
         handles.push(thread::spawn(move || {
@@ -1156,9 +1157,9 @@ fn main() {
     }
 
     for h in handles { h.join().unwrap(); }
-    println!("ShardedMap エントリ数: {}", map.len()); // 80000
+    println!("ShardedMap entry count: {}", map.len()); // 80000
 
-    // 並行読み取り
+    // Concurrent reads
     let value = map.get(&"key_3_500".to_string());
     println!("key_3_500 = {:?}", value);
 }
@@ -1166,98 +1167,98 @@ fn main() {
 
 ---
 
-## 7. 比較表
+## 7. Comparison Tables
 
-### 同期プリミティブ比較
+### Synchronization Primitive Comparison
 
-| プリミティブ | 用途 | オーバーヘッド | 特徴 |
+| Primitive | Use Case | Overhead | Characteristics |
 |---|---|---|---|
-| `Mutex<T>` | 排他アクセス | 中 | 最も汎用的 |
-| `RwLock<T>` | 読み取り並行 | 中〜高 | 読み取り多・書き込み少向け |
-| `Atomic*` | 単一値の操作 | 低 | ロックフリー。カウンタ等 |
-| `Condvar` | 待機/通知 | 中 | Mutex と組み合わせ |
-| `Barrier` | 同期点 | 低 | 全スレッド到達まで待機 |
-| `Once` / `OnceLock` | 一回限り初期化 | 最低 | lazy_static の代替 |
-| `mpsc::channel` | メッセージ送受信 | 中 | MPSC のみ |
-| `crossbeam::channel` | メッセージ送受信 | 低〜中 | MPMC、select 対応 |
+| `Mutex<T>` | Exclusive access | Medium | Most general-purpose |
+| `RwLock<T>` | Concurrent reads | Medium–High | Suited for read-heavy/write-light |
+| `Atomic*` | Single-value operations | Low | Lock-free. Good for counters |
+| `Condvar` | Wait/notify | Medium | Combined with Mutex |
+| `Barrier` | Sync point | Low | Wait for all threads to arrive |
+| `Once` / `OnceLock` | One-time initialization | Lowest | Replacement for lazy_static |
+| `mpsc::channel` | Message send/receive | Medium | MPSC only |
+| `crossbeam::channel` | Message send/receive | Low–Medium | MPMC, supports select |
 
-### 並行パターン比較
+### Concurrency Pattern Comparison
 
-| パターン | 適用場面 | Rustでの実現手段 |
+| Pattern | When to Use | Implementation in Rust |
 |---|---|---|
-| 共有メモリ | 状態の直接共有 | Arc<Mutex<T>>, Arc<RwLock<T>> |
-| メッセージパッシング | 分離された状態 | mpsc, crossbeam-channel |
-| データ並列 | 同じ操作を大量データに | rayon par_iter |
-| アクターモデル | 独立したエンティティ | tokio::spawn + mpsc |
-| ロックフリー | 超高頻度アクセス | Atomic*, crossbeam |
-| RCU | 読み取り優位 | Arc + RwLock / AtomicPtr |
-| シャーディング | 大量キーの並行アクセス | ShardedMap (DashMap) |
-| ダブルバッファ | 読み書き分離 | Atomic index + buffer pair |
+| Shared memory | Direct sharing of state | Arc<Mutex<T>>, Arc<RwLock<T>> |
+| Message passing | Isolated state | mpsc, crossbeam-channel |
+| Data parallelism | Same operation on lots of data | rayon par_iter |
+| Actor model | Independent entities | tokio::spawn + mpsc |
+| Lock-free | Ultra-high frequency access | Atomic*, crossbeam |
+| RCU | Read-dominant | Arc + RwLock / AtomicPtr |
+| Sharding | Concurrent access to many keys | ShardedMap (DashMap) |
+| Double buffer | Read/write separation | Atomic index + buffer pair |
 
-### Ordering の使い分け
+### When to Use Which Ordering
 
-| Ordering | 用途 | 性能 | 保証 |
+| Ordering | Use Case | Performance | Guarantee |
 |---|---|---|---|
-| `Relaxed` | カウンタ、フラグ (単純) | 最高 | 順序保証なし |
-| `Acquire` | ロック取得、データ読み取り | 高 | 後続の読み書きが前に来ない |
-| `Release` | ロック解放、データ公開 | 高 | 先行の読み書きが後に来ない |
-| `AcqRel` | CAS (compare-and-swap) | 中 | Acquire + Release |
-| `SeqCst` | 全順序が必要な場合 | 低 | 全スレッドで順序一致 |
+| `Relaxed` | Counters, simple flags | Highest | No ordering guarantee |
+| `Acquire` | Lock acquisition, data read | High | Subsequent reads/writes don't move before |
+| `Release` | Lock release, data publication | High | Preceding reads/writes don't move after |
+| `AcqRel` | CAS (compare-and-swap) | Medium | Acquire + Release |
+| `SeqCst` | When total order is required | Low | Order is consistent across all threads |
 
 ---
 
-## 8. アンチパターン
+## 8. Anti-patterns
 
-### アンチパターン1: ロック粒度が大きすぎる
+### Anti-pattern 1: Lock Granularity Too Coarse
 
 ```rust
 use std::sync::{Arc, Mutex};
 
-// NG: 構造体全体を1つの Mutex で保護
+// NG: Protect the whole struct with a single Mutex
 struct BadCache {
     data: Mutex<(Vec<String>, std::collections::HashMap<String, String>)>,
 }
-// → data と index のどちらかだけ使いたい時も全体をロック
+// → Locks the whole thing even when only data or only index is needed
 
-// OK: 細粒度ロック
+// OK: Fine-grained locking
 struct GoodCache {
     data: Mutex<Vec<String>>,
     index: Mutex<std::collections::HashMap<String, String>>,
 }
-// → data と index を独立にロックできる
-// ※ ただしデッドロックに注意: 常に同じ順序でロック
+// → data and index can be locked independently
+// * Beware deadlocks: always lock in the same order
 ```
 
-### アンチパターン2: Mutex のロック保持中に長時間処理
+### Anti-pattern 2: Holding a Mutex Lock During Long Operations
 
 ```rust
 use std::sync::{Arc, Mutex};
 
-// NG: ロック保持中にネットワーク呼び出し
+// NG: Network call while holding the lock
 fn bad_update(cache: &Mutex<Vec<String>>) {
     let mut data = cache.lock().unwrap();
-    let new_item = fetch_from_network(); // 長時間ブロック!
+    let new_item = fetch_from_network(); // long-blocking call!
     data.push(new_item);
 }
 
-// OK: ロック外で処理、最小限のロック
+// OK: Do work outside the lock; minimal lock scope
 fn good_update(cache: &Mutex<Vec<String>>) {
-    let new_item = fetch_from_network(); // ロック外で取得
+    let new_item = fetch_from_network(); // fetched outside the lock
     let mut data = cache.lock().unwrap();
     data.push(new_item);
-    // ロック保持時間は最小限
+    // Lock-hold time minimized
 }
 
 fn fetch_from_network() -> String { "data".into() }
 ```
 
-### アンチパターン3: デッドロック
+### Anti-pattern 3: Deadlock
 
 ```rust
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-// NG: ロック順序が逆 → デッドロックの危険
+// NG: Reverse lock order → risk of deadlock
 fn deadlock_example() {
     let a = Arc::new(Mutex::new(1));
     let b = Arc::new(Mutex::new(2));
@@ -1265,7 +1266,7 @@ fn deadlock_example() {
     let a1 = Arc::clone(&a);
     let b1 = Arc::clone(&b);
     let t1 = thread::spawn(move || {
-        let _a = a1.lock().unwrap(); // A → B の順
+        let _a = a1.lock().unwrap(); // order: A → B
         thread::sleep(std::time::Duration::from_millis(10));
         let _b = b1.lock().unwrap();
     });
@@ -1273,7 +1274,7 @@ fn deadlock_example() {
     let a2 = Arc::clone(&a);
     let b2 = Arc::clone(&b);
     let t2 = thread::spawn(move || {
-        let _b = b2.lock().unwrap(); // B → A の順 (逆!) → デッドロック!
+        let _b = b2.lock().unwrap(); // order: B → A (reversed!) → deadlock!
         thread::sleep(std::time::Duration::from_millis(10));
         let _a = a2.lock().unwrap();
     });
@@ -1282,7 +1283,7 @@ fn deadlock_example() {
     // t2.join().unwrap();
 }
 
-// OK: 常に同じ順序でロック
+// OK: Always lock in the same order
 fn no_deadlock() {
     let a = Arc::new(Mutex::new(1));
     let b = Arc::new(Mutex::new(2));
@@ -1290,14 +1291,14 @@ fn no_deadlock() {
     let a1 = Arc::clone(&a);
     let b1 = Arc::clone(&b);
     let t1 = thread::spawn(move || {
-        let _a = a1.lock().unwrap(); // 常に A → B の順
+        let _a = a1.lock().unwrap(); // always order A → B
         let _b = b1.lock().unwrap();
     });
 
     let a2 = Arc::clone(&a);
     let b2 = Arc::clone(&b);
     let t2 = thread::spawn(move || {
-        let _a = a2.lock().unwrap(); // 常に A → B の順
+        let _a = a2.lock().unwrap(); // always order A → B
         let _b = b2.lock().unwrap();
     });
 
@@ -1306,26 +1307,26 @@ fn no_deadlock() {
 }
 
 fn main() {
-    // deadlock_example(); // これはデッドロックする可能性がある
-    no_deadlock(); // 安全
-    println!("デッドロックなし");
+    // deadlock_example(); // this may deadlock
+    no_deadlock(); // safe
+    println!("No deadlock");
 }
 ```
 
-### アンチパターン4: 不要なロック / Atomic の過剰使用
+### Anti-pattern 4: Unnecessary Locks / Overuse of Atomics
 
 ```rust
 use std::sync::atomic::{AtomicU64, Ordering};
 
-// NG: 単一スレッドなのに Atomic を使う
+// NG: Using Atomic in a single-threaded context
 fn single_threaded_bad() {
     let counter = AtomicU64::new(0);
     for _ in 0..1_000_000 {
-        counter.fetch_add(1, Ordering::SeqCst); // オーバーヘッドが無駄
+        counter.fetch_add(1, Ordering::SeqCst); // wasted overhead
     }
 }
 
-// OK: 単一スレッドなら通常の変数で十分
+// OK: A regular variable suffices for single-threaded use
 fn single_threaded_good() {
     let mut counter: u64 = 0;
     for _ in 0..1_000_000 {
@@ -1333,16 +1334,16 @@ fn single_threaded_good() {
     }
 }
 
-// NG: SeqCst を全てに使う (必要以上に厳しい順序保証)
+// NG: Using SeqCst everywhere (stricter ordering than necessary)
 fn overly_strict() {
     let counter = AtomicU64::new(0);
-    counter.fetch_add(1, Ordering::SeqCst); // カウンタなら Relaxed で十分
+    counter.fetch_add(1, Ordering::SeqCst); // Relaxed is enough for a counter
 }
 
-// OK: 用途に合った Ordering を選択
+// OK: Choose the Ordering that fits the use case
 fn appropriate_ordering() {
     let counter = AtomicU64::new(0);
-    counter.fetch_add(1, Ordering::Relaxed); // カウンタ → Relaxed で十分
+    counter.fetch_add(1, Ordering::Relaxed); // counter → Relaxed is enough
 }
 
 fn main() {
@@ -1354,45 +1355,45 @@ fn main() {
 
 ---
 
-## 実践演習
+## Hands-on Exercises
 
-### 演習1: 基本的な実装
+### Exercise 1: Basic Implementation
 
-以下の要件を満たすコードを実装してください。
+Implement code that satisfies the following requirements.
 
-**要件:**
-- 入力データの検証を行うこと
-- エラーハンドリングを適切に実装すること
-- テストコードも作成すること
+**Requirements:**
+- Validate the input data
+- Implement appropriate error handling
+- Also write tests
 
 ```python
-# 演習1: 基本実装のテンプレート
+# Exercise 1: Basic implementation template
 class Exercise1:
-    """基本的な実装パターンの演習"""
+    """Exercise for basic implementation patterns"""
 
     def __init__(self):
         self.data = []
 
     def validate_input(self, value):
-        """入力値の検証"""
+        """Validate the input value"""
         if value is None:
-            raise ValueError("入力値がNoneです")
+            raise ValueError("Input value is None")
         return True
 
     def process(self, value):
-        """データ処理のメインロジック"""
+        """Main data-processing logic"""
         self.validate_input(value)
         self.data.append(value)
         return self.data
 
     def get_results(self):
-        """処理結果の取得"""
+        """Get processing results"""
         return {
             'count': len(self.data),
             'data': self.data
         }
 
-# テスト
+# Tests
 def test_exercise1():
     ex = Exercise1()
     assert ex.process(1) == [1]
@@ -1401,26 +1402,26 @@ def test_exercise1():
 
     try:
         ex.process(None)
-        assert False, "例外が発生するべき"
+        assert False, "An exception should have been raised"
     except ValueError:
         pass
 
-    print("全テスト合格!")
+    print("All tests passed!")
 
 test_exercise1()
 ```
 
-### 演習2: 応用パターン
+### Exercise 2: Advanced Patterns
 
-基本実装を拡張して、以下の機能を追加してください。
+Extend the basic implementation by adding the following features.
 
 ```python
-# 演習2: 応用パターン
+# Exercise 2: Advanced patterns
 from typing import List, Dict, Optional
 from datetime import datetime
 
 class AdvancedExercise:
-    """応用パターンの演習"""
+    """Exercise for advanced patterns"""
 
     def __init__(self, max_size: int = 100):
         self._items: List[Dict] = []
@@ -1428,7 +1429,7 @@ class AdvancedExercise:
         self._created_at = datetime.now()
 
     def add(self, key: str, value: any) -> bool:
-        """アイテムの追加（サイズ制限付き）"""
+        """Add an item (with size limit)"""
         if len(self._items) >= self._max_size:
             return False
         self._items.append({
@@ -1439,14 +1440,14 @@ class AdvancedExercise:
         return True
 
     def find(self, key: str) -> Optional[Dict]:
-        """キーによる検索"""
+        """Search by key"""
         for item in reversed(self._items):
             if item['key'] == key:
                 return item
         return None
 
     def remove(self, key: str) -> bool:
-        """キーによる削除"""
+        """Remove by key"""
         for i, item in enumerate(self._items):
             if item['key'] == key:
                 self._items.pop(i)
@@ -1454,7 +1455,7 @@ class AdvancedExercise:
         return False
 
     def stats(self) -> Dict:
-        """統計情報"""
+        """Statistics"""
         return {
             'total_items': len(self._items),
             'max_size': self._max_size,
@@ -1462,44 +1463,44 @@ class AdvancedExercise:
             'uptime': str(datetime.now() - self._created_at)
         }
 
-# テスト
+# Tests
 def test_advanced():
     ex = AdvancedExercise(max_size=3)
     assert ex.add("a", 1) == True
     assert ex.add("b", 2) == True
     assert ex.add("c", 3) == True
-    assert ex.add("d", 4) == False  # サイズ制限
+    assert ex.add("d", 4) == False  # size limit
     assert ex.find("b")['value'] == 2
     assert ex.remove("b") == True
     assert ex.find("b") is None
     stats = ex.stats()
     assert stats['total_items'] == 2
-    print("応用テスト全合格!")
+    print("All advanced tests passed!")
 
 test_advanced()
 ```
 
-### 演習3: パフォーマンス最適化
+### Exercise 3: Performance Optimization
 
-以下のコードのパフォーマンスを改善してください。
+Improve the performance of the following code.
 
 ```python
-# 演習3: パフォーマンス最適化
+# Exercise 3: Performance optimization
 import time
 from functools import lru_cache
 
-# 最適化前（O(n^2)）
+# Before optimization (O(n^2))
 def slow_search(data: list, target: int) -> int:
-    """非効率な検索"""
+    """Inefficient search"""
     for i in range(len(data)):
         for j in range(i + 1, len(data)):
             if data[i] + data[j] == target:
                 return (i, j)
     return (-1, -1)
 
-# 最適化後（O(n)）
+# After optimization (O(n))
 def fast_search(data: list, target: int) -> tuple:
-    """ハッシュマップを使った効率的な検索"""
+    """Efficient search using a hash map"""
     seen = {}
     for i, num in enumerate(data):
         complement = target - num
@@ -1508,7 +1509,7 @@ def fast_search(data: list, target: int) -> tuple:
         seen[num] = i
     return (-1, -1)
 
-# ベンチマーク
+# Benchmark
 def benchmark():
     import random
     data = list(range(5000))
@@ -1523,57 +1524,57 @@ def benchmark():
     result2 = fast_search(data, target)
     fast_time = time.time() - start
 
-    print(f"非効率版: {slow_time:.4f}秒")
-    print(f"効率版:   {fast_time:.6f}秒")
-    print(f"高速化率: {slow_time/fast_time:.0f}倍")
+    print(f"Inefficient: {slow_time:.4f}s")
+    print(f"Efficient:   {fast_time:.6f}s")
+    print(f"Speedup:     {slow_time/fast_time:.0f}x")
 
 benchmark()
 ```
 
-**ポイント:**
-- アルゴリズムの計算量を意識する
-- 適切なデータ構造を選択する
-- ベンチマークで効果を測定する
+**Key points:**
+- Be aware of algorithmic complexity
+- Choose appropriate data structures
+- Measure the impact with benchmarks
 ---
 
 ## FAQ
 
-### Q1: `Arc<Mutex<T>>` と `Arc<RwLock<T>>` はどちらを使うべき?
+### Q1: Should I use `Arc<Mutex<T>>` or `Arc<RwLock<T>>`?
 
-**A:** 書き込みが少なく読み取りが多い場合は `RwLock` が有利です。書き込みが頻繁、またはロック保持時間が短い場合は `Mutex` の方がオーバーヘッドが少ないです。迷ったら `Mutex` から始めましょう。
+**A:** When writes are infrequent and reads are frequent, `RwLock` has the advantage. When writes are frequent or lock-hold times are short, `Mutex` has lower overhead. When in doubt, start with `Mutex`.
 
-### Q2: `parking_lot` の Mutex と標準ライブラリの違いは?
+### Q2: What's the difference between `parking_lot`'s Mutex and the standard library's?
 
-**A:** `parking_lot::Mutex` は (1) ポイズニングなし(unwrap不要) (2) サイズが小さい(8バイト vs 40バイト) (3) 公平性オプションあり (4) `const fn` 対応。パフォーマンスクリティカルな用途で推奨されます。
+**A:** `parking_lot::Mutex` (1) has no poisoning (no unwrap needed), (2) is smaller (8 bytes vs 40 bytes), (3) supports a fairness option, and (4) supports `const fn`. It's recommended for performance-critical use cases.
 
-### Q3: rayon はいつ使うべき?
+### Q3: When should I use rayon?
 
-**A:** CPU バウンドな処理で、データを分割して独立に処理できる場合に最適です。`.iter()` を `.par_iter()` に変えるだけで並列化できる手軽さが魅力です。I/Oバウンドな処理には tokio を使ってください。
+**A:** It's ideal for CPU-bound work where data can be split and processed independently. Its appeal is the ease of parallelizing—just change `.iter()` to `.par_iter()`. For I/O-bound work, use tokio.
 
-### Q4: チャネルと共有メモリのどちらを使うべき?
+### Q4: Should I use channels or shared memory?
 
-**A:** 一般的にチャネル（メッセージパッシング）が推奨です。状態を各スレッド内に閉じ込め、メッセージでやり取りする方がバグが少なくなります。ただし、大量のデータを頻繁に共有する必要がある場合は共有メモリの方が効率的です。
+**A:** Generally, channels (message passing) are preferred. Keeping state confined to each thread and exchanging messages tends to produce fewer bugs. However, when large amounts of data must be shared frequently, shared memory is more efficient.
 
 ```rust
-// パターン: チャネルが適する場面
-// - パイプライン処理 (A → B → C)
+// Pattern: when channels fit
+// - Pipeline processing (A → B → C)
 // - Producer-Consumer
-// - イベント通知
-// - 分散集計
+// - Event notification
+// - Distributed aggregation
 
-// パターン: 共有メモリが適する場面
-// - 頻繁な読み取り (キャッシュ、設定)
-// - 大量データの共有 (データベース接続プール)
-// - 高頻度のカウンタ/メトリクス
+// Pattern: when shared memory fits
+// - Frequent reads (caches, configuration)
+// - Sharing large amounts of data (DB connection pools)
+// - High-frequency counters/metrics
 ```
 
-### Q5: `thread::scope` と `thread::spawn` の使い分けは?
+### Q5: When should I use `thread::scope` vs `thread::spawn`?
 
-**A:** ローカル変数を参照したい場合は `thread::scope` が安全で便利です。`'static` ライフタイムの制約がないため、Arc によるヒープ割当が不要になります。ただし、スコープ外でスレッドを管理したい場合（バックグラウンドスレッド等）は `thread::spawn` が必要です。
+**A:** When you want to reference local variables, `thread::scope` is safer and more convenient. There's no `'static` lifetime requirement, so heap allocation via Arc isn't needed. When you need to manage threads outside of a scope (e.g., background threads), `thread::spawn` is required.
 
-### Q6: DashMap とは何ですか?
+### Q6: What is DashMap?
 
-**A:** `DashMap` は `dashmap` クレートが提供するスレッドセーフな HashMap です。内部的にシャーディング（前述の ShardedMap パターン）を使用しており、`Arc<RwLock<HashMap>>` より高い並行性能を発揮します。
+**A:** `DashMap` is a thread-safe HashMap provided by the `dashmap` crate. It uses sharding internally (the ShardedMap pattern shown earlier) and delivers better concurrency than `Arc<RwLock<HashMap>>`.
 
 ```rust
 // Cargo.toml: dashmap = "5"
@@ -1584,15 +1585,15 @@ fn main() {
     map.insert("key1", 42);
     map.insert("key2", 100);
 
-    // 読み取り
+    // Read
     if let Some(value) = map.get("key1") {
         println!("key1 = {}", *value);
     }
 
-    // 更新
+    // Update
     map.entry("key1").and_modify(|v| *v += 1).or_insert(0);
 
-    // イテレート
+    // Iterate
     for entry in map.iter() {
         println!("{} = {}", entry.key(), entry.value());
     }
@@ -1601,30 +1602,30 @@ fn main() {
 
 ---
 
-## まとめ
+## Summary
 
-| 項目 | 要点 |
+| Item | Key Point |
 |---|---|
-| Send / Sync | コンパイル時にデータ競合を防止するマーカートレイト |
-| thread::scope | ローカル変数の参照を安全に子スレッドに渡せる |
-| Mutex | 排他ロック。最も基本的な同期手段 |
-| RwLock | 読み取り並行ロック。読み取り優位な場面向け |
-| Atomic | ロックフリーな単一値操作。カウンタ・フラグ |
-| Condvar | 条件待ち。Producer-Consumer パターン |
-| Barrier | 全スレッドの同期点。フェーズ処理向け |
-| OnceLock | スレッドセーフな一回限り初期化 |
-| mpsc / crossbeam | チャネルベースのメッセージパッシング |
-| rayon | `.par_iter()` で簡単データ並列。CPU バウンド向け |
-| ShardedMap / DashMap | 高並行性のスレッドセーフ HashMap |
-| Ordering | Relaxed < Acquire/Release < SeqCst で使い分け |
+| Send / Sync | Marker traits that prevent data races at compile time |
+| thread::scope | Safely pass references to local variables to child threads |
+| Mutex | Exclusive lock. The most fundamental synchronization mechanism |
+| RwLock | Concurrent-read lock. Suited for read-dominant scenarios |
+| Atomic | Lock-free single-value operations. For counters and flags |
+| Condvar | Wait on a condition. Producer-Consumer pattern |
+| Barrier | Synchronization point for all threads. For phase-based processing |
+| OnceLock | Thread-safe one-time initialization |
+| mpsc / crossbeam | Channel-based message passing |
+| rayon | Easy data parallelism with `.par_iter()`. For CPU-bound work |
+| ShardedMap / DashMap | High-concurrency thread-safe HashMap |
+| Ordering | Use Relaxed < Acquire/Release < SeqCst as appropriate |
 
-## 次に読むべきガイド
+## Recommended Next Reads
 
-- [FFI](./02-ffi-interop.md) — スレッド安全性とFFIの交差点
-- [Tokioランタイム](../02-async/01-tokio-runtime.md) — 非同期タスクの並行管理
-- [メモリレイアウト](./00-memory-layout.md) — false sharing とキャッシュライン
+- [FFI](./02-ffi-interop.md) — The intersection of thread safety and FFI
+- [Tokio Runtime](../02-async/01-tokio-runtime.md) — Concurrent management of async tasks
+- [Memory Layout](./00-memory-layout.md) — False sharing and cache lines
 
-## 参考文献
+## References
 
 1. **Rust Book — Fearless Concurrency**: https://doc.rust-lang.org/book/ch16-00-concurrency.html
 2. **Rayon documentation**: https://docs.rs/rayon/latest/rayon/
